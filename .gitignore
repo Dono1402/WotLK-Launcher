@@ -1,0 +1,6 @@
+artifacts/
+*.exe
+*.tmp
+*.bak
+*.log
+

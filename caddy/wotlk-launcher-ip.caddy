@@ -1,0 +1,49 @@
+http://152.228.225.7 {
+	encode zstd gzip
+
+	@launcher_binary_authorized_wotlk {
+		path /launcher/WotLK-Launcher.exe
+		header X-WotLK-Launcher-Update 1
+	}
+	handle @launcher_binary_authorized_wotlk {
+		root * /var/www/wotlk-launcher
+		file_server
+	}
+
+	@launcher_binary_authorized_transition {
+		path /launcher/WotLK-Launcher.exe
+		header X-AnimaClub-Launcher-Update 1
+	}
+	handle @launcher_binary_authorized_transition {
+		root * /var/www/wotlk-launcher
+		file_server
+	}
+
+	@launcher_binary_authorized_legacy_transition {
+		path /launcher/WotLK-Launcher.exe
+		header X-AnimaClub-Launcher-Update wotlk-launcher-self-update-v1
+	}
+	handle @launcher_binary_authorized_legacy_transition {
+		root * /var/www/wotlk-launcher
+		file_server
+	}
+
+	handle /launcher/WotLK-Launcher.exe {
+		respond 404
+	}
+
+	handle /launcher/* {
+		root * /var/www/wotlk-launcher
+		file_server
+	}
+
+	handle /wotlk/* {
+		reverse_proxy 127.0.0.1:4322 {
+			header_up Authorization "Bearer {env.WOTLK_LAUNCHER_TOKEN}"
+		}
+	}
+
+	handle {
+		respond 404
+	}
+}

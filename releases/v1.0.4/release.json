@@ -1,7 +1,7 @@
 {
   "version": "1.0.4",
   "tag": "v1.0.4",
-  "createdAt": "2026-05-28T21:20:13Z",
+  "createdAt": "2026-05-28T21:37:09Z",
   "publishedRoot": "/var/www/wotlk-launcher/launcher",
   "artifactStore": "/srv/wotlk/launcher-releases/v1.0.4",
   "assets": [

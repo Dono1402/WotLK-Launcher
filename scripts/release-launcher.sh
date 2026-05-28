@@ -27,6 +27,33 @@ sha256() {
   sha256sum "$1" | awk '{print $1}'
 }
 
+repo_from_remote() {
+  local url="$1"
+  local repo=""
+
+  case "$url" in
+    git@github.com:*)
+      repo="${url#git@github.com:}"
+      ;;
+    https://github.com/*)
+      repo="${url#https://github.com/}"
+      ;;
+    ssh://git@github.com/*)
+      repo="${url#ssh://git@github.com/}"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  repo="${repo%.git}"
+  if [[ "$repo" != */* ]]; then
+    return 1
+  fi
+
+  printf '%s\n' "$repo"
+}
+
 require_file "$manifest"
 require_file "$launcher"
 require_file "$installer"
@@ -139,6 +166,17 @@ else
 fi
 
 if git remote get-url origin >/dev/null 2>&1; then
+  origin_url="$(git remote get-url origin)"
+  repo_full_name="$(repo_from_remote "$origin_url" || true)"
+
+  if [ -n "$repo_full_name" ] && command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    if ! gh repo view "$repo_full_name" >/dev/null 2>&1; then
+      gh repo create "$repo_full_name" \
+        --private \
+        --description "WotLK Launcher releases"
+    fi
+  fi
+
   git push origin main
   git push origin "$tag"
 
@@ -158,4 +196,3 @@ else
 fi
 
 git --no-pager log --oneline --decorate -n 3
-

@@ -4,6 +4,17 @@ Remote cible: `git@github.com:Dono1402/WotLK-Launcher.git`
 
 Repo serveur pour historiser les versions publiees du launcher WotLK.
 
+## Auth GitHub serveur
+
+Une fois par serveur:
+
+```bash
+gh auth login --web --git-protocol ssh
+gh auth setup-git
+```
+
+Si le repo `Dono1402/WotLK-Launcher` n'existe pas encore, le script de release peut le creer automatiquement quand `gh` est connecte.
+
 Workflow:
 
 1. Publier les nouveaux fichiers dans `/var/www/wotlk-launcher/launcher`.

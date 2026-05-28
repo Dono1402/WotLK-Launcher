@@ -1,4 +1,6 @@
-# WotLK Launcher Releases
+# WotLK Launcher
+
+Remote cible: `git@github.com:Dono1402/WotLK-Launcher.git`
 
 Repo serveur pour historiser les versions publiees du launcher WotLK.
 
@@ -23,4 +25,3 @@ Le script:
 - cree une GitHub Release si `gh` est installe et authentifie.
 
 Les binaires ne sont pas stockes dans git. Git garde les metadonnees, les hashes et le tag de release; les assets restent dans le store serveur et peuvent etre uploades en release GitHub.
-

@@ -314,7 +314,7 @@ public partial class MainWindow : Window
             }
 
             SetGameAction(GameAction.Play);
-            SetStatus("Analyse du client...");
+            SetStatus("Comparaison du manifeste...");
             var manifest = await LoadManifestAsync(CancellationToken.None);
             if (manifest.Files.Count == 0)
             {
@@ -323,9 +323,10 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var missingOrChanged = await FindMissingOrChangedFilesAsync(manifest, updateProgress: false, CancellationToken.None);
+            var missingOrChanged = await FindMissingOrChangedFilesForManifestAsync(manifest, updateProgress: false, CancellationToken.None);
             if (missingOrChanged.Count == 0)
             {
+                SaveInstalledManifestHistory(manifest);
                 RegisterGameApplication(manifest.Version);
                 SetGameAction(GameAction.Play);
                 SetStatus("Client a jour.");
@@ -350,6 +351,126 @@ public partial class MainWindow : Window
         {
             _isRefreshingGameAction = false;
         }
+    }
+
+    private async Task<List<LauncherFile>> FindMissingOrChangedFilesForManifestAsync(LauncherManifest manifest, bool updateProgress, CancellationToken cancellationToken)
+    {
+        var fromHistory = FindMissingOrChangedFilesFromManifestHistory(manifest);
+        if (fromHistory is not null)
+        {
+            if (updateProgress)
+            {
+                ProgressText.Text = fromHistory.Count == 0 ? "Historique OK" : fromHistory.Count + " fichier(s)";
+            }
+
+            return fromHistory;
+        }
+
+        return await FindMissingOrChangedFilesAsync(manifest, updateProgress, cancellationToken);
+    }
+
+    private List<LauncherFile>? FindMissingOrChangedFilesFromManifestHistory(LauncherManifest manifest)
+    {
+        var cachedManifest = LoadInstalledManifestHistory();
+        if (cachedManifest is not null && cachedManifest.Files.Count > 0)
+        {
+            return CompareManifestFiles(manifest, cachedManifest);
+        }
+
+        var installedVersion = TryReadInstalledClientVersion();
+        var wowPath = Path.Combine(_settings.InstallPath, "Wow.exe");
+        if (!string.IsNullOrWhiteSpace(manifest.Version) &&
+            string.Equals(installedVersion, manifest.Version, StringComparison.OrdinalIgnoreCase) &&
+            File.Exists(wowPath))
+        {
+            SaveInstalledManifestHistory(manifest);
+            return [];
+        }
+
+        return null;
+    }
+
+    private static List<LauncherFile> CompareManifestFiles(LauncherManifest remoteManifest, LauncherManifest installedManifest)
+    {
+        var installedFiles = installedManifest.Files
+            .GroupBy(file => NormalizeManifestPath(file.Path), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        var missingOrChanged = new List<LauncherFile>();
+        foreach (var remoteFile in remoteManifest.Files)
+        {
+            var key = NormalizeManifestPath(remoteFile.Path);
+            if (!installedFiles.TryGetValue(key, out var installedFile) ||
+                installedFile.Size != remoteFile.Size ||
+                !string.Equals(installedFile.Sha256, remoteFile.Sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                missingOrChanged.Add(remoteFile);
+            }
+        }
+
+        return missingOrChanged;
+    }
+
+    private LauncherManifest? LoadInstalledManifestHistory()
+    {
+        var historyPath = GetInstalledManifestHistoryPath();
+        if (!File.Exists(historyPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(historyPath);
+            return JsonSerializer.Deserialize<LauncherManifest>(stream, JsonOptions);
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private void SaveInstalledManifestHistory(LauncherManifest manifest)
+    {
+        Directory.CreateDirectory(_settings.InstallPath);
+        var historyPath = GetInstalledManifestHistoryPath();
+        var options = new JsonSerializerOptions(JsonOptions)
+        {
+            WriteIndented = true
+        };
+        var json = JsonSerializer.Serialize(manifest, options);
+        File.WriteAllText(historyPath, json + Environment.NewLine, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+    }
+
+    private string? TryReadInstalledClientVersion()
+    {
+        var markerPath = Path.Combine(_settings.InstallPath, "client-install.json");
+        if (!File.Exists(markerPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(markerPath));
+            return document.RootElement.TryGetProperty("clientVersion", out var versionElement)
+                ? versionElement.GetString()
+                : null;
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private string GetInstalledManifestHistoryPath()
+    {
+        return Path.Combine(_settings.InstallPath, "client-manifest-cache.json");
+    }
+
+    private static string NormalizeManifestPath(string path)
+    {
+        return path.Replace('\\', '/').TrimStart('/').ToLowerInvariant();
     }
 
     private async Task<List<LauncherFile>> FindMissingOrChangedFilesAsync(LauncherManifest manifest, bool updateProgress, CancellationToken cancellationToken)
@@ -410,11 +531,12 @@ public partial class MainWindow : Window
             throw new InvalidOperationException("Le manifeste ne contient aucun fichier.");
         }
 
-        SetStatus("Analyse locale...");
-        var missingOrChanged = await FindMissingOrChangedFilesAsync(manifest, updateProgress: true, cancellationToken);
+        SetStatus("Comparaison du manifeste...");
+        var missingOrChanged = await FindMissingOrChangedFilesForManifestAsync(manifest, updateProgress: true, cancellationToken);
 
         if (missingOrChanged.Count == 0)
         {
+            SaveInstalledManifestHistory(manifest);
             RegisterGameApplication(manifest.Version);
             MainProgress.Value = 100;
             ProgressText.Text = "À jour";
@@ -448,6 +570,7 @@ public partial class MainWindow : Window
             downloadedBytes += file.Size;
         }
 
+        SaveInstalledManifestHistory(manifest);
         RegisterGameApplication(manifest.Version);
         MainProgress.Value = 100;
         ProgressText.Text = "Terminé";

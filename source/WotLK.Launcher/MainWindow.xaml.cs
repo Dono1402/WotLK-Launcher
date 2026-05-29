@@ -39,6 +39,7 @@ public partial class MainWindow : Window
     private bool _isRefreshingGameAction;
     private bool _isCheckingLauncherUpdate;
     private string? _announcedLauncherUpdateHash;
+    private string? _announcedGameUpdateVersion;
 
     public MainWindow()
     {
@@ -168,6 +169,7 @@ public partial class MainWindow : Window
     private async void LauncherUpdateTimer_Tick(object? sender, EventArgs e)
     {
         await CheckLauncherUpdateAsync();
+        await RefreshGameActionAsync(silentWhenUpToDate: true);
     }
 
     private async Task CheckLauncherUpdateAsync()
@@ -290,7 +292,7 @@ public partial class MainWindow : Window
         SetGameAction(File.Exists(wowPath) ? GameAction.Play : GameAction.Install);
     }
 
-    private async Task RefreshGameActionAsync()
+    private async Task RefreshGameActionAsync(bool silentWhenUpToDate = false)
     {
         if (_downloadCancellation is not null || _isRefreshingGameAction)
         {
@@ -308,18 +310,30 @@ public partial class MainWindow : Window
             if (!File.Exists(wowPath))
             {
                 SetGameAction(GameAction.Install);
-                SetStatus("Pret.");
-                ProgressText.Text = string.Empty;
+                if (!silentWhenUpToDate)
+                {
+                    SetStatus("Pret.");
+                    ProgressText.Text = string.Empty;
+                }
                 return;
             }
 
-            SetGameAction(GameAction.Play);
-            SetStatus("Comparaison du manifeste...");
+            if (!silentWhenUpToDate || _gameAction != GameAction.Update)
+            {
+                SetGameAction(GameAction.Play);
+            }
+            if (!silentWhenUpToDate)
+            {
+                SetStatus("Comparaison du manifeste...");
+            }
             var manifest = await LoadManifestAsync(CancellationToken.None);
             if (manifest.Files.Count == 0)
             {
                 SetGameAction(GameAction.Play);
-                SetStatus("Pret.");
+                if (!silentWhenUpToDate)
+                {
+                    SetStatus("Pret.");
+                }
                 return;
             }
 
@@ -327,25 +341,47 @@ public partial class MainWindow : Window
             if (missingOrChanged.Count == 0)
             {
                 SaveInstalledManifestHistory(manifest);
-                RegisterGameApplication(manifest.Version);
+                _announcedGameUpdateVersion = null;
                 SetGameAction(GameAction.Play);
-                SetStatus("Client a jour.");
-                ProgressText.Text = string.Empty;
+                if (!silentWhenUpToDate)
+                {
+                    RegisterGameApplication(manifest.Version);
+                    SetStatus("Client a jour.");
+                    ProgressText.Text = string.Empty;
+                }
+                else if (_gameAction == GameAction.Play)
+                {
+                    ProgressText.Text = string.Empty;
+                }
             }
             else
             {
                 SetGameAction(GameAction.Update);
                 SetStatus("Mise a jour disponible.");
                 ProgressText.Text = missingOrChanged.Count + " fichier(s)";
+
+                var gameUpdateKey = string.IsNullOrWhiteSpace(manifest.Version)
+                    ? missingOrChanged.Count.ToString(CultureInfo.InvariantCulture)
+                    : manifest.Version;
+                if (!string.Equals(_announcedGameUpdateVersion, gameUpdateKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    _announcedGameUpdateVersion = gameUpdateKey;
+                    AppendLog(string.IsNullOrWhiteSpace(manifest.Version)
+                        ? $"Mise a jour jeu disponible: {missingOrChanged.Count} fichier(s)."
+                        : $"Mise a jour jeu disponible: {manifest.Version} ({missingOrChanged.Count} fichier(s)).");
+                }
             }
         }
         catch (Exception ex)
         {
             var wowPath = Path.Combine(_settings.InstallPath, "Wow.exe");
             SetGameAction(File.Exists(wowPath) ? GameAction.Play : GameAction.Install);
-            SetStatus("Pret.");
-            ProgressText.Text = string.Empty;
-            AppendLog("Analyse client ignoree: " + ex.Message);
+            if (!silentWhenUpToDate)
+            {
+                SetStatus("Pret.");
+                ProgressText.Text = string.Empty;
+                AppendLog("Analyse client ignoree: " + ex.Message);
+            }
         }
         finally
         {
@@ -537,6 +573,7 @@ public partial class MainWindow : Window
         if (missingOrChanged.Count == 0)
         {
             SaveInstalledManifestHistory(manifest);
+            _announcedGameUpdateVersion = null;
             RegisterGameApplication(manifest.Version);
             MainProgress.Value = 100;
             ProgressText.Text = "À jour";
@@ -571,6 +608,7 @@ public partial class MainWindow : Window
         }
 
         SaveInstalledManifestHistory(manifest);
+        _announcedGameUpdateVersion = null;
         RegisterGameApplication(manifest.Version);
         MainProgress.Value = 100;
         ProgressText.Text = "Terminé";

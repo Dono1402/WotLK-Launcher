@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="Installer WotLK Launcher"
+        Icon="Assets/AppIcon.ico"
         Width="1280"
         Height="800"
         MinWidth="1024"

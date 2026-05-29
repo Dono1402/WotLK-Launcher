@@ -13,6 +13,13 @@ namespace WotLK.Launcher;
 
 public partial class MainWindow : Window
 {
+    private enum GameAction
+    {
+        Install,
+        Update,
+        Play
+    }
+
     private const string LauncherUpdateManifestUrl = "http://152.228.225.7/launcher/launcher-update.json";
     private const string LauncherUpdateRequestHeader = "X-WotLK-Launcher-Update";
     private const string LauncherUpdateRequestMarker = "1";
@@ -28,6 +35,8 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _launcherUpdateTimer;
     private CancellationTokenSource? _downloadCancellation;
     private LauncherUpdateManifest? _launcherUpdate;
+    private GameAction _gameAction = GameAction.Install;
+    private bool _isRefreshingGameAction;
     private bool _isCheckingLauncherUpdate;
     private string? _announcedLauncherUpdateHash;
 
@@ -50,7 +59,9 @@ public partial class MainWindow : Window
         _launcherUpdateTimer.Tick += LauncherUpdateTimer_Tick;
 
         AppendLog("Launcher prêt.");
+        SetGameAction(GameAction.Install);
         _ = CheckLauncherUpdateAsync();
+        _ = RefreshGameActionAsync();
         _launcherUpdateTimer.Start();
     }
 
@@ -92,18 +103,31 @@ public partial class MainWindow : Window
 
     private async void UpdateButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_downloadCancellation is not null)
+        {
+            _downloadCancellation.Cancel();
+            return;
+        }
+
         SaveSettingsFromUi();
+        if (_gameAction == GameAction.Play)
+        {
+            PlayGame();
+            return;
+        }
+
         _downloadCancellation = new CancellationTokenSource();
         SetBusy(true);
 
         try
         {
             await InstallOrUpdateAsync(_downloadCancellation.Token);
+            await RefreshGameActionAsync();
         }
         catch (OperationCanceledException)
         {
-            SetStatus("Annulé.");
-            AppendLog("Opération annulée.");
+            SetStatus("Annule.");
+            AppendLog("Operation annulee.");
         }
         catch (Exception ex)
         {
@@ -119,19 +143,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private void CancelButton_Click(object sender, RoutedEventArgs e)
+    private void PlayGame()
     {
-        _downloadCancellation?.Cancel();
-    }
-
-    private void PlayButton_Click(object sender, RoutedEventArgs e)
-    {
-        SaveSettingsFromUi();
-
         var wowPath = Path.Combine(_settings.InstallPath, "Wow.exe");
         if (!File.Exists(wowPath))
         {
-            System.Windows.MessageBox.Show(this, "Wow.exe est introuvable. Installe ou mets à jour le client d'abord.", "Client introuvable", MessageBoxButton.OK, MessageBoxImage.Warning);
+            System.Windows.MessageBox.Show(this, "Wow.exe est introuvable. Installe ou mets a jour le client d'abord.", "Client introuvable", MessageBoxButton.OK, MessageBoxImage.Warning);
+            SetGameAction(GameAction.Install);
             return;
         }
 
@@ -142,7 +160,7 @@ public partial class MainWindow : Window
             UseShellExecute = true
         });
 
-        AppendLog("Jeu lancé: " + wowPath);
+        AppendLog("Jeu lance: " + wowPath);
     }
 
     private async void LauncherUpdateTimer_Tick(object? sender, EventArgs e)
@@ -260,6 +278,104 @@ public partial class MainWindow : Window
         System.Windows.Application.Current.Shutdown();
     }
 
+    private async Task RefreshGameActionAsync()
+    {
+        if (_downloadCancellation is not null || _isRefreshingGameAction)
+        {
+            return;
+        }
+
+        _isRefreshingGameAction = true;
+        try
+        {
+            _settings.InstallPath = LauncherSettings.GetDefaultInstallPath();
+            _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
+            InstallPathBox.Text = _settings.InstallPath;
+
+            var wowPath = Path.Combine(_settings.InstallPath, "Wow.exe");
+            if (!File.Exists(wowPath))
+            {
+                SetGameAction(GameAction.Install);
+                SetStatus("Pret.");
+                ProgressText.Text = string.Empty;
+                return;
+            }
+
+            SetStatus("Analyse du client...");
+            var manifest = await LoadManifestAsync(CancellationToken.None);
+            if (manifest.Files.Count == 0)
+            {
+                SetGameAction(GameAction.Play);
+                SetStatus("Pret.");
+                return;
+            }
+
+            var missingOrChanged = await FindMissingOrChangedFilesAsync(manifest, updateProgress: false, CancellationToken.None);
+            if (missingOrChanged.Count == 0)
+            {
+                SetGameAction(GameAction.Play);
+                SetStatus("Client a jour.");
+                ProgressText.Text = string.Empty;
+            }
+            else
+            {
+                SetGameAction(GameAction.Update);
+                SetStatus("Mise a jour disponible.");
+                ProgressText.Text = missingOrChanged.Count + " fichier(s)";
+            }
+        }
+        catch (Exception ex)
+        {
+            var wowPath = Path.Combine(_settings.InstallPath, "Wow.exe");
+            SetGameAction(File.Exists(wowPath) ? GameAction.Play : GameAction.Install);
+            SetStatus("Pret.");
+            ProgressText.Text = string.Empty;
+            AppendLog("Analyse client ignoree: " + ex.Message);
+        }
+        finally
+        {
+            _isRefreshingGameAction = false;
+        }
+    }
+
+    private async Task<List<LauncherFile>> FindMissingOrChangedFilesAsync(LauncherManifest manifest, bool updateProgress, CancellationToken cancellationToken)
+    {
+        var missingOrChanged = new List<LauncherFile>();
+        var checkedCount = 0;
+
+        foreach (var file in manifest.Files)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            checkedCount++;
+            if (updateProgress)
+            {
+                ProgressText.Text = $"{checkedCount}/{manifest.Files.Count}";
+            }
+
+            var target = GetSafeTargetPath(_settings.InstallPath, file.Path);
+            if (!File.Exists(target) || new FileInfo(target).Length != file.Size)
+            {
+                missingOrChanged.Add(file);
+                continue;
+            }
+
+            try
+            {
+                var localHash = await ComputeSha256Async(target, cancellationToken);
+                if (!string.Equals(localHash, file.Sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    missingOrChanged.Add(file);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                missingOrChanged.Add(file);
+            }
+        }
+
+        return missingOrChanged;
+    }
+
     private async Task InstallOrUpdateAsync(CancellationToken cancellationToken)
     {
         _settings.InstallPath = LauncherSettings.GetDefaultInstallPath();
@@ -281,28 +397,7 @@ public partial class MainWindow : Window
         }
 
         SetStatus("Analyse locale...");
-        var missingOrChanged = new List<LauncherFile>();
-        var checkedCount = 0;
-
-        foreach (var file in manifest.Files)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            checkedCount++;
-            ProgressText.Text = $"{checkedCount}/{manifest.Files.Count}";
-
-            var target = GetSafeTargetPath(_settings.InstallPath, file.Path);
-            if (!File.Exists(target) || new FileInfo(target).Length != file.Size)
-            {
-                missingOrChanged.Add(file);
-                continue;
-            }
-
-            var localHash = await ComputeSha256Async(target, cancellationToken);
-            if (!string.Equals(localHash, file.Sha256, StringComparison.OrdinalIgnoreCase))
-            {
-                missingOrChanged.Add(file);
-            }
-        }
+        var missingOrChanged = await FindMissingOrChangedFilesAsync(manifest, updateProgress: true, cancellationToken);
 
         if (missingOrChanged.Count == 0)
         {
@@ -521,7 +616,7 @@ public partial class MainWindow : Window
 
     private static async Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken)
     {
-        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 256, useAsync: true);
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1024 * 256, useAsync: true);
         using var sha = SHA256.Create();
         var hash = await sha.ComputeHashAsync(stream, cancellationToken);
         return Convert.ToHexString(hash).ToLowerInvariant();
@@ -597,12 +692,30 @@ public partial class MainWindow : Window
         return "WotLK Launcher - v" + version;
     }
 
+    private void SetGameAction(GameAction action)
+    {
+        _gameAction = action;
+        if (_downloadCancellation is null)
+        {
+            UpdateButton.Content = GetGameActionLabel(action);
+        }
+    }
+
+    private static string GetGameActionLabel(GameAction action)
+    {
+        return action switch
+        {
+            GameAction.Play => "Jouer",
+            GameAction.Update => "Mettre a jour le jeu",
+            _ => "Installer"
+        };
+    }
+
     private void SetBusy(bool busy)
     {
         LauncherSelfUpdateButton.IsEnabled = !busy;
-        UpdateButton.IsEnabled = !busy;
-        PlayButton.IsEnabled = !busy;
-        CancelButton.IsEnabled = busy;
+        UpdateButton.IsEnabled = true;
+        UpdateButton.Content = busy ? "Annuler" : GetGameActionLabel(_gameAction);
     }
 
     private void SetStatus(string status)

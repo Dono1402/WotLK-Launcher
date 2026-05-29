@@ -1,0 +1,293 @@
+<Window x:Class="WotLK.Launcher.Installer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Installer WotLK Launcher"
+        Width="1280"
+        Height="800"
+        MinWidth="1024"
+        MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        Background="#02060B"
+        FontFamily="Georgia"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        SnapsToDevicePixels="True">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="InstallerTheme.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid Background="#02060B" ClipToBounds="True">
+        <Viewbox Stretch="Uniform">
+            <Canvas Width="1586"
+                    Height="992"
+                    Background="#02060B"
+                    ClipToBounds="True">
+                <Rectangle Width="1586"
+                           Height="992"
+                           Fill="#02060B"/>
+
+                <Image Canvas.Left="-8"
+                       Canvas.Top="52"
+                       Width="486"
+                       Height="940"
+                       Source="{StaticResource BgSidebarImage}"
+                       Stretch="Fill"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+
+                <Image Canvas.Left="474"
+                       Canvas.Top="52"
+                       Width="1112"
+                       Height="468"
+                       Source="{StaticResource BgCitadelImage}"
+                       Stretch="Fill"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+
+                <Image Canvas.Left="474"
+                       Canvas.Top="486"
+                       Width="1112"
+                       Height="506"
+                       Source="{StaticResource BgLogImage}"
+                       Stretch="Fill"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+
+                <Rectangle Canvas.Left="474"
+                           Canvas.Top="52"
+                           Width="1112"
+                           Height="940"
+                           Fill="#22000000"/>
+
+                <Image Canvas.Left="32"
+                       Canvas.Top="49"
+                       Width="1218"
+                       Height="72"
+                       Source="{StaticResource TitleDividerImage}"
+                       Stretch="Fill"
+                       Opacity="0.86"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+
+                <Image Canvas.Left="0"
+                       Canvas.Top="0"
+                       Width="1586"
+                       Height="78"
+                       Source="{StaticResource TitlebarPlateImage}"
+                       Stretch="Fill"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+
+                <Rectangle Canvas.Left="0"
+                           Canvas.Top="0"
+                           Width="1586"
+                           Height="4"
+                           Fill="#06111A"/>
+
+                <Rectangle Canvas.Left="0"
+                           Canvas.Top="0"
+                           Width="1586"
+                           Height="78"
+                           Fill="#44000000"/>
+
+                <Border Canvas.Left="0"
+                        Canvas.Top="0"
+                        Width="1586"
+                        Height="78"
+                        Background="Transparent"
+                        MouseLeftButtonDown="TitleBar_MouseLeftButtonDown"/>
+
+                <Image Canvas.Left="16"
+                       Canvas.Top="13"
+                       Width="38"
+                       Height="42"
+                       Source="{StaticResource TitleIconImage}"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+
+                <TextBlock Canvas.Left="75"
+                           Canvas.Top="24"
+                           Text="Installer WotLK Launcher"
+                           FontFamily="Segoe UI"
+                           FontSize="27"
+                           Foreground="#F2F7FF"
+                           Effect="{StaticResource TextBlackStroke}"/>
+
+                <Button Canvas.Left="1304"
+                        Canvas.Top="8"
+                        Content="&#x2212;"
+                        Style="{StaticResource InstallerWindowTitleButtonStyle}"
+                        Click="Minimize_Click"/>
+                <Button Canvas.Left="1421"
+                        Canvas.Top="8"
+                        Content="&#x25A1;"
+                        Style="{StaticResource InstallerWindowTitleButtonStyle}"
+                        Click="Maximize_Click"/>
+                <Button Canvas.Left="1511"
+                        Canvas.Top="8"
+                        Content="&#x00D7;"
+                        Style="{StaticResource InstallerWindowTitleButtonStyle}"
+                        Click="Close_Click"/>
+
+                <TextBlock Canvas.Left="55"
+                           Canvas.Top="126"
+                           Text="WotLK"
+                           FontSize="75"
+                           FontWeight="Bold"
+                           Foreground="#9BDBFF"
+                           Effect="{StaticResource StrongBlueGlow}"/>
+                <TextBlock Canvas.Left="76"
+                           Canvas.Top="242"
+                           Text="Launcher"
+                           FontSize="43"
+                           Foreground="#D8ECFF"
+                           Effect="{StaticResource SoftBlueGlow}"/>
+
+                <Image Canvas.Left="30"
+                       Canvas.Top="392"
+                       Width="410"
+                       Height="67"
+                       Source="{StaticResource StepRowActiveImage}"
+                       Stretch="Fill"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                <Image Canvas.Left="28"
+                       Canvas.Top="382"
+                       Width="94"
+                       Height="128"
+                       Source="{StaticResource MedallionActive1Image}"
+                       Stretch="Fill"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                <TextBlock Canvas.Left="130"
+                           Canvas.Top="418"
+                           Text="Installer le launcher"
+                           FontSize="29"
+                           Foreground="#BCEEFF"
+                           Effect="{StaticResource SoftBlueGlow}"/>
+
+                <Image Canvas.Left="30"
+                       Canvas.Top="521"
+                       Width="410"
+                       Height="65"
+                       Source="{StaticResource StepRowInactiveImage}"
+                       Stretch="Fill"
+                       Opacity="0.82"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                <Image Canvas.Left="30"
+                       Canvas.Top="509"
+                       Width="88"
+                       Height="119"
+                       Source="{StaticResource MedallionInactive2Image}"
+                       Stretch="Fill"
+                       Opacity="0.85"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                <TextBlock Canvas.Left="130"
+                           Canvas.Top="542"
+                           Text="Ouvrir le launcher"
+                           FontSize="28"
+                           Foreground="#BDCBE0"
+                           Opacity="0.88"
+                           Effect="{StaticResource TextBlackStroke}"/>
+
+                <Image Canvas.Left="30"
+                       Canvas.Top="644"
+                       Width="410"
+                       Height="65"
+                       Source="{StaticResource StepRowInactiveImage}"
+                       Stretch="Fill"
+                       Opacity="0.72"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                <Image Canvas.Left="30"
+                       Canvas.Top="632"
+                       Width="88"
+                       Height="119"
+                       Source="{StaticResource MedallionInactive3Image}"
+                       Stretch="Fill"
+                       Opacity="0.78"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                <TextBlock Canvas.Left="130"
+                           Canvas.Top="665"
+                           Text="Installer le jeu"
+                           FontSize="28"
+                           Foreground="#B6C4D8"
+                           Opacity="0.82"
+                           Effect="{StaticResource TextBlackStroke}"/>
+
+                <TextBlock Canvas.Left="548"
+                           Canvas.Top="128"
+                           Text="Installer le launcher"
+                           FontSize="57"
+                           FontWeight="Bold"
+                           Foreground="#EEF8FF"
+                           Effect="{StaticResource TextBlackStroke}"/>
+                <TextBlock Canvas.Left="502"
+                           Canvas.Top="215"
+                           Text="Le launcher installera ensuite le client WotLK depuis le serveur privé."
+                           FontSize="24"
+                           Foreground="#CAD9E9"
+                           Effect="{StaticResource TextBlackStroke}"/>
+
+                <TextBox x:Name="InstallPathBox"
+                         Canvas.Left="498"
+                         Canvas.Top="279"
+                         Width="1018"
+                         Height="72"
+                         Style="{StaticResource InstallerPathTextBoxStyle}"
+                         IsReadOnly="True"
+                         IsTabStop="False"
+                         Focusable="False"/>
+
+                <CheckBox x:Name="DesktopShortcutBox"
+                          Canvas.Left="498"
+                          Canvas.Top="377"
+                          Width="760"
+                          Height="48"
+                          Content="Créer un raccourci sur le bureau"
+                          Style="{StaticResource InstallerCheckBoxStyle}"
+                          IsChecked="True"/>
+                <CheckBox x:Name="LaunchAfterInstallBox"
+                          Canvas.Left="498"
+                          Canvas.Top="430"
+                          Width="760"
+                          Height="48"
+                          Content="Lancer le launcher après installation"
+                          Style="{StaticResource InstallerCheckBoxStyle}"
+                          IsChecked="True"/>
+
+                <TextBox x:Name="LogBox"
+                         Canvas.Left="498"
+                         Canvas.Top="497"
+                         Width="1018"
+                         Height="292"
+                         Style="{StaticResource InstallerLogTextBoxStyle}"
+                         IsReadOnly="True"
+                         IsTabStop="False"/>
+
+                <ProgressBar x:Name="Progress"
+                             Canvas.Left="63"
+                             Canvas.Top="856"
+                             Width="965"
+                             Height="69"
+                             Minimum="0"
+                             Maximum="100"
+                             Value="0"
+                             Style="{StaticResource InstallerProgressBarStyle}"/>
+
+                <Button x:Name="InstallButton"
+                        Canvas.Left="1062"
+                        Canvas.Top="800"
+                        Content="Installer"
+                        Style="{StaticResource InstallerPrimaryButtonStyle}"
+                        Click="Install_Click"/>
+                <Button Canvas.Left="1332"
+                        Canvas.Top="812"
+                        Content="Fermer"
+                        Style="{StaticResource InstallerCloseButtonStyle}"
+                        Click="Close_Click"/>
+            </Canvas>
+        </Viewbox>
+    </Grid>
+</Window>

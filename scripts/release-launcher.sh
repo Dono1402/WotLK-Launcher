@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 public_root="${PUBLIC_ROOT:-/var/www/wotlk-launcher/launcher}"
-legacy_root="${LEGACY_ROOT:-/var/www/animeclub/launcher}"
+legacy_root="${LEGACY_ROOT:-}"
 artifact_store="${ARTIFACT_STORE:-/srv/wotlk/launcher-releases}"
 server_root="${SERVER_ROOT:-/opt/wotlk-launcher-server}"
 caddyfile="${CADDYFILE:-/etc/caddy/Caddyfile}"
@@ -83,7 +83,7 @@ if [ "${launcher_sha,,}" != "${expected_sha,,}" ]; then
   exit 1
 fi
 
-if [ -d "$legacy_root" ]; then
+if [ -n "$legacy_root" ] && [ -d "$legacy_root" ]; then
   for name in WotLK-Launcher.exe WotLK-Launcher-Installer.exe launcher-update.json; do
     if [ -f "$legacy_root/$name" ] && ! cmp -s "$public_root/$name" "$legacy_root/$name"; then
       echo "Warning: legacy endpoint differs for $name" >&2
@@ -108,6 +108,7 @@ if [ -f "$caddyfile" ]; then
   awk '/^http:\/\/152\.228\.225\.7 \{/{flag=1} flag{print} flag && /^}/{exit}' "$caddyfile" |
     sed -E 's/Bearer [^"]+/Bearer {env.WOTLK_LAUNCHER_TOKEN}/' \
     > "$repo_root/caddy/wotlk-launcher-ip.caddy"
+  sed -E -i 's/X-[A-Za-z0-9]+-Launcher-Update/X-WotLK-Launcher-Update/g' "$repo_root/caddy/wotlk-launcher-ip.caddy"
 fi
 
 sudo mkdir -p "$artifact_store/$tag"
@@ -151,7 +152,7 @@ fi
 git config user.name "WotLK Launcher Release Bot"
 git config user.email "wotlk-launcher@atlas.local"
 
-git add .gitignore README.md scripts/release-launcher.sh current releases server caddy
+git add .gitignore README.md scripts/release-launcher.sh current releases server caddy source
 
 if git diff --cached --quiet; then
   echo "No git changes to commit for $tag."

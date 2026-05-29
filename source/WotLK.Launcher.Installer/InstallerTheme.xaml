@@ -1,0 +1,294 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <BitmapImage x:Key="BgSidebarImage" UriSource="Assets/Crops/bg_sidebar.png"/>
+    <BitmapImage x:Key="BgCitadelImage" UriSource="Assets/Crops/bg_citadel.png"/>
+    <BitmapImage x:Key="BgLogImage" UriSource="Assets/Crops/bg_log.png"/>
+    <BitmapImage x:Key="TitleIconImage" UriSource="Assets/Crops/title_icon_alpha.png"/>
+    <BitmapImage x:Key="TitleDividerImage" UriSource="Assets/Crops/title_divider_alpha.png"/>
+    <BitmapImage x:Key="TitlebarPlateImage" UriSource="Assets/Crops/titlebar_plate.png"/>
+
+    <BitmapImage x:Key="CornerTopLeftImage" UriSource="Assets/Crops/corner_tl_alpha.png"/>
+    <BitmapImage x:Key="CornerTopRightImage" UriSource="Assets/Crops/corner_tr_alpha.png"/>
+    <BitmapImage x:Key="CornerBottomLeftImage" UriSource="Assets/Crops/corner_bl_alpha.png"/>
+    <BitmapImage x:Key="CornerBottomRightImage" UriSource="Assets/Crops/corner_br_alpha.png"/>
+
+    <BitmapImage x:Key="StepRowActiveImage" UriSource="Assets/Crops/step_row_active.png"/>
+    <BitmapImage x:Key="StepRowInactiveImage" UriSource="Assets/Crops/step_row_inactive.png"/>
+    <BitmapImage x:Key="MedallionActive1Image" UriSource="Assets/Crops/medallion_active_1_alpha.png"/>
+    <BitmapImage x:Key="MedallionInactive2Image" UriSource="Assets/Crops/medallion_inactive_2_alpha.png"/>
+    <BitmapImage x:Key="MedallionInactive3Image" UriSource="Assets/Crops/medallion_inactive_3_alpha.png"/>
+
+    <BitmapImage x:Key="FieldPathImage" UriSource="Assets/Crops/field_path.png"/>
+    <BitmapImage x:Key="PanelLogImage" UriSource="Assets/Crops/panel_log.png"/>
+    <BitmapImage x:Key="CheckboxCheckedImage" UriSource="Assets/Crops/checkbox_checked.png"/>
+    <BitmapImage x:Key="CheckboxUncheckedImage" UriSource="Assets/Crops/checkbox_unchecked.png"/>
+
+    <BitmapImage x:Key="ButtonBrowseNormalImage" UriSource="Assets/Crops/btn_browse_normal_alpha.png"/>
+    <BitmapImage x:Key="ButtonBrowseHoverImage" UriSource="Assets/Crops/btn_browse_hover_alpha.png"/>
+    <BitmapImage x:Key="ButtonBrowsePressedImage" UriSource="Assets/Crops/btn_browse_pressed_alpha.png"/>
+    <BitmapImage x:Key="ButtonInstallNormalImage" UriSource="Assets/Crops/btn_install_normal_full_alpha.png"/>
+    <BitmapImage x:Key="ButtonInstallHoverImage" UriSource="Assets/Crops/btn_install_hover_full_alpha.png"/>
+    <BitmapImage x:Key="ButtonInstallPressedImage" UriSource="Assets/Crops/btn_install_pressed_full_alpha.png"/>
+    <BitmapImage x:Key="ButtonCloseNormalImage" UriSource="Assets/Crops/btn_close_normal_full_alpha.png"/>
+    <BitmapImage x:Key="ButtonCloseHoverImage" UriSource="Assets/Crops/btn_close_hover_full_alpha.png"/>
+    <BitmapImage x:Key="ButtonClosePressedImage" UriSource="Assets/Crops/btn_close_pressed_full_alpha.png"/>
+
+    <BitmapImage x:Key="ProgressFrameImage" UriSource="Assets/Crops/progress_frame_alpha.png"/>
+    <BitmapImage x:Key="ProgressFillImage" UriSource="Assets/Crops/progress_fill_alpha.png"/>
+    <BitmapImage x:Key="ProgressGlowImage" UriSource="Assets/Crops/progress_glow_alpha.png"/>
+
+    <SolidColorBrush x:Key="TextIce" Color="#EAF7FF"/>
+    <SolidColorBrush x:Key="TextMutedIce" Color="#C4D7E5"/>
+    <SolidColorBrush x:Key="TextDimIce" Color="#8FA3B2"/>
+
+    <DropShadowEffect x:Key="StrongBlueGlow" BlurRadius="18"
+                      Color="#28B8FF"
+                      ShadowDepth="0"
+                      Opacity="0.78"/>
+    <DropShadowEffect x:Key="SoftBlueGlow" BlurRadius="11"
+                      Color="#1A9BEA"
+                      ShadowDepth="0"
+                      Opacity="0.45"/>
+    <DropShadowEffect x:Key="TextBlackStroke" BlurRadius="2.2"
+                      Color="#000000"
+                      Direction="315"
+                      ShadowDepth="1.5"
+                      Opacity="0.95"/>
+
+    <Style x:Key="InstallerWindowTitleButtonStyle" TargetType="{x:Type Button}">
+        <Setter Property="Width" Value="66"/>
+        <Setter Property="Height" Value="52"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Foreground" Value="#F2F8FF"/>
+        <Setter Property="FontFamily" Value="Segoe UI"/>
+        <Setter Property="FontSize" Value="34"/>
+        <Setter Property="FontWeight" Value="Light"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border x:Name="ChromeButtonRoot"
+                            Background="{TemplateBinding Background}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ChromeButtonRoot" Property="Background" Value="#172636"/>
+                            <Setter Property="Foreground" Value="#BDEBFF"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="ChromeButtonRoot" Property="Background" Value="#203C55"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="InstallerPathTextBoxStyle" TargetType="{x:Type TextBox}">
+        <Setter Property="Foreground" Value="#F0F7FF"/>
+        <Setter Property="CaretBrush" Value="#BEEBFF"/>
+        <Setter Property="FontFamily" Value="Georgia"/>
+        <Setter Property="FontSize" Value="27"/>
+        <Setter Property="Padding" Value="26,18,22,14"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type TextBox}">
+                    <Grid RenderOptions.BitmapScalingMode="HighQuality">
+                        <Image Source="{StaticResource FieldPathImage}"
+                               Stretch="Fill"/>
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="26,0,22,0"
+                                      VerticalAlignment="Center"
+                                      VerticalScrollBarVisibility="Hidden"
+                                      HorizontalScrollBarVisibility="Hidden"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="InstallerLogTextBoxStyle" TargetType="{x:Type TextBox}">
+        <Setter Property="Foreground" Value="#D6E3F4"/>
+        <Setter Property="CaretBrush" Value="#BEEBFF"/>
+        <Setter Property="FontFamily" Value="Consolas"/>
+        <Setter Property="FontSize" Value="21"/>
+        <Setter Property="Padding" Value="34,29,34,28"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type TextBox}">
+                    <Grid RenderOptions.BitmapScalingMode="HighQuality">
+                        <Image Source="{StaticResource PanelLogImage}"
+                               Stretch="Fill"/>
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="InstallerCheckBoxStyle" TargetType="{x:Type CheckBox}">
+        <Setter Property="Foreground" Value="#E6EDF3"/>
+        <Setter Property="FontFamily" Value="Georgia"/>
+        <Setter Property="FontSize" Value="26"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type CheckBox}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="48"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Image x:Name="CheckSprite"
+                               Width="40"
+                               Height="40"
+                               HorizontalAlignment="Left"
+                               VerticalAlignment="Center"
+                               Source="{StaticResource CheckboxUncheckedImage}"
+                               Stretch="Fill"/>
+                        <ContentPresenter Grid.Column="1"
+                                          Margin="4,0,0,0"
+                                          VerticalAlignment="Center"
+                                          RecognizesAccessKey="True"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="CheckSprite" Property="Source" Value="{StaticResource CheckboxCheckedImage}"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="#FFFFFF"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="InstallerBrowseButtonStyle" TargetType="{x:Type Button}">
+        <Setter Property="Width" Value="165"/>
+        <Setter Property="Height" Value="68"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Cursor" Value="Arrow"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Image x:Name="ButtonSprite"
+                           Source="{StaticResource ButtonBrowseNormalImage}"
+                           Stretch="Fill"
+                           RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ButtonSprite" Property="Source" Value="{StaticResource ButtonBrowseHoverImage}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="ButtonSprite" Property="Source" Value="{StaticResource ButtonBrowsePressedImage}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="InstallerPrimaryButtonStyle" TargetType="{x:Type Button}">
+        <Setter Property="Width" Value="270"/>
+        <Setter Property="Height" Value="145"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Image x:Name="ButtonSprite"
+                           Source="{StaticResource ButtonInstallNormalImage}"
+                           Stretch="Fill"
+                           RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ButtonSprite" Property="Source" Value="{StaticResource ButtonInstallHoverImage}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="ButtonSprite" Property="Source" Value="{StaticResource ButtonInstallPressedImage}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="ButtonSprite" Property="Opacity" Value="0.58"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="InstallerCloseButtonStyle" TargetType="{x:Type Button}">
+        <Setter Property="Width" Value="226"/>
+        <Setter Property="Height" Value="126"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Image x:Name="ButtonSprite"
+                           Source="{StaticResource ButtonCloseNormalImage}"
+                           Stretch="Fill"
+                           RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ButtonSprite" Property="Source" Value="{StaticResource ButtonCloseHoverImage}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="ButtonSprite" Property="Source" Value="{StaticResource ButtonClosePressedImage}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="InstallerProgressBarStyle" TargetType="{x:Type ProgressBar}">
+        <Setter Property="Height" Value="69"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ProgressBar}">
+                    <Grid RenderOptions.BitmapScalingMode="HighQuality">
+                        <Border Margin="33,20,48,23"
+                                Background="#5603070B"
+                                ClipToBounds="True"/>
+                        <Border Margin="33,20,48,23"
+                                ClipToBounds="True">
+                            <Grid x:Name="PART_Track">
+                                <Grid x:Name="PART_Indicator"
+                                      HorizontalAlignment="Left"
+                                      ClipToBounds="True">
+                                    <Grid Width="{Binding ActualWidth, ElementName=PART_Track}"
+                                          Height="{Binding ActualHeight, ElementName=PART_Track}">
+                                        <Image Source="{StaticResource ProgressFillImage}"
+                                               Stretch="Fill"/>
+                                        <Image Source="{StaticResource ProgressGlowImage}"
+                                               Opacity="0.9"
+                                               Stretch="Fill"/>
+                                    </Grid>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                        <Image Source="{StaticResource ProgressFrameImage}"
+                               Stretch="Fill"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

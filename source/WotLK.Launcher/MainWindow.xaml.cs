@@ -1,0 +1,580 @@
+using System.Diagnostics;
+using System.Globalization;
+using System.IO;
+using System.Net.Http;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Windows;
+
+namespace WotLK.Launcher;
+
+public partial class MainWindow : Window
+{
+    private const string LauncherUpdateManifestUrl = "http://152.228.225.7/launcher/launcher-update.json";
+    private const string LauncherUpdateRequestHeader = "X-WotLK-Launcher-Update";
+    private const string LauncherUpdateRequestMarker = "1";
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
+    private readonly HttpClient _http = new();
+    private readonly LauncherSettings _settings;
+    private CancellationTokenSource? _downloadCancellation;
+    private LauncherUpdateManifest? _launcherUpdate;
+
+    public MainWindow()
+    {
+        InitializeComponent();
+
+        var displayName = GetLauncherDisplayName();
+        Title = displayName;
+        TitleText.Text = displayName;
+
+        _settings = LauncherSettings.Load();
+        _settings.Save();
+        InstallPathBox.Text = _settings.InstallPath;
+
+        AppendLog("Launcher prêt.");
+        _ = CheckLauncherUpdateAsync();
+    }
+
+    private async void LauncherSelfUpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        _downloadCancellation = new CancellationTokenSource();
+        SetBusy(true);
+
+        try
+        {
+            var manifest = _launcherUpdate ?? await LoadLauncherUpdateManifestAsync(_downloadCancellation.Token);
+            await UpdateLauncherAsync(manifest, _downloadCancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Annulé.");
+            AppendLog("Mise à jour du launcher annulée.");
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Erreur.");
+            AppendLog("Erreur mise à jour launcher: " + ex.Message);
+            System.Windows.MessageBox.Show(this, ex.Message, "Erreur mise à jour launcher", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            _downloadCancellation?.Dispose();
+            _downloadCancellation = null;
+            SetBusy(false);
+        }
+    }
+
+    private async void UpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        SaveSettingsFromUi();
+        _downloadCancellation = new CancellationTokenSource();
+        SetBusy(true);
+
+        try
+        {
+            await InstallOrUpdateAsync(_downloadCancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Annulé.");
+            AppendLog("Opération annulée.");
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Erreur.");
+            AppendLog("Erreur: " + ex.Message);
+            System.Windows.MessageBox.Show(this, ex.Message, "Erreur launcher", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            _downloadCancellation?.Dispose();
+            _downloadCancellation = null;
+            SetBusy(false);
+        }
+    }
+
+    private void CancelButton_Click(object sender, RoutedEventArgs e)
+    {
+        _downloadCancellation?.Cancel();
+    }
+
+    private void PlayButton_Click(object sender, RoutedEventArgs e)
+    {
+        SaveSettingsFromUi();
+
+        var wowPath = Path.Combine(_settings.InstallPath, "Wow.exe");
+        if (!File.Exists(wowPath))
+        {
+            System.Windows.MessageBox.Show(this, "Wow.exe est introuvable. Installe ou mets à jour le client d'abord.", "Client introuvable", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = wowPath,
+            WorkingDirectory = _settings.InstallPath,
+            UseShellExecute = true
+        });
+
+        AppendLog("Jeu lancé: " + wowPath);
+    }
+
+    private async Task CheckLauncherUpdateAsync()
+    {
+        try
+        {
+            var manifest = await LoadLauncherUpdateManifestAsync(CancellationToken.None);
+            var currentExe = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(currentExe) || !File.Exists(currentExe))
+            {
+                return;
+            }
+
+            var currentHash = await ComputeSha256Async(currentExe, CancellationToken.None);
+            if (!string.IsNullOrWhiteSpace(manifest.Sha256) &&
+                !string.Equals(currentHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                _launcherUpdate = manifest;
+                LauncherSelfUpdateButton.Visibility = Visibility.Visible;
+                LauncherSelfUpdateButton.ToolTip = string.IsNullOrWhiteSpace(manifest.Version)
+                    ? "Une mise à jour du launcher est disponible."
+                    : "Mise à jour launcher disponible: " + manifest.Version;
+                AppendLog("Mise à jour launcher disponible.");
+            }
+            else
+            {
+                LauncherSelfUpdateButton.Visibility = Visibility.Collapsed;
+                _launcherUpdate = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            LauncherSelfUpdateButton.Visibility = Visibility.Collapsed;
+            _launcherUpdate = null;
+            AppendLog("Vérification launcher ignorée: " + ex.Message);
+        }
+    }
+
+    private async Task UpdateLauncherAsync(LauncherUpdateManifest manifest, CancellationToken cancellationToken)
+    {
+        var currentExe = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(currentExe) || !File.Exists(currentExe))
+        {
+            throw new InvalidOperationException("Impossible de retrouver l'exécutable du launcher actuel.");
+        }
+
+        if (string.IsNullOrWhiteSpace(manifest.Url))
+        {
+            throw new InvalidOperationException("Le manifeste de mise à jour launcher ne contient pas d'URL.");
+        }
+
+        var updateDirectory = Path.Combine(Path.GetTempPath(), "WotLKLauncherUpdate", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(updateDirectory);
+
+        var downloadedExe = Path.Combine(updateDirectory, Path.GetFileName(currentExe));
+        var scriptPath = Path.Combine(updateDirectory, "apply-launcher-update.ps1");
+        var updateUri = BuildLauncherUpdateUri(manifest.Url);
+
+        MainProgress.Value = 0;
+        ProgressText.Text = "";
+        SetStatus("Mise à jour du launcher...");
+        AppendLog("Téléchargement de la mise à jour launcher...");
+
+        await DownloadLauncherBinaryAsync(updateUri, downloadedExe, manifest.Size, cancellationToken);
+
+        if (manifest.Size > 0 && new FileInfo(downloadedExe).Length != manifest.Size)
+        {
+            File.Delete(downloadedExe);
+            throw new InvalidOperationException("Taille invalide pour la mise à jour launcher.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(manifest.Sha256))
+        {
+            var downloadedHash = await ComputeSha256Async(downloadedExe, cancellationToken);
+            if (!string.Equals(downloadedHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Delete(downloadedExe);
+                throw new InvalidOperationException("Hash invalide pour la mise à jour launcher.");
+            }
+        }
+
+        WriteLauncherUpdateScript(scriptPath, currentExe, downloadedExe, Process.GetCurrentProcess().Id);
+        AppendLog("Application de la mise à jour. Une validation administrateur peut être demandée.");
+
+        StartElevatedScript(scriptPath);
+        System.Windows.Application.Current.Shutdown();
+    }
+
+    private async Task InstallOrUpdateAsync(CancellationToken cancellationToken)
+    {
+        _settings.InstallPath = LauncherSettings.GetDefaultInstallPath();
+        InstallPathBox.Text = _settings.InstallPath;
+        Directory.CreateDirectory(_settings.InstallPath);
+
+        SetStatus("Chargement du manifeste...");
+        AppendLog("Vérification des fichiers du client...");
+        var manifest = await LoadManifestAsync(cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(manifest.Version))
+        {
+            AppendLog("Version client: " + manifest.Version);
+        }
+
+        if (manifest.Files.Count == 0)
+        {
+            throw new InvalidOperationException("Le manifeste ne contient aucun fichier.");
+        }
+
+        SetStatus("Analyse locale...");
+        var missingOrChanged = new List<LauncherFile>();
+        var checkedCount = 0;
+
+        foreach (var file in manifest.Files)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            checkedCount++;
+            ProgressText.Text = $"{checkedCount}/{manifest.Files.Count}";
+
+            var target = GetSafeTargetPath(_settings.InstallPath, file.Path);
+            if (!File.Exists(target) || new FileInfo(target).Length != file.Size)
+            {
+                missingOrChanged.Add(file);
+                continue;
+            }
+
+            var localHash = await ComputeSha256Async(target, cancellationToken);
+            if (!string.Equals(localHash, file.Sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                missingOrChanged.Add(file);
+            }
+        }
+
+        if (missingOrChanged.Count == 0)
+        {
+            RegisterGameApplication(manifest.Version);
+            MainProgress.Value = 100;
+            ProgressText.Text = "À jour";
+            SetStatus("Client à jour.");
+            AppendLog("Aucun fichier à télécharger.");
+            return;
+        }
+
+        var totalBytes = missingOrChanged.Sum(file => Math.Max(file.Size, 0));
+        long downloadedBytes = 0;
+
+        AppendLog($"{missingOrChanged.Count} fichier(s) à télécharger, {FormatBytes(totalBytes)}.");
+        SetStatus("Téléchargement...");
+
+        foreach (var file in missingOrChanged)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var target = GetSafeTargetPath(_settings.InstallPath, file.Path);
+            var uri = BuildFileUri(manifest, file);
+
+            AppendLog("Téléchargement: " + file.Path);
+            await DownloadFileAsync(uri, target, file.Size, progressBytes =>
+            {
+                var current = downloadedBytes + progressBytes;
+                MainProgress.Value = totalBytes == 0 ? 0 : Math.Clamp((double)current / totalBytes * 100, 0, 100);
+                ProgressText.Text = $"{FormatBytes(current)} / {FormatBytes(totalBytes)}";
+            }, cancellationToken);
+
+            var downloadedHash = await ComputeSha256Async(target, cancellationToken);
+            if (!string.Equals(downloadedHash, file.Sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Delete(target);
+                throw new InvalidOperationException("Hash invalide après téléchargement: " + file.Path);
+            }
+
+            downloadedBytes += file.Size;
+        }
+
+        RegisterGameApplication(manifest.Version);
+        MainProgress.Value = 100;
+        ProgressText.Text = "Terminé";
+        SetStatus("Installation terminée.");
+        AppendLog("Client prêt: " + _settings.InstallPath);
+    }
+
+    private void RegisterGameApplication(string clientVersion)
+    {
+        var uninstallerPath = GameInstallServices.RegisterInstalledGame(_settings.InstallPath, clientVersion);
+        AppendLog("Application Windows WotLK enregistree: " + uninstallerPath);
+    }
+
+    private async Task<LauncherManifest> LoadManifestAsync(CancellationToken cancellationToken)
+    {
+        using var response = await _http.GetAsync(_settings.ManifestUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        return await JsonSerializer.DeserializeAsync<LauncherManifest>(stream, JsonOptions, cancellationToken)
+            ?? throw new InvalidOperationException("Impossible de lire le manifeste.");
+    }
+
+    private async Task<LauncherUpdateManifest> LoadLauncherUpdateManifestAsync(CancellationToken cancellationToken)
+    {
+        using var response = await _http.GetAsync(LauncherUpdateManifestUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        return await JsonSerializer.DeserializeAsync<LauncherUpdateManifest>(stream, JsonOptions, cancellationToken)
+            ?? throw new InvalidOperationException("Impossible de lire le manifeste de mise à jour launcher.");
+    }
+
+    private async Task DownloadFileAsync(Uri uri, string targetPath, long expectedSize, Action<long> progress, CancellationToken cancellationToken)
+    {
+        using var response = await _http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+        var tempPath = targetPath + ".download";
+
+        await using var remote = await response.Content.ReadAsStreamAsync(cancellationToken);
+        await using var local = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 128, useAsync: true);
+
+        var buffer = new byte[1024 * 128];
+        long written = 0;
+
+        while (true)
+        {
+            var read = await remote.ReadAsync(buffer, cancellationToken);
+            if (read == 0)
+            {
+                break;
+            }
+
+            await local.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            written += read;
+            progress(written);
+        }
+
+        if (expectedSize >= 0 && written != expectedSize)
+        {
+            File.Delete(tempPath);
+            throw new InvalidOperationException($"Taille invalide pour {Path.GetFileName(targetPath)}: {FormatBytes(written)} reçu, {FormatBytes(expectedSize)} attendu.");
+        }
+
+        if (File.Exists(targetPath))
+        {
+            File.Delete(targetPath);
+        }
+
+        File.Move(tempPath, targetPath);
+    }
+
+    private async Task DownloadLauncherBinaryAsync(Uri uri, string targetPath, long expectedSize, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        request.Headers.TryAddWithoutValidation(LauncherUpdateRequestHeader, LauncherUpdateRequestMarker);
+
+        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var responseSize = response.Content.Headers.ContentLength;
+        var totalSize = expectedSize > 0 ? expectedSize : responseSize;
+        await using var remote = await response.Content.ReadAsStreamAsync(cancellationToken);
+        await using var local = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 128, useAsync: true);
+
+        var buffer = new byte[1024 * 128];
+        long written = 0;
+
+        while (true)
+        {
+            var read = await remote.ReadAsync(buffer, cancellationToken);
+            if (read == 0)
+            {
+                break;
+            }
+
+            await local.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            written += read;
+
+            if (totalSize is > 0)
+            {
+                MainProgress.Value = Math.Clamp((double)written / totalSize.Value * 100, 0, 100);
+                ProgressText.Text = $"{FormatBytes(written)} / {FormatBytes(totalSize.Value)}";
+            }
+            else
+            {
+                ProgressText.Text = FormatBytes(written);
+            }
+        }
+
+        MainProgress.Value = 100;
+        ProgressText.Text = totalSize is > 0
+            ? $"{FormatBytes(written)} / {FormatBytes(totalSize.Value)}"
+            : FormatBytes(written);
+    }
+
+    private static async Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken)
+    {
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 256, useAsync: true);
+        using var sha = SHA256.Create();
+        var hash = await sha.ComputeHashAsync(stream, cancellationToken);
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private static string GetSafeTargetPath(string installRoot, string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            throw new InvalidOperationException("Chemin vide dans le manifeste.");
+        }
+
+        var normalizedRelative = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+        if (Path.IsPathRooted(normalizedRelative))
+        {
+            throw new InvalidOperationException("Chemin absolu interdit dans le manifeste: " + relativePath);
+        }
+
+        var root = Path.GetFullPath(installRoot);
+        var target = Path.GetFullPath(Path.Combine(root, normalizedRelative));
+        if (!target.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Chemin hors dossier d'installation: " + relativePath);
+        }
+
+        return target;
+    }
+
+    private static Uri BuildFileUri(LauncherManifest manifest, LauncherFile file)
+    {
+        if (Uri.TryCreate(file.Url, UriKind.Absolute, out var absoluteUri))
+        {
+            return absoluteUri;
+        }
+
+        var baseUrl = string.IsNullOrWhiteSpace(manifest.BaseUrl)
+            ? throw new InvalidOperationException("baseUrl manquant dans le manifeste.")
+            : manifest.BaseUrl.TrimEnd('/') + "/";
+
+        var relativeUrl = string.IsNullOrWhiteSpace(file.Url)
+            ? "files/" + EscapeRelativeUrl(file.Path)
+            : file.Url.TrimStart('/');
+
+        return new Uri(new Uri(baseUrl), relativeUrl);
+    }
+
+    private static Uri BuildLauncherUpdateUri(string url)
+    {
+        if (Uri.TryCreate(url, UriKind.Absolute, out var absoluteUri))
+        {
+            return absoluteUri;
+        }
+
+        return new Uri(new Uri(LauncherUpdateManifestUrl), url);
+    }
+
+    private static string EscapeRelativeUrl(string path)
+    {
+        return string.Join("/", path.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries).Select(Uri.EscapeDataString));
+    }
+
+    private void SaveSettingsFromUi()
+    {
+        _settings.InstallPath = LauncherSettings.GetDefaultInstallPath();
+        _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
+        _settings.Save();
+        InstallPathBox.Text = _settings.InstallPath;
+    }
+
+    private static string GetLauncherDisplayName()
+    {
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
+        return "WotLK Launcher - v" + version;
+    }
+
+    private void SetBusy(bool busy)
+    {
+        LauncherSelfUpdateButton.IsEnabled = !busy;
+        UpdateButton.IsEnabled = !busy;
+        PlayButton.IsEnabled = !busy;
+        CancelButton.IsEnabled = busy;
+    }
+
+    private void SetStatus(string status)
+    {
+        StatusText.Text = status;
+    }
+
+    private void AppendLog(string message)
+    {
+        LogBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}");
+        LogBox.ScrollToEnd();
+    }
+
+    private static void WriteLauncherUpdateScript(string scriptPath, string targetExe, string downloadedExe, int processId)
+    {
+        var workingDirectory = Path.GetDirectoryName(targetExe) ?? Environment.CurrentDirectory;
+        var script = $$"""
+        $ErrorActionPreference = 'Stop'
+        $ProcessIdToWait = {{processId}}
+        $Source = {{PowerShellString(downloadedExe)}}
+        $Target = {{PowerShellString(targetExe)}}
+        $WorkingDirectory = {{PowerShellString(workingDirectory)}}
+
+        try {
+            Wait-Process -Id $ProcessIdToWait -Timeout 45 -ErrorAction SilentlyContinue
+        } catch {
+        }
+
+        Copy-Item -LiteralPath $Source -Destination $Target -Force
+        Start-Process -FilePath $Target -WorkingDirectory $WorkingDirectory
+        Start-Sleep -Seconds 2
+        Remove-Item -LiteralPath $Source -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
+        """;
+
+        File.WriteAllText(scriptPath, script, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+    }
+
+    private static void StartElevatedScript(string scriptPath)
+    {
+        var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            Arguments = "-NoProfile -ExecutionPolicy Bypass -File " + QuoteProcessArgument(scriptPath),
+            UseShellExecute = true,
+            Verb = "runas",
+            WindowStyle = ProcessWindowStyle.Hidden
+        });
+
+        if (process is null)
+        {
+            throw new InvalidOperationException("Impossible de lancer le processus de mise à jour.");
+        }
+    }
+
+    private static string PowerShellString(string value)
+    {
+        return "'" + value.Replace("'", "''") + "'";
+    }
+
+    private static string QuoteProcessArgument(string value)
+    {
+        return "\"" + value.Replace("\"", "\\\"") + "\"";
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["o", "Ko", "Mo", "Go", "To"];
+        var value = (double)Math.Max(bytes, 0);
+        var unit = 0;
+
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+
+        return string.Format(CultureInfo.InvariantCulture, "{0:0.##} {1}", value, units[unit]);
+    }
+}

@@ -12,7 +12,7 @@ http://152.228.225.7 {
 
 	@launcher_binary_authorized_transition {
 		path /launcher/WotLK-Launcher.exe
-		header X-AnimaClub-Launcher-Update 1
+		header X-WotLK-Launcher-Update 1
 	}
 	handle @launcher_binary_authorized_transition {
 		root * /var/www/wotlk-launcher
@@ -21,7 +21,7 @@ http://152.228.225.7 {
 
 	@launcher_binary_authorized_legacy_transition {
 		path /launcher/WotLK-Launcher.exe
-		header X-AnimaClub-Launcher-Update wotlk-launcher-self-update-v1
+		header X-WotLK-Launcher-Update wotlk-launcher-self-update-v1
 	}
 	handle @launcher_binary_authorized_legacy_transition {
 		root * /var/www/wotlk-launcher

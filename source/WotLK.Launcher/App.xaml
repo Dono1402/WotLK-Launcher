@@ -1,0 +1,8 @@
+<Application x:Class="WotLK.Launcher.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:WotLK.Launcher">
+    <Application.Resources>
+         
+    </Application.Resources>
+</Application>

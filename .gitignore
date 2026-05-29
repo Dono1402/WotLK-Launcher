@@ -4,3 +4,5 @@ artifacts/
 *.bak
 *.log
 
+source/**/bin/
+source/**/obj/

@@ -19,7 +19,7 @@ Workflow:
 
 1. Publier les nouveaux fichiers dans `/var/www/wotlk-launcher/launcher`.
 2. Mettre a jour `/var/www/wotlk-launcher/launcher/launcher-update.json`.
-3. Garder l'ancien endpoint de transition `/var/www/animeclub/launcher` synchronise tant que des launchers anciens pointent dessus.
+3. Synchroniser l'endpoint de transition legacy si necessaire pour les anciens launchers.
 4. Lancer:
 
 ```bash

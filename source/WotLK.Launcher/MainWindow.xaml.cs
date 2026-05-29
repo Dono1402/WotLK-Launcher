@@ -574,6 +574,7 @@ public partial class MainWindow : Window
         {
             SaveInstalledManifestHistory(manifest);
             _announcedGameUpdateVersion = null;
+            SetGameAction(GameAction.Play);
             RegisterGameApplication(manifest.Version);
             MainProgress.Value = 100;
             ProgressText.Text = "À jour";
@@ -609,6 +610,7 @@ public partial class MainWindow : Window
 
         SaveInstalledManifestHistory(manifest);
         _announcedGameUpdateVersion = null;
+        SetGameAction(GameAction.Play);
         RegisterGameApplication(manifest.Version);
         MainProgress.Value = 100;
         ProgressText.Text = "Terminé";

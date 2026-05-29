@@ -313,6 +313,7 @@ public partial class MainWindow : Window
             var missingOrChanged = await FindMissingOrChangedFilesAsync(manifest, updateProgress: false, CancellationToken.None);
             if (missingOrChanged.Count == 0)
             {
+                RegisterGameApplication(manifest.Version);
                 SetGameAction(GameAction.Play);
                 SetStatus("Client a jour.");
                 ProgressText.Text = string.Empty;
@@ -444,7 +445,7 @@ public partial class MainWindow : Window
     private void RegisterGameApplication(string clientVersion)
     {
         var uninstallerPath = GameInstallServices.RegisterInstalledGame(_settings.InstallPath, clientVersion);
-        AppendLog("Application Windows WotLK enregistree: " + uninstallerPath);
+        AppendLog("Application Windows WotLK Client enregistree: " + uninstallerPath);
     }
 
     private async Task<LauncherManifest> LoadManifestAsync(CancellationToken cancellationToken)

@@ -9,7 +9,7 @@ namespace WotLK.Launcher;
 
 internal static class GameInstallServices
 {
-    internal const string AppDisplayName = "WotLK";
+    internal const string AppDisplayName = "WotLK Client";
     internal const string UninstallerFileName = "WotLK Uninstaller.exe";
 
     private const string Publisher = "WotLK";
@@ -32,7 +32,7 @@ internal static class GameInstallServices
 
         if (!quiet)
         {
-            var confirmation = MessageBox.Show("Desinstaller le client WotLK de cet ordinateur ?", "Desinstaller WotLK", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            var confirmation = MessageBox.Show("Desinstaller WotLK Client de cet ordinateur ?", "Desinstaller WotLK Client", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (confirmation != MessageBoxResult.Yes)
             {
                 return 0;
@@ -44,7 +44,7 @@ internal static class GameInstallServices
             UninstallGame();
             if (!quiet)
             {
-                MessageBox.Show("WotLK a ete desinstalle.", "Desinstallation terminee", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("WotLK Client a ete desinstalle.", "Desinstallation terminee", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             return 0;
         }

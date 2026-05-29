@@ -223,6 +223,7 @@ internal static class GameInstallServices
         keptLines.Add("SET gxWindow \"1\"");
         keptLines.Add("SET gxMaximize \"1\"");
         keptLines.Add("SET gxVSync \"0\"");
+        keptLines.Add("SET miniWorldMap \"1\"");
 
         File.WriteAllLines(configPath, keptLines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         if (applyDesktopResolution)
@@ -258,6 +259,7 @@ internal static class GameInstallServices
                string.Equals(key, "gxWindow", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(key, "gxMaximize", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(key, "gxVSync", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(key, "miniWorldMap", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(key, "gxRefresh", StringComparison.OrdinalIgnoreCase) ||
                (applyDesktopResolution && string.Equals(key, "gxResolution", StringComparison.OrdinalIgnoreCase));
     }

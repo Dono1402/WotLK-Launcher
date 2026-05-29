@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Threading;
 
 namespace WotLK.Launcher;
 
@@ -15,6 +16,7 @@ public partial class MainWindow : Window
     private const string LauncherUpdateManifestUrl = "http://152.228.225.7/launcher/launcher-update.json";
     private const string LauncherUpdateRequestHeader = "X-WotLK-Launcher-Update";
     private const string LauncherUpdateRequestMarker = "1";
+    private static readonly TimeSpan LauncherUpdateCheckInterval = TimeSpan.FromSeconds(30);
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -23,8 +25,11 @@ public partial class MainWindow : Window
 
     private readonly HttpClient _http = new();
     private readonly LauncherSettings _settings;
+    private readonly DispatcherTimer _launcherUpdateTimer;
     private CancellationTokenSource? _downloadCancellation;
     private LauncherUpdateManifest? _launcherUpdate;
+    private bool _isCheckingLauncherUpdate;
+    private string? _announcedLauncherUpdateHash;
 
     public MainWindow()
     {
@@ -38,8 +43,22 @@ public partial class MainWindow : Window
         _settings.Save();
         InstallPathBox.Text = _settings.InstallPath;
 
+        _launcherUpdateTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = LauncherUpdateCheckInterval
+        };
+        _launcherUpdateTimer.Tick += LauncherUpdateTimer_Tick;
+
         AppendLog("Launcher prêt.");
         _ = CheckLauncherUpdateAsync();
+        _launcherUpdateTimer.Start();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _launcherUpdateTimer.Stop();
+        _launcherUpdateTimer.Tick -= LauncherUpdateTimer_Tick;
+        base.OnClosed(e);
     }
 
     private async void LauncherSelfUpdateButton_Click(object sender, RoutedEventArgs e)
@@ -126,8 +145,19 @@ public partial class MainWindow : Window
         AppendLog("Jeu lancé: " + wowPath);
     }
 
+    private async void LauncherUpdateTimer_Tick(object? sender, EventArgs e)
+    {
+        await CheckLauncherUpdateAsync();
+    }
+
     private async Task CheckLauncherUpdateAsync()
     {
+        if (_isCheckingLauncherUpdate)
+        {
+            return;
+        }
+
+        _isCheckingLauncherUpdate = true;
         try
         {
             var manifest = await LoadLauncherUpdateManifestAsync(CancellationToken.None);
@@ -144,21 +174,39 @@ public partial class MainWindow : Window
                 _launcherUpdate = manifest;
                 LauncherSelfUpdateButton.Visibility = Visibility.Visible;
                 LauncherSelfUpdateButton.ToolTip = string.IsNullOrWhiteSpace(manifest.Version)
-                    ? "Une mise à jour du launcher est disponible."
-                    : "Mise à jour launcher disponible: " + manifest.Version;
-                AppendLog("Mise à jour launcher disponible.");
+                    ? "Une mise a jour du launcher est disponible."
+                    : "Mise a jour launcher disponible: " + manifest.Version;
+
+                if (!string.Equals(_announcedLauncherUpdateHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    _announcedLauncherUpdateHash = manifest.Sha256;
+                    AppendLog(string.IsNullOrWhiteSpace(manifest.Version)
+                        ? "Mise a jour launcher disponible."
+                        : "Mise a jour launcher disponible: " + manifest.Version);
+                }
             }
             else
             {
                 LauncherSelfUpdateButton.Visibility = Visibility.Collapsed;
                 _launcherUpdate = null;
+                _announcedLauncherUpdateHash = null;
             }
         }
         catch (Exception ex)
         {
-            LauncherSelfUpdateButton.Visibility = Visibility.Collapsed;
-            _launcherUpdate = null;
-            AppendLog("Vérification launcher ignorée: " + ex.Message);
+            if (_launcherUpdate is null)
+            {
+                LauncherSelfUpdateButton.Visibility = Visibility.Collapsed;
+            }
+
+            if (string.IsNullOrWhiteSpace(_announcedLauncherUpdateHash))
+            {
+                AppendLog("Verification launcher ignoree: " + ex.Message);
+            }
+        }
+        finally
+        {
+            _isCheckingLauncherUpdate = false;
         }
     }
 

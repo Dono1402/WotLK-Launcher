@@ -173,6 +173,12 @@ internal static class GameInstallServices
         return root;
     }
 
+    internal static void StopRunningGameProcesses(string installRoot)
+    {
+        var root = NormalizeAndValidateGameRoot(installRoot);
+        StopRunningWow(root);
+    }
+
     private static void StopRunningWow(string installRoot)
     {
         foreach (var process in Process.GetProcessesByName("Wow"))

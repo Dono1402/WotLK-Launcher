@@ -318,6 +318,8 @@ public partial class MainWindow : Window
         long downloadedBytes = 0;
 
         AppendLog($"{missingOrChanged.Count} fichier(s) à télécharger, {FormatBytes(totalBytes)}.");
+        GameInstallServices.StopRunningGameProcesses(_settings.InstallPath);
+        AppendLog("Processus Wow ferme si necessaire.");
         SetStatus("Téléchargement...");
 
         foreach (var file in missingOrChanged)
@@ -327,19 +329,12 @@ public partial class MainWindow : Window
             var uri = BuildFileUri(manifest, file);
 
             AppendLog("Téléchargement: " + file.Path);
-            await DownloadFileAsync(uri, target, file.Size, progressBytes =>
+            await DownloadFileAsync(uri, target, file.Size, file.Sha256, progressBytes =>
             {
                 var current = downloadedBytes + progressBytes;
                 MainProgress.Value = totalBytes == 0 ? 0 : Math.Clamp((double)current / totalBytes * 100, 0, 100);
                 ProgressText.Text = $"{FormatBytes(current)} / {FormatBytes(totalBytes)}";
             }, cancellationToken);
-
-            var downloadedHash = await ComputeSha256Async(target, cancellationToken);
-            if (!string.Equals(downloadedHash, file.Sha256, StringComparison.OrdinalIgnoreCase))
-            {
-                File.Delete(target);
-                throw new InvalidOperationException("Hash invalide après téléchargement: " + file.Path);
-            }
 
             downloadedBytes += file.Size;
         }
@@ -377,45 +372,107 @@ public partial class MainWindow : Window
             ?? throw new InvalidOperationException("Impossible de lire le manifeste de mise à jour launcher.");
     }
 
-    private async Task DownloadFileAsync(Uri uri, string targetPath, long expectedSize, Action<long> progress, CancellationToken cancellationToken)
+    private async Task DownloadFileAsync(Uri uri, string targetPath, long expectedSize, string expectedSha256, Action<long> progress, CancellationToken cancellationToken)
     {
         using var response = await _http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-        var tempPath = targetPath + ".download";
+        var targetDirectory = Path.GetDirectoryName(targetPath) ?? throw new InvalidOperationException("Chemin cible invalide.");
+        Directory.CreateDirectory(targetDirectory);
+        var tempPath = Path.Combine(targetDirectory, "." + Path.GetFileName(targetPath) + "." + Guid.NewGuid().ToString("N") + ".download");
 
-        await using var remote = await response.Content.ReadAsStreamAsync(cancellationToken);
-        await using var local = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 128, useAsync: true);
-
-        var buffer = new byte[1024 * 128];
-        long written = 0;
-
-        while (true)
+        try
         {
-            var read = await remote.ReadAsync(buffer, cancellationToken);
-            if (read == 0)
+            await using (var remote = await response.Content.ReadAsStreamAsync(cancellationToken))
+            await using (var local = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.Read, 1024 * 128, useAsync: true))
             {
-                break;
+                var buffer = new byte[1024 * 128];
+                long written = 0;
+
+                while (true)
+                {
+                    var read = await remote.ReadAsync(buffer, cancellationToken);
+                    if (read == 0)
+                    {
+                        break;
+                    }
+
+                    await local.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    written += read;
+                    progress(written);
+                }
+
+                if (expectedSize >= 0 && written != expectedSize)
+                {
+                    throw new InvalidOperationException($"Taille invalide pour {Path.GetFileName(targetPath)}: {FormatBytes(written)} recu, {FormatBytes(expectedSize)} attendu.");
+                }
             }
 
-            await local.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-            written += read;
-            progress(written);
-        }
+            var downloadedHash = await ComputeSha256Async(tempPath, cancellationToken);
+            if (!string.Equals(downloadedHash, expectedSha256, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Hash invalide apres telechargement: " + Path.GetFileName(targetPath));
+            }
 
-        if (expectedSize >= 0 && written != expectedSize)
+            await MoveDownloadedFileWithRetryAsync(tempPath, targetPath, cancellationToken);
+        }
+        catch
         {
-            File.Delete(tempPath);
-            throw new InvalidOperationException($"Taille invalide pour {Path.GetFileName(targetPath)}: {FormatBytes(written)} reçu, {FormatBytes(expectedSize)} attendu.");
+            DeleteFileIfExists(tempPath);
+            throw;
         }
+    }
 
-        if (File.Exists(targetPath))
+    private static async Task MoveDownloadedFileWithRetryAsync(string tempPath, string targetPath, CancellationToken cancellationToken)
+    {
+        Exception? lastError = null;
+        for (var attempt = 0; attempt < 60; attempt++)
         {
-            File.Delete(targetPath);
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                if (File.Exists(targetPath))
+                {
+                    TrySetNormalAttributes(targetPath);
+                }
+
+                File.Move(tempPath, targetPath, overwrite: true);
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                lastError = ex;
+                await Task.Delay(1000, cancellationToken);
+            }
         }
 
-        File.Move(tempPath, targetPath);
+        throw new IOException("Impossible de remplacer " + Path.GetFileName(targetPath) + ". Ferme le jeu ou tout programme qui utilise le dossier WotLK, puis relance l'installation.", lastError);
+    }
+
+    private static void DeleteFileIfExists(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                TrySetNormalAttributes(path);
+                File.Delete(path);
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void TrySetNormalAttributes(string path)
+    {
+        try
+        {
+            File.SetAttributes(path, FileAttributes.Normal);
+        }
+        catch
+        {
+        }
     }
 
     private async Task DownloadLauncherBinaryAsync(Uri uri, string targetPath, long expectedSize, CancellationToken cancellationToken)

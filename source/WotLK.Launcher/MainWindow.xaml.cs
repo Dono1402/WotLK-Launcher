@@ -59,7 +59,7 @@ public partial class MainWindow : Window
         _launcherUpdateTimer.Tick += LauncherUpdateTimer_Tick;
 
         AppendLog("Launcher prêt.");
-        SetGameAction(GameAction.Install);
+        SetInitialGameActionFromDisk();
         _ = CheckLauncherUpdateAsync();
         _ = RefreshGameActionAsync();
         _launcherUpdateTimer.Start();
@@ -280,6 +280,16 @@ public partial class MainWindow : Window
         System.Windows.Application.Current.Shutdown();
     }
 
+    private void SetInitialGameActionFromDisk()
+    {
+        _settings.InstallPath = LauncherSettings.GetDefaultInstallPath();
+        _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
+        InstallPathBox.Text = _settings.InstallPath;
+
+        var wowPath = Path.Combine(_settings.InstallPath, "Wow.exe");
+        SetGameAction(File.Exists(wowPath) ? GameAction.Play : GameAction.Install);
+    }
+
     private async Task RefreshGameActionAsync()
     {
         if (_downloadCancellation is not null || _isRefreshingGameAction)
@@ -303,6 +313,7 @@ public partial class MainWindow : Window
                 return;
             }
 
+            SetGameAction(GameAction.Play);
             SetStatus("Analyse du client...");
             var manifest = await LoadManifestAsync(CancellationToken.None);
             if (manifest.Files.Count == 0)

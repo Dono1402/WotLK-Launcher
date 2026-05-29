@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using Microsoft.Win32;
@@ -15,6 +16,9 @@ internal static class GameInstallServices
     private const string Publisher = "WotLK";
     private const string RegistrySubKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WotLK.Client";
     private const string ClientMarkerFileName = "client-install.json";
+    private const string VideoDefaultsMarkerFileName = "launcher-video-defaults.json";
+    private const int SystemMetricPrimaryScreenWidth = 0;
+    private const int SystemMetricPrimaryScreenHeight = 1;
 
     internal static bool IsGameUninstallMode(IEnumerable<string> args)
     {
@@ -180,6 +184,8 @@ internal static class GameInstallServices
         Directory.CreateDirectory(wtfDirectory);
 
         var configPath = Path.Combine(wtfDirectory, "Config.wtf");
+        var videoDefaultsMarkerPath = Path.Combine(wtfDirectory, VideoDefaultsMarkerFileName);
+        var applyDesktopResolution = !File.Exists(configPath) || !File.Exists(videoDefaultsMarkerPath);
         var keptLines = new List<string>();
         if (File.Exists(configPath))
         {
@@ -187,7 +193,7 @@ internal static class GameInstallServices
             foreach (var line in File.ReadAllLines(configPath, Encoding.UTF8))
             {
                 var key = TryReadConfigKey(line);
-                if (key is not null && IsManagedVideoConfigKey(key))
+                if (key is not null && IsManagedVideoConfigKey(key, applyDesktopResolution))
                 {
                     continue;
                 }
@@ -201,11 +207,22 @@ internal static class GameInstallServices
             keptLines.Add(string.Empty);
         }
 
+        var desktopResolution = applyDesktopResolution ? TryGetPrimaryDesktopResolution() : null;
+        if (!string.IsNullOrWhiteSpace(desktopResolution))
+        {
+            keptLines.Add($"SET gxResolution \"{desktopResolution}\"");
+        }
+
         keptLines.Add("SET gxWindow \"1\"");
         keptLines.Add("SET gxMaximize \"1\"");
         keptLines.Add("SET gxVSync \"0\"");
 
         File.WriteAllLines(configPath, keptLines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        if (applyDesktopResolution)
+        {
+            WriteVideoDefaultsMarker(videoDefaultsMarkerPath, desktopResolution);
+        }
+
         return configPath;
     }
 
@@ -227,13 +244,42 @@ internal static class GameInstallServices
         return end < 0 ? rest : rest[..end];
     }
 
-    private static bool IsManagedVideoConfigKey(string key)
+    private static bool IsManagedVideoConfigKey(string key, bool applyDesktopResolution)
     {
         return string.Equals(key, "gxWindow", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(key, "gxMaximize", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(key, "gxVSync", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(key, "gxRefresh", StringComparison.OrdinalIgnoreCase);
+               string.Equals(key, "gxRefresh", StringComparison.OrdinalIgnoreCase) ||
+               (applyDesktopResolution && string.Equals(key, "gxResolution", StringComparison.OrdinalIgnoreCase));
     }
+
+    private static void WriteVideoDefaultsMarker(string markerPath, string? desktopResolution)
+    {
+        var json = $$"""
+        {
+          "appliedAt": "{{DateTimeOffset.Now:O}}",
+          "desktopResolution": "{{EscapeJson(desktopResolution ?? string.Empty)}}"
+        }
+        """;
+        File.WriteAllText(markerPath, json + Environment.NewLine, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+    }
+
+    private static string? TryGetPrimaryDesktopResolution()
+    {
+        try
+        {
+            var width = GetSystemMetrics(SystemMetricPrimaryScreenWidth);
+            var height = GetSystemMetrics(SystemMetricPrimaryScreenHeight);
+            return width > 0 && height > 0 ? $"{width}x{height}" : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
 
     internal static void StopRunningGameProcesses(string installRoot)
     {

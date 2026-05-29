@@ -17,6 +17,7 @@ internal static class GameInstallServices
     private const string RegistrySubKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WotLK.Client";
     private const string ClientMarkerFileName = "client-install.json";
     private const string VideoDefaultsMarkerFileName = "launcher-video-defaults.json";
+    private const string RealmAddress = "152.228.225.7";
     private const int SystemMetricPrimaryScreenWidth = 0;
     private const int SystemMetricPrimaryScreenHeight = 1;
 
@@ -177,9 +178,12 @@ internal static class GameInstallServices
         return root;
     }
 
-    internal static string EnsureDefaultClientConfig(string installRoot)
+    internal static string EnsureDefaultClientConfig(string installRoot, string locale)
     {
         var root = NormalizeAndValidateGameRoot(installRoot);
+        var gameLocale = LauncherSettings.NormalizeGameLocale(locale);
+        EnsureLocaleRealmlist(root, gameLocale);
+
         var wtfDirectory = Path.Combine(root, "WTF");
         Directory.CreateDirectory(wtfDirectory);
 
@@ -193,7 +197,7 @@ internal static class GameInstallServices
             foreach (var line in File.ReadAllLines(configPath, Encoding.UTF8))
             {
                 var key = TryReadConfigKey(line);
-                if (key is not null && IsManagedVideoConfigKey(key, applyDesktopResolution))
+                if (key is not null && IsManagedClientConfigKey(key, applyDesktopResolution))
                 {
                     continue;
                 }
@@ -206,6 +210,9 @@ internal static class GameInstallServices
         {
             keptLines.Add(string.Empty);
         }
+
+        keptLines.Add($"SET locale \"{gameLocale}\"");
+        keptLines.Add($"SET installLocale \"{gameLocale}\"");
 
         var desktopResolution = applyDesktopResolution ? TryGetPrimaryDesktopResolution() : null;
         if (!string.IsNullOrWhiteSpace(desktopResolution))
@@ -244,13 +251,27 @@ internal static class GameInstallServices
         return end < 0 ? rest : rest[..end];
     }
 
-    private static bool IsManagedVideoConfigKey(string key, bool applyDesktopResolution)
+    private static bool IsManagedClientConfigKey(string key, bool applyDesktopResolution)
     {
-        return string.Equals(key, "gxWindow", StringComparison.OrdinalIgnoreCase) ||
+        return string.Equals(key, "locale", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(key, "installLocale", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(key, "gxWindow", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(key, "gxMaximize", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(key, "gxVSync", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(key, "gxRefresh", StringComparison.OrdinalIgnoreCase) ||
                (applyDesktopResolution && string.Equals(key, "gxResolution", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void EnsureLocaleRealmlist(string installRoot, string gameLocale)
+    {
+        var localeDataDirectory = Path.Combine(installRoot, "Data", gameLocale);
+        Directory.CreateDirectory(localeDataDirectory);
+
+        var realmlistPath = Path.Combine(localeDataDirectory, "realmlist.wtf");
+        if (!File.Exists(realmlistPath))
+        {
+            File.WriteAllText(realmlistPath, "set realmlist " + RealmAddress + Environment.NewLine, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        }
     }
 
     private static void WriteVideoDefaultsMarker(string markerPath, string? desktopResolution)

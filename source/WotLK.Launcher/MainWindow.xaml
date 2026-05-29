@@ -24,6 +24,17 @@
             <Setter Property="Padding" Value="10,7"/>
             <Setter Property="CaretBrush" Value="#FFFFFF"/>
         </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Foreground" Value="#F7FAFC"/>
+            <Setter Property="Background" Value="#151B21"/>
+            <Setter Property="BorderBrush" Value="#36414D"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="MinHeight" Value="34"/>
+        </Style>
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="#101418"/>
+        </Style>
         <Style TargetType="Button">
             <Setter Property="Foreground" Value="#F7FAFC"/>
             <Setter Property="Background" Value="#202A33"/>
@@ -84,6 +95,10 @@
         </Grid>
 
         <Grid Grid.Row="1" Margin="0,0,0,18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="150"/>
                 <ColumnDefinition Width="*"/>
@@ -97,6 +112,17 @@
                      IsReadOnly="True"
                      IsTabStop="False"
                      Focusable="False"/>
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Langue jeu" VerticalAlignment="Center"/>
+            <ComboBox x:Name="GameLanguageComboBox"
+                      Grid.Row="1"
+                      Grid.Column="1"
+                      Width="180"
+                      HorizontalAlignment="Left"
+                      SelectionChanged="GameLanguageComboBox_SelectionChanged">
+                <ComboBoxItem Content="Fran&#231;ais" Tag="frFR"/>
+                <ComboBoxItem Content="English" Tag="enUS"/>
+            </ComboBox>
         </Grid>
 
         <Border Grid.Row="2"

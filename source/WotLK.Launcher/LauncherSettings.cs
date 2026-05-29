@@ -9,6 +9,8 @@ public sealed class LauncherSettings
 
     public string ManifestUrl { get; set; } = GetDefaultManifestUrl();
 
+    public string GameLocale { get; set; } = GetDefaultGameLocale();
+
     public static string SettingsDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "WotLK Launcher");
@@ -30,6 +32,7 @@ public sealed class LauncherSettings
 
         settings.InstallPath = GetDefaultInstallPath();
         settings.ManifestUrl = GetDefaultManifestUrl();
+        settings.GameLocale = NormalizeGameLocale(settings.GameLocale);
         return settings;
     }
 
@@ -37,6 +40,7 @@ public sealed class LauncherSettings
     {
         InstallPath = GetDefaultInstallPath();
         ManifestUrl = GetDefaultManifestUrl();
+        GameLocale = NormalizeGameLocale(GameLocale);
         Directory.CreateDirectory(SettingsDirectory);
         var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(SettingsPath, json);
@@ -56,5 +60,15 @@ public sealed class LauncherSettings
         }
 
         return Path.Combine(programFilesX86, "WotLK");
+    }
+
+    public static string GetDefaultGameLocale()
+    {
+        return "frFR";
+    }
+
+    public static string NormalizeGameLocale(string? locale)
+    {
+        return string.Equals(locale, "enUS", StringComparison.OrdinalIgnoreCase) ? "enUS" : "frFR";
     }
 }

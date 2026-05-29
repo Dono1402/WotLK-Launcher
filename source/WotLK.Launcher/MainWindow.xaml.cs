@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Threading;
 
 namespace WotLK.Launcher;
@@ -38,6 +39,7 @@ public partial class MainWindow : Window
     private GameAction _gameAction = GameAction.Install;
     private bool _isRefreshingGameAction;
     private bool _isCheckingLauncherUpdate;
+    private bool _isInitializingUi = true;
     private string? _announcedLauncherUpdateHash;
     private string? _announcedGameUpdateVersion;
 
@@ -52,6 +54,8 @@ public partial class MainWindow : Window
         _settings = LauncherSettings.Load();
         _settings.Save();
         InstallPathBox.Text = _settings.InstallPath;
+        SetLanguageSelection(_settings.GameLocale);
+        _isInitializingUi = false;
 
         _launcherUpdateTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
@@ -144,6 +148,31 @@ public partial class MainWindow : Window
         }
     }
 
+    private void GameLanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isInitializingUi)
+        {
+            return;
+        }
+
+        SaveSettingsFromUi();
+        var wowPath = Path.Combine(_settings.InstallPath, "Wow.exe");
+        if (!File.Exists(wowPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var configPath = GameInstallServices.EnsureDefaultClientConfig(_settings.InstallPath, _settings.GameLocale);
+            AppendLog($"Langue jeu appliquee au prochain lancement: {GetGameLocaleLabel(_settings.GameLocale)} ({configPath})");
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Langue jeu non appliquee: " + ex.Message);
+        }
+    }
+
     private void PlayGame()
     {
         var wowPath = Path.Combine(_settings.InstallPath, "Wow.exe");
@@ -154,7 +183,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        GameInstallServices.EnsureDefaultClientConfig(_settings.InstallPath);
+        GameInstallServices.EnsureDefaultClientConfig(_settings.InstallPath, _settings.GameLocale);
 
         Process.Start(new ProcessStartInfo
         {
@@ -773,9 +802,9 @@ public partial class MainWindow : Window
 
     private void RegisterGameApplication(string clientVersion)
     {
-        var configPath = GameInstallServices.EnsureDefaultClientConfig(_settings.InstallPath);
+        var configPath = GameInstallServices.EnsureDefaultClientConfig(_settings.InstallPath, _settings.GameLocale);
         var uninstallerPath = GameInstallServices.RegisterInstalledGame(_settings.InstallPath, clientVersion);
-        AppendLog("Configuration video WotLK ajustee: " + configPath);
+        AppendLog("Configuration video/langue WotLK ajustee: " + configPath);
         AppendLog("Application Windows WotLK Client enregistree: " + uninstallerPath);
     }
 
@@ -1014,8 +1043,39 @@ public partial class MainWindow : Window
     {
         _settings.InstallPath = LauncherSettings.GetDefaultInstallPath();
         _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
+        _settings.GameLocale = GetSelectedGameLocale();
         _settings.Save();
         InstallPathBox.Text = _settings.InstallPath;
+    }
+
+    private void SetLanguageSelection(string locale)
+    {
+        var normalizedLocale = LauncherSettings.NormalizeGameLocale(locale);
+        foreach (var item in GameLanguageComboBox.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag?.ToString(), normalizedLocale, StringComparison.OrdinalIgnoreCase))
+            {
+                GameLanguageComboBox.SelectedItem = item;
+                return;
+            }
+        }
+
+        GameLanguageComboBox.SelectedIndex = 0;
+    }
+
+    private string GetSelectedGameLocale()
+    {
+        if (GameLanguageComboBox.SelectedItem is ComboBoxItem item)
+        {
+            return LauncherSettings.NormalizeGameLocale(item.Tag?.ToString());
+        }
+
+        return LauncherSettings.GetDefaultGameLocale();
+    }
+
+    private static string GetGameLocaleLabel(string locale)
+    {
+        return LauncherSettings.NormalizeGameLocale(locale) == "enUS" ? "English" : "Francais";
     }
 
     private static string GetLauncherDisplayName()

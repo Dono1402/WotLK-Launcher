@@ -153,6 +153,8 @@ public partial class MainWindow : Window
             return;
         }
 
+        GameInstallServices.EnsureDefaultClientConfig(_settings.InstallPath);
+
         Process.Start(new ProcessStartInfo
         {
             FileName = wowPath,
@@ -444,7 +446,9 @@ public partial class MainWindow : Window
 
     private void RegisterGameApplication(string clientVersion)
     {
+        var configPath = GameInstallServices.EnsureDefaultClientConfig(_settings.InstallPath);
         var uninstallerPath = GameInstallServices.RegisterInstalledGame(_settings.InstallPath, clientVersion);
+        AppendLog("Configuration video WotLK ajustee: " + configPath);
         AppendLog("Application Windows WotLK Client enregistree: " + uninstallerPath);
     }
 

@@ -173,6 +173,68 @@ internal static class GameInstallServices
         return root;
     }
 
+    internal static string EnsureDefaultClientConfig(string installRoot)
+    {
+        var root = NormalizeAndValidateGameRoot(installRoot);
+        var wtfDirectory = Path.Combine(root, "WTF");
+        Directory.CreateDirectory(wtfDirectory);
+
+        var configPath = Path.Combine(wtfDirectory, "Config.wtf");
+        var keptLines = new List<string>();
+        if (File.Exists(configPath))
+        {
+            TrySetNormalAttributes(configPath);
+            foreach (var line in File.ReadAllLines(configPath, Encoding.UTF8))
+            {
+                var key = TryReadConfigKey(line);
+                if (key is not null && IsManagedVideoConfigKey(key))
+                {
+                    continue;
+                }
+
+                keptLines.Add(line);
+            }
+        }
+
+        if (keptLines.Count > 0 && !string.IsNullOrWhiteSpace(keptLines[^1]))
+        {
+            keptLines.Add(string.Empty);
+        }
+
+        keptLines.Add("SET gxWindow \"1\"");
+        keptLines.Add("SET gxMaximize \"1\"");
+        keptLines.Add("SET gxVSync \"0\"");
+
+        File.WriteAllLines(configPath, keptLines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        return configPath;
+    }
+
+    private static string? TryReadConfigKey(string line)
+    {
+        var trimmed = line.TrimStart();
+        if (!trimmed.StartsWith("SET ", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var rest = trimmed[4..].TrimStart();
+        if (rest.Length == 0)
+        {
+            return null;
+        }
+
+        var end = rest.IndexOfAny([' ', '\t']);
+        return end < 0 ? rest : rest[..end];
+    }
+
+    private static bool IsManagedVideoConfigKey(string key)
+    {
+        return string.Equals(key, "gxWindow", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(key, "gxMaximize", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(key, "gxVSync", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(key, "gxRefresh", StringComparison.OrdinalIgnoreCase);
+    }
+
     internal static void StopRunningGameProcesses(string installRoot)
     {
         var root = NormalizeAndValidateGameRoot(installRoot);
@@ -240,6 +302,17 @@ internal static class GameInstallServices
             }
         }
         throw new IOException("Impossible de supprimer le dossier WotLK apres plusieurs essais: " + installRoot, lastError);
+    }
+
+    private static void TrySetNormalAttributes(string path)
+    {
+        try
+        {
+            File.SetAttributes(path, FileAttributes.Normal);
+        }
+        catch
+        {
+        }
     }
 
     private static void ClearFileAttributes(string installRoot)

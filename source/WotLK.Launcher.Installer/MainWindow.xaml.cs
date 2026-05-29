@@ -19,16 +19,18 @@ public partial class MainWindow : Window
     {
         InstallButton.IsEnabled = false;
         Progress.Value = 0;
+        var closeAfterInstall = false;
 
         try
         {
             await Task.Run(InstallLauncher);
             Progress.Value = 100;
-            AppendLog("Installation terminée.");
+            AppendLog("Installation terminee.");
 
             if (LaunchAfterInstallBox.IsChecked == true)
             {
                 LaunchInstalledLauncher();
+                closeAfterInstall = true;
             }
         }
         catch (Exception ex)
@@ -38,7 +40,14 @@ public partial class MainWindow : Window
         }
         finally
         {
-            InstallButton.IsEnabled = true;
+            if (closeAfterInstall)
+            {
+                Close();
+            }
+            else
+            {
+                InstallButton.IsEnabled = true;
+            }
         }
     }
 

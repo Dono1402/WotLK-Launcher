@@ -499,6 +499,7 @@ public partial class MainWindow : Window
         }
 
         AddRetiredDirectoryFilesIfAbsent(remotePaths, removedPaths, "Interface/AddOns/UnBot");
+        AddRetiredDirectoryFilesIfAbsent(remotePaths, removedPaths, "Interface/AddOns/MultiBot");
         return removedPaths.ToList();
     }
 

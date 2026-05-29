@@ -338,7 +338,9 @@ public partial class MainWindow : Window
             }
 
             var missingOrChanged = await FindMissingOrChangedFilesForManifestAsync(manifest, updateProgress: false, CancellationToken.None);
-            if (missingOrChanged.Count == 0)
+            var removedFiles = FindRemovedFilesForManifest(manifest);
+            var changeCount = missingOrChanged.Count + removedFiles.Count;
+            if (changeCount == 0)
             {
                 SaveInstalledManifestHistory(manifest);
                 _announcedGameUpdateVersion = null;
@@ -358,17 +360,17 @@ public partial class MainWindow : Window
             {
                 SetGameAction(GameAction.Update);
                 SetStatus("Mise a jour disponible.");
-                ProgressText.Text = missingOrChanged.Count + " fichier(s)";
+                ProgressText.Text = changeCount + " fichier(s)";
 
                 var gameUpdateKey = string.IsNullOrWhiteSpace(manifest.Version)
-                    ? missingOrChanged.Count.ToString(CultureInfo.InvariantCulture)
+                    ? changeCount.ToString(CultureInfo.InvariantCulture)
                     : manifest.Version;
                 if (!string.Equals(_announcedGameUpdateVersion, gameUpdateKey, StringComparison.OrdinalIgnoreCase))
                 {
                     _announcedGameUpdateVersion = gameUpdateKey;
                     AppendLog(string.IsNullOrWhiteSpace(manifest.Version)
-                        ? $"Mise a jour jeu disponible: {missingOrChanged.Count} fichier(s)."
-                        : $"Mise a jour jeu disponible: {manifest.Version} ({missingOrChanged.Count} fichier(s)).");
+                        ? $"Mise a jour jeu disponible: {changeCount} fichier(s)."
+                        : $"Mise a jour jeu disponible: {manifest.Version} ({changeCount} fichier(s)).");
                 }
             }
         }
@@ -445,6 +447,127 @@ public partial class MainWindow : Window
         }
 
         return missingOrChanged;
+    }
+
+    private List<string> FindRemovedFilesForManifest(LauncherManifest manifest)
+    {
+        var remotePaths = manifest.Files
+            .Select(file => NormalizeManifestPath(file.Path))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var removedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var cachedManifest = LoadInstalledManifestHistory();
+        if (cachedManifest is not null && cachedManifest.Files.Count > 0)
+        {
+            foreach (var cachedFile in cachedManifest.Files)
+            {
+                var key = NormalizeManifestPath(cachedFile.Path);
+                if (!remotePaths.Contains(key))
+                {
+                    removedPaths.Add(cachedFile.Path);
+                }
+            }
+        }
+
+        AddRetiredDirectoryFilesIfAbsent(remotePaths, removedPaths, "Interface/AddOns/UnBot");
+        return removedPaths.ToList();
+    }
+
+    private void AddRetiredDirectoryFilesIfAbsent(HashSet<string> remotePaths, HashSet<string> removedPaths, string relativeDirectory)
+    {
+        var normalizedPrefix = NormalizeManifestPath(relativeDirectory).TrimEnd('/') + "/";
+        if (remotePaths.Any(path => path.StartsWith(normalizedPrefix, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        var directory = GetSafeTargetPath(_settings.InstallPath, relativeDirectory);
+        if (!Directory.Exists(directory))
+        {
+            return;
+        }
+
+        foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+        {
+            removedPaths.Add(Path.GetRelativePath(_settings.InstallPath, file).Replace('\\', '/'));
+        }
+    }
+
+    private int DeleteRemovedClientFiles(List<string> relativePaths, CancellationToken cancellationToken)
+    {
+        var deletedCount = 0;
+        var directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var root = Path.GetFullPath(_settings.InstallPath).TrimEnd(Path.DirectorySeparatorChar);
+
+        foreach (var relativePath in relativePaths.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var target = GetSafeTargetPath(_settings.InstallPath, relativePath);
+            if (!File.Exists(target))
+            {
+                continue;
+            }
+
+            DeleteFileWithRetry(target, cancellationToken);
+            deletedCount++;
+
+            var currentDirectory = Path.GetDirectoryName(target);
+            while (!string.IsNullOrWhiteSpace(currentDirectory))
+            {
+                var normalizedDirectory = Path.GetFullPath(currentDirectory).TrimEnd(Path.DirectorySeparatorChar);
+                if (string.Equals(normalizedDirectory, root, StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+
+                directories.Add(normalizedDirectory);
+                currentDirectory = Path.GetDirectoryName(normalizedDirectory);
+            }
+        }
+
+        foreach (var directory in directories.OrderByDescending(path => path.Length))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            TryDeleteDirectoryIfEmpty(directory);
+        }
+
+        return deletedCount;
+    }
+
+    private static void DeleteFileWithRetry(string path, CancellationToken cancellationToken)
+    {
+        Exception? lastError = null;
+        for (var attempt = 0; attempt < 12; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                File.SetAttributes(path, FileAttributes.Normal);
+                File.Delete(path);
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                lastError = ex;
+                Thread.Sleep(250);
+            }
+        }
+
+        throw new IOException("Impossible de supprimer le fichier obsolete: " + path, lastError);
+    }
+
+    private static void TryDeleteDirectoryIfEmpty(string directory)
+    {
+        try
+        {
+            if (Directory.Exists(directory) && !Directory.EnumerateFileSystemEntries(directory).Any())
+            {
+                Directory.Delete(directory);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     private LauncherManifest? LoadInstalledManifestHistory()
@@ -569,8 +692,9 @@ public partial class MainWindow : Window
 
         SetStatus("Comparaison du manifeste...");
         var missingOrChanged = await FindMissingOrChangedFilesForManifestAsync(manifest, updateProgress: true, cancellationToken);
+        var removedFiles = FindRemovedFilesForManifest(manifest);
 
-        if (missingOrChanged.Count == 0)
+        if (missingOrChanged.Count == 0 && removedFiles.Count == 0)
         {
             SaveInstalledManifestHistory(manifest);
             _announcedGameUpdateVersion = null;
@@ -586,10 +710,39 @@ public partial class MainWindow : Window
         var totalBytes = missingOrChanged.Sum(file => Math.Max(file.Size, 0));
         long downloadedBytes = 0;
 
-        AppendLog($"{missingOrChanged.Count} fichier(s) à télécharger, {FormatBytes(totalBytes)}.");
+        if (missingOrChanged.Count > 0)
+        {
+            AppendLog($"{missingOrChanged.Count} fichier(s) a telecharger, {FormatBytes(totalBytes)}.");
+        }
+        if (removedFiles.Count > 0)
+        {
+            AppendLog($"{removedFiles.Count} fichier(s) obsolete(s) a supprimer.");
+        }
+
         GameInstallServices.StopRunningGameProcesses(_settings.InstallPath);
         AppendLog("Processus Wow ferme si necessaire.");
-        SetStatus("Téléchargement...");
+
+        if (removedFiles.Count > 0)
+        {
+            SetStatus("Nettoyage...");
+            var deletedCount = DeleteRemovedClientFiles(removedFiles, cancellationToken);
+            AppendLog($"Nettoyage: {deletedCount} fichier(s) supprime(s).");
+        }
+
+        if (missingOrChanged.Count == 0)
+        {
+            SaveInstalledManifestHistory(manifest);
+            _announcedGameUpdateVersion = null;
+            SetGameAction(GameAction.Play);
+            RegisterGameApplication(manifest.Version);
+            MainProgress.Value = 100;
+            ProgressText.Text = "A jour";
+            SetStatus("Client a jour.");
+            AppendLog("Aucun fichier a telecharger.");
+            return;
+        }
+
+        SetStatus("Telechargement...");
 
         foreach (var file in missingOrChanged)
         {

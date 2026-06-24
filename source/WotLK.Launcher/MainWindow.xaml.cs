@@ -9,6 +9,7 @@ using System.Text.Json;
 using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
 
 namespace WotLK.Launcher;
@@ -52,6 +53,7 @@ public partial class MainWindow : Window
         Title = displayName;
         TitleText.Text = displayName;
         VersionText.Text = GetLauncherVersionText();
+        TitleBarText.Text = displayName + " - " + GetLauncherVersionText();
 
         _settings = LauncherSettings.Load();
         _settings.Save();
@@ -204,6 +206,37 @@ public partial class MainWindow : Window
         {
             AppendLog("Langue jeu non appliquee: " + ex.Message);
         }
+    }
+
+    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            ToggleWindowState();
+            return;
+        }
+
+        DragMove();
+    }
+
+    private void Minimize_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void MaximizeRestore_Click(object sender, RoutedEventArgs e)
+    {
+        ToggleWindowState();
+    }
+
+    private void Close_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
+    private void ToggleWindowState()
+    {
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
     }
 
     private void PlayGame()
@@ -1172,7 +1205,7 @@ public partial class MainWindow : Window
 
         return normalizedStatus switch
         {
-            "client a jour" => "Client à jour · Prêt à jouer",
+            "client a jour" => "Client à jour - Prêt à jouer",
             "pret" => "Prêt",
             "telechargement" => "Téléchargement",
             "mise a jour disponible" => "Mise à jour disponible",

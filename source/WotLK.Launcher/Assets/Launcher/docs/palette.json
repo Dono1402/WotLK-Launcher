@@ -1,0 +1,14 @@
+{
+  "background": "#020812",
+  "background_2": "#071522",
+  "panel": "#05111C",
+  "panel_soft": "#0A1B2A",
+  "steel_border": "#36556F",
+  "steel_glow": "#4FCBFF",
+  "ice_cyan": "#50DFF5",
+  "gold": "#D9B84F",
+  "gold_light": "#F3DA8A",
+  "text_main": "#F2F6FA",
+  "text_secondary": "#A9B8C8",
+  "danger_red": "#8F1D1D"
+}

@@ -124,41 +124,36 @@
 
         <Style x:Key="SecondaryButton" TargetType="Button">
             <Setter Property="Foreground" Value="#F3F8FF"/>
-            <Setter Property="Background" Value="{StaticResource ButtonSteelBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="#A98B4C"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="16,9"/>
-            <Setter Property="MinHeight" Value="40"/>
+            <Setter Property="MinHeight" Value="42"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FontFamily" Value="Georgia"/>
             <Setter Property="FontSize" Value="15"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type Button}">
-                        <Border x:Name="Chrome"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="5">
-                            <Grid>
-                                <Border Margin="1"
-                                        BorderBrush="#274D67"
-                                        BorderThickness="1"
-                                        CornerRadius="4"
-                                        Opacity="0.65"/>
-                                <ContentPresenter HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"
-                                                  Margin="{TemplateBinding Padding}"
-                                                  RecognizesAccessKey="True"/>
-                            </Grid>
-                        </Border>
+                        <Grid>
+                            <Image x:Name="ButtonFrame"
+                                   Source="Assets/Launcher/controls/small_button_frame_220x64.png"
+                                   Stretch="Fill"/>
+                            <Border x:Name="HoverGlow"
+                                    Background="#1C5C80"
+                                    CornerRadius="5"
+                                    Opacity="0"/>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"
+                                              RecognizesAccessKey="True"/>
+                        </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="{StaticResource ButtonSteelHoverBrush}"/>
-                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#D6B56D"/>
+                                <Setter TargetName="HoverGlow" Property="Opacity" Value="0.18"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="#092033"/>
+                                <Setter TargetName="ButtonFrame" Property="Opacity" Value="0.82"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.45"/>
@@ -171,11 +166,13 @@
 
         <Style x:Key="PrimaryButton" TargetType="Button">
             <Setter Property="Foreground" Value="#FBE8B8"/>
-            <Setter Property="Background" Value="#12334F"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="#D4B16A"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="MinHeight" Value="62"/>
-            <Setter Property="MinWidth" Value="260"/>
+            <Setter Property="Width" Value="330"/>
+            <Setter Property="Height" Value="82"/>
+            <Setter Property="MinHeight" Value="82"/>
+            <Setter Property="MinWidth" Value="330"/>
             <Setter Property="Padding" Value="34,12"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FontFamily" Value="Georgia"/>
@@ -185,50 +182,9 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type Button}">
                         <Grid>
-                            <Path Data="M17,0 L245,0 L264,17 L264,45 L245,62 L17,62 L0,45 L0,17 Z"
-                                  Fill="#06111C"
-                                  Stroke="#6F5529"
-                                  StrokeThickness="1"
-                                  Stretch="Fill"/>
-                            <Path x:Name="ButtonFill"
-                                  Data="M22,7 L240,7 L256,22 L256,40 L240,55 L22,55 L8,40 L8,22 Z"
-                                  Stroke="#D9B86E"
-                                  StrokeThickness="1.2"
-                                  Stretch="Fill">
-                                <Path.Fill>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                        <GradientStop Color="#1A5B86" Offset="0"/>
-                                        <GradientStop Color="#0B2034" Offset="0.58"/>
-                                        <GradientStop Color="#07101B" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </Path.Fill>
-                                <Path.Effect>
-                                    <DropShadowEffect Color="#2CCFFF"
-                                                      BlurRadius="10"
-                                                      ShadowDepth="0"
-                                                      Opacity="0.22"/>
-                                </Path.Effect>
-                            </Path>
-                            <Path Data="M0,31 L20,24 L31,31 L20,38 Z"
-                                  Fill="#D6B76F"
-                                  Stroke="#573E1E"
-                                  StrokeThickness="1"
-                                  HorizontalAlignment="Left"
-                                  Width="34"
-                                  Height="18"
-                                  Stretch="Fill"/>
-                            <Path Data="M0,31 L20,24 L31,31 L20,38 Z"
-                                  Fill="#D6B76F"
-                                  Stroke="#573E1E"
-                                  StrokeThickness="1"
-                                  HorizontalAlignment="Right"
-                                  Width="34"
-                                  Height="18"
-                                  Stretch="Fill">
-                                <Path.RenderTransform>
-                                    <ScaleTransform ScaleX="-1" CenterX="17"/>
-                                </Path.RenderTransform>
-                            </Path>
+                            <Image x:Name="Plate"
+                                   Source="Assets/Launcher/buttons/play_button_plate_normal.png"
+                                   Stretch="Fill"/>
                             <ContentPresenter x:Name="ButtonContent"
                                               HorizontalAlignment="Center"
                                               VerticalAlignment="Center"
@@ -244,15 +200,15 @@
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ButtonFill" Property="Stroke" Value="#F0D48B"/>
-                                <Setter TargetName="ButtonFill" Property="Opacity" Value="1"/>
+                                <Setter TargetName="Plate" Property="Source" Value="Assets/Launcher/buttons/play_button_plate_hover.png"/>
                                 <Setter Property="Foreground" Value="#FFF3CE"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="ButtonFill" Property="Opacity" Value="0.82"/>
+                                <Setter TargetName="Plate" Property="Opacity" Value="0.86"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.46"/>
+                                <Setter TargetName="Plate" Property="Source" Value="Assets/Launcher/buttons/play_button_plate_disabled.png"/>
+                                <Setter Property="Opacity" Value="0.78"/>
                                 <Setter Property="Foreground" Value="#89939F"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -263,7 +219,7 @@
 
         <Style x:Key="PathTextBox" TargetType="TextBox">
             <Setter Property="Foreground" Value="#F4F8FC"/>
-            <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="#3E5B72"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CaretBrush" Value="#FFFFFF"/>
@@ -273,30 +229,27 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type TextBox}">
-                        <Border x:Name="Chrome"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="4">
-                            <Grid>
-                                <Path Data="M2,6 L7,6 L9,8 L18,8 L18,17 L2,17 Z M2,9 L18,9"
-                                      Style="{StaticResource IconPath}"
-                                      Width="18"
-                                      Height="15"
-                                      Margin="14,0,0,0"
-                                      HorizontalAlignment="Left"
-                                      VerticalAlignment="Center"/>
-                                <ScrollViewer x:Name="PART_ContentHost"
-                                              Margin="44,0,12,0"
-                                              VerticalAlignment="Center"/>
-                            </Grid>
-                        </Border>
+                        <Grid>
+                            <Image x:Name="InputFrame"
+                                   Source="Assets/Launcher/controls/input_frame_760x64.png"
+                                   Stretch="Fill"/>
+                            <Path Data="M3 6.5h6.2l1.8 2H21v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18V6.5Z M3 9h18"
+                                  Style="{StaticResource IconPath}"
+                                  Width="21"
+                                  Height="17"
+                                  Margin="20,0,0,0"
+                                  HorizontalAlignment="Left"
+                                  VerticalAlignment="Center"/>
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="62,0,18,0"
+                                          VerticalAlignment="Center"/>
+                        </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#668BA6"/>
+                                <Setter TargetName="InputFrame" Property="Opacity" Value="0.92"/>
                             </Trigger>
                             <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource IceBrush}"/>
+                                <Setter TargetName="InputFrame" Property="Opacity" Value="1"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -316,7 +269,7 @@
 
         <Style x:Key="DarkComboBox" TargetType="ComboBox">
             <Setter Property="Foreground" Value="#F3F8FF"/>
-            <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="#3E5B72"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="16,0,36,0"/>
@@ -339,11 +292,11 @@
                                 <ToggleButton.Template>
                                     <ControlTemplate TargetType="{x:Type ToggleButton}">
                                         <Border x:Name="Chrome"
-                                                Background="{TemplateBinding Background}"
-                                                BorderBrush="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=ComboBox}}"
-                                                BorderThickness="{Binding BorderThickness, RelativeSource={RelativeSource AncestorType=ComboBox}}"
-                                                CornerRadius="4">
+                                                Background="Transparent">
                                             <Grid>
+                                                <Image x:Name="SelectFrame"
+                                                       Source="Assets/Launcher/controls/select_frame_360x64.png"
+                                                       Stretch="Fill"/>
                                                 <ContentPresenter Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}"
                                                                   ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType=ComboBox}}"
                                                                   ContentStringFormat="{Binding SelectionBoxItemStringFormat, RelativeSource={RelativeSource AncestorType=ComboBox}}"
@@ -363,10 +316,10 @@
                                         </Border>
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#668BA6"/>
+                                                <Setter TargetName="SelectFrame" Property="Opacity" Value="0.92"/>
                                             </Trigger>
                                             <Trigger Property="IsChecked" Value="True">
-                                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#D9B86E"/>
+                                                <Setter TargetName="SelectFrame" Property="Opacity" Value="1"/>
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
@@ -425,46 +378,42 @@
         </Style>
 
         <Style x:Key="StatusBadge" TargetType="Border">
-            <Setter Property="Background" Value="#102436"/>
-            <Setter Property="BorderBrush" Value="#4087A7"/>
-            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background">
+                <Setter.Value>
+                    <ImageBrush ImageSource="Assets/Launcher/controls/status_pill_empty.png"
+                                Stretch="Fill"/>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="CornerRadius" Value="18"/>
-            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Padding" Value="16,9"/>
         </Style>
 
         <Style TargetType="ProgressBar">
             <Setter Property="Foreground" Value="{StaticResource IceBrush}"/>
-            <Setter Property="Background" Value="#07111A"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="#24455D"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Height" Value="12"/>
+            <Setter Property="Height" Value="13"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type ProgressBar}">
                         <Grid ClipToBounds="True">
-                            <Border x:Name="PART_Track"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="5"/>
-                            <Border x:Name="PART_Indicator"
-                                    HorizontalAlignment="Left"
-                                    Margin="2"
-                                    CornerRadius="4">
-                                <Border.Background>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                        <GradientStop Color="#B8FBFF" Offset="0"/>
-                                        <GradientStop Color="{StaticResource IceColor}" Offset="0.42"/>
-                                        <GradientStop Color="{StaticResource IceDeepColor}" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </Border.Background>
-                                <Border.Effect>
+                            <Image x:Name="PART_Track"
+                                   Source="Assets/Launcher/controls/progress_track_1200x18.png"
+                                   Stretch="Fill"/>
+                            <Image x:Name="PART_Indicator"
+                                   Source="Assets/Launcher/controls/progress_fill_1200x18.png"
+                                   HorizontalAlignment="Left"
+                                   Stretch="Fill">
+                                <Image.Effect>
                                     <DropShadowEffect Color="#55E9FF"
-                                                      BlurRadius="9"
+                                                      BlurRadius="8"
                                                       ShadowDepth="0"
-                                                      Opacity="0.62"/>
-                                </Border.Effect>
-                            </Border>
+                                                      Opacity="0.6"/>
+                                </Image.Effect>
+                            </Image>
                         </Grid>
                     </ControlTemplate>
                 </Setter.Value>
@@ -546,11 +495,16 @@
         </Style>
     </Window.Resources>
 
-    <Grid Background="{StaticResource WindowBackgroundBrush}">
+    <Grid Background="#020812">
         <Grid.RowDefinitions>
             <RowDefinition Height="42"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
+        <Image Grid.RowSpan="2"
+               Source="Assets/Launcher/textures/bg_dark_frost_1600x900.png"
+               Stretch="Fill"
+               Opacity="1"
+               IsHitTestVisible="False"/>
 
         <Grid Grid.Row="0"
               MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
@@ -619,61 +573,18 @@
                                       BlurRadius="22"
                                       Opacity="0.44"/>
                 </Border.Effect>
-                <Grid Background="{StaticResource PanelBackgroundBrush}">
-                    <Rectangle Opacity="0.08">
-                        <Rectangle.Fill>
-                            <DrawingBrush TileMode="Tile"
-                                          Viewport="0,0,180,120"
-                                          ViewportUnits="Absolute"
-                                          Stretch="None">
-                                <DrawingBrush.Drawing>
-                                    <DrawingGroup>
-                                        <GeometryDrawing Brush="Transparent">
-                                            <GeometryDrawing.Geometry>
-                                                <RectangleGeometry Rect="0,0,180,120"/>
-                                            </GeometryDrawing.Geometry>
-                                        </GeometryDrawing>
-                                        <GeometryDrawing>
-                                            <GeometryDrawing.Pen>
-                                                <Pen Brush="#7ADFFF" Thickness="0.35"/>
-                                            </GeometryDrawing.Pen>
-                                            <GeometryDrawing.Geometry>
-                                                <GeometryGroup>
-                                                    <LineGeometry StartPoint="12,16" EndPoint="76,10"/>
-                                                    <LineGeometry StartPoint="96,42" EndPoint="166,34"/>
-                                                    <LineGeometry StartPoint="32,93" EndPoint="142,105"/>
-                                                </GeometryGroup>
-                                            </GeometryDrawing.Geometry>
-                                        </GeometryDrawing>
-                                    </DrawingGroup>
-                                </DrawingBrush.Drawing>
-                            </DrawingBrush>
-                        </Rectangle.Fill>
-                    </Rectangle>
-
-                    <Canvas HorizontalAlignment="Right"
-                            VerticalAlignment="Top"
-                            Width="230"
-                            Height="190"
-                            Opacity="0.12"
-                            Margin="0,6,20,0"
-                            IsHitTestVisible="False">
-                        <Path Stroke="#65C6F3"
-                              StrokeThickness="2"
-                              Data="M140,6 L166,54 L214,80 L166,106 L140,154 L114,106 L66,80 L114,54 Z"/>
-                        <Path Stroke="#65C6F3"
-                              StrokeThickness="1.4"
-                              Data="M140,42 L154,68 L180,80 L154,92 L140,118 L126,92 L100,80 L126,68 Z"/>
-                        <Path Stroke="#65C6F3"
-                              StrokeThickness="1"
-                              Data="M44,126 L86,92 L116,130 L92,162 Z"/>
-                    </Canvas>
-
-                    <Border BorderBrush="#1E8FCE"
-                            BorderThickness="1"
-                            CornerRadius="17"
-                            Opacity="0.55"
-                            Margin="2"/>
+                <Grid Background="#05111C">
+                    <Image Source="Assets/Launcher/textures/panel_overlay_1480x780.png"
+                           Stretch="Fill"
+                           IsHitTestVisible="False"/>
+                    <Image Source="Assets/Launcher/decor/rune_watermark_top_right.png"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Top"
+                           Width="250"
+                           Height="178"
+                           Opacity="0.72"
+                           Margin="0,4,28,0"
+                           IsHitTestVisible="False"/>
 
                     <Grid Margin="32,26,32,24">
                         <Grid.RowDefinitions>
@@ -731,12 +642,20 @@
                                     Visibility="Collapsed"/>
                         </Grid>
 
-                        <TextBlock Grid.Row="1"
-                                   Text="Installation, mise à jour et lancement du client WotLK"
-                                   Foreground="#B7C8D8"
-                                   FontFamily="Georgia"
-                                   FontSize="15"
-                                   Margin="2,6,0,16"/>
+                        <StackPanel Grid.Row="1"
+                                    Margin="0,6,0,16">
+                            <TextBlock Text="Installation, mise à jour et lancement du client WotLK"
+                                       Foreground="#B7C8D8"
+                                       FontFamily="Georgia"
+                                       FontSize="15"
+                                       Margin="2,0,0,8"/>
+                            <Image Source="Assets/Launcher/decor/divider_frost.png"
+                                   Width="450"
+                                   Height="21"
+                                   Stretch="Fill"
+                                   HorizontalAlignment="Left"
+                                   Opacity="0.86"/>
+                        </StackPanel>
 
                         <Grid Grid.Row="2"
                               Margin="0,0,0,22">

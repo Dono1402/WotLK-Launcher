@@ -17,6 +17,10 @@
 
   <ItemGroup>
     <Resource Include="Assets\AppIcon.ico" />
+    <Resource Include="Assets\Launcher\buttons\*.png" />
+    <Resource Include="Assets\Launcher\controls\*.png" />
+    <Resource Include="Assets\Launcher\decor\*.png" />
+    <Resource Include="Assets\Launcher\textures\*.png" />
   </ItemGroup>
 
 </Project>

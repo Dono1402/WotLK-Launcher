@@ -1,0 +1,58 @@
+J’ai ajouté un dossier d’assets pour le launcher WotLK.
+
+Dossier assets à utiliser : `Assets/Launcher/`
+
+Tu dois refaire uniquement l’apparence du launcher en utilisant ces assets et en gardant la logique existante intacte.
+
+Référence principale :
+- `Assets/Launcher/reference/launcher_reference_full.png`
+
+Assets disponibles :
+- `textures/bg_dark_frost_1600x900.png`
+- `textures/panel_overlay_1480x780.png`
+- `decor/rune_watermark_top_right.png`
+- `decor/divider_frost.png`
+- `buttons/play_button_plate_normal.png`
+- `buttons/play_button_plate_hover.png`
+- `buttons/play_button_plate_disabled.png`
+- `controls/input_frame_760x64.png`
+- `controls/small_button_frame_220x64.png`
+- `controls/select_frame_360x64.png`
+- `controls/status_pill_empty.png`
+- `controls/progress_track_1200x18.png`
+- `controls/progress_fill_1200x18.png`
+- `icons/*.svg`
+- `docs/palette.json`
+
+Objectif :
+Reproduire le plus fidèlement possible le style et la composition de l’image de référence, sans simplement t’en inspirer.
+
+Contraintes absolues :
+- Ne pas casser l’installation, la mise à jour, la vérification, les logs, le choix de langue, le chemin client ou le lancement de Wow.exe.
+- Conserver les bindings, ViewModels, handlers et services existants autant que possible.
+- Modifier principalement le XAML, les ResourceDictionary, les styles et les ControlTemplates.
+- Les textes doivent rester de vrais TextBlock/ContentControl en XAML, pas être intégrés dans des images.
+- Les assets doivent servir de fonds, textures, plaques, icônes et décorations.
+
+Composition à respecter :
+- Title bar custom sombre.
+- Grand titre doré “WotLK Launcher” en haut à gauche.
+- Version “v1.0.23” proche du titre.
+- Sous-titre sous le titre.
+- Champ dossier au centre gauche avec icône dossier.
+- Bouton “Parcourir” à droite du champ.
+- Sélecteur langue sombre à droite.
+- Badge “Client à jour - Prêt à jouer” avec pastille cyan.
+- Barre de progression fine bleu glace.
+- Section “Logs techniques” avec panneau de logs sombre.
+- Bouton “JOUER” en bas à droite uniquement, pas en pleine largeur.
+
+Correction importante :
+Le bouton JOUER ne doit jamais devenir une barre horizontale pleine largeur. Il doit rester une plaque premium en bas à droite, comme dans l’image de référence.
+
+Style attendu :
+- Dark frost WotLK discret.
+- Bleu-noir, acier froid, cyan glacé, doré discret.
+- Pas de gros personnage ni artwork chargé.
+- Aucun contrôle Windows blanc par défaut, surtout pas le ComboBox langue.
+- Interface premium, lisible, sombre, avec relief subtil.

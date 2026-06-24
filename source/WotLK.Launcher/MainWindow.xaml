@@ -10,173 +10,340 @@
         MinHeight="500"
         Width="920"
         MinWidth="860"
-        Background="#101418"
-        FontFamily="Segoe UI">
+        FontFamily="Segoe UI"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
+    <Window.Background>
+        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#07101A" Offset="0"/>
+            <GradientStop Color="#0B1622" Offset="0.52"/>
+            <GradientStop Color="#03070D" Offset="1"/>
+        </LinearGradientBrush>
+    </Window.Background>
+
     <Window.Resources>
+        <SolidColorBrush x:Key="PanelBrush" Color="#111923"/>
+        <SolidColorBrush x:Key="PanelBorderBrush" Color="#2B3A4A"/>
+        <SolidColorBrush x:Key="InputBrush" Color="#0D141D"/>
+        <SolidColorBrush x:Key="InputBorderBrush" Color="#273748"/>
+        <SolidColorBrush x:Key="IceBrush" Color="#7CD7F6"/>
+        <SolidColorBrush x:Key="GoldBrush" Color="#C6A15B"/>
+
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="#EAF0F6"/>
         </Style>
+
+        <Style x:Key="FormLabel" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="Foreground" Value="#92A5B8"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="1,0,0,7"/>
+        </Style>
+
         <Style TargetType="TextBox">
-            <Setter Property="Foreground" Value="#F7FAFC"/>
-            <Setter Property="Background" Value="#151B21"/>
-            <Setter Property="BorderBrush" Value="#36414D"/>
+            <Setter Property="Foreground" Value="#F4F8FC"/>
+            <Setter Property="Background" Value="{StaticResource InputBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource InputBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="10,7"/>
+            <Setter Property="Padding" Value="11,8"/>
             <Setter Property="CaretBrush" Value="#FFFFFF"/>
+            <Setter Property="MinHeight" Value="38"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
+
         <Style TargetType="ComboBox">
-            <Setter Property="Foreground" Value="#F7FAFC"/>
-            <Setter Property="Background" Value="#151B21"/>
-            <Setter Property="BorderBrush" Value="#36414D"/>
+            <Setter Property="Foreground" Value="#F4F8FC"/>
+            <Setter Property="Background" Value="{StaticResource InputBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource InputBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="8,5"/>
-            <Setter Property="MinHeight" Value="34"/>
+            <Setter Property="Padding" Value="9,6"/>
+            <Setter Property="MinHeight" Value="38"/>
         </Style>
+
         <Style TargetType="ComboBoxItem">
-            <Setter Property="Foreground" Value="#101418"/>
+            <Setter Property="Foreground" Value="#EAF0F6"/>
+            <Setter Property="Background" Value="#111923"/>
+            <Setter Property="Padding" Value="8,5"/>
         </Style>
+
         <Style TargetType="Button">
-            <Setter Property="Foreground" Value="#F7FAFC"/>
-            <Setter Property="Background" Value="#202A33"/>
-            <Setter Property="BorderBrush" Value="#4A5866"/>
+            <Setter Property="Foreground" Value="#F4F8FC"/>
+            <Setter Property="Background" Value="#182434"/>
+            <Setter Property="BorderBrush" Value="#3A4D60"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="14,8"/>
             <Setter Property="MinHeight" Value="36"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"
+                                              RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#213349"/>
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#5B7690"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#132033"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.52"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
+
         <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Background" Value="#8B1E1E"/>
-            <Setter Property="BorderBrush" Value="#D8A434"/>
+            <Setter Property="Background" Value="#173447"/>
+            <Setter Property="BorderBrush" Value="{StaticResource GoldBrush}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="MinHeight" Value="48"/>
+            <Setter Property="Padding" Value="28,12"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#23546E"/>
+                    <Setter Property="BorderBrush" Value="#E0B96A"/>
+                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
+
         <Style x:Key="SmallTopButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Padding" Value="10,4"/>
-            <Setter Property="MinHeight" Value="28"/>
-            <Setter Property="Background" Value="#18212A"/>
-            <Setter Property="BorderBrush" Value="#4C6275"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="MinHeight" Value="30"/>
+            <Setter Property="Background" Value="#141F2B"/>
+            <Setter Property="BorderBrush" Value="#40566E"/>
+        </Style>
+
+        <Style TargetType="ProgressBar">
+            <Setter Property="Foreground" Value="{StaticResource IceBrush}"/>
+            <Setter Property="Background" Value="#08111A"/>
+            <Setter Property="BorderBrush" Value="#203041"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Height" Value="8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ProgressBar}">
+                        <Grid x:Name="TemplateRoot" ClipToBounds="True">
+                            <Border x:Name="PART_Track"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="4"/>
+                            <Border x:Name="PART_Indicator"
+                                    HorizontalAlignment="Left"
+                                    Margin="1"
+                                    Background="{TemplateBinding Foreground}"
+                                    CornerRadius="3"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
     <Grid Margin="24">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <Grid Grid.Row="0" Margin="0,0,0,20">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-
-            <StackPanel Grid.Column="0">
-                <TextBlock x:Name="TitleText"
-                           Text="WotLK Launcher"
-                           FontSize="30"
-                           FontWeight="SemiBold"
-                           Foreground="#FFD948"/>
-                <TextBlock Text="Installation, mise à jour et lancement du client WotLK"
-                           Foreground="#AAB6C2"
-                           Margin="1,4,0,0"/>
-            </StackPanel>
-
-            <StackPanel Grid.Column="1"
-                        Orientation="Horizontal"
-                        VerticalAlignment="Top">
-                <Button x:Name="LauncherSelfUpdateButton"
-                        Content="Mettre à jour le launcher"
-                        Style="{StaticResource SmallTopButton}"
-                        Click="LauncherSelfUpdateButton_Click"
-                        Visibility="Collapsed"/>
-            </StackPanel>
-        </Grid>
-
-        <Grid Grid.Row="1" Margin="0,0,0,18">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="150"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="Dossier jeu" VerticalAlignment="Center"/>
-            <TextBox x:Name="InstallPathBox"
-                     Grid.Row="0"
-                     Grid.Column="1"
-                     Margin="0,0,0,8"
-                     IsReadOnly="True"
-                     IsTabStop="False"
-                     Focusable="False"/>
-
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="Langue jeu" VerticalAlignment="Center"/>
-            <ComboBox x:Name="GameLanguageComboBox"
-                      Grid.Row="1"
-                      Grid.Column="1"
-                      Width="180"
-                      HorizontalAlignment="Left"
-                      SelectionChanged="GameLanguageComboBox_SelectionChanged">
-                <ComboBoxItem Content="Fran&#231;ais" Tag="frFR"/>
-                <ComboBoxItem Content="English" Tag="enUS"/>
-            </ComboBox>
-        </Grid>
-
-        <Border Grid.Row="2"
-                Background="#0B0F13"
-                BorderBrush="#26313A"
+        <Border Background="{StaticResource PanelBrush}"
+                BorderBrush="{StaticResource PanelBorderBrush}"
                 BorderThickness="1"
-                CornerRadius="4"
-                Padding="12">
+                CornerRadius="8"
+                Padding="22">
+            <Border.Effect>
+                <DropShadowEffect Color="#000000"
+                                  Direction="270"
+                                  ShadowDepth="10"
+                                  BlurRadius="22"
+                                  Opacity="0.24"/>
+            </Border.Effect>
+
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <DockPanel Grid.Row="0" Margin="0,0,0,10">
-                    <TextBlock x:Name="StatusText"
-                               Text="Prêt."
-                               DockPanel.Dock="Left"
-                               Foreground="#FFD948"
-                               FontWeight="SemiBold"/>
-                    <TextBlock x:Name="ProgressText"
-                               Text=""
-                               DockPanel.Dock="Right"
-                               Foreground="#AAB6C2"/>
-                </DockPanel>
-                <TextBox x:Name="LogBox"
-                         Grid.Row="1"
-                         FontFamily="Consolas"
-                         FontSize="12"
-                         IsReadOnly="True"
-                         TextWrapping="Wrap"
-                         VerticalScrollBarVisibility="Auto"
-                         HorizontalScrollBarVisibility="Disabled"/>
+
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock x:Name="TitleText"
+                                   Text="WotLK Launcher"
+                                   FontSize="24"
+                                   FontWeight="SemiBold"
+                                   Foreground="#F4F8FC"/>
+                        <TextBlock Text="Installation, mise à jour et lancement du client"
+                                   Foreground="#91A6BA"
+                                   FontSize="13"
+                                   Margin="1,4,0,0"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top">
+                        <TextBlock x:Name="VersionText"
+                                   Text="v1.0.23"
+                                   Foreground="#74889D"
+                                   FontSize="12"
+                                   HorizontalAlignment="Right"/>
+                        <Button x:Name="LauncherSelfUpdateButton"
+                                Content="Mettre à jour le launcher"
+                                Style="{StaticResource SmallTopButton}"
+                                Click="LauncherSelfUpdateButton_Click"
+                                Margin="0,9,0,0"
+                                Visibility="Collapsed"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid Grid.Row="1" Margin="0,22,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="220"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="0"
+                               Text="Dossier du client"
+                               Style="{StaticResource FormLabel}"/>
+                    <Grid Grid.Row="1"
+                          Grid.Column="0"
+                          Margin="0,0,18,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="InstallPathBox"
+                                 Grid.Column="0"
+                                 IsReadOnly="True"
+                                 IsTabStop="False"
+                                 Focusable="False"/>
+                        <Button x:Name="BrowseInstallPathButton"
+                                Grid.Column="1"
+                                Content="Parcourir"
+                                Style="{StaticResource SmallTopButton}"
+                                MinWidth="96"
+                                MinHeight="38"
+                                Margin="10,0,0,0"
+                                Click="BrowseInstallPathButton_Click"/>
+                    </Grid>
+
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="1"
+                               Text="Langue"
+                               Style="{StaticResource FormLabel}"/>
+                    <ComboBox x:Name="GameLanguageComboBox"
+                              Grid.Row="1"
+                              Grid.Column="1"
+                              HorizontalAlignment="Stretch"
+                              SelectionChanged="GameLanguageComboBox_SelectionChanged">
+                        <ComboBoxItem Content="Fran&#231;ais" Tag="frFR"/>
+                        <ComboBoxItem Content="English" Tag="enUS"/>
+                    </ComboBox>
+                </Grid>
+
+                <Grid Grid.Row="2" Margin="0,20,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <DockPanel Grid.Row="0" LastChildFill="False">
+                        <Border DockPanel.Dock="Left"
+                                Background="#142231"
+                                BorderBrush="#2D475C"
+                                BorderThickness="1"
+                                CornerRadius="14"
+                                Padding="10,5">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="8"
+                                        Height="8"
+                                        CornerRadius="4"
+                                        Background="#6FE6D8"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,8,0"/>
+                                <TextBlock x:Name="StatusText"
+                                           Text="Prêt"
+                                           Foreground="#D9F8FF"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        <TextBlock x:Name="ProgressText"
+                                   DockPanel.Dock="Right"
+                                   Text=""
+                                   Foreground="#93A8BA"
+                                   FontSize="12"
+                                   VerticalAlignment="Center"
+                                   Margin="14,0,0,0"/>
+                    </DockPanel>
+
+                    <ProgressBar x:Name="MainProgress"
+                                 Grid.Row="1"
+                                 Minimum="0"
+                                 Maximum="100"
+                                 Margin="0,10,0,0"/>
+                </Grid>
+
+                <Expander Grid.Row="3"
+                          Margin="0,16,0,0"
+                          IsExpanded="False"
+                          Foreground="#93A8BA">
+                    <Expander.Header>
+                        <TextBlock Text="Logs techniques"
+                                   Foreground="#93A8BA"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"/>
+                    </Expander.Header>
+                    <Border Background="#0A1017"
+                            BorderBrush="#223142"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="10"
+                            Margin="0,8,0,0">
+                        <TextBox x:Name="LogBox"
+                                 Height="108"
+                                 FontFamily="Consolas"
+                                 FontSize="11"
+                                 IsReadOnly="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Disabled"/>
+                    </Border>
+                </Expander>
+
+                <Grid Grid.Row="5" Margin="0,16,0,0">
+                    <Button x:Name="UpdateButton"
+                            HorizontalAlignment="Right"
+                            MinWidth="190"
+                            Content="INSTALLER"
+                            Style="{StaticResource PrimaryButton}"
+                            Click="UpdateButton_Click"/>
+                </Grid>
             </Grid>
         </Border>
-
-        <Grid Grid.Row="3" Margin="0,18,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-
-            <ProgressBar x:Name="MainProgress"
-                         Grid.Column="0"
-                         Height="14"
-                         Minimum="0"
-                         Maximum="100"
-                         VerticalAlignment="Center"
-                         Margin="0,0,16,0"/>
-            <Button x:Name="UpdateButton"
-                    Grid.Column="1"
-                    MinWidth="170"
-                    Content="Installer"
-                    Style="{StaticResource PrimaryButton}"
-                    Click="UpdateButton_Click"/>
-        </Grid>
     </Grid>
 </Window>

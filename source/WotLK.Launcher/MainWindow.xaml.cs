@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -50,6 +51,7 @@ public partial class MainWindow : Window
         var displayName = GetLauncherDisplayName();
         Title = displayName;
         TitleText.Text = displayName;
+        VersionText.Text = GetLauncherVersionText();
 
         _settings = LauncherSettings.Load();
         _settings.Save();
@@ -146,6 +148,37 @@ public partial class MainWindow : Window
             _downloadCancellation = null;
             SetBusy(false);
         }
+    }
+
+    private async void BrowseInstallPathButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_downloadCancellation is not null)
+        {
+            return;
+        }
+
+        SaveSettingsFromUi();
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Choisir le dossier du client WotLK",
+            InitialDirectory = Directory.Exists(_settings.InstallPath)
+                ? _settings.InstallPath
+                : LauncherSettings.GetDefaultInstallPath()
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        _settings.InstallPath = LauncherSettings.NormalizeInstallPath(dialog.FolderName);
+        _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
+        _settings.Save();
+        InstallPathBox.Text = _settings.InstallPath;
+
+        AppendLog("Dossier client: " + _settings.InstallPath);
+        SetInitialGameActionFromDisk();
+        await RefreshGameActionAsync();
     }
 
     private void GameLanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -313,12 +346,14 @@ public partial class MainWindow : Window
 
     private void SetInitialGameActionFromDisk()
     {
-        _settings.InstallPath = LauncherSettings.GetDefaultInstallPath();
         _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
         InstallPathBox.Text = _settings.InstallPath;
 
         var wowPath = Path.Combine(_settings.InstallPath, "Wow.exe");
-        SetGameAction(File.Exists(wowPath) ? GameAction.Play : GameAction.Install);
+        var hasClient = File.Exists(wowPath);
+        SetGameAction(hasClient ? GameAction.Play : GameAction.Install);
+        MainProgress.Value = hasClient ? 100 : 0;
+        ProgressText.Text = hasClient ? "Client à jour" : string.Empty;
     }
 
     private async Task RefreshGameActionAsync(bool silentWhenUpToDate = false)
@@ -331,7 +366,6 @@ public partial class MainWindow : Window
         _isRefreshingGameAction = true;
         try
         {
-            _settings.InstallPath = LauncherSettings.GetDefaultInstallPath();
             _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
             InstallPathBox.Text = _settings.InstallPath;
 
@@ -342,6 +376,7 @@ public partial class MainWindow : Window
                 if (!silentWhenUpToDate)
                 {
                     SetStatus("Pret.");
+                    MainProgress.Value = 0;
                     ProgressText.Text = string.Empty;
                 }
                 return;
@@ -378,11 +413,13 @@ public partial class MainWindow : Window
                 {
                     RegisterGameApplication(manifest.Version);
                     SetStatus("Client a jour.");
-                    ProgressText.Text = string.Empty;
+                    MainProgress.Value = 100;
+                    ProgressText.Text = "Client à jour";
                 }
                 else if (_gameAction == GameAction.Play)
                 {
-                    ProgressText.Text = string.Empty;
+                    MainProgress.Value = 100;
+                    ProgressText.Text = "Client à jour";
                 }
             }
             else
@@ -702,7 +739,7 @@ public partial class MainWindow : Window
 
     private async Task InstallOrUpdateAsync(CancellationToken cancellationToken)
     {
-        _settings.InstallPath = LauncherSettings.GetDefaultInstallPath();
+        _settings.InstallPath = LauncherSettings.NormalizeInstallPath(InstallPathBox.Text);
         InstallPathBox.Text = _settings.InstallPath;
         Directory.CreateDirectory(_settings.InstallPath);
 
@@ -1042,7 +1079,7 @@ public partial class MainWindow : Window
 
     private void SaveSettingsFromUi()
     {
-        _settings.InstallPath = LauncherSettings.GetDefaultInstallPath();
+        _settings.InstallPath = LauncherSettings.NormalizeInstallPath(InstallPathBox.Text);
         _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
         _settings.GameLocale = GetSelectedGameLocale();
         _settings.Save();
@@ -1081,8 +1118,13 @@ public partial class MainWindow : Window
 
     private static string GetLauncherDisplayName()
     {
+        return "WotLK Launcher";
+    }
+
+    private static string GetLauncherVersionText()
+    {
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
-        return "WotLK Launcher - v" + version;
+        return "v" + version;
     }
 
     private void SetGameAction(GameAction action)
@@ -1098,22 +1140,44 @@ public partial class MainWindow : Window
     {
         return action switch
         {
-            GameAction.Play => "Jouer",
-            GameAction.Update => "Mettre a jour le jeu",
-            _ => "Installer"
+            GameAction.Play => "JOUER",
+            GameAction.Update => "METTRE A JOUR",
+            _ => "INSTALLER"
         };
     }
 
     private void SetBusy(bool busy)
     {
         LauncherSelfUpdateButton.IsEnabled = !busy;
+        BrowseInstallPathButton.IsEnabled = !busy;
+        GameLanguageComboBox.IsEnabled = !busy;
         UpdateButton.IsEnabled = true;
-        UpdateButton.Content = busy ? "Annuler" : GetGameActionLabel(_gameAction);
+        UpdateButton.Content = busy ? "ANNULER" : GetGameActionLabel(_gameAction);
     }
 
     private void SetStatus(string status)
     {
-        StatusText.Text = status;
+        StatusText.Text = GetStatusBadgeText(status);
+    }
+
+    private static string GetStatusBadgeText(string status)
+    {
+        var cleanStatus = status.Trim();
+        var normalizedStatus = cleanStatus
+            .TrimEnd('.')
+            .Replace('à', 'a')
+            .Replace('é', 'e')
+            .Replace('è', 'e')
+            .ToLowerInvariant();
+
+        return normalizedStatus switch
+        {
+            "client a jour" => "Client à jour · Prêt à jouer",
+            "pret" => "Prêt",
+            "telechargement" => "Téléchargement",
+            "mise a jour disponible" => "Mise à jour disponible",
+            _ => cleanStatus.TrimEnd('.')
+        };
     }
 
     private void AppendLog(string message)

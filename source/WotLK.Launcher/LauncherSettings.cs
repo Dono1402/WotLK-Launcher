@@ -30,7 +30,7 @@ public sealed class LauncherSettings
             settings = JsonSerializer.Deserialize<LauncherSettings>(json) ?? new LauncherSettings();
         }
 
-        settings.InstallPath = GetDefaultInstallPath();
+        settings.InstallPath = NormalizeInstallPath(settings.InstallPath);
         settings.ManifestUrl = GetDefaultManifestUrl();
         settings.GameLocale = NormalizeGameLocale(settings.GameLocale);
         return settings;
@@ -38,7 +38,7 @@ public sealed class LauncherSettings
 
     public void Save()
     {
-        InstallPath = GetDefaultInstallPath();
+        InstallPath = NormalizeInstallPath(InstallPath);
         ManifestUrl = GetDefaultManifestUrl();
         GameLocale = NormalizeGameLocale(GameLocale);
         Directory.CreateDirectory(SettingsDirectory);
@@ -60,6 +60,23 @@ public sealed class LauncherSettings
         }
 
         return Path.Combine(programFilesX86, "WotLK");
+    }
+
+    public static string NormalizeInstallPath(string? installPath)
+    {
+        if (string.IsNullOrWhiteSpace(installPath))
+        {
+            return GetDefaultInstallPath();
+        }
+
+        try
+        {
+            return Path.GetFullPath(Environment.ExpandEnvironmentVariables(installPath.Trim().Trim('"')));
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return GetDefaultInstallPath();
+        }
     }
 
     public static string GetDefaultGameLocale()

@@ -1,0 +1,82 @@
+{
+  "design_resolution": {
+    "width": 1672,
+    "height": 941
+  },
+  "recommended_wpf": "Use a fixed design surface inside a Viewbox Stretch=Uniform, then overlay real controls above the static skin.",
+  "elements": {
+    "skin_image": {
+      "x": 0,
+      "y": 0,
+      "w": 1672,
+      "h": 941,
+      "file": "assets/launcher_skin_static_labels_empty_dynamic.png"
+    },
+    "path_text_overlay": {
+      "x": 330,
+      "y": 278,
+      "w": 620,
+      "h": 42
+    },
+    "browse_click_area": {
+      "x": 988,
+      "y": 258,
+      "w": 204,
+      "h": 68
+    },
+    "language_combobox_overlay": {
+      "x": 1256,
+      "y": 261,
+      "w": 330,
+      "h": 68
+    },
+    "status_text_overlay": {
+      "x": 142,
+      "y": 372,
+      "w": 260,
+      "h": 38
+    },
+    "right_status_text_overlay": {
+      "x": 1458,
+      "y": 378,
+      "w": 125,
+      "h": 36
+    },
+    "progress_track": {
+      "x": 90,
+      "y": 438,
+      "w": 1491,
+      "h": 18
+    },
+    "progress_fill": {
+      "x": 90,
+      "y": 438,
+      "w": "1491 * ProgressValue / 100",
+      "h": 18
+    },
+    "logs_text_overlay": {
+      "x": 110,
+      "y": 555,
+      "w": 1390,
+      "h": 165
+    },
+    "play_click_area_static_button": {
+      "x": 1085,
+      "y": 745,
+      "w": 518,
+      "h": 140
+    },
+    "play_button_image_if_not_using_static_skin": {
+      "x": 1085,
+      "y": 745,
+      "w": 518,
+      "h": 140,
+      "file": "assets/play_button_with_text.png"
+    }
+  },
+  "notes": [
+    "The skin image already contains static decorative text such as title, labels, browse button text and JOUER button text.",
+    "Overlay only dynamic content: client folder path, selected language, status text, progress fill, logs.",
+    "Use transparent buttons for clickable areas so the background image remains visible."
+  ]
+}

@@ -10,6 +10,7 @@ using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
 namespace WotLK.Launcher;
@@ -1163,10 +1164,25 @@ public partial class MainWindow : Window
     private void SetGameAction(GameAction action)
     {
         _gameAction = action;
+        SetPrimaryActionButtonImage(action);
         if (_downloadCancellation is null)
         {
             UpdateButton.Content = GetGameActionLabel(action);
         }
+    }
+
+    private void SetPrimaryActionButtonImage(GameAction action)
+    {
+        var assetName = action switch
+        {
+            GameAction.Play => "button_play.png",
+            GameAction.Update => "button_update.png",
+            _ => "button_install.png"
+        };
+
+        PrimaryActionButtonImage.Source = new BitmapImage(new Uri(
+            "pack://application:,,,/Assets/Launcher/ExactSkin/" + assetName,
+            UriKind.Absolute));
     }
 
     private static string GetGameActionLabel(GameAction action)

@@ -1,0 +1,101 @@
+<!--
+LauncherSkinLayout.xaml - exemple d'approche "skin + overlay".
+Adapte les noms de Binding/Command à ton ViewModel existant.
+
+Principe :
+- La surface de design fait 1672x941.
+- L'image de skin fournit le rendu visuel.
+- Les contrôles WPF par-dessus ne servent qu'à afficher les infos dynamiques ou capter les clics.
+-->
+<Viewbox Stretch="Uniform">
+    <Grid Width="1672" Height="941">
+        <Image Source="Assets/Launcher/ExactSkin/launcher_skin_static_labels_empty_dynamic.png"
+               Stretch="Fill" />
+
+        <Canvas Width="1672" Height="941">
+            <!-- Chemin client dynamique -->
+            <TextBlock Canvas.Left="330" Canvas.Top="278"
+                       Width="620" Height="42"
+                       Text="{Binding InstallPath}"
+                       Foreground="#F2F8FF"
+                       FontFamily="Georgia"
+                       FontSize="26"
+                       VerticalAlignment="Center" />
+
+            <!-- Zone cliquable transparente du bouton Parcourir -->
+            <Button Canvas.Left="988" Canvas.Top="258"
+                    Width="204" Height="68"
+                    Command="{Binding BrowseCommand}"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    Opacity="0" />
+
+            <!-- Langue sélectionnée : afficher un vrai texte + une zone cliquable ou ComboBox custom -->
+            <TextBlock Canvas.Left="1278" Canvas.Top="285"
+                       Width="210" Height="38"
+                       Text="{Binding SelectedLanguageDisplay}"
+                       Foreground="#F2F8FF"
+                       FontFamily="Georgia"
+                       FontSize="24" />
+
+            <!-- Alternative : mettre ici ton ComboBox custom, mais sans fond visible Windows. -->
+            <ComboBox Canvas.Left="1256" Canvas.Top="261"
+                      Width="330" Height="68"
+                      ItemsSource="{Binding Languages}"
+                      SelectedItem="{Binding SelectedLanguage}"
+                      Background="Transparent"
+                      BorderThickness="0"
+                      Foreground="Transparent"
+                      Opacity="0.01" />
+
+            <!-- Statut dynamique -->
+            <TextBlock Canvas.Left="142" Canvas.Top="372"
+                       Width="285" Height="38"
+                       Text="{Binding StatusText}"
+                       Foreground="#E5F6FA"
+                       FontFamily="Georgia"
+                       FontSize="24" />
+
+            <TextBlock Canvas.Left="1458" Canvas.Top="378"
+                       Width="125" Height="36"
+                       Text="{Binding ShortStatusText}"
+                       Foreground="#CADBE8"
+                       FontFamily="Georgia"
+                       FontSize="22"
+                       TextAlignment="Right" />
+
+            <!-- Barre de progression dynamique : fond déjà dans le skin, on ajoute seulement le fill. -->
+            <Grid Canvas.Left="90" Canvas.Top="438" Width="1491" Height="18" ClipToBounds="True">
+                <Image Source="Assets/Launcher/ExactSkin/progress_fill_icy_blue.png"
+                       Height="18"
+                       Width="1491"
+                       HorizontalAlignment="Left">
+                    <!-- À remplacer par un converter Width = 1491 * Progress / 100 si besoin. -->
+                </Image>
+            </Grid>
+
+            <!-- Logs dynamiques -->
+            <TextBox Canvas.Left="110" Canvas.Top="555"
+                     Width="1390" Height="165"
+                     Text="{Binding LogsText}"
+                     Foreground="#E2EEF8"
+                     FontFamily="Consolas"
+                     FontSize="20"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     IsReadOnly="True"
+                     TextWrapping="NoWrap"
+                     VerticalScrollBarVisibility="Auto" />
+
+            <!-- Zone cliquable transparente du bouton JOUER : visuel déjà dans le skin. -->
+            <Button Canvas.Left="1085" Canvas.Top="745"
+                    Width="518" Height="140"
+                    Command="{Binding PlayCommand}"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    Opacity="0" />
+        </Canvas>
+    </Grid>
+</Viewbox>

@@ -20,7 +20,12 @@
     <Resource Include="Assets\Launcher\buttons\*.png" />
     <Resource Include="Assets\Launcher\controls\*.png" />
     <Resource Include="Assets\Launcher\decor\*.png" />
+    <Resource Include="Assets\Launcher\ExactSkin\*.png" />
     <Resource Include="Assets\Launcher\textures\*.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Remove="Assets\Launcher\ExactSkin\docs\*.xaml" />
   </ItemGroup>
 
 </Project>

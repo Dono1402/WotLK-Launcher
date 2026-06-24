@@ -1,0 +1,42 @@
+J'ai ajouté un pack d'assets pour faire une reproduction beaucoup plus fidèle du launcher WotLK.
+
+Dossier à utiliser : `Assets/Launcher/ExactSkin/`
+
+Fichiers importants :
+- `reference_full.png` : image de référence complète.
+- `launcher_skin_static_labels_empty_dynamic.png` : skin principale à utiliser comme fond de la fenêtre. Elle contient les cadres, décorations, titre, labels, bouton Parcourir et bouton JOUER, mais les zones dynamiques sont vidées.
+- `launcher_skin_static_labels_no_play_button.png` : variante sans le bouton JOUER si tu veux afficher le bouton via une image séparée.
+- `play_button_with_text.png` : bouton JOUER prêt à poser en image.
+- `play_button_plate_no_text.png` + variantes hover/pressed/disabled : boutons si tu veux garder le texte JOUER en vrai TextBlock.
+- `progress_fill_icy_blue.png` : remplissage de barre de progression à cropper selon le pourcentage.
+- `layout_spec.json` : positions exactes des éléments à overlay.
+
+Méthode demandée :
+Ne recrée plus toute l'interface en XAML à l'inspiration. Utilise une approche "skin + overlay".
+
+1. Crée une surface de design fixe en `1672x941` dans un `Viewbox Stretch="Uniform"`.
+2. Mets `launcher_skin_static_labels_empty_dynamic.png` en image de fond pleine taille.
+3. Ajoute par-dessus uniquement les vrais éléments dynamiques WPF :
+   - chemin du client
+   - langue sélectionnée
+   - statut
+   - barre de progression remplie
+   - logs
+   - zones cliquables transparentes pour Parcourir, Logs et JOUER
+4. Les textes statiques déjà présents dans le skin ne doivent pas être redessinés en double.
+5. Les contrôles Windows par défaut ne doivent plus être visibles.
+6. Les boutons cliquables peuvent être transparents : le visuel est porté par l'image de fond.
+7. Garde les handlers/bindings/services existants. Ne casse pas la logique d'installation, mise à jour, logs, langue ou lancement de Wow.exe.
+
+Positions :
+Utilise `layout_spec.json` pour placer les éléments. Les coordonnées sont données pour une surface 1672x941.
+
+Contraintes importantes :
+- Le bouton JOUER doit rester en bas à droite comme dans la référence.
+- Ne pas le transformer en bouton pleine largeur.
+- Les logs doivent rester dans leur panneau.
+- Le ComboBox langue ne doit pas afficher un style Windows blanc ou un texte noir illisible.
+- Le rendu final doit ressembler à la référence, pas être une nouvelle interprétation.
+
+Objectif :
+Obtenir une correspondance visuelle beaucoup plus proche, autour de 90-95%, grâce à une image de skin utilisée comme base et des contrôles WPF invisibles/overlays pour la logique.

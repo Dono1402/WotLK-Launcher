@@ -1,0 +1,72 @@
+J’ai ajouté les assets des trois boutons principaux dans `Assets/Launcher/ExactSkin/` :
+
+- `button_play.png` : état prêt / jouer
+- `button_install.png` : état client non installé
+- `button_update.png` : état mise à jour disponible
+
+Correction importante :
+Pour permettre au bouton principal de changer entre JOUER / INSTALLER / METTRE À JOUR, utilise comme skin de fond :
+`Assets/Launcher/ExactSkin/launcher_skin_static_labels_no_play_button.png`
+
+N’utilise pas `launcher_skin_static_labels_empty_dynamic.png` si tu veux gérer les 3 états du bouton, car cette image contient déjà le bouton JOUER statique.
+
+Méthode attendue :
+1. Afficher `launcher_skin_static_labels_no_play_button.png` comme fond principal de l’interface.
+2. Ajouter par-dessus une Image WPF à la position du bouton principal.
+3. Changer la Source de cette image selon l’état du launcher :
+   - client installé + à jour => `button_play.png`
+   - client non installé => `button_install.png`
+   - mise à jour disponible => `button_update.png`
+4. Garder une zone cliquable transparente par-dessus, ou intégrer l’image dans le template du Button.
+5. Ne pas recréer les boutons en XAML et ne pas générer de nouveaux boutons.
+6. Ne pas casser la logique existante : installation, mise à jour, vérification, logs, langue, chemin client, lancement de Wow.exe.
+
+Positions :
+Utilise `Codex/layout_spec.json`. Le bouton principal est à :
+- x = 1085
+- y = 745
+- largeur = 518
+- hauteur = 140
+sur une surface de référence 1672x941.
+
+Exemple XAML simplifié :
+
+```xml
+<Image Source="{Binding PrimaryActionButtonImage}"
+       Canvas.Left="1085"
+       Canvas.Top="745"
+       Width="518"
+       Height="140"
+       Stretch="Fill"
+       RenderOptions.BitmapScalingMode="HighQuality" />
+
+<Button Canvas.Left="1085"
+        Canvas.Top="745"
+        Width="518"
+        Height="140"
+        Command="{Binding PrimaryActionCommand}"
+        Background="Transparent"
+        BorderThickness="0"
+        Opacity="0" />
+```
+
+Exemple côté ViewModel :
+
+```csharp
+public string PrimaryActionButtonImage
+{
+    get
+    {
+        if (!IsClientInstalled)
+            return "Assets/Launcher/ExactSkin/button_install.png";
+
+        if (IsUpdateAvailable)
+            return "Assets/Launcher/ExactSkin/button_update.png";
+
+        return "Assets/Launcher/ExactSkin/button_play.png";
+    }
+}
+```
+
+Résultat attendu :
+Le launcher garde le skin exact actuel, mais le bouton principal change visuellement selon l’état : JOUER, INSTALLER ou METTRE À JOUR.

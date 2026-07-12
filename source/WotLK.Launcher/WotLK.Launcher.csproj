@@ -8,17 +8,20 @@
     <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
-    <Version>1.0.29</Version>
-    <AssemblyVersion>1.0.29.0</AssemblyVersion>
-    <FileVersion>1.0.29.0</FileVersion>
+    <Version>1.0.30</Version>
+    <AssemblyVersion>1.0.30.0</AssemblyVersion>
+    <FileVersion>1.0.30.0</FileVersion>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
   </PropertyGroup>
 
 
   <ItemGroup>
+    <None Remove="Assets\Fonts\**\*" />
     <Resource Include="Assets\AppIcon.ico" />
     <Resource Include="Assets\AppIcon.png" />
+    <Resource Include="Assets\Fonts\*.ttf" />
+    <Resource Include="Assets\Fonts\*.txt" />
     <Resource Include="Assets\Launcher\visuals\*.png" />
   </ItemGroup>
 

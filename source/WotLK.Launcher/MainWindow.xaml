@@ -15,7 +15,7 @@
         WindowStyle="None"
         ResizeMode="CanResize"
         Background="#0D0F12"
-        FontFamily="Segoe UI"
+        FontFamily="./Assets/Fonts/#Lato"
         UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Display"
         TextOptions.TextRenderingMode="ClearType"
@@ -29,6 +29,11 @@
     </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
+        <FontFamily x:Key="UiFont">./Assets/Fonts/#Lato</FontFamily>
+        <FontFamily x:Key="UiSemiBoldFont">./Assets/Fonts/#Lato SemiBold</FontFamily>
+        <FontFamily x:Key="UiExtraBoldFont">./Assets/Fonts/#Lato ExtraBold</FontFamily>
+        <FontFamily x:Key="DisplayFont">./Assets/Fonts/#Marcellus</FontFamily>
+
         <SolidColorBrush x:Key="WindowBrush" Color="#0D0F12"/>
         <SolidColorBrush x:Key="SurfaceBrush" Color="#15181C"/>
         <SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#1B1F24"/>
@@ -94,6 +99,7 @@
             <Setter Property="FontSize" Value="17"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Focusable" Value="False"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type Button}">
@@ -130,9 +136,11 @@
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Foreground" Value="#92999F"/>
+            <Setter Property="FontFamily" Value="{StaticResource UiSemiBoldFont}"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontWeight" Value="Normal"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type Button}">
@@ -308,9 +316,11 @@
             <Setter Property="Background" Value="{StaticResource GoldBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Foreground" Value="#17130C"/>
+            <Setter Property="FontFamily" Value="{StaticResource UiExtraBoldFont}"/>
             <Setter Property="FontSize" Value="15"/>
-            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontWeight" Value="Normal"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type Button}">
@@ -488,9 +498,9 @@
                             <TextBlock x:Name="TitleText"
                                        VerticalAlignment="Center"
                                        Foreground="{StaticResource TextBrush}"
-                                       FontFamily="Georgia"
-                                       FontSize="15"
-                                       FontWeight="Bold"
+                                       FontFamily="{StaticResource DisplayFont}"
+                                       FontSize="16"
+                                       FontWeight="Normal"
                                        Text="ARTHAS"/>
                             <Border Width="1" Height="16" Margin="12,0" Background="#474D54"/>
                             <TextBlock x:Name="TitleBarText"
@@ -558,9 +568,9 @@
                                        Text="ROYAUME PRIV&#x00C9;"/>
                             <TextBlock Margin="0,5,0,0"
                                        Foreground="{StaticResource TextBrush}"
-                                       FontFamily="Georgia"
+                                       FontFamily="{StaticResource DisplayFont}"
                                        FontSize="31"
-                                       FontWeight="Bold"
+                                       FontWeight="Normal"
                                        Text="ARTHAS"/>
                             <TextBlock Margin="1,5,0,0"
                                        Foreground="{StaticResource TextSecondaryBrush}"
@@ -622,9 +632,9 @@
                                            Text="WRATH OF THE LICH KING CLASSIC"/>
                                 <TextBlock Margin="0,8,0,0"
                                            Foreground="{StaticResource TextBrush}"
-                                           FontFamily="Georgia"
-                                           FontSize="36"
-                                           FontWeight="Bold"
+                                           FontFamily="{StaticResource UiExtraBoldFont}"
+                                           FontSize="34"
+                                           FontWeight="Normal"
                                            Text="Bienvenue sur Arthas"/>
                                 <TextBlock Margin="0,10,0,0"
                                            Foreground="#CDD1D4"
@@ -822,9 +832,9 @@
                                            Text="BIBLIOTH&#x00C8;QUE ATLAS"/>
                                 <TextBlock Margin="0,8,0,0"
                                            Foreground="{StaticResource TextBrush}"
-                                           FontFamily="Georgia"
-                                           FontSize="34"
-                                           FontWeight="Bold"
+                                           FontFamily="{StaticResource UiExtraBoldFont}"
+                                           FontSize="32"
+                                           FontWeight="Normal"
                                            Text="Vos addons"/>
                                 <TextBlock Margin="0,9,0,0"
                                            Foreground="#CDD1D4"

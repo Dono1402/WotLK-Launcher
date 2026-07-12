@@ -11,7 +11,6 @@ using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
 namespace WotLK.Launcher;
@@ -61,12 +60,11 @@ public partial class MainWindow : Window
         InitializeComponent();
         AddonItemsControl.ItemsSource = _addonItems;
 
-        var displayName = GetLauncherDisplayName();
-        Title = displayName;
-        TitleText.Text = displayName;
-        VersionText.Text = "- " + GetLauncherVersionText();
-        ChromeVersionText.Text = "- " + GetLauncherVersionText();
-        TitleBarText.Text = displayName + " - " + GetLauncherVersionText();
+        Title = "Arthas Launcher";
+        TitleText.Text = "ARTHAS";
+        TitleBarText.Text = "WotLK Classic";
+        VersionText.Text = GetLauncherVersionText();
+        ChromeVersionText.Text = GetLauncherVersionText();
 
         _settings = LauncherSettings.Load();
         _settings.Save();
@@ -501,7 +499,8 @@ public partial class MainWindow : Window
 
             var currentHash = await ComputeSha256Async(currentExe, CancellationToken.None);
             if (!string.IsNullOrWhiteSpace(manifest.Sha256) &&
-                !string.Equals(currentHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase))
+                !string.Equals(currentHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase) &&
+                IsLauncherManifestVersionEligible(manifest.Version))
             {
                 _launcherUpdate = manifest;
                 LauncherSelfUpdateButton.Visibility = Visibility.Visible;
@@ -540,6 +539,26 @@ public partial class MainWindow : Window
         {
             _isCheckingLauncherUpdate = false;
         }
+    }
+
+    private static bool IsLauncherManifestVersionEligible(string manifestVersion)
+    {
+        if (!Version.TryParse(manifestVersion, out var remoteVersion))
+        {
+            return true;
+        }
+
+        var currentVersion = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0, 0, 0);
+        return NormalizeVersion(remoteVersion) >= NormalizeVersion(currentVersion);
+    }
+
+    private static Version NormalizeVersion(Version version)
+    {
+        return new Version(
+            Math.Max(version.Major, 0),
+            Math.Max(version.Minor, 0),
+            Math.Max(version.Build, 0),
+            Math.Max(version.Revision, 0));
     }
 
     private async Task UpdateLauncherAsync(LauncherUpdateManifest manifest, CancellationToken cancellationToken)
@@ -1369,11 +1388,6 @@ public partial class MainWindow : Window
         return LauncherSettings.NormalizeGameLocale(locale) == "enUS" ? "English" : "Francais";
     }
 
-    private static string GetLauncherDisplayName()
-    {
-        return "WotLK Launcher";
-    }
-
     private static string GetLauncherVersionText()
     {
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
@@ -1383,25 +1397,10 @@ public partial class MainWindow : Window
     private void SetGameAction(GameAction action)
     {
         _gameAction = action;
-        SetPrimaryActionButtonImage(action);
         if (_downloadCancellation is null)
         {
             UpdateButton.Content = GetGameActionLabel(action);
         }
-    }
-
-    private void SetPrimaryActionButtonImage(GameAction action)
-    {
-        var assetName = action switch
-        {
-            GameAction.Play => "button_play.png",
-            GameAction.Update => "button_update.png",
-            _ => "button_install.png"
-        };
-
-        PrimaryActionButtonImage.Source = new BitmapImage(new Uri(
-            "pack://application:,,,/Assets/Launcher/ExactSkin/" + assetName,
-            UriKind.Absolute));
     }
 
     private static string GetGameActionLabel(GameAction action)

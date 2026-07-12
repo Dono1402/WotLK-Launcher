@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -25,6 +26,7 @@ public partial class MainWindow : Window
     }
 
     private const string LauncherUpdateManifestUrl = "http://152.228.225.7/launcher/launcher-update.json";
+    private const string AddonCatalogUrl = "http://152.228.225.7/launcher/addons/catalog.json";
     private const string LauncherUpdateRequestHeader = "X-WotLK-Launcher-Update";
     private const string LauncherUpdateRequestMarker = "1";
     private static readonly TimeSpan LauncherUpdateCheckInterval = TimeSpan.FromSeconds(30);
@@ -34,14 +36,22 @@ public partial class MainWindow : Window
         PropertyNameCaseInsensitive = true
     };
 
-    private readonly HttpClient _http = new();
+    private readonly HttpClient _http = new()
+    {
+        Timeout = TimeSpan.FromMinutes(30)
+    };
     private readonly LauncherSettings _settings;
     private readonly DispatcherTimer _launcherUpdateTimer;
+    private readonly ObservableCollection<AddonSelectionItem> _addonItems = [];
     private CancellationTokenSource? _downloadCancellation;
     private LauncherUpdateManifest? _launcherUpdate;
+    private AddonCatalog? _addonCatalog;
     private GameAction _gameAction = GameAction.Install;
     private bool _isRefreshingGameAction;
     private bool _isCheckingLauncherUpdate;
+    private bool _isLoadingAddonCatalog;
+    private bool _isAddonTabActive;
+    private bool _isApplyingAddons;
     private bool _isInitializingUi = true;
     private string? _announcedLauncherUpdateHash;
     private string? _announcedGameUpdateVersion;
@@ -49,16 +59,19 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        AddonItemsControl.ItemsSource = _addonItems;
 
         var displayName = GetLauncherDisplayName();
         Title = displayName;
         TitleText.Text = displayName;
-        VersionText.Text = GetLauncherVersionText();
+        VersionText.Text = "- " + GetLauncherVersionText();
+        ChromeVersionText.Text = "- " + GetLauncherVersionText();
         TitleBarText.Text = displayName + " - " + GetLauncherVersionText();
 
         _settings = LauncherSettings.Load();
         _settings.Save();
         InstallPathBox.Text = _settings.InstallPath;
+        UpdateAddonInstallPathText();
         SetLanguageSelection(_settings.GameLocale);
         _isInitializingUi = false;
 
@@ -77,6 +90,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _downloadCancellation?.Cancel();
         _launcherUpdateTimer.Stop();
         _launcherUpdateTimer.Tick -= LauncherUpdateTimer_Tick;
         base.OnClosed(e);
@@ -178,10 +192,15 @@ public partial class MainWindow : Window
         _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
         _settings.Save();
         InstallPathBox.Text = _settings.InstallPath;
+        UpdateAddonInstallPathText();
 
         AppendLog("Dossier client: " + _settings.InstallPath);
         SetInitialGameActionFromDisk();
         await RefreshGameActionAsync();
+        if (_isAddonTabActive)
+        {
+            await RefreshAddonCatalogAsync(reloadCatalog: false);
+        }
     }
 
     private void GameLanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -206,6 +225,184 @@ public partial class MainWindow : Window
         {
             AppendLog("Langue jeu non appliquee: " + ex.Message);
         }
+    }
+
+    private void ClientTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_downloadCancellation is not null)
+        {
+            return;
+        }
+
+        ShowAddonsTab(show: false);
+    }
+
+    private async void AddonsTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_downloadCancellation is not null)
+        {
+            return;
+        }
+
+        ShowAddonsTab(show: true);
+        await RefreshAddonCatalogAsync(reloadCatalog: _addonCatalog is null);
+    }
+
+    private async void AddonApplyButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_downloadCancellation is not null)
+        {
+            _downloadCancellation.Cancel();
+            return;
+        }
+
+        SaveSettingsFromUi();
+        if (!GameInstallServices.HasPlayableClient(_settings.InstallPath))
+        {
+            System.Windows.MessageBox.Show(this, "Installe d'abord le client WotLK avant de gérer ses addons.", "Client introuvable", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (_addonCatalog is null)
+        {
+            await RefreshAddonCatalogAsync(reloadCatalog: true);
+            if (_addonCatalog is null)
+            {
+                return;
+            }
+        }
+
+        _downloadCancellation = new CancellationTokenSource();
+        _isApplyingAddons = true;
+        SetBusy(true);
+        AddonProgress.Value = 0;
+        AddonProgressText.Text = string.Empty;
+
+        try
+        {
+            var selection = _addonItems.ToDictionary(item => item.Id, item => item.IsSelected, StringComparer.OrdinalIgnoreCase);
+            var progress = new Progress<AddonTransferProgress>(value =>
+            {
+                AddonStatusText.Text = "Téléchargement de " + value.AddonName;
+                AddonProgress.Value = value.TotalBytes > 0
+                    ? Math.Clamp((double)value.BytesReceived / value.TotalBytes * 100, 0, 100)
+                    : 0;
+                AddonProgressText.Text = value.TotalBytes > 0
+                    ? $"{FormatBytes(value.BytesReceived)} / {FormatBytes(value.TotalBytes)}"
+                    : FormatBytes(value.BytesReceived);
+            });
+
+            await AddonInstallServices.ApplySelectionAsync(
+                _http,
+                _addonCatalog,
+                _settings.InstallPath,
+                selection,
+                progress,
+                AppendLog,
+                _downloadCancellation.Token);
+
+            PopulateAddonItemsFromState();
+            AddonProgress.Value = 100;
+            AddonProgressText.Text = "Terminé";
+            AddonStatusText.Text = "Sélection appliquée";
+            AppendLog("Configuration des addons terminée.");
+        }
+        catch (OperationCanceledException)
+        {
+            AddonStatusText.Text = "Opération annulée";
+            AddonProgressText.Text = string.Empty;
+            AppendLog("Configuration des addons annulée.");
+        }
+        catch (Exception ex)
+        {
+            AddonStatusText.Text = "Erreur lors de la configuration";
+            AddonProgressText.Text = string.Empty;
+            AppendLog("Erreur addons: " + ex.Message);
+            System.Windows.MessageBox.Show(this, ex.Message, "Erreur addons", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            _downloadCancellation?.Dispose();
+            _downloadCancellation = null;
+            _isApplyingAddons = false;
+            SetBusy(false);
+        }
+    }
+
+    private void ShowAddonsTab(bool show)
+    {
+        _isAddonTabActive = show;
+        GamePanel.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
+        AddonsPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        ClientTabButton.Tag = show ? null : "Active";
+        AddonsTabButton.Tag = show ? "Active" : null;
+        UpdateAddonInstallPathText();
+    }
+
+    private async Task RefreshAddonCatalogAsync(bool reloadCatalog)
+    {
+        if (_isLoadingAddonCatalog || _downloadCancellation is not null)
+        {
+            return;
+        }
+
+        _isLoadingAddonCatalog = true;
+        AddonApplyButton.IsEnabled = false;
+        AddonStatusText.Text = "Chargement du catalogue...";
+        AddonProgressText.Text = string.Empty;
+
+        try
+        {
+            if (reloadCatalog || _addonCatalog is null)
+            {
+                _addonCatalog = await AddonInstallServices.LoadCatalogAsync(
+                    _http,
+                    new Uri(AddonCatalogUrl, UriKind.Absolute),
+                    CancellationToken.None);
+            }
+
+            PopulateAddonItemsFromState();
+            AddonStatusText.Text = GameInstallServices.HasPlayableClient(_settings.InstallPath)
+                ? $"{_addonItems.Count} addons compatibles disponibles"
+                : "Client WotLK requis";
+        }
+        catch (Exception ex)
+        {
+            _addonItems.Clear();
+            AddonStatusText.Text = "Catalogue indisponible";
+            AppendLog("Catalogue addons indisponible: " + ex.Message);
+        }
+        finally
+        {
+            _isLoadingAddonCatalog = false;
+            AddonApplyButton.IsEnabled = _downloadCancellation is null && _addonCatalog is not null && _addonItems.Count > 0;
+        }
+    }
+
+    private void PopulateAddonItemsFromState()
+    {
+        if (_addonCatalog is null)
+        {
+            return;
+        }
+
+        var inspections = AddonInstallServices.Inspect(_addonCatalog, _settings.InstallPath);
+        _addonItems.Clear();
+        foreach (var package in _addonCatalog.Addons)
+        {
+            var item = new AddonSelectionItem(package);
+            if (inspections.TryGetValue(package.Id, out var inspection))
+            {
+                item.ApplyInspection(inspection);
+            }
+
+            _addonItems.Add(item);
+        }
+    }
+
+    private void UpdateAddonInstallPathText()
+    {
+        AddonInstallPathText.Text = AddonInstallServices.GetAddonsDirectory(_settings.InstallPath);
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -1222,6 +1419,11 @@ public partial class MainWindow : Window
         LauncherSelfUpdateButton.IsEnabled = !busy;
         BrowseInstallPathButton.IsEnabled = !busy;
         GameLanguageComboBox.IsEnabled = !busy;
+        ClientTabButton.IsEnabled = !busy;
+        AddonsTabButton.IsEnabled = !busy;
+        AddonItemsControl.IsEnabled = !busy;
+        AddonApplyButton.IsEnabled = !busy || _isApplyingAddons;
+        AddonApplyButton.Content = busy && _isApplyingAddons ? "ANNULER" : "APPLIQUER";
         UpdateButton.IsEnabled = true;
         UpdateButton.Content = busy ? "ANNULER" : GetGameActionLabel(_gameAction);
     }

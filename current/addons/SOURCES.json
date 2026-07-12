@@ -1,0 +1,63 @@
+{
+    "generatedAtUtc":  "2026-07-12T02:59:24.4736690+00:00",
+    "sources":  [
+                    {
+                        "Id":  "weakauras",
+                        "File":  "WeakAuras-5.13.1.zip",
+                        "Url":  "https://github.com/WeakAuras/WeakAuras2/releases/download/5.13.1/WeakAuras-5.13.1.zip",
+                        "Sha256":  "2164b8e4f0254f13e6b54044d5d5b358bc04fb4823ba8ff4a59b262052ac03d4"
+                    },
+                    {
+                        "Id":  "questie",
+                        "File":  "Questie-v10.19.2.zip",
+                        "Url":  "https://github.com/Questie/Questie/releases/download/v10.19.2/Questie-v10.19.2.zip",
+                        "Sha256":  "d3d3728ea2e65ee5128eb7864cf9d71e185dfc02f85fb2563951f591144b79b8"
+                    },
+                    {
+                        "Id":  "elvui-source",
+                        "File":  "v13.61.zip",
+                        "Url":  "https://github.com/tukui-org/ElvUI/archive/refs/tags/v13.61.zip",
+                        "Sha256":  "ab341194212839accfa76544096430422ebea69ad3a3b213196e8362b908c425"
+                    },
+                    {
+                        "Id":  "ace3",
+                        "File":  "Ace3-9d5c137.zip",
+                        "Url":  "https://github.com/WoWUIDev/Ace3/archive/9d5c1375a4026bb1079fa68a5da654ec3af3a8af.zip",
+                        "Sha256":  "8e6e49158f37ceb722c2e88d2419dcdefe6b816f652430eb3b4a663e71163919"
+                    },
+                    {
+                        "Id":  "libdispel",
+                        "File":  "LibDispel-b785912.zip",
+                        "Url":  "https://github.com/tukui-org/LibDispel/archive/b78591237911b3feda06a38c03781a10c278b864.zip",
+                        "Sha256":  "4d6076ce15d945f52c61dca17e8eac27cd5e82aa24272cfde1c610fe50daf40a"
+                    },
+                    {
+                        "Id":  "libdualspec",
+                        "File":  "LibDualSpec-df092db.zip",
+                        "Url":  "https://github.com/AdiAddons/LibDualSpec-1.0/archive/df092db78365307e3930fabf298058d9d4d7a968.zip",
+                        "Sha256":  "329954ccc28ab20431652c292b299b76ddcb4b3634af36b9d1a88cda5f7fc70b"
+                    },
+                    {
+                        "Id":  "libtranslit",
+                        "File":  "LibTranslit-66a5aa7.zip",
+                        "Url":  "https://github.com/Vardex/LibTranslit/archive/66a5aa7df5bb404003cfba85a27bbae87c3d3536.zip",
+                        "Sha256":  "958776d2ffbfd7015ee9573c966dcf5452ea06974b254be46f72957f64c99037"
+                    },
+                    {
+                        "File":  "UTF8.toc",
+                        "Sha256":  "f52f7d287de2f2be3801a8754f868d353541cb55f91afde8f60289b637955de6"
+                    },
+                    {
+                        "File":  "lib.xml",
+                        "Sha256":  "e7bccce6e32ad0f22497dda8fe709f045c8b302dce2f522e8b2684134726f4ec"
+                    },
+                    {
+                        "File":  "utf8.lua",
+                        "Sha256":  "cf73054fde5eb968a649027c8056f513eb4c8b0249789dc35ee7e38dfc1f4668"
+                    },
+                    {
+                        "File":  "utf8data.lua",
+                        "Sha256":  "0c1c8c4c294c661c385c620666f4488e3cdbca40de70eedc931814b82c5f7cb8"
+                    }
+                ]
+}

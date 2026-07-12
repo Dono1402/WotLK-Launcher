@@ -1,0 +1,87 @@
+{
+    "schemaVersion":  1,
+    "clientInterface":  "30403",
+    "generatedAtUtc":  "2026-07-12T02:59:24.4466063+00:00",
+    "addons":  [
+                   {
+                       "id":  "weakauras",
+                       "name":  "WeakAuras",
+                       "description":  "Auras, alertes et éléments d\u0027interface personnalisables.",
+                       "version":  "5.13.1",
+                       "interface":  "30403",
+                       "url":  "https://github.com/WeakAuras/WeakAuras2/releases/download/5.13.1/WeakAuras-5.13.1.zip",
+                       "size":  9017286,
+                       "sha256":  "2164b8e4f0254f13e6b54044d5d5b358bc04fb4823ba8ff4a59b262052ac03d4",
+                       "installHash":  "2164b8e4f0254f13e6b54044d5d5b358bc04fb4823ba8ff4a59b262052ac03d4",
+                       "stripPrefix":  "",
+                       "components":  [
+
+                                      ],
+                       "tokenReplacements":  {
+
+                                             },
+                       "folders":  [
+                                       "WeakAuras",
+                                       "WeakAurasArchive",
+                                       "WeakAurasModelPaths",
+                                       "WeakAurasOptions",
+                                       "WeakAurasTemplates"
+                                   ],
+                       "sourceUrl":  "https://github.com/WeakAuras/WeakAuras2/releases/tag/5.13.1"
+                   },
+                   {
+                       "id":  "elvui",
+                       "name":  "ElvUI",
+                       "description":  "Remplacement complet et configurable de l\u0027interface.",
+                       "version":  "13.61",
+                       "interface":  "30403",
+                       "url":  "https://github.com/tukui-org/ElvUI/archive/refs/tags/v13.61.zip",
+                       "size":  3022807,
+                       "sha256":  "ab341194212839accfa76544096430422ebea69ad3a3b213196e8362b908c425",
+                       "installHash":  "7c56a7244ca98ab7e6d5c936660f39ea60b191dbc87aebe1e80c2cb0fc6e5723",
+                       "stripPrefix":  "ElvUI-13.61",
+                       "components":  [
+                                          {
+                                              "name":  "Bibliotheques WotLK Classic 30403",
+                                              "url":  "http://152.228.225.7/launcher/addons/packages/ElvUI-13.61-libraries-wotlk-30403.zip",
+                                              "size":  193217,
+                                              "sha256":  "bd1f00d9dbe478ed6ae4d7843fab4731d858118cf9df06b63a5d04e3b1a87ce1",
+                                              "stripPrefix":  ""
+                                          }
+                                      ],
+                       "tokenReplacements":  {
+                                                 "@project-version@":  "13.61",
+                                                 "@project-date-iso@":  "2024-04-03T01:55:08Z",
+                                                 "@project-hash@":  "24022eeb3e3622f06ffd2051b219bd9221e2ae3f"
+                                             },
+                       "folders":  [
+                                       "ElvUI",
+                                       "ElvUI_Libraries",
+                                       "ElvUI_Options"
+                                   ],
+                       "sourceUrl":  "https://github.com/tukui-org/ElvUI/tree/v13.61"
+                   },
+                   {
+                       "id":  "questie",
+                       "name":  "Questie",
+                       "description":  "Suivi des quêtes, objectifs et marqueurs sur la carte.",
+                       "version":  "10.19.2",
+                       "interface":  "30403",
+                       "url":  "https://github.com/Questie/Questie/releases/download/v10.19.2/Questie-v10.19.2.zip",
+                       "size":  47104814,
+                       "sha256":  "d3d3728ea2e65ee5128eb7864cf9d71e185dfc02f85fb2563951f591144b79b8",
+                       "installHash":  "d3d3728ea2e65ee5128eb7864cf9d71e185dfc02f85fb2563951f591144b79b8",
+                       "stripPrefix":  "",
+                       "components":  [
+
+                                      ],
+                       "tokenReplacements":  {
+
+                                             },
+                       "folders":  [
+                                       "Questie"
+                                   ],
+                       "sourceUrl":  "https://github.com/Questie/Questie/releases/tag/v10.19.2"
+                   }
+               ]
+}

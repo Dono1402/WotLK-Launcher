@@ -182,10 +182,11 @@ if git remote get-url origin >/dev/null 2>&1; then
   git push origin "$tag"
 
   if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    mapfile -d '' release_assets < <(find "$artifact_store/$tag" -maxdepth 1 -type f -print0 | sort -z)
     if gh release view "$tag" >/dev/null 2>&1; then
-      gh release upload "$tag" "$artifact_store/$tag/"* --clobber
+      gh release upload "$tag" "${release_assets[@]}" --clobber
     else
-      gh release create "$tag" "$artifact_store/$tag/"* \
+      gh release create "$tag" "${release_assets[@]}" \
         --title "WotLK Launcher $tag" \
         --notes "Release WotLK Launcher $tag"
     fi

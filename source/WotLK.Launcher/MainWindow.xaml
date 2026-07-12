@@ -280,6 +280,129 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="LauncherTabButton" TargetType="{x:Type Button}">
+            <Setter Property="Width" Value="190"/>
+            <Setter Property="Height" Value="54"/>
+            <Setter Property="Background" Value="#B3081724"/>
+            <Setter Property="BorderBrush" Value="#426783"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="#C3D4E4"/>
+            <Setter Property="FontFamily" Value="Georgia"/>
+            <Setter Property="FontSize" Value="23"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4,4,0,0">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#C5143044"/>
+                                <Setter Property="Foreground" Value="#F2F8FF"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="Active">
+                                <Setter TargetName="Chrome" Property="Background" Value="#E00E2638"/>
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#65DFFB"/>
+                                <Setter Property="Foreground" Value="#F2D18D"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="AddonCheckBox" TargetType="{x:Type CheckBox}">
+            <Setter Property="Width" Value="38"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type CheckBox}">
+                        <Grid Width="38" Height="38">
+                            <Border x:Name="Box"
+                                    Background="#081522"
+                                    BorderBrush="#5A7890"
+                                    BorderThickness="2"
+                                    CornerRadius="3"/>
+                            <TextBlock x:Name="CheckMark"
+                                       Text="&#x2713;"
+                                       Foreground="#65E9FF"
+                                       FontFamily="Segoe UI"
+                                       FontSize="29"
+                                       FontWeight="Bold"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Margin="0,-4,0,0"
+                                       Visibility="Collapsed"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="#84E9FF"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="#123449"/>
+                                <Setter TargetName="Box" Property="BorderBrush" Value="#65E9FF"/>
+                                <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="AddonActionButton" TargetType="{x:Type Button}">
+            <Setter Property="Width" Value="340"/>
+            <Setter Property="Height" Value="76"/>
+            <Setter Property="Background" Value="#163A51"/>
+            <Setter Property="BorderBrush" Value="#B99955"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="Foreground" Value="#F2D18D"/>
+            <Setter Property="FontFamily" Value="Georgia"/>
+            <Setter Property="FontSize" Value="27"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#20506D"/>
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#77E6FF"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#102C3F"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid Background="#020710">
@@ -292,9 +415,39 @@
                 <Canvas Width="1672" Height="941">
                     <Grid Visibility="Collapsed">
                         <TextBlock x:Name="TitleText"/>
-                        <TextBlock x:Name="VersionText"/>
                         <TextBlock x:Name="TitleBarText"/>
                     </Grid>
+
+                    <Border Canvas.Left="211"
+                            Canvas.Top="14"
+                            Width="105"
+                            Height="34"
+                            Background="#06131F"
+                            IsHitTestVisible="False"/>
+                    <TextBlock x:Name="ChromeVersionText"
+                               Canvas.Left="219"
+                               Canvas.Top="18"
+                               Width="96"
+                               Height="28"
+                               Foreground="#B7C8D8"
+                               FontFamily="Georgia"
+                               FontSize="18"
+                               IsHitTestVisible="False"/>
+                    <Border Canvas.Left="598"
+                            Canvas.Top="125"
+                            Width="151"
+                            Height="42"
+                            Background="#0A1C2D"
+                            IsHitTestVisible="False"/>
+                    <TextBlock x:Name="VersionText"
+                               Canvas.Left="606"
+                               Canvas.Top="126"
+                               Width="143"
+                               Height="40"
+                               Foreground="#C6D5E2"
+                               FontFamily="Georgia"
+                               FontSize="28"
+                               IsHitTestVisible="False"/>
 
                     <Border Canvas.Left="0"
                             Canvas.Top="0"
@@ -322,6 +475,23 @@
                             Style="{StaticResource HiddenChromeButton}"
                             Click="Close_Click"/>
 
+                    <Button x:Name="ClientTabButton"
+                            Canvas.Left="92"
+                            Canvas.Top="202"
+                            Content="CLIENT"
+                            Tag="Active"
+                            Panel.ZIndex="10"
+                            Style="{StaticResource LauncherTabButton}"
+                            Click="ClientTabButton_Click"/>
+                    <Button x:Name="AddonsTabButton"
+                            Canvas.Left="288"
+                            Canvas.Top="202"
+                            Content="ADDONS"
+                            Panel.ZIndex="10"
+                            Style="{StaticResource LauncherTabButton}"
+                            Click="AddonsTabButton_Click"/>
+
+                    <Canvas x:Name="GamePanel" Width="1672" Height="941">
                     <TextBox x:Name="InstallPathBox"
                              Canvas.Left="330"
                              Canvas.Top="278"
@@ -409,9 +579,140 @@
                     <Button x:Name="UpdateButton"
                             Canvas.Left="1085"
                             Canvas.Top="745"
-                            Content="INSTALLER"
-                            Style="{StaticResource PrimaryActionClickButton}"
-                            Click="UpdateButton_Click"/>
+                             Content="INSTALLER"
+                             Style="{StaticResource PrimaryActionClickButton}"
+                             Click="UpdateButton_Click"/>
+                    </Canvas>
+
+                    <Canvas x:Name="AddonsPanel"
+                            Width="1672"
+                            Height="941"
+                            Visibility="Collapsed">
+                        <Border Canvas.Left="72"
+                                Canvas.Top="244"
+                                Width="1528"
+                                Height="635"
+                                Background="#F4050D17"
+                                BorderBrush="#28465D"
+                                BorderThickness="1"/>
+
+                        <TextBlock Canvas.Left="112"
+                                   Canvas.Top="274"
+                                   Width="620"
+                                   Height="48"
+                                   Text="Gestion des addons"
+                                   Foreground="#F2D18D"
+                                   FontFamily="Georgia"
+                                   FontSize="34"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock x:Name="AddonInstallPathText"
+                                   Canvas.Left="745"
+                                   Canvas.Top="284"
+                                   Width="810"
+                                   Height="34"
+                                   Foreground="#9EB7C9"
+                                   FontFamily="Consolas"
+                                   FontSize="17"
+                                   TextAlignment="Right"
+                                   TextTrimming="CharacterEllipsis"/>
+
+                        <ItemsControl x:Name="AddonItemsControl"
+                                      Canvas.Left="112"
+                                      Canvas.Top="342"
+                                      Width="1448"
+                                      Height="330">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Height="100"
+                                            Margin="0,0,0,10"
+                                            Padding="22,0"
+                                            Background="#D7081622"
+                                            BorderBrush="#294B64"
+                                            BorderThickness="1"
+                                            CornerRadius="4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="62"/>
+                                                <ColumnDefinition Width="360"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="255"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <CheckBox Grid.Column="0"
+                                                      IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Style="{StaticResource AddonCheckBox}"
+                                                      VerticalAlignment="Center"/>
+
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}"
+                                                           Foreground="#F2F8FF"
+                                                           FontFamily="Georgia"
+                                                           FontSize="26"
+                                                           FontWeight="SemiBold"/>
+                                                <TextBlock Text="{Binding VersionText}"
+                                                           Margin="0,6,0,0"
+                                                           Foreground="#83BCD3"
+                                                           FontFamily="Consolas"
+                                                           FontSize="16"/>
+                                            </StackPanel>
+
+                                            <TextBlock Grid.Column="2"
+                                                       Margin="18,0,28,0"
+                                                       Text="{Binding Description}"
+                                                       Foreground="#BFD0DE"
+                                                       FontFamily="Georgia"
+                                                       FontSize="18"
+                                                       TextWrapping="Wrap"
+                                                       VerticalAlignment="Center"/>
+
+                                            <TextBlock Grid.Column="3"
+                                                       Text="{Binding StatusText}"
+                                                       Foreground="#65DFFB"
+                                                       FontFamily="Georgia"
+                                                       FontSize="20"
+                                                       FontWeight="SemiBold"
+                                                       TextAlignment="Right"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock x:Name="AddonStatusText"
+                                   Canvas.Left="112"
+                                   Canvas.Top="700"
+                                   Width="940"
+                                   Height="38"
+                                   Text="Catalogue prêt"
+                                   Foreground="#DCEAF5"
+                                   FontFamily="Georgia"
+                                   FontSize="22"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock x:Name="AddonProgressText"
+                                   Canvas.Left="1075"
+                                   Canvas.Top="704"
+                                   Width="485"
+                                   Height="34"
+                                   Foreground="#9EB7C9"
+                                   FontFamily="Consolas"
+                                   FontSize="17"
+                                   TextAlignment="Right"/>
+                        <ProgressBar x:Name="AddonProgress"
+                                     Canvas.Left="112"
+                                     Canvas.Top="750"
+                                     Width="1035"
+                                     Height="18"
+                                     Minimum="0"
+                                     Maximum="100"
+                                     Style="{StaticResource SkinProgressBar}"/>
+                        <Button x:Name="AddonApplyButton"
+                                Canvas.Left="1220"
+                                Canvas.Top="774"
+                                Content="APPLIQUER"
+                                Style="{StaticResource AddonActionButton}"
+                                Click="AddonApplyButton_Click"/>
+                    </Canvas>
                 </Canvas>
             </Grid>
         </Viewbox>

@@ -6,6 +6,20 @@ Le launcher lit le manifeste du feed, telecharge les fichiers manquants ou modif
 
 Le client distribue est WotLK Classic 3.4.3.54261. Le bouton Jouer lance `Arctium Game Launcher Atlas.exe` avec le portail `animeclub.fr`; le feed ne contient ni `WTF`, ni caches, ni journaux utilisateur.
 
+L'onglet Addons propose des installations optionnelles et independantes du feed client. Le launcher ne supprime que les dossiers qu'il a lui-meme enregistres dans `_classic_\Interface\AddOns\.atlas-addons.json`; les `SavedVariables` et les addons utilisateur restent intacts.
+
+## Catalogue addons 3.4.3
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Build-AddonPackages.ps1 `
+  -OutputDirectory .\artifacts\addons
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Test-AddonPackages.ps1 `
+  -PackageDirectory .\artifacts\addons
+```
+
+Le catalogue fige les dernieres versions declarant l'interface `30403`: WeakAuras 5.13.1, ElvUI 13.61 et Questie 10.19.2.
+
 ## Feed Classic frFR
 
 ```powershell

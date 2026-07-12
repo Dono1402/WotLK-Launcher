@@ -12,14 +12,38 @@ internal static class GameInstallServices
 {
     internal const string AppDisplayName = "WotLK Client";
     internal const string UninstallerFileName = "WotLK Uninstaller.exe";
+    internal const string GameLauncherFileName = "Arctium Game Launcher Atlas.exe";
+    internal const string GameExecutableRelativePath = @"_classic_\WowClassic.exe";
+    internal const string ClassicDirectoryName = "_classic_";
+    internal const string PortalAddress = "animeclub.fr";
 
     private const string Publisher = "WotLK";
     private const string RegistrySubKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WotLK.Client";
     private const string ClientMarkerFileName = "client-install.json";
     private const string VideoDefaultsMarkerFileName = "launcher-video-defaults.json";
-    private const string RealmAddress = "152.228.225.7";
     private const int SystemMetricPrimaryScreenWidth = 0;
     private const int SystemMetricPrimaryScreenHeight = 1;
+
+    internal static string GetGameExecutablePath(string installRoot)
+    {
+        return Path.Combine(installRoot, GameExecutableRelativePath);
+    }
+
+    internal static string GetGameLauncherPath(string installRoot)
+    {
+        return Path.Combine(installRoot, GameLauncherFileName);
+    }
+
+    internal static string GetClassicDirectoryPath(string installRoot)
+    {
+        return Path.Combine(installRoot, ClassicDirectoryName);
+    }
+
+    internal static bool HasPlayableClient(string installRoot)
+    {
+        return File.Exists(GetGameExecutablePath(installRoot)) &&
+               File.Exists(GetGameLauncherPath(installRoot));
+    }
 
     internal static bool IsGameUninstallMode(IEnumerable<string> args)
     {
@@ -101,7 +125,7 @@ internal static class GameInstallServices
     {
         using var baseKey = OpenUninstallBaseKey();
         using var key = baseKey.CreateSubKey(RegistrySubKey) ?? throw new InvalidOperationException("Impossible de creer l'entree Windows de desinstallation WotLK.");
-        var wowExe = Path.Combine(installRoot, "Wow.exe");
+        var wowExe = GetGameExecutablePath(installRoot);
         var uninstallCommand = Quote(uninstallerExe) + " /uninstall-game";
         var quietUninstallCommand = Quote(uninstallerExe) + " /uninstall-game /quiet";
 
@@ -170,11 +194,34 @@ internal static class GameInstallServices
     private static string NormalizeAndValidateGameRoot(string installRoot)
     {
         var root = Path.GetFullPath(installRoot).TrimEnd(Path.DirectorySeparatorChar);
-        var expected = Path.GetFullPath(LauncherSettings.GetDefaultInstallPath()).TrimEnd(Path.DirectorySeparatorChar);
-        if (!string.Equals(root, expected, StringComparison.OrdinalIgnoreCase))
+        var driveRoot = Path.GetPathRoot(root)?.TrimEnd(Path.DirectorySeparatorChar);
+        if (string.IsNullOrWhiteSpace(root) ||
+            string.IsNullOrWhiteSpace(driveRoot) ||
+            SamePath(root, driveRoot))
         {
             throw new InvalidOperationException("Dossier WotLK refuse pour securite: " + installRoot);
         }
+
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        if (!string.IsNullOrWhiteSpace(windows) &&
+            (SamePath(root, windows) || IsPathInside(windows, root)))
+        {
+            throw new InvalidOperationException("Dossier WotLK refuse pour securite: " + installRoot);
+        }
+
+        foreach (var protectedRoot in new[]
+                 {
+                     Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                     Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+                     Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+                 })
+        {
+            if (!string.IsNullOrWhiteSpace(protectedRoot) && SamePath(root, protectedRoot))
+            {
+                throw new InvalidOperationException("Dossier WotLK refuse pour securite: " + installRoot);
+            }
+        }
+
         return root;
     }
 
@@ -182,9 +229,8 @@ internal static class GameInstallServices
     {
         var root = NormalizeAndValidateGameRoot(installRoot);
         var gameLocale = LauncherSettings.NormalizeGameLocale(locale);
-        EnsureLocaleRealmlist(root, gameLocale);
 
-        var wtfDirectory = Path.Combine(root, "WTF");
+        var wtfDirectory = Path.Combine(GetClassicDirectoryPath(root), "WTF");
         Directory.CreateDirectory(wtfDirectory);
 
         var configPath = Path.Combine(wtfDirectory, "Config.wtf");
@@ -213,6 +259,9 @@ internal static class GameInstallServices
 
         keptLines.Add($"SET locale \"{gameLocale}\"");
         keptLines.Add($"SET installLocale \"{gameLocale}\"");
+        keptLines.Add($"SET textLocale \"{gameLocale}\"");
+        keptLines.Add($"SET audioLocale \"{gameLocale}\"");
+        keptLines.Add($"SET portal \"{PortalAddress}\"");
 
         var desktopResolution = applyDesktopResolution ? TryGetPrimaryDesktopResolution() : null;
         if (!string.IsNullOrWhiteSpace(desktopResolution))
@@ -256,24 +305,15 @@ internal static class GameInstallServices
     {
         return string.Equals(key, "locale", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(key, "installLocale", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(key, "textLocale", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(key, "audioLocale", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(key, "portal", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(key, "gxWindow", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(key, "gxMaximize", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(key, "gxVSync", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(key, "miniWorldMap", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(key, "gxRefresh", StringComparison.OrdinalIgnoreCase) ||
                (applyDesktopResolution && string.Equals(key, "gxResolution", StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static void EnsureLocaleRealmlist(string installRoot, string gameLocale)
-    {
-        var localeDataDirectory = Path.Combine(installRoot, "Data", gameLocale);
-        Directory.CreateDirectory(localeDataDirectory);
-
-        var realmlistPath = Path.Combine(localeDataDirectory, "realmlist.wtf");
-        if (!File.Exists(realmlistPath))
-        {
-            File.WriteAllText(realmlistPath, "set realmlist " + RealmAddress + Environment.NewLine, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-        }
     }
 
     private static void WriteVideoDefaultsMarker(string markerPath, string? desktopResolution)
@@ -310,27 +350,50 @@ internal static class GameInstallServices
         StopRunningWow(root);
     }
 
+    internal static bool IsGameRunning(string installRoot)
+    {
+        var root = NormalizeAndValidateGameRoot(installRoot);
+        foreach (var processName in new[] { "Wow", "WowClassic" })
+        {
+            foreach (var process in Process.GetProcessesByName(processName))
+            {
+                using (process)
+                {
+                    if (process.Id != Environment.ProcessId && ProcessMatchesInstallRoot(process, root))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
     private static void StopRunningWow(string installRoot)
     {
-        foreach (var process in Process.GetProcessesByName("Wow"))
+        foreach (var processName in new[] { "Wow", "WowClassic", "Arctium Game Launcher Atlas" })
         {
-            using (process)
+            foreach (var process in Process.GetProcessesByName(processName))
             {
-                try
+                using (process)
                 {
-                    if (process.Id == Environment.ProcessId || !ProcessMatchesInstallRoot(process, installRoot))
+                    try
                     {
-                        continue;
+                        if (process.Id == Environment.ProcessId || !ProcessMatchesInstallRoot(process, installRoot))
+                        {
+                            continue;
+                        }
+                        if (process.CloseMainWindow() && process.WaitForExit(5000))
+                        {
+                            continue;
+                        }
+                        process.Kill(entireProcessTree: true);
+                        process.WaitForExit(10000);
                     }
-                    if (process.CloseMainWindow() && process.WaitForExit(5000))
+                    catch
                     {
-                        continue;
                     }
-                    process.Kill(entireProcessTree: true);
-                    process.WaitForExit(10000);
-                }
-                catch
-                {
                 }
             }
         }

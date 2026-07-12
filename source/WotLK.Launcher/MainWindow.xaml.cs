@@ -192,8 +192,7 @@ public partial class MainWindow : Window
         }
 
         SaveSettingsFromUi();
-        var wowPath = Path.Combine(_settings.InstallPath, "Wow.exe");
-        if (!File.Exists(wowPath))
+        if (!GameInstallServices.HasPlayableClient(_settings.InstallPath))
         {
             return;
         }
@@ -242,24 +241,42 @@ public partial class MainWindow : Window
 
     private void PlayGame()
     {
-        var wowPath = Path.Combine(_settings.InstallPath, "Wow.exe");
-        if (!File.Exists(wowPath))
+        var wowPath = GameInstallServices.GetGameExecutablePath(_settings.InstallPath);
+        var gameLauncherPath = GameInstallServices.GetGameLauncherPath(_settings.InstallPath);
+        if (!GameInstallServices.HasPlayableClient(_settings.InstallPath))
         {
-            System.Windows.MessageBox.Show(this, "Wow.exe est introuvable. Installe ou mets a jour le client d'abord.", "Client introuvable", MessageBoxButton.OK, MessageBoxImage.Warning);
+            System.Windows.MessageBox.Show(this, "Le client Classic ou le lanceur Atlas est introuvable. Installe ou mets a jour le client d'abord.", "Client introuvable", MessageBoxButton.OK, MessageBoxImage.Warning);
             SetGameAction(GameAction.Install);
+            return;
+        }
+
+        if (GameInstallServices.IsGameRunning(_settings.InstallPath))
+        {
+            AppendLog("Le jeu est deja lance.");
+            SetStatus("Jeu en cours.");
             return;
         }
 
         GameInstallServices.EnsureDefaultClientConfig(_settings.InstallPath, _settings.GameLocale);
 
-        Process.Start(new ProcessStartInfo
+        var startInfo = new ProcessStartInfo
         {
-            FileName = wowPath,
+            FileName = gameLauncherPath,
             WorkingDirectory = _settings.InstallPath,
-            UseShellExecute = true
-        });
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
+        startInfo.ArgumentList.Add("--version");
+        startInfo.ArgumentList.Add("Classic");
+        startInfo.ArgumentList.Add("--path");
+        startInfo.ArgumentList.Add(GameInstallServices.GetClassicDirectoryPath(_settings.InstallPath));
+        startInfo.ArgumentList.Add("--portal");
+        startInfo.ArgumentList.Add(GameInstallServices.PortalAddress);
+        startInfo.ArgumentList.Add("--skipcertcheck");
+        Process.Start(startInfo);
 
-        AppendLog("Jeu lance: " + wowPath);
+        AppendLog("Jeu lance sur Atlas: " + wowPath);
     }
 
     private async void LauncherUpdateTimer_Tick(object? sender, EventArgs e)
@@ -383,8 +400,7 @@ public partial class MainWindow : Window
         _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
         InstallPathBox.Text = _settings.InstallPath;
 
-        var wowPath = Path.Combine(_settings.InstallPath, "Wow.exe");
-        var hasClient = File.Exists(wowPath);
+        var hasClient = GameInstallServices.HasPlayableClient(_settings.InstallPath);
         SetGameAction(hasClient ? GameAction.Play : GameAction.Install);
         MainProgress.Value = hasClient ? 100 : 0;
         ProgressText.Text = hasClient ? "Client à jour" : string.Empty;
@@ -403,8 +419,7 @@ public partial class MainWindow : Window
             _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
             InstallPathBox.Text = _settings.InstallPath;
 
-            var wowPath = Path.Combine(_settings.InstallPath, "Wow.exe");
-            if (!File.Exists(wowPath))
+            if (!GameInstallServices.HasPlayableClient(_settings.InstallPath))
             {
                 SetGameAction(GameAction.Install);
                 if (!silentWhenUpToDate)
@@ -413,6 +428,15 @@ public partial class MainWindow : Window
                     MainProgress.Value = 0;
                     ProgressText.Text = string.Empty;
                 }
+                return;
+            }
+
+            if (GameInstallServices.IsGameRunning(_settings.InstallPath))
+            {
+                SetGameAction(GameAction.Play);
+                SetStatus("Jeu en cours.");
+                MainProgress.Value = 100;
+                ProgressText.Text = "Jeu en cours";
                 return;
             }
 
@@ -476,8 +500,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            var wowPath = Path.Combine(_settings.InstallPath, "Wow.exe");
-            SetGameAction(File.Exists(wowPath) ? GameAction.Play : GameAction.Install);
+            SetGameAction(GameInstallServices.HasPlayableClient(_settings.InstallPath) ? GameAction.Play : GameAction.Install);
             if (!silentWhenUpToDate)
             {
                 SetStatus("Pret.");
@@ -516,10 +539,9 @@ public partial class MainWindow : Window
         }
 
         var installedVersion = TryReadInstalledClientVersion();
-        var wowPath = Path.Combine(_settings.InstallPath, "Wow.exe");
         if (!string.IsNullOrWhiteSpace(manifest.Version) &&
             string.Equals(installedVersion, manifest.Version, StringComparison.OrdinalIgnoreCase) &&
-            File.Exists(wowPath))
+            GameInstallServices.HasPlayableClient(_settings.InstallPath))
         {
             SaveInstalledManifestHistory(manifest);
             return [];
@@ -791,6 +813,9 @@ public partial class MainWindow : Window
             throw new InvalidOperationException("Le manifeste ne contient aucun fichier.");
         }
 
+        GameInstallServices.StopRunningGameProcesses(_settings.InstallPath);
+        AppendLog("Processus WoW ferme si necessaire avant verification.");
+
         SetStatus("Comparaison du manifeste...");
         var missingOrChanged = await FindMissingOrChangedFilesForManifestAsync(manifest, updateProgress: true, cancellationToken);
         var removedFiles = FindRemovedFilesForManifest(manifest);
@@ -819,9 +844,6 @@ public partial class MainWindow : Window
         {
             AppendLog($"{removedFiles.Count} fichier(s) obsolete(s) a supprimer.");
         }
-
-        GameInstallServices.StopRunningGameProcesses(_settings.InstallPath);
-        AppendLog("Processus Wow ferme si necessaire.");
 
         if (removedFiles.Count > 0)
         {

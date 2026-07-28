@@ -11,6 +11,10 @@ public sealed class LauncherSettings
 
     public string GameLocale { get; set; } = GetDefaultGameLocale();
 
+    public bool AutomaticLauncherUpdates { get; set; } = true;
+
+    public bool CloseLauncherOnGameStart { get; set; }
+
     public static string SettingsDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "WotLK Launcher");
@@ -48,7 +52,7 @@ public sealed class LauncherSettings
 
     public static string GetDefaultManifestUrl()
     {
-        return "http://152.228.225.7/wotlk/manifest.json";
+        return "https://animeclub.fr/wotlk/manifest.json";
     }
 
     public static string GetDefaultInstallPath()

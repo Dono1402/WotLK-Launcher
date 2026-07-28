@@ -1,7 +1,7 @@
 param(
     [string]$OutputDirectory = (Join-Path $PSScriptRoot 'artifacts\addons'),
     [string]$WorkDirectory = (Join-Path $env:TEMP 'Atlas-WotLK-AddonBuild'),
-    [string]$PublicBaseUrl = 'http://152.228.225.7/launcher/addons/packages'
+    [string]$PublicBaseUrl = 'https://animeclub.fr/wotlk/addons/packages'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -596,6 +596,20 @@ $packageDefinitions = @(
     }
 )
 
+$addonCategories = @{
+    'weakauras' = 'Combat'
+    'elvui' = 'Interface'
+    'questie' = 'Quêtes'
+    'dbm' = 'Combat'
+    'details' = 'Combat'
+    'atlaslootclassic' = 'Collections'
+    'auctionator' = 'Économie'
+    'leatrix-plus' = 'Interface'
+    'nova-instance-tracker' = 'Instances'
+    'attune' = 'Quêtes'
+    'baganator' = 'Inventaire'
+}
+
 $catalogAddons = foreach ($package in $packageDefinitions) {
     $archiveItem = Get-Item -LiteralPath $package.archive
     $catalogComponents = foreach ($component in $package.components) {
@@ -612,6 +626,7 @@ $catalogAddons = foreach ($package in $packageDefinitions) {
         id = $package.id
         name = $package.name
         description = $package.description
+        category = $addonCategories[$package.id]
         version = $package.version
         interface = $package.interface
         url = $package.url

@@ -27,6 +27,9 @@ public sealed class AddonPackage
     [JsonPropertyName("description")]
     public string Description { get; set; } = "";
 
+    [JsonPropertyName("category")]
+    public string Category { get; set; } = "Utilitaires";
+
     [JsonPropertyName("version")]
     public string Version { get; set; } = "";
 
@@ -110,6 +113,7 @@ internal sealed class AddonSelectionItem : INotifyPropertyChanged
     public string Id => Package.Id;
     public string Name => Package.Name;
     public string Description => Package.Description;
+    public string Category => Package.Category;
     public string VersionText => $"Version {Package.Version}  |  Interface {Package.Interface}";
 
     public bool IsSelected

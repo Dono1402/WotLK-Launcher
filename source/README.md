@@ -8,7 +8,9 @@ Le client distribue est WotLK Classic 3.4.3.54261. Le bouton Jouer lance `Arctiu
 
 Le launcher s'execute sans elevation permanente. L'installer accorde au compte Windows courant un acces en modification limite au dossier du client; une ancienne installation est migree lors de sa derniere mise a jour elevee. Seules l'auto-mise a jour du launcher et la desinstallation peuvent encore demander une validation administrateur.
 
-L'onglet Addons propose des installations optionnelles et independantes du feed client. Le launcher ne supprime que les dossiers qu'il a lui-meme enregistres dans `_classic_\Interface\AddOns\.atlas-addons.json`; les `SavedVariables` et les addons utilisateur restent intacts.
+Le launcher comprend les pages Accueil, Jeu, Addons, Actualites, Serveur, Mon compte et Parametres. La page Addons propose des installations optionnelles classees par categorie avec recherche. Le launcher ne supprime que les dossiers qu'il a lui-meme enregistres dans `_classic_\Interface\AddOns\.atlas-addons.json`; les `SavedVariables` et les addons utilisateur restent intacts.
+
+Le compte Atlas permet de modifier l'e-mail, l'avatar et le mot de passe, de consulter les sessions actives et d'en revoquer une a distance. Le tableau de bord affiche aussi l'etat direct des passerelles et du worldserver. La validation d'e-mail, la double authentification et les codes de recuperation seront actives avec l'integration Brevo.
 
 ## Catalogue addons 3.4.3
 

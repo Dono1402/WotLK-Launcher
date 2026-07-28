@@ -1,5 +1,29 @@
 using System.Net;
+using System.Net.Http.Json;
 using WotLK.Launcher;
+
+if (args.Length == 1
+    && string.Equals(args[0], "--atlas-network", StringComparison.OrdinalIgnoreCase))
+{
+    using HttpClient atlas = new(AtlasNetwork.CreateHandler())
+    {
+        Timeout = TimeSpan.FromSeconds(5)
+    };
+    DateTimeOffset startedAt = DateTimeOffset.UtcNow;
+    using HttpResponseMessage response = await atlas.PostAsJsonAsync(
+        "https://animeclub.fr/wotlk/api/v1/auth/login",
+        new
+        {
+            username = "Dono1402",
+            password = "atlas-network-diagnostic-invalid-password",
+            deviceName = "LauncherIntegrationTest"
+        });
+    TimeSpan elapsed = DateTimeOffset.UtcNow - startedAt;
+    Assert(response.StatusCode == HttpStatusCode.Unauthorized, "Atlas doit refuser le mot de passe de diagnostic.");
+    Assert(elapsed < TimeSpan.FromSeconds(5), "La connexion IPv4 Atlas doit répondre en moins de cinq secondes.");
+    Console.WriteLine($"Atlas network OK: {(int)response.StatusCode} in {elapsed.TotalMilliseconds:F0} ms.");
+    return 0;
+}
 
 if (args.Length < 1)
 {
@@ -24,8 +48,16 @@ await File.WriteAllTextAsync(
 
 try
 {
+    using LauncherAuthService? auth = live ? new LauncherAuthService() : null;
+    if (live && !await auth!.RestoreAsync())
+    {
+        throw new InvalidOperationException("Une session launcher Atlas valide est requise pour le test live.");
+    }
+
     PackageDirectoryHandler? handler = live ? null : new PackageDirectoryHandler(archiveDirectories);
-    using var http = handler is null ? new HttpClient() : new HttpClient(handler);
+    using var http = live
+        ? new HttpClient(new AtlasAuthorizationHandler(() => auth!.AccessToken))
+        : new HttpClient(handler!);
     http.Timeout = TimeSpan.FromMinutes(30);
     var catalog = await AddonInstallServices.LoadCatalogAsync(
         http,

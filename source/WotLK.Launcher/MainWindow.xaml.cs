@@ -11,6 +11,7 @@ using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace WotLK.Launcher;
@@ -24,8 +25,19 @@ public partial class MainWindow : Window
         Play
     }
 
+    private enum LauncherPage
+    {
+        Home,
+        Game,
+        Addons,
+        News,
+        Server,
+        Account,
+        Settings
+    }
+
     private const string LauncherUpdateManifestUrl = "http://152.228.225.7/launcher/launcher-update.json";
-    private const string AddonCatalogUrl = "http://152.228.225.7/launcher/addons/catalog.json";
+    private const string AddonCatalogUrl = "https://animeclub.fr/wotlk/addons/catalog.json";
     private const string LauncherUpdateRequestHeader = "X-WotLK-Launcher-Update";
     private const string LauncherUpdateRequestMarker = "1";
     private static readonly TimeSpan LauncherUpdateCheckInterval = TimeSpan.FromSeconds(30);
@@ -35,13 +47,14 @@ public partial class MainWindow : Window
         PropertyNameCaseInsensitive = true
     };
 
-    private readonly HttpClient _http = new()
-    {
-        Timeout = TimeSpan.FromMinutes(30)
-    };
+    private readonly LauncherAuthService _auth;
+    private readonly HttpClient _http;
     private readonly LauncherSettings _settings;
     private readonly DispatcherTimer _launcherUpdateTimer;
     private readonly ObservableCollection<AddonSelectionItem> _addonItems = [];
+    private readonly ObservableCollection<LauncherNews> _newsItems = [];
+    private readonly ObservableCollection<LauncherDeviceSession> _sessionItems = [];
+    private readonly List<AddonSelectionItem> _allAddonItems = [];
     private CancellationTokenSource? _downloadCancellation;
     private LauncherUpdateManifest? _launcherUpdate;
     private AddonCatalog? _addonCatalog;
@@ -52,13 +65,24 @@ public partial class MainWindow : Window
     private bool _isAddonTabActive;
     private bool _isApplyingAddons;
     private bool _isInitializingUi = true;
+    private bool _isLoadingAccountData;
+    private bool _isLoadingServerStatus;
+    private string _selectedAddonCategory = "All";
+    private LauncherPage _currentPage = LauncherPage.Home;
     private string? _announcedLauncherUpdateHash;
     private string? _announcedGameUpdateVersion;
 
     public MainWindow()
     {
         InitializeComponent();
+        _auth = new LauncherAuthService();
+        _http = new HttpClient(new AtlasAuthorizationHandler(() => _auth.AccessToken))
+        {
+            Timeout = TimeSpan.FromMinutes(30)
+        };
         AddonItemsControl.ItemsSource = _addonItems;
+        NewsItemsControl.ItemsSource = _newsItems;
+        SessionsItemsControl.ItemsSource = _sessionItems;
 
         Title = "Arthas Launcher";
         TitleText.Text = "ARTHAS";
@@ -70,8 +94,12 @@ public partial class MainWindow : Window
         _settings.Save();
         GameDirectoryAccess.PrepareElevatedSession(_settings.InstallPath);
         InstallPathBox.Text = _settings.InstallPath;
+        SettingsInstallPathBox.Text = _settings.InstallPath;
         UpdateAddonInstallPathText();
         SetLanguageSelection(_settings.GameLocale);
+        SetSettingsLanguageSelection(_settings.GameLocale);
+        AutomaticUpdatesCheckBox.IsChecked = _settings.AutomaticLauncherUpdates;
+        CloseOnGameStartCheckBox.IsChecked = _settings.CloseLauncherOnGameStart;
         _isInitializingUi = false;
 
         _launcherUpdateTimer = new DispatcherTimer(DispatcherPriority.Background)
@@ -82,9 +110,16 @@ public partial class MainWindow : Window
 
         AppendLog("Launcher prêt.");
         SetInitialGameActionFromDisk();
-        _ = CheckLauncherUpdateAsync();
-        _ = RefreshGameActionAsync();
-        _launcherUpdateTimer.Start();
+        NavigateTo(LauncherPage.Home);
+        if (_settings.AutomaticLauncherUpdates)
+        {
+            _ = CheckLauncherUpdateAsync();
+        }
+        Loaded += MainWindow_Loaded;
+        if (_settings.AutomaticLauncherUpdates)
+        {
+            _launcherUpdateTimer.Start();
+        }
     }
 
     protected override void OnClosed(EventArgs e)
@@ -92,7 +127,36 @@ public partial class MainWindow : Window
         _downloadCancellation?.Cancel();
         _launcherUpdateTimer.Stop();
         _launcherUpdateTimer.Tick -= LauncherUpdateTimer_Tick;
+        Loaded -= MainWindow_Loaded;
+        _http.Dispose();
+        _auth.Dispose();
         base.OnClosed(e);
+    }
+
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (await _auth.RestoreAsync())
+            {
+                CompleteAuthentication();
+                AppendLog($"Session restaurée pour {_auth.Session!.Profile.Username}.");
+                await RefreshGameActionAsync();
+                return;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            LoginErrorText.Text = "Atlas met trop de temps à répondre. Tu peux réessayer.";
+            AppendLog("Restauration de session expirée.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
+        {
+            LoginErrorText.Text = "Atlas est temporairement indisponible. Tu peux réessayer.";
+            AppendLog("Restauration de session impossible: " + ex.Message);
+        }
+
+        ShowLogin();
     }
 
     private async void LauncherSelfUpdateButton_Click(object sender, RoutedEventArgs e)
@@ -126,9 +190,19 @@ public partial class MainWindow : Window
 
     private async void UpdateButton_Click(object sender, RoutedEventArgs e)
     {
+        await ExecuteGameActionAsync();
+    }
+
+    private async Task ExecuteGameActionAsync()
+    {
         if (_downloadCancellation is not null)
         {
             _downloadCancellation.Cancel();
+            return;
+        }
+
+        if (!EnsureAuthenticated())
+        {
             return;
         }
 
@@ -140,7 +214,7 @@ public partial class MainWindow : Window
 
         if (_gameAction == GameAction.Play)
         {
-            PlayGame();
+            await PlayGameAsync();
             return;
         }
 
@@ -149,6 +223,12 @@ public partial class MainWindow : Window
 
         try
         {
+            if (!await _auth.EnsureFreshAsync())
+            {
+                ShowLogin();
+                return;
+            }
+
             await InstallOrUpdateAsync(_downloadCancellation.Token);
             await RefreshGameActionAsync();
         }
@@ -173,6 +253,16 @@ public partial class MainWindow : Window
 
     private async void BrowseInstallPathButton_Click(object sender, RoutedEventArgs e)
     {
+        await BrowseInstallPathAsync();
+    }
+
+    private async void SettingsBrowseInstallPathButton_Click(object sender, RoutedEventArgs e)
+    {
+        await BrowseInstallPathAsync();
+    }
+
+    private async Task BrowseInstallPathAsync()
+    {
         if (_downloadCancellation is not null)
         {
             return;
@@ -196,6 +286,7 @@ public partial class MainWindow : Window
         _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
         _settings.Save();
         InstallPathBox.Text = _settings.InstallPath;
+        SettingsInstallPathBox.Text = _settings.InstallPath;
         UpdateAddonInstallPathText();
 
         AppendLog("Dossier client: " + _settings.InstallPath);
@@ -215,6 +306,9 @@ public partial class MainWindow : Window
         }
 
         SaveSettingsFromUi();
+        _isInitializingUi = true;
+        SetSettingsLanguageSelection(_settings.GameLocale);
+        _isInitializingUi = false;
         if (!GameInstallServices.HasPlayableClient(_settings.InstallPath))
         {
             return;
@@ -236,14 +330,23 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ClientTabButton_Click(object sender, RoutedEventArgs e)
+    private void HomeTabButton_Click(object sender, RoutedEventArgs e)
     {
         if (_downloadCancellation is not null)
         {
             return;
         }
 
-        ShowAddonsTab(show: false);
+        NavigateTo(LauncherPage.Home);
+        _ = RefreshDashboardAsync();
+    }
+
+    private void ClientTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_downloadCancellation is null)
+        {
+            NavigateTo(LauncherPage.Game);
+        }
     }
 
     private async void AddonsTabButton_Click(object sender, RoutedEventArgs e)
@@ -253,8 +356,62 @@ public partial class MainWindow : Window
             return;
         }
 
-        ShowAddonsTab(show: true);
+        if (!EnsureAuthenticated())
+        {
+            return;
+        }
+
+        NavigateTo(LauncherPage.Addons);
         await RefreshAddonCatalogAsync(reloadCatalog: _addonCatalog is null);
+    }
+
+    private async void NewsTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!EnsureAuthenticated())
+        {
+            return;
+        }
+
+        NavigateTo(LauncherPage.News);
+        await RefreshNewsAsync();
+    }
+
+    private async void ServerTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!EnsureAuthenticated())
+        {
+            return;
+        }
+
+        NavigateTo(LauncherPage.Server);
+        await RefreshServerStatusAsync();
+    }
+
+    private async void AccountTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!EnsureAuthenticated())
+        {
+            return;
+        }
+
+        NavigateTo(LauncherPage.Account);
+        await RefreshAccountDataAsync();
+    }
+
+    private void SettingsTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        NavigateTo(LauncherPage.Settings);
+        SyncSettingsUi();
+    }
+
+    private async void HomePlayButton_Click(object sender, RoutedEventArgs e)
+    {
+        await ExecuteGameActionAsync();
+    }
+
+    private void HomeAddonsButton_Click(object sender, RoutedEventArgs e)
+    {
+        AddonsTabButton_Click(sender, e);
     }
 
     private async void AddonApplyButton_Click(object sender, RoutedEventArgs e)
@@ -262,6 +419,11 @@ public partial class MainWindow : Window
         if (_downloadCancellation is not null)
         {
             _downloadCancellation.Cancel();
+            return;
+        }
+
+        if (!EnsureAuthenticated())
+        {
             return;
         }
 
@@ -294,7 +456,13 @@ public partial class MainWindow : Window
 
         try
         {
-            var selection = _addonItems.ToDictionary(item => item.Id, item => item.IsSelected, StringComparer.OrdinalIgnoreCase);
+            if (!await _auth.EnsureFreshAsync())
+            {
+                ShowLogin();
+                return;
+            }
+
+            var selection = _allAddonItems.ToDictionary(item => item.Id, item => item.IsSelected, StringComparer.OrdinalIgnoreCase);
             var progress = new Progress<AddonTransferProgress>(value =>
             {
                 AddonStatusText.Text = "Téléchargement de " + value.AddonName;
@@ -345,12 +513,65 @@ public partial class MainWindow : Window
 
     private void ShowAddonsTab(bool show)
     {
-        _isAddonTabActive = show;
-        GamePanel.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
-        AddonsPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        ClientTabButton.Tag = show ? null : "Active";
-        AddonsTabButton.Tag = show ? "Active" : null;
-        UpdateAddonInstallPathText();
+        NavigateTo(show ? LauncherPage.Addons : LauncherPage.Game);
+    }
+
+    private void NavigateTo(LauncherPage page)
+    {
+        _currentPage = page;
+        _isAddonTabActive = page == LauncherPage.Addons;
+
+        HomePanel.Visibility = page == LauncherPage.Home ? Visibility.Visible : Visibility.Collapsed;
+        GamePanel.Visibility = page == LauncherPage.Game ? Visibility.Visible : Visibility.Collapsed;
+        AddonsPanel.Visibility = page == LauncherPage.Addons ? Visibility.Visible : Visibility.Collapsed;
+        NewsPanel.Visibility = page == LauncherPage.News ? Visibility.Visible : Visibility.Collapsed;
+        ServerPanel.Visibility = page == LauncherPage.Server ? Visibility.Visible : Visibility.Collapsed;
+        AccountPanel.Visibility = page == LauncherPage.Account ? Visibility.Visible : Visibility.Collapsed;
+        SettingsPanel.Visibility = page == LauncherPage.Settings ? Visibility.Visible : Visibility.Collapsed;
+
+        HomeTabButton.Tag = page == LauncherPage.Home ? "Active" : null;
+        ClientTabButton.Tag = page == LauncherPage.Game ? "Active" : null;
+        AddonsTabButton.Tag = page == LauncherPage.Addons ? "Active" : null;
+        NewsTabButton.Tag = page == LauncherPage.News ? "Active" : null;
+        ServerTabButton.Tag = page == LauncherPage.Server ? "Active" : null;
+        AccountTabButton.Tag = page == LauncherPage.Account ? "Active" : null;
+        SettingsTabButton.Tag = page == LauncherPage.Settings ? "Active" : null;
+
+        if (page == LauncherPage.Addons)
+        {
+            UpdateAddonInstallPathText();
+        }
+    }
+
+    private IEnumerable<Button> GetAddonCategoryButtons()
+    {
+        yield return AddonAllCategoryButton;
+        yield return AddonCombatCategoryButton;
+        yield return AddonInterfaceCategoryButton;
+        yield return AddonQuestsCategoryButton;
+        yield return AddonInstancesCategoryButton;
+        yield return AddonCollectionsCategoryButton;
+        yield return AddonEconomyCategoryButton;
+        yield return AddonInventoryCategoryButton;
+    }
+
+    private void UpdateAddonCategoryCounts()
+    {
+        AddonAllCountText.Text = _allAddonItems.Count.ToString(CultureInfo.InvariantCulture);
+        AddonCombatCountText.Text = CountAddons("Combat");
+        AddonInterfaceCountText.Text = CountAddons("Interface");
+        AddonQuestsCountText.Text = CountAddons("Quêtes");
+        AddonInstancesCountText.Text = CountAddons("Instances");
+        AddonCollectionsCountText.Text = CountAddons("Collections");
+        AddonEconomyCountText.Text = CountAddons("Économie");
+        AddonInventoryCountText.Text = CountAddons("Inventaire");
+    }
+
+    private string CountAddons(string category)
+    {
+        return _allAddonItems.Count(item =>
+                string.Equals(item.Category, category, StringComparison.OrdinalIgnoreCase))
+            .ToString(CultureInfo.InvariantCulture);
     }
 
     private async Task RefreshAddonCatalogAsync(bool reloadCatalog)
@@ -401,7 +622,7 @@ public partial class MainWindow : Window
         }
 
         var inspections = AddonInstallServices.Inspect(_addonCatalog, _settings.InstallPath);
-        _addonItems.Clear();
+        _allAddonItems.Clear();
         foreach (var package in _addonCatalog.Addons)
         {
             var item = new AddonSelectionItem(package);
@@ -410,13 +631,572 @@ public partial class MainWindow : Window
                 item.ApplyInspection(inspection);
             }
 
-            _addonItems.Add(item);
+            _allAddonItems.Add(item);
         }
+
+        ApplyAddonCategoryFilter();
+    }
+
+    private void AddonCategoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button)
+        {
+            return;
+        }
+
+        _selectedAddonCategory = button.CommandParameter?.ToString() ?? "All";
+        foreach (Button categoryButton in GetAddonCategoryButtons())
+        {
+            categoryButton.Tag = ReferenceEquals(categoryButton, button) ? "Active" : null;
+        }
+
+        ApplyAddonCategoryFilter();
+    }
+
+    private void AddonSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        ApplyAddonCategoryFilter();
+    }
+
+    private void ApplyAddonCategoryFilter()
+    {
+        if (_addonItems is null)
+        {
+            return;
+        }
+
+        string search = AddonSearchBox?.Text.Trim() ?? string.Empty;
+        _addonItems.Clear();
+        foreach (AddonSelectionItem item in _allAddonItems)
+        {
+            bool categoryMatches = _selectedAddonCategory == "All"
+                || string.Equals(item.Category, _selectedAddonCategory, StringComparison.OrdinalIgnoreCase);
+            bool searchMatches = string.IsNullOrWhiteSpace(search)
+                || item.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase)
+                || item.Description.Contains(search, StringComparison.CurrentCultureIgnoreCase);
+            if (categoryMatches && searchMatches)
+            {
+                _addonItems.Add(item);
+            }
+        }
+
+        UpdateAddonCategoryCounts();
+        AddonStatusText.Text = _allAddonItems.Count == 0
+            ? "Catalogue prêt"
+            : $"{_addonItems.Count} addon(s) affiché(s) sur {_allAddonItems.Count}";
     }
 
     private void UpdateAddonInstallPathText()
     {
         AddonInstallPathText.Text = AddonInstallServices.GetAddonsDirectory(_settings.InstallPath);
+    }
+
+    private async void LoginButton_Click(object sender, RoutedEventArgs e)
+    {
+        await LoginAsync();
+    }
+
+    private async void LoginPasswordBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            await LoginAsync();
+        }
+    }
+
+    private async Task LoginAsync()
+    {
+        LoginErrorText.Text = string.Empty;
+        if (string.IsNullOrWhiteSpace(LoginUsernameBox.Text)
+            || string.IsNullOrEmpty(LoginPasswordBox.Password))
+        {
+            LoginErrorText.Text = "Renseigne ton nom d'utilisateur et ton mot de passe.";
+            return;
+        }
+
+        SetAuthBusy(true);
+        try
+        {
+            await _auth.LoginAsync(
+                LoginUsernameBox.Text.Trim(),
+                LoginPasswordBox.Password);
+            LoginPasswordBox.Clear();
+            CompleteAuthentication();
+            AppendLog($"Connecté au launcher en tant que {_auth.Session!.Profile.Username}.");
+            await RefreshGameActionAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            LoginErrorText.Text = "Atlas met trop de temps à répondre. Réessaie dans quelques secondes.";
+            AppendLog("Connexion au launcher expirée.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
+        {
+            LoginErrorText.Text = ex is HttpRequestException
+                ? "Impossible de joindre Atlas. Vérifie ta connexion puis réessaie."
+                : ex.Message;
+        }
+        catch (Exception ex)
+        {
+            LoginErrorText.Text = "Une erreur inattendue est survenue. Le launcher peut rester ouvert.";
+            AppendLog("Erreur de connexion inattendue: " + ex.Message);
+        }
+        finally
+        {
+            SetAuthBusy(false);
+        }
+    }
+
+    private async void RegisterButton_Click(object sender, RoutedEventArgs e)
+    {
+        RegisterErrorText.Text = string.Empty;
+        if (RegisterPasswordBox.Password != RegisterPasswordConfirmBox.Password)
+        {
+            RegisterErrorText.Text = "Les deux mots de passe ne correspondent pas.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(RegisterUsernameBox.Text)
+            || string.IsNullOrWhiteSpace(RegisterEmailBox.Text)
+            || string.IsNullOrEmpty(RegisterPasswordBox.Password))
+        {
+            RegisterErrorText.Text = "Tous les champs sont obligatoires.";
+            return;
+        }
+
+        SetAuthBusy(true);
+        try
+        {
+            await _auth.RegisterAsync(
+                RegisterUsernameBox.Text.Trim(),
+                RegisterEmailBox.Text.Trim(),
+                RegisterPasswordBox.Password);
+            RegisterPasswordBox.Clear();
+            RegisterPasswordConfirmBox.Clear();
+            CompleteAuthentication();
+            AppendLog($"Compte {_auth.Session!.Profile.Username} créé et connecté.");
+            await RefreshGameActionAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            RegisterErrorText.Text = "Atlas met trop de temps à répondre. Réessaie dans quelques secondes.";
+            AppendLog("Création du compte expirée.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
+        {
+            RegisterErrorText.Text = ex is HttpRequestException
+                ? "Impossible de joindre Atlas. Vérifie ta connexion puis réessaie."
+                : ex.Message;
+        }
+        catch (Exception ex)
+        {
+            RegisterErrorText.Text = "Une erreur inattendue est survenue. Le launcher peut rester ouvert.";
+            AppendLog("Erreur de création de compte inattendue: " + ex.Message);
+        }
+        finally
+        {
+            SetAuthBusy(false);
+        }
+    }
+
+    private void ShowRegisterButton_Click(object sender, RoutedEventArgs e)
+    {
+        LoginPanel.Visibility = Visibility.Collapsed;
+        RegisterPanel.Visibility = Visibility.Visible;
+        RegisterUsernameBox.Text = LoginUsernameBox.Text.Trim();
+        RegisterErrorText.Text = string.Empty;
+        RegisterUsernameBox.Focus();
+    }
+
+    private void ShowLoginButton_Click(object sender, RoutedEventArgs e)
+    {
+        ShowLogin();
+    }
+
+    private async void ProfileButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_auth.Session is null)
+        {
+            ShowLogin();
+            return;
+        }
+
+        UpdateProfileUi(_auth.Session.Profile);
+        NavigateTo(LauncherPage.Account);
+        await RefreshAccountDataAsync();
+    }
+
+    private async void LogoutButton_Click(object sender, RoutedEventArgs e)
+    {
+        await _auth.LogoutAsync();
+        ProfileButton.Visibility = Visibility.Collapsed;
+        NavigateTo(LauncherPage.Home);
+        ShowLogin();
+        AppendLog("Déconnecté du launcher.");
+    }
+
+    private void ShowChangeEmailButton_Click(object sender, RoutedEventArgs e)
+    {
+        ChangeEmailBox.Text = _auth.Session?.Profile.Email ?? string.Empty;
+        EmailWarningBorder.Visibility = Visibility.Collapsed;
+        ChangeEmailPanel.Visibility = Visibility.Visible;
+        ChangeEmailBox.Focus();
+    }
+
+    private void CancelChangeEmailButton_Click(object sender, RoutedEventArgs e)
+    {
+        ChangeEmailPanel.Visibility = Visibility.Collapsed;
+        EmailWarningBorder.Visibility = Visibility.Visible;
+    }
+
+    private async void SaveEmailButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            LauncherProfile profile = await _auth.ChangeEmailAsync(ChangeEmailBox.Text.Trim());
+            UpdateProfileUi(profile);
+            ChangeEmailPanel.Visibility = Visibility.Collapsed;
+            EmailWarningBorder.Visibility = Visibility.Visible;
+            AppendLog("Adresse e-mail du compte mise à jour.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
+        {
+            System.Windows.MessageBox.Show(
+                this,
+                ex.Message,
+                "Adresse e-mail",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private async void ResendVerificationButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await _auth.ResendVerificationAsync();
+            System.Windows.MessageBox.Show(
+                this,
+                "L'envoi d'e-mail sera activé à la dernière étape avec Brevo. Ton compte reste pleinement utilisable.",
+                "Validation de l'e-mail",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
+        {
+            System.Windows.MessageBox.Show(
+                this,
+                ex.Message,
+                "Validation de l'e-mail",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private async void AvatarButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.Tag is not string avatarKey)
+        {
+            return;
+        }
+
+        try
+        {
+            LauncherProfile profile = await _auth.ChangeAvatarAsync(avatarKey);
+            UpdateProfileUi(profile);
+            AppendLog("Avatar du compte mis à jour.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
+        {
+            System.Windows.MessageBox.Show(this, ex.Message, "Avatar", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void ChangePasswordButton_Click(object sender, RoutedEventArgs e)
+    {
+        PasswordChangeStatusText.Text = string.Empty;
+        if (string.IsNullOrEmpty(CurrentPasswordBox.Password)
+            || string.IsNullOrEmpty(NewPasswordBox.Password))
+        {
+            PasswordChangeStatusText.Text = "Renseigne le mot de passe actuel et le nouveau.";
+            return;
+        }
+
+        if (!string.Equals(NewPasswordBox.Password, ConfirmNewPasswordBox.Password, StringComparison.Ordinal))
+        {
+            PasswordChangeStatusText.Text = "La confirmation ne correspond pas.";
+            return;
+        }
+
+        ChangePasswordButton.IsEnabled = false;
+        try
+        {
+            await _auth.ChangePasswordAsync(CurrentPasswordBox.Password, NewPasswordBox.Password);
+            CurrentPasswordBox.Clear();
+            NewPasswordBox.Clear();
+            ConfirmNewPasswordBox.Clear();
+            PasswordChangeStatusText.Foreground = (Brush)FindResource("SuccessBrush");
+            PasswordChangeStatusText.Text = "Mot de passe modifié.";
+            AppendLog("Mot de passe du compte mis à jour.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
+        {
+            PasswordChangeStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xF1, 0x8A, 0x91));
+            PasswordChangeStatusText.Text = ex.Message;
+        }
+        finally
+        {
+            ChangePasswordButton.IsEnabled = true;
+        }
+    }
+
+    private async void RefreshSessionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshAccountDataAsync();
+    }
+
+    private async void RevokeSessionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.CommandParameter is not string sessionId)
+        {
+            return;
+        }
+
+        try
+        {
+            await _auth.RevokeSessionAsync(sessionId);
+            AppendLog("Session distante révoquée.");
+            await RefreshAccountDataAsync();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
+        {
+            System.Windows.MessageBox.Show(this, ex.Message, "Sessions", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async Task RefreshAccountDataAsync()
+    {
+        if (_isLoadingAccountData || _auth.Session is null)
+        {
+            return;
+        }
+
+        _isLoadingAccountData = true;
+        try
+        {
+            IReadOnlyList<LauncherDeviceSession> sessions = await _auth.GetSessionsAsync();
+            _sessionItems.Clear();
+            foreach (LauncherDeviceSession session in sessions)
+            {
+                _sessionItems.Add(session);
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
+        {
+            AppendLog("Sessions du compte indisponibles: " + ex.Message);
+        }
+        finally
+        {
+            _isLoadingAccountData = false;
+        }
+    }
+
+    private async void RefreshNewsButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshNewsAsync();
+    }
+
+    private async Task RefreshNewsAsync()
+    {
+        if (_auth.Session is null)
+        {
+            return;
+        }
+
+        try
+        {
+            IReadOnlyList<LauncherNews> news = await _auth.GetNewsAsync();
+            _newsItems.Clear();
+            foreach (LauncherNews item in news.OrderByDescending(item => item.PublishedAt))
+            {
+                _newsItems.Add(item);
+            }
+
+            LauncherNews? latest = _newsItems.FirstOrDefault();
+            HomeNewsTitleText.Text = latest?.Title ?? "Aucune actualité";
+            HomeNewsSummaryText.Text = latest?.Summary ?? string.Empty;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
+        {
+            HomeNewsTitleText.Text = "Actualités indisponibles";
+            HomeNewsSummaryText.Text = "Atlas n’a pas pu répondre pour le moment.";
+            AppendLog("Actualités indisponibles: " + ex.Message);
+        }
+    }
+
+    private async void RefreshServerButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshServerStatusAsync();
+    }
+
+    private async Task RefreshServerStatusAsync()
+    {
+        if (_isLoadingServerStatus || _auth.Session is null)
+        {
+            return;
+        }
+
+        _isLoadingServerStatus = true;
+        RefreshServerButton.IsEnabled = false;
+        try
+        {
+            LauncherServerStatus status = await _auth.GetStatusAsync();
+            bool online = status.Api
+                && status.Authentication
+                && status.RealmGateway
+                && status.WorldGateway
+                && status.WorldServer;
+
+            ServerRealmNameText.Text = status.Realm;
+            ServerGlobalStatusText.Text = online ? "Tous les services sont en ligne" : "Service dégradé";
+            ServerGlobalStatusText.Foreground = (Brush)FindResource(online ? "SuccessBrush" : "GoldHoverBrush");
+            ServerCheckedText.Text = $"Dernière vérification à {status.CheckedAt.ToLocalTime():HH:mm:ss}";
+            HomeServerStatusText.Text = online ? "En ligne" : "Dégradé";
+            HomeServerStatusText.Foreground = (Brush)FindResource(online ? "SuccessBrush" : "GoldHoverBrush");
+            HomeServerDot.Fill = (Brush)FindResource(online ? "SuccessBrush" : "GoldHoverBrush");
+            HomeServerCheckedText.Text = $"Vérifié à {status.CheckedAt.ToLocalTime():HH:mm:ss}";
+
+            SetServiceStatus(ApiStatusText, status.Api);
+            SetServiceStatus(AuthenticationStatusText, status.Authentication);
+            SetServiceStatus(RealmGatewayStatusText, status.RealmGateway);
+            SetServiceStatus(WorldGatewayStatusText, status.WorldGateway);
+            SetServiceStatus(WorldServerStatusText, status.WorldServer);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
+        {
+            ServerGlobalStatusText.Text = "Statut indisponible";
+            HomeServerStatusText.Text = "Indisponible";
+            HomeServerDot.Fill = (Brush)FindResource("TextMutedBrush");
+            AppendLog("Statut Atlas indisponible: " + ex.Message);
+        }
+        finally
+        {
+            RefreshServerButton.IsEnabled = true;
+            _isLoadingServerStatus = false;
+        }
+    }
+
+    private async Task RefreshDashboardAsync()
+    {
+        await Task.WhenAll(RefreshNewsAsync(), RefreshServerStatusAsync());
+        HomeClientStatusText.Text = GetGameActionLabel(_gameAction) switch
+        {
+            "JOUER" => "Prêt à jouer",
+            "METTRE A JOUR" => "Mise à jour disponible",
+            _ => "Installation requise"
+        };
+        HomeAddonStatusText.Text = _addonCatalog is null
+            ? "Catalogue Atlas disponible"
+            : $"{_addonCatalog.Addons.Count} addons disponibles";
+    }
+
+    private void SetServiceStatus(TextBlock target, bool online)
+    {
+        target.Text = online ? "En ligne" : "Hors ligne";
+        target.Foreground = (Brush)FindResource(online ? "SuccessBrush" : "GoldHoverBrush");
+    }
+
+    private void ApplyAvatarTheme(string? avatarKey)
+    {
+        AvatarGoldButton.BorderThickness = new Thickness(1);
+        AvatarIceButton.BorderThickness = new Thickness(1);
+        AvatarEmeraldButton.BorderThickness = new Thickness(1);
+        AvatarCrimsonButton.BorderThickness = new Thickness(1);
+
+        Button? selected = avatarKey switch
+        {
+            "gold" => AvatarGoldButton,
+            "ice" => AvatarIceButton,
+            "emerald" => AvatarEmeraldButton,
+            "crimson" => AvatarCrimsonButton,
+            _ => null
+        };
+        if (selected is not null)
+        {
+            selected.BorderThickness = new Thickness(3);
+            ProfileButton.Background = selected.Background;
+            ProfileButton.Foreground = Brushes.Black;
+        }
+        else
+        {
+            ProfileButton.ClearValue(BackgroundProperty);
+            ProfileButton.ClearValue(ForegroundProperty);
+        }
+    }
+
+    private bool EnsureAuthenticated()
+    {
+        if (_auth.IsAuthenticated)
+        {
+            return true;
+        }
+
+        ShowLogin();
+        LoginErrorText.Text = "Connecte-toi ou crée un compte pour continuer.";
+        return false;
+    }
+
+    private void CompleteAuthentication()
+    {
+        LauncherProfile profile = _auth.Session!.Profile;
+        AuthOverlay.Visibility = Visibility.Collapsed;
+        ProfileButton.Visibility = Visibility.Visible;
+        UpdateProfileUi(profile);
+        NavigateTo(LauncherPage.Home);
+        _ = RefreshDashboardAsync();
+    }
+
+    private void ShowLogin()
+    {
+        AuthOverlay.Visibility = Visibility.Visible;
+        LoginPanel.Visibility = Visibility.Visible;
+        RegisterPanel.Visibility = Visibility.Collapsed;
+        LoginUsernameBox.Focus();
+    }
+
+    private void UpdateProfileUi(LauncherProfile profile)
+    {
+        ProfileUsernameText.Text = profile.Username;
+        ProfileEmailText.Text = profile.Email;
+        AccountEmailValueText.Text = profile.Email;
+        ProfileCompletionText.Text = $"{profile.Completion}%";
+        ProfileCompletionProgress.Value = profile.Completion;
+        ProfileInitialText.Text = string.IsNullOrWhiteSpace(profile.Username)
+            ? "?"
+            : profile.Username[..1].ToUpperInvariant();
+        EmailWarningBorder.Visibility = profile.EmailVerified
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        ChangeEmailPanel.Visibility = Visibility.Collapsed;
+        ProfileEmailCompletionText.Text = profile.EmailVerified ? "Terminé" : "À valider";
+        ProfileAvatarCompletionText.Text = string.IsNullOrWhiteSpace(profile.AvatarKey) ? "À choisir" : "Terminé";
+        ProfileTwoFactorCompletionText.Text = profile.TwoFactorEnabled ? "Terminé" : "Recommandé";
+        ProfileRecoveryCompletionText.Text = profile.RecoveryCodesGenerated ? "Terminé" : "Recommandé";
+        TwoFactorStatusText.Text = profile.TwoFactorEnabled ? "Active" : "Non configurée";
+        RecoveryCodesStatusText.Text = profile.RecoveryCodesGenerated ? "Générés" : "Non générés";
+        ApplyAvatarTheme(profile.AvatarKey);
+        HomeAccountStatusText.Text = profile.EmailVerified
+            ? $"Profil complété à {profile.Completion}%"
+            : $"Profil à {profile.Completion}% · e-mail à valider";
+    }
+
+    private void SetAuthBusy(bool busy)
+    {
+        LoginButton.IsEnabled = !busy;
+        RegisterButton.IsEnabled = !busy;
+        LoginButton.Content = busy ? "CONNEXION..." : "SE CONNECTER";
+        RegisterButton.Content = busy ? "CRÉATION..." : "CRÉER MON COMPTE";
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -450,7 +1230,7 @@ public partial class MainWindow : Window
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
     }
 
-    private void PlayGame()
+    private async Task PlayGameAsync()
     {
         var wowPath = GameInstallServices.GetGameExecutablePath(_settings.InstallPath);
         var gameLauncherPath = GameInstallServices.GetGameLauncherPath(_settings.InstallPath);
@@ -470,6 +1250,38 @@ public partial class MainWindow : Window
 
         GameInstallServices.EnsureDefaultClientConfig(_settings.InstallPath, _settings.GameLocale);
 
+        GameTicket ticket;
+        try
+        {
+            SetStatus("Préparation de la connexion...");
+            if (!await _auth.EnsureFreshAsync())
+            {
+                ShowLogin();
+                return;
+            }
+            ticket = await _auth.CreateGameTicketAsync();
+            GameSingleSignOn.Write(ticket, _settings.GameLocale);
+        }
+        catch (Exception ex) when (
+            ex is HttpRequestException
+                or LauncherAuthException
+                or CryptographicException)
+        {
+            AppendLog("Connexion automatique impossible: " + ex.Message);
+            SetStatus("Connexion requise.");
+            System.Windows.MessageBox.Show(
+                this,
+                ex.Message,
+                "Connexion automatique",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            if (ex is LauncherAuthException)
+            {
+                ShowLogin();
+            }
+            return;
+        }
+
         var startInfo = new ProcessStartInfo
         {
             FileName = gameLauncherPath,
@@ -485,15 +1297,30 @@ public partial class MainWindow : Window
         startInfo.ArgumentList.Add("--portal");
         startInfo.ArgumentList.Add(GameInstallServices.PortalAddress);
         startInfo.ArgumentList.Add("--skipcertcheck");
+        startInfo.ArgumentList.Add("-launcherlogin");
+        startInfo.ArgumentList.Add("-uid");
+        startInfo.ArgumentList.Add("wow_classic");
         Process.Start(startInfo);
 
-        AppendLog("Jeu lance sur Atlas: " + wowPath);
+        AppendLog($"Jeu lancé sur Atlas avec connexion automatique pour {ticket.Username}: {wowPath}");
+        if (_settings.CloseLauncherOnGameStart)
+        {
+            Close();
+        }
     }
 
     private async void LauncherUpdateTimer_Tick(object? sender, EventArgs e)
     {
+        if (!_settings.AutomaticLauncherUpdates)
+        {
+            return;
+        }
+
         await CheckLauncherUpdateAsync();
-        await RefreshGameActionAsync(silentWhenUpToDate: true);
+        if (_auth.Session is not null && await _auth.EnsureFreshAsync())
+        {
+            await RefreshGameActionAsync(silentWhenUpToDate: true);
+        }
     }
 
     private async Task CheckLauncherUpdateAsync()
@@ -1380,8 +2207,77 @@ public partial class MainWindow : Window
         _settings.InstallPath = LauncherSettings.NormalizeInstallPath(InstallPathBox.Text);
         _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
         _settings.GameLocale = GetSelectedGameLocale();
+        _settings.AutomaticLauncherUpdates = AutomaticUpdatesCheckBox.IsChecked == true;
+        _settings.CloseLauncherOnGameStart = CloseOnGameStartCheckBox.IsChecked == true;
         _settings.Save();
         InstallPathBox.Text = _settings.InstallPath;
+        SettingsInstallPathBox.Text = _settings.InstallPath;
+    }
+
+    private void SyncSettingsUi()
+    {
+        _isInitializingUi = true;
+        try
+        {
+            SettingsInstallPathBox.Text = _settings.InstallPath;
+            SetSettingsLanguageSelection(_settings.GameLocale);
+            AutomaticUpdatesCheckBox.IsChecked = _settings.AutomaticLauncherUpdates;
+            CloseOnGameStartCheckBox.IsChecked = _settings.CloseLauncherOnGameStart;
+            SettingsLogBox.Text = LogBox.Text;
+            SettingsLogBox.ScrollToEnd();
+        }
+        finally
+        {
+            _isInitializingUi = false;
+        }
+    }
+
+    private void SettingsLanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isInitializingUi || SettingsLanguageComboBox.SelectedItem is not ComboBoxItem item)
+        {
+            return;
+        }
+
+        _isInitializingUi = true;
+        SetLanguageSelection(LauncherSettings.NormalizeGameLocale(item.Tag?.ToString()));
+        _isInitializingUi = false;
+        GameLanguageComboBox_SelectionChanged(sender, e);
+    }
+
+    private void SettingsCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isInitializingUi)
+        {
+            return;
+        }
+
+        SaveSettingsFromUi();
+        if (_settings.AutomaticLauncherUpdates)
+        {
+            _launcherUpdateTimer.Start();
+            _ = CheckLauncherUpdateAsync();
+        }
+        else
+        {
+            _launcherUpdateTimer.Stop();
+        }
+    }
+
+    private void OpenLogsButton_Click(object sender, RoutedEventArgs e)
+    {
+        Directory.CreateDirectory(LauncherSettings.SettingsDirectory);
+        if (!File.Exists(GetLauncherLogPath()))
+        {
+            File.WriteAllText(GetLauncherLogPath(), LogBox.Text, new UTF8Encoding(false));
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "explorer.exe",
+            Arguments = "/select,\"" + GetLauncherLogPath() + "\"",
+            UseShellExecute = true
+        });
     }
 
     private bool EnsureGameDirectoryWritable()
@@ -1426,6 +2322,21 @@ public partial class MainWindow : Window
         GameLanguageComboBox.SelectedIndex = 0;
     }
 
+    private void SetSettingsLanguageSelection(string locale)
+    {
+        var normalizedLocale = LauncherSettings.NormalizeGameLocale(locale);
+        foreach (var item in SettingsLanguageComboBox.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag?.ToString(), normalizedLocale, StringComparison.OrdinalIgnoreCase))
+            {
+                SettingsLanguageComboBox.SelectedItem = item;
+                return;
+            }
+        }
+
+        SettingsLanguageComboBox.SelectedIndex = 0;
+    }
+
     private string GetSelectedGameLocale()
     {
         if (GameLanguageComboBox.SelectedItem is ComboBoxItem item)
@@ -1453,7 +2364,15 @@ public partial class MainWindow : Window
         if (_downloadCancellation is null)
         {
             UpdateButton.Content = GetGameActionLabel(action);
+            HomePlayButton.Content = GetGameActionLabel(action);
         }
+
+        HomeClientStatusText.Text = action switch
+        {
+            GameAction.Play => "Prêt à jouer",
+            GameAction.Update => "Mise à jour disponible",
+            _ => "Installation requise"
+        };
     }
 
     private static string GetGameActionLabel(GameAction action)
@@ -1471,13 +2390,20 @@ public partial class MainWindow : Window
         LauncherSelfUpdateButton.IsEnabled = !busy;
         BrowseInstallPathButton.IsEnabled = !busy;
         GameLanguageComboBox.IsEnabled = !busy;
+        HomeTabButton.IsEnabled = !busy;
         ClientTabButton.IsEnabled = !busy;
         AddonsTabButton.IsEnabled = !busy;
+        NewsTabButton.IsEnabled = !busy;
+        ServerTabButton.IsEnabled = !busy;
+        AccountTabButton.IsEnabled = !busy;
+        SettingsTabButton.IsEnabled = !busy;
         AddonItemsControl.IsEnabled = !busy;
         AddonApplyButton.IsEnabled = !busy || _isApplyingAddons;
         AddonApplyButton.Content = busy && _isApplyingAddons ? "ANNULER" : "APPLIQUER";
         UpdateButton.IsEnabled = true;
         UpdateButton.Content = busy ? "ANNULER" : GetGameActionLabel(_gameAction);
+        HomePlayButton.IsEnabled = !busy;
+        HomePlayButton.Content = busy ? "ANNULER" : GetGameActionLabel(_gameAction);
     }
 
     private void SetStatus(string status)
@@ -1507,8 +2433,29 @@ public partial class MainWindow : Window
 
     private void AppendLog(string message)
     {
-        LogBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}");
+        string line = $"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}";
+        LogBox.AppendText(line);
         LogBox.ScrollToEnd();
+        if (SettingsLogBox is not null)
+        {
+            SettingsLogBox.AppendText(line);
+            SettingsLogBox.ScrollToEnd();
+        }
+
+        try
+        {
+            Directory.CreateDirectory(LauncherSettings.SettingsDirectory);
+            File.AppendAllText(GetLauncherLogPath(), line, new UTF8Encoding(false));
+        }
+        catch
+        {
+            // Logging must never interrupt launcher operations.
+        }
+    }
+
+    private static string GetLauncherLogPath()
+    {
+        return Path.Combine(LauncherSettings.SettingsDirectory, "launcher.log");
     }
 
     private static void WriteLauncherUpdateScript(string scriptPath, string targetExe, string downloadedExe, int processId)

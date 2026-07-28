@@ -57,6 +57,21 @@ internal static class GameSingleSignOn
             RegistryValueKind.String);
     }
 
+    public static void Clear()
+    {
+        using RegistryKey? key = Registry.CurrentUser.OpenSubKey(
+            RegistryPath,
+            writable: true);
+        if (key is null)
+            return;
+
+        key.DeleteValue("ACCOUNT", throwOnMissingValue: false);
+        key.DeleteValue("WEB_TOKEN", throwOnMissingValue: false);
+        key.DeleteValue("ACCOUNT_STATE", throwOnMissingValue: false);
+        key.DeleteValue("GAME_ACCOUNT", throwOnMissingValue: false);
+        key.DeleteValue("ACCOUNT_TS", throwOnMissingValue: false);
+    }
+
     private static byte[] Protect(string value)
         => ProtectedData.Protect(
             Encoding.UTF8.GetBytes(value),

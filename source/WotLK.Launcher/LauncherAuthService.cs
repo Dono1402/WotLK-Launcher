@@ -34,6 +34,7 @@ internal sealed class LauncherAuthService : IDisposable
         if (stored is null || stored.RefreshExpiresAt <= DateTimeOffset.UtcNow)
         {
             SecureSessionStore.Clear();
+            GameSingleSignOn.Clear();
             return false;
         }
 
@@ -44,6 +45,7 @@ internal sealed class LauncherAuthService : IDisposable
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
             SecureSessionStore.Clear();
+            GameSingleSignOn.Clear();
             return false;
         }
 
@@ -74,6 +76,7 @@ internal sealed class LauncherAuthService : IDisposable
             {
                 Session = null;
                 SecureSessionStore.Clear();
+                GameSingleSignOn.Clear();
                 return false;
             }
 
@@ -103,6 +106,7 @@ internal sealed class LauncherAuthService : IDisposable
         if (response.StatusCode == HttpStatusCode.Unauthorized)
             throw new LauncherAuthException("Nom d'utilisateur ou mot de passe incorrect.");
 
+        GameSingleSignOn.Clear();
         await ReadAuthResponseAsync(response, cancellationToken);
     }
 
@@ -118,6 +122,7 @@ internal sealed class LauncherAuthService : IDisposable
         };
         request.Headers.Add("X-Atlas-Device", Environment.MachineName);
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
+        GameSingleSignOn.Clear();
         await ReadAuthResponseAsync(response, cancellationToken);
     }
 
@@ -269,6 +274,7 @@ internal sealed class LauncherAuthService : IDisposable
 
         Session = null;
         SecureSessionStore.Clear();
+        GameSingleSignOn.Clear();
     }
 
     public void Dispose()

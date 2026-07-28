@@ -94,13 +94,32 @@ app.MapPost("/api/v1/auth/refresh", async (
 app.MapPost("/api/v1/auth/logout", async (
     HttpContext context,
     LauncherDatabase db,
+    HermesTicketClient hermes,
     CancellationToken cancellationToken) =>
 {
     string? token = ReadBearer(context);
     if (token is null)
         return Results.Unauthorized();
 
+    AuthenticatedAccount? account =
+        await AuthenticateAsync(context, db, cancellationToken);
+    if (account is null)
+        return Results.Unauthorized();
+
     await db.LogoutAsync(token, cancellationToken);
+    try
+    {
+        await hermes.RevokeAsync(account.Username, cancellationToken);
+    }
+    catch (HttpRequestException)
+    {
+        // Launcher logout must still succeed if Hermes is temporarily unavailable.
+    }
+    catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+    {
+        // An internal Hermes timeout must not keep the local launcher session alive.
+    }
+
     return Results.NoContent();
 });
 

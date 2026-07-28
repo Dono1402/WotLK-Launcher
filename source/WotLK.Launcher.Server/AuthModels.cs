@@ -62,6 +62,10 @@ public sealed record HermesTicketRequest(
     [property: JsonPropertyName("ticket")] string Ticket,
     [property: JsonPropertyName("locale")] string Locale);
 
+public sealed record HermesTicketRevokeRequest(
+    [property: JsonPropertyName("username")] string Username,
+    [property: JsonPropertyName("revoke")] bool Revoke = true);
+
 public sealed record HermesTicketResponse(
     [property: JsonPropertyName("expiresAt")] DateTimeOffset ExpiresAt);
 

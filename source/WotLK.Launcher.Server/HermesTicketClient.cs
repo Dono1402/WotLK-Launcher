@@ -42,4 +42,23 @@ public sealed class HermesTicketClient
             account.Username,
             account.AccountId);
     }
+
+    public async Task RevokeAsync(
+        string username,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(_options.HermesSharedSecret))
+            return;
+
+        using HttpRequestMessage request = new(
+            HttpMethod.Post,
+            _options.HermesTicketUrl);
+        request.Headers.Add("X-Atlas-Internal-Secret", _options.HermesSharedSecret);
+        request.Content = JsonContent.Create(
+            new HermesTicketRevokeRequest(username));
+
+        using HttpResponseMessage response =
+            await _httpClient.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
 }

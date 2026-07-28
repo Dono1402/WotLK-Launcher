@@ -18,7 +18,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Test-AddonPackages.ps1
   -PackageDirectory .\artifacts\addons
 ```
 
-Le catalogue fige les dernieres versions declarant l'interface `30403`: WeakAuras 5.13.1, ElvUI 13.61 et Questie 10.19.2.
+Le catalogue fige des versions testees declarant l'interface `30403`:
+
+- WeakAuras 5.13.1
+- ElvUI 13.61
+- Questie 10.19.2
+- Deadly Boss Mods 11.0.34 avec les modules Vanilla, Burning Crusade et WotLK
+- Details! 20250119.13388.161
+- AtlasLootClassic 3.2.0
+- Auctionator 10.2.0-wrath
+- Leatrix Plus 3.0.191
+- Nova Instance Tracker 1.55-Wrath
+- Attune WOTLK-314
 
 ## Feed Classic frFR
 

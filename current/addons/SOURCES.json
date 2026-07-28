@@ -1,5 +1,5 @@
 {
-    "generatedAtUtc":  "2026-07-12T02:59:24.4736690+00:00",
+    "generatedAtUtc":  "2026-07-28T03:45:02.5504657+00:00",
     "sources":  [
                     {
                         "Id":  "weakauras",
@@ -42,6 +42,66 @@
                         "File":  "LibTranslit-66a5aa7.zip",
                         "Url":  "https://github.com/Vardex/LibTranslit/archive/66a5aa7df5bb404003cfba85a27bbae87c3d3536.zip",
                         "Sha256":  "958776d2ffbfd7015ee9573c966dcf5452ea06974b254be46f72957f64c99037"
+                    },
+                    {
+                        "Id":  "dbm-core-source",
+                        "File":  "DBM-Core-11.0.34.zip",
+                        "Url":  "https://edge.forgecdn.net/files/5961/449/DBM-Core-11.0.34.zip",
+                        "Sha256":  "8363dfbaca6ed7ce6a66528e7e226ecb8e16cf7f23f9be49e251c86abc21333e"
+                    },
+                    {
+                        "Id":  "dbm-wotlk",
+                        "File":  "DBM-Raids-WoTLK-r337.zip",
+                        "Url":  "https://edge.forgecdn.net/files/5763/677/DBM-Raids-WoTLK-r337.zip",
+                        "Sha256":  "3a869eb49e8930fa8ce85902939e6535287a953cb30daed38b420c22ca4b31a8"
+                    },
+                    {
+                        "Id":  "dbm-dungeons",
+                        "File":  "DBM-Party-WotLK-r122-wrath.zip",
+                        "Url":  "https://edge.forgecdn.net/files/5194/699/DBM-Party-WotLK-r122-wrath.zip",
+                        "Sha256":  "d2f7a54b1cc433a47dafb24b4c8badbf25e443675c01c4279d6be2112ff4b0ec"
+                    },
+                    {
+                        "Id":  "dbm-legacy",
+                        "File":  "DBM-Vanilla_SoD_BC-r713.zip",
+                        "Url":  "https://edge.forgecdn.net/files/5237/506/DBM-Vanilla_SoD_BC-r713.zip",
+                        "Sha256":  "dd228f7e65f6cf53129b2b92ad6ef38433980de92856fd53a7ea447ba6719532"
+                    },
+                    {
+                        "Id":  "details",
+                        "File":  "Details-Details.20250119.13388.161.zip",
+                        "Url":  "https://edge.forgecdn.net/files/6102/986/Details-Details.20250119.13388.161.zip",
+                        "Sha256":  "e8a5d367db44a540cb85005c092ffd9cf32f59e44c946cffc7070509cf91a303"
+                    },
+                    {
+                        "Id":  "atlaslootclassic",
+                        "File":  "AtlasLootClassic-v3.2.0.zip",
+                        "Url":  "https://edge.forgecdn.net/files/4811/104/AtlasLootClassic-v3.2.0.zip",
+                        "Sha256":  "06aa9fa4c3de314422f45c67f2a555849e9f90657a980a8c7b922107b6aa90af"
+                    },
+                    {
+                        "Id":  "auctionator",
+                        "File":  "Auctionator-10.2.0-wrath.zip",
+                        "Url":  "https://edge.forgecdn.net/files/4869/540/Auctionator-10.2.0-wrath.zip",
+                        "Sha256":  "819f9e7aa63c3bbeb6437bbf0743cfb248f653f3dd97de6c321e563e9ea076e1"
+                    },
+                    {
+                        "Id":  "leatrix-plus",
+                        "File":  "Leatrix_Plus-3.0.191.zip",
+                        "Url":  "https://edge.forgecdn.net/files/5275/306/Leatrix_Plus-3.0.191.zip",
+                        "Sha256":  "233067de2af6d770895b7329975dc0c2b4379f4ae31123780f833a6c09acc5c3"
+                    },
+                    {
+                        "Id":  "nova-instance-tracker",
+                        "File":  "NovaInstanceTracker-v1.55-Wrath.zip",
+                        "Url":  "https://edge.forgecdn.net/files/5292/821/NovaInstanceTracker-v1.55-Wrath.zip",
+                        "Sha256":  "3a5633148ff5d2c091b7ade195753bde5ef717bf59b0c1e1a62b8f0d4bf62165"
+                    },
+                    {
+                        "Id":  "attune",
+                        "File":  "Attune-WOTLK-314.zip",
+                        "Url":  "https://edge.forgecdn.net/files/5758/185/Attune-WOTLK-314.zip",
+                        "Sha256":  "855b68e4c1231df84edf940bbccbff4195e8c33cd5b7a6414a6e3f029fb8e861"
                     },
                     {
                         "File":  "UTF8.toc",

@@ -145,6 +145,66 @@ $sources = @(
         File = 'LibTranslit-66a5aa7.zip'
         Url = 'https://github.com/Vardex/LibTranslit/archive/66a5aa7df5bb404003cfba85a27bbae87c3d3536.zip'
         Sha256 = '958776d2ffbfd7015ee9573c966dcf5452ea06974b254be46f72957f64c99037'
+    },
+    [ordered]@{
+        Id = 'dbm-core-source'
+        File = 'DBM-Core-11.0.34.zip'
+        Url = 'https://edge.forgecdn.net/files/5961/449/DBM-Core-11.0.34.zip'
+        Sha256 = '8363dfbaca6ed7ce6a66528e7e226ecb8e16cf7f23f9be49e251c86abc21333e'
+    },
+    [ordered]@{
+        Id = 'dbm-wotlk'
+        File = 'DBM-Raids-WoTLK-r337.zip'
+        Url = 'https://edge.forgecdn.net/files/5763/677/DBM-Raids-WoTLK-r337.zip'
+        Sha256 = '3a869eb49e8930fa8ce85902939e6535287a953cb30daed38b420c22ca4b31a8'
+    },
+    [ordered]@{
+        Id = 'dbm-dungeons'
+        File = 'DBM-Party-WotLK-r122-wrath.zip'
+        Url = 'https://edge.forgecdn.net/files/5194/699/DBM-Party-WotLK-r122-wrath.zip'
+        Sha256 = 'd2f7a54b1cc433a47dafb24b4c8badbf25e443675c01c4279d6be2112ff4b0ec'
+    },
+    [ordered]@{
+        Id = 'dbm-legacy'
+        File = 'DBM-Vanilla_SoD_BC-r713.zip'
+        Url = 'https://edge.forgecdn.net/files/5237/506/DBM-Vanilla_SoD_BC-r713.zip'
+        Sha256 = 'dd228f7e65f6cf53129b2b92ad6ef38433980de92856fd53a7ea447ba6719532'
+    },
+    [ordered]@{
+        Id = 'details'
+        File = 'Details-Details.20250119.13388.161.zip'
+        Url = 'https://edge.forgecdn.net/files/6102/986/Details-Details.20250119.13388.161.zip'
+        Sha256 = 'e8a5d367db44a540cb85005c092ffd9cf32f59e44c946cffc7070509cf91a303'
+    },
+    [ordered]@{
+        Id = 'atlaslootclassic'
+        File = 'AtlasLootClassic-v3.2.0.zip'
+        Url = 'https://edge.forgecdn.net/files/4811/104/AtlasLootClassic-v3.2.0.zip'
+        Sha256 = '06aa9fa4c3de314422f45c67f2a555849e9f90657a980a8c7b922107b6aa90af'
+    },
+    [ordered]@{
+        Id = 'auctionator'
+        File = 'Auctionator-10.2.0-wrath.zip'
+        Url = 'https://edge.forgecdn.net/files/4869/540/Auctionator-10.2.0-wrath.zip'
+        Sha256 = '819f9e7aa63c3bbeb6437bbf0743cfb248f653f3dd97de6c321e563e9ea076e1'
+    },
+    [ordered]@{
+        Id = 'leatrix-plus'
+        File = 'Leatrix_Plus-3.0.191.zip'
+        Url = 'https://edge.forgecdn.net/files/5275/306/Leatrix_Plus-3.0.191.zip'
+        Sha256 = '233067de2af6d770895b7329975dc0c2b4379f4ae31123780f833a6c09acc5c3'
+    },
+    [ordered]@{
+        Id = 'nova-instance-tracker'
+        File = 'NovaInstanceTracker-v1.55-Wrath.zip'
+        Url = 'https://edge.forgecdn.net/files/5292/821/NovaInstanceTracker-v1.55-Wrath.zip'
+        Sha256 = '3a5633148ff5d2c091b7ade195753bde5ef717bf59b0c1e1a62b8f0d4bf62165'
+    },
+    [ordered]@{
+        Id = 'attune'
+        File = 'Attune-WOTLK-314.zip'
+        Url = 'https://edge.forgecdn.net/files/5758/185/Attune-WOTLK-314.zip'
+        Sha256 = '855b68e4c1231df84edf940bbccbff4195e8c33cd5b7a6414a6e3f029fb8e861'
     }
 )
 
@@ -166,8 +226,9 @@ $downloadDirectory = Join-Path $WorkDirectory 'downloads'
 $extractDirectory = Join-Path $WorkDirectory 'extract'
 $packageDirectory = Join-Path $WorkDirectory 'elvui-package'
 $overlayDirectory = Join-Path $WorkDirectory 'elvui-libraries-overlay'
+$dbmCorePackageDirectory = Join-Path $WorkDirectory 'dbm-core-package'
 $publicPackagesDirectory = Join-Path $OutputDirectory 'packages'
-New-Item -ItemType Directory -Path $downloadDirectory, $extractDirectory, $packageDirectory, $overlayDirectory, $publicPackagesDirectory -Force | Out-Null
+New-Item -ItemType Directory -Path $downloadDirectory, $extractDirectory, $packageDirectory, $overlayDirectory, $dbmCorePackageDirectory, $publicPackagesDirectory -Force | Out-Null
 
 foreach ($source in $sources) {
     Get-VerifiedFile $source.Url (Join-Path $downloadDirectory $source.File) $source.Sha256
@@ -179,10 +240,16 @@ foreach ($source in $utf8Sources) {
     Get-VerifiedFile "https://repos.curseforge.com/wow/utf8/trunk/$($source.File)" (Join-Path $utf8DownloadDirectory $source.File) $source.Sha256
 }
 
-foreach ($source in $sources | Where-Object { $_.Id -notin @('weakauras', 'questie') }) {
+foreach ($source in $sources | Where-Object {
+    $_.Id -in @('elvui-source', 'ace3', 'libdispel', 'libdualspec', 'libtranslit', 'dbm-core-source')
+}) {
     Expand-Zip (Join-Path $downloadDirectory $source.File) (Join-Path $extractDirectory $source.Id)
 }
 Expand-Zip (Join-Path $downloadDirectory 'WeakAuras-5.13.1.zip') (Join-Path $extractDirectory 'weakauras')
+
+foreach ($folder in @('DBM-Core', 'DBM-GUI', 'DBM-StatusBarTimers', 'DBM-VPVEM')) {
+    Copy-Folder (Join-Path (Join-Path $extractDirectory 'dbm-core-source') $folder) (Join-Path $dbmCorePackageDirectory $folder)
+}
 
 $elvuiSource = Find-OnlyDirectory (Join-Path $extractDirectory 'elvui-source')
 foreach ($folder in @('ElvUI', 'ElvUI_Libraries', 'ElvUI_Options')) {
@@ -258,25 +325,56 @@ foreach ($directory in @($packageDirectory, $overlayDirectory)) {
     }
 }
 
+$dbmPackageTimestamp = [DateTime]::SpecifyKind([DateTime]::Parse('2024-12-04T00:00:00'), [DateTimeKind]::Utc)
+Get-ChildItem -LiteralPath $dbmCorePackageDirectory -Recurse -Force | ForEach-Object {
+    $_.LastWriteTimeUtc = $dbmPackageTimestamp
+}
+
 $elvuiValidationArchive = Join-Path $WorkDirectory 'ElvUI-13.61-full-validation.zip'
 $elvuiOverlayArchive = Join-Path $publicPackagesDirectory 'ElvUI-13.61-libraries-wotlk-30403.zip'
+$dbmCoreArchive = Join-Path $publicPackagesDirectory 'DBM-Core-11.0.34-wotlk-30403.zip'
 [System.IO.Compression.ZipFile]::CreateFromDirectory($packageDirectory, $elvuiValidationArchive, [System.IO.Compression.CompressionLevel]::Optimal, $false)
 [System.IO.Compression.ZipFile]::CreateFromDirectory($overlayDirectory, $elvuiOverlayArchive, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+[System.IO.Compression.ZipFile]::CreateFromDirectory($dbmCorePackageDirectory, $dbmCoreArchive, [System.IO.Compression.CompressionLevel]::Optimal, $false)
 
 $weakAurasArchive = Join-Path $downloadDirectory 'WeakAuras-5.13.1.zip'
 $questieArchive = Join-Path $downloadDirectory 'Questie-v10.19.2.zip'
 $elvuiSourceArchive = Join-Path $downloadDirectory 'v13.61.zip'
+$dbmWotlkArchive = Join-Path $downloadDirectory 'DBM-Raids-WoTLK-r337.zip'
+$dbmDungeonsArchive = Join-Path $downloadDirectory 'DBM-Party-WotLK-r122-wrath.zip'
+$dbmLegacyArchive = Join-Path $downloadDirectory 'DBM-Vanilla_SoD_BC-r713.zip'
+$detailsArchive = Join-Path $downloadDirectory 'Details-Details.20250119.13388.161.zip'
+$atlasLootArchive = Join-Path $downloadDirectory 'AtlasLootClassic-v3.2.0.zip'
+$auctionatorArchive = Join-Path $downloadDirectory 'Auctionator-10.2.0-wrath.zip'
+$leatrixPlusArchive = Join-Path $downloadDirectory 'Leatrix_Plus-3.0.191.zip'
+$novaInstanceTrackerArchive = Join-Path $downloadDirectory 'NovaInstanceTracker-v1.55-Wrath.zip'
+$attuneArchive = Join-Path $downloadDirectory 'Attune-WOTLK-314.zip'
 
 Assert-ZipRoots $weakAurasArchive @('WeakAuras', 'WeakAurasArchive', 'WeakAurasModelPaths', 'WeakAurasOptions', 'WeakAurasTemplates')
 Assert-ZipRoots $questieArchive @('Questie')
 Assert-ZipRoots $elvuiValidationArchive @('ElvUI', 'ElvUI_Libraries', 'ElvUI_Options')
 Assert-ZipRoots $elvuiOverlayArchive @('ElvUI_Libraries')
+Assert-ZipRoots $dbmCoreArchive @('DBM-Core', 'DBM-GUI', 'DBM-StatusBarTimers', 'DBM-VPVEM')
+Assert-ZipRoots $dbmWotlkArchive @('DBM-Raids-WoTLK')
+Assert-ZipRoots $dbmDungeonsArchive @('DBM-Party-BC', 'DBM-Party-Vanilla', 'DBM-Party-WotLK', 'DBM-WorldEvents')
+Assert-ZipRoots $dbmLegacyArchive @('DBM-Azeroth', 'DBM-Outlands', 'DBM-Raids-BC', 'DBM-Raids-Vanilla')
+Assert-ZipRoots $detailsArchive @('Details', 'Details_Compare2', 'Details_DataStorage', 'Details_EncounterDetails', 'Details_RaidCheck', 'Details_Streamer', 'Details_TinyThreat', 'Details_Vanguard')
+Assert-ZipRoots $atlasLootArchive @('AtlasLootClassic', 'AtlasLootClassic_Collections', 'AtlasLootClassic_Crafting', 'AtlasLootClassic_Data', 'AtlasLootClassic_DungeonsAndRaids', 'AtlasLootClassic_Factions', 'AtlasLootClassic_Options', 'AtlasLootClassic_PvP')
+Assert-ZipRoots $auctionatorArchive @('Auctionator')
+Assert-ZipRoots $leatrixPlusArchive @('Leatrix_Plus')
+Assert-ZipRoots $novaInstanceTrackerArchive @('NovaInstanceTracker')
+Assert-ZipRoots $attuneArchive @('Attune')
 
 $weakAurasSha256 = Get-Sha256 $weakAurasArchive
 $questieSha256 = Get-Sha256 $questieArchive
 $elvuiSourceSha256 = Get-Sha256 $elvuiSourceArchive
 $elvuiOverlaySha256 = Get-Sha256 $elvuiOverlayArchive
 $elvuiInstallHash = Get-StringSha256 "source=$elvuiSourceSha256;overlay=$elvuiOverlaySha256;version=13.61;date=2024-04-03T01:55:08Z;hash=24022eeb3e3622f06ffd2051b219bd9221e2ae3f"
+$dbmCoreSha256 = Get-Sha256 $dbmCoreArchive
+$dbmWotlkSha256 = Get-Sha256 $dbmWotlkArchive
+$dbmDungeonsSha256 = Get-Sha256 $dbmDungeonsArchive
+$dbmLegacySha256 = Get-Sha256 $dbmLegacyArchive
+$dbmInstallHash = Get-StringSha256 "core=$dbmCoreSha256;wotlk=$dbmWotlkSha256;dungeons=$dbmDungeonsSha256;legacy=$dbmLegacySha256;version=11.0.34-r337-r122-r713"
 
 $packageDefinitions = @(
     [ordered]@{
@@ -334,6 +432,144 @@ $packageDefinitions = @(
         tokenReplacements = [ordered]@{}
         folders = @('Questie')
         sourceUrl = 'https://github.com/Questie/Questie/releases/tag/v10.19.2'
+    },
+    [ordered]@{
+        id = 'dbm'
+        name = 'Deadly Boss Mods (DBM)'
+        description = [System.Text.RegularExpressions.Regex]::Unescape('Alertes de boss pour les raids et donjons Vanilla, Burning Crusade et WotLK.')
+        version = '11.0.34+r337+r122+r713'
+        interface = '30403'
+        archive = $dbmCoreArchive
+        url = "$($PublicBaseUrl.TrimEnd('/'))/$([System.IO.Path]::GetFileName($dbmCoreArchive))"
+        installHash = $dbmInstallHash
+        stripPrefix = ''
+        components = @(
+            [ordered]@{
+                name = 'Raids WotLK r337'
+                archive = $dbmWotlkArchive
+                url = 'https://edge.forgecdn.net/files/5763/677/DBM-Raids-WoTLK-r337.zip'
+                stripPrefix = ''
+            },
+            [ordered]@{
+                name = 'Donjons Vanilla, BC et WotLK r122'
+                archive = $dbmDungeonsArchive
+                url = 'https://edge.forgecdn.net/files/5194/699/DBM-Party-WotLK-r122-wrath.zip'
+                stripPrefix = ''
+            },
+            [ordered]@{
+                name = 'Raids Vanilla et BC r713'
+                archive = $dbmLegacyArchive
+                url = 'https://edge.forgecdn.net/files/5237/506/DBM-Vanilla_SoD_BC-r713.zip'
+                stripPrefix = ''
+            }
+        )
+        tokenReplacements = [ordered]@{}
+        folders = @(
+            'DBM-Core',
+            'DBM-GUI',
+            'DBM-StatusBarTimers',
+            'DBM-VPVEM',
+            'DBM-Raids-WoTLK',
+            'DBM-Party-BC',
+            'DBM-Party-Vanilla',
+            'DBM-Party-WotLK',
+            'DBM-WorldEvents',
+            'DBM-Azeroth',
+            'DBM-Outlands',
+            'DBM-Raids-BC',
+            'DBM-Raids-Vanilla'
+        )
+        sourceUrl = 'https://www.curseforge.com/wow/addons/deadly-boss-mods/files/5961449'
+    },
+    [ordered]@{
+        id = 'details'
+        name = 'Details!'
+        description = [System.Text.RegularExpressions.Regex]::Unescape('Mesure des d\u00e9g\u00e2ts, soins, menaces et statistiques de combat.')
+        version = '20250119.13388.161'
+        interface = '30403'
+        archive = $detailsArchive
+        url = 'https://edge.forgecdn.net/files/6102/986/Details-Details.20250119.13388.161.zip'
+        installHash = Get-Sha256 $detailsArchive
+        stripPrefix = ''
+        components = @()
+        tokenReplacements = [ordered]@{}
+        folders = @('Details', 'Details_Compare2', 'Details_DataStorage', 'Details_EncounterDetails', 'Details_RaidCheck', 'Details_Streamer', 'Details_TinyThreat', 'Details_Vanguard')
+        sourceUrl = 'https://www.curseforge.com/wow/addons/details/files/6102986'
+    },
+    [ordered]@{
+        id = 'atlaslootclassic'
+        name = 'AtlasLootClassic'
+        description = [System.Text.RegularExpressions.Regex]::Unescape('Catalogue des butins de donjons, raids, factions, JcJ et artisanat.')
+        version = '3.2.0'
+        interface = '30403'
+        archive = $atlasLootArchive
+        url = 'https://edge.forgecdn.net/files/4811/104/AtlasLootClassic-v3.2.0.zip'
+        installHash = Get-Sha256 $atlasLootArchive
+        stripPrefix = ''
+        components = @()
+        tokenReplacements = [ordered]@{}
+        folders = @('AtlasLootClassic', 'AtlasLootClassic_Collections', 'AtlasLootClassic_Crafting', 'AtlasLootClassic_Data', 'AtlasLootClassic_DungeonsAndRaids', 'AtlasLootClassic_Factions', 'AtlasLootClassic_Options', 'AtlasLootClassic_PvP')
+        sourceUrl = 'https://www.curseforge.com/wow/addons/atlaslootclassic/files/4811104'
+    },
+    [ordered]@{
+        id = 'auctionator'
+        name = 'Auctionator'
+        description = [System.Text.RegularExpressions.Regex]::Unescape("Outils pratiques pour acheter, vendre et analyser l'h\u00f4tel des ventes.")
+        version = '10.2.0-wrath'
+        interface = '30403'
+        archive = $auctionatorArchive
+        url = 'https://edge.forgecdn.net/files/4869/540/Auctionator-10.2.0-wrath.zip'
+        installHash = Get-Sha256 $auctionatorArchive
+        stripPrefix = ''
+        components = @()
+        tokenReplacements = [ordered]@{}
+        folders = @('Auctionator')
+        sourceUrl = 'https://www.curseforge.com/wow/addons/auctionator/files/4869540'
+    },
+    [ordered]@{
+        id = 'leatrix-plus'
+        name = 'Leatrix Plus'
+        description = [System.Text.RegularExpressions.Regex]::Unescape('Am\u00e9liorations de confort, automatisations et r\u00e9glages pratiques du client.')
+        version = '3.0.191'
+        interface = '30403'
+        archive = $leatrixPlusArchive
+        url = 'https://edge.forgecdn.net/files/5275/306/Leatrix_Plus-3.0.191.zip'
+        installHash = Get-Sha256 $leatrixPlusArchive
+        stripPrefix = ''
+        components = @()
+        tokenReplacements = [ordered]@{}
+        folders = @('Leatrix_Plus')
+        sourceUrl = 'https://www.curseforge.com/wow/addons/leatrix-plus-wrath/files/5275306'
+    },
+    [ordered]@{
+        id = 'nova-instance-tracker'
+        name = 'Nova Instance Tracker'
+        description = [System.Text.RegularExpressions.Regex]::Unescape('Suivi des entr\u00e9es, verrouillages et temps pass\u00e9 dans les instances.')
+        version = '1.55-Wrath'
+        interface = '30403'
+        archive = $novaInstanceTrackerArchive
+        url = 'https://edge.forgecdn.net/files/5292/821/NovaInstanceTracker-v1.55-Wrath.zip'
+        installHash = Get-Sha256 $novaInstanceTrackerArchive
+        stripPrefix = ''
+        components = @()
+        tokenReplacements = [ordered]@{}
+        folders = @('NovaInstanceTracker')
+        sourceUrl = 'https://www.curseforge.com/wow/addons/nova-instance-tracker/files/5292821'
+    },
+    [ordered]@{
+        id = 'attune'
+        name = 'Attune'
+        description = [System.Text.RegularExpressions.Regex]::Unescape("Suivi des acc\u00e8s, pr\u00e9requis et progressions d'harmonisation.")
+        version = 'WOTLK-314'
+        interface = '30403'
+        archive = $attuneArchive
+        url = 'https://edge.forgecdn.net/files/5758/185/Attune-WOTLK-314.zip'
+        installHash = Get-Sha256 $attuneArchive
+        stripPrefix = ''
+        components = @()
+        tokenReplacements = [ordered]@{}
+        folders = @('Attune')
+        sourceUrl = 'https://www.curseforge.com/wow/addons/attune/files/5758185'
     }
 )
 
@@ -376,7 +612,7 @@ $catalog = [ordered]@{
 
 [System.IO.File]::WriteAllText(
     (Join-Path $OutputDirectory 'catalog.json'),
-    ($catalog | ConvertTo-Json -Depth 10),
+    ($catalog | ConvertTo-Json -Depth 10).Replace("`r`n", "`n"),
     [System.Text.UTF8Encoding]::new($false))
 
 $sourceAudit = [ordered]@{
@@ -385,7 +621,7 @@ $sourceAudit = [ordered]@{
 }
 [System.IO.File]::WriteAllText(
     (Join-Path $OutputDirectory 'SOURCES.json'),
-    ($sourceAudit | ConvertTo-Json -Depth 10),
+    ($sourceAudit | ConvertTo-Json -Depth 10).Replace("`r`n", "`n"),
     [System.Text.UTF8Encoding]::new($false))
 
 Get-ChildItem -LiteralPath $OutputDirectory -Recurse -File |

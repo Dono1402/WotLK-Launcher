@@ -1,7 +1,7 @@
 {
     "schemaVersion":  1,
     "clientInterface":  "30403",
-    "generatedAtUtc":  "2026-07-12T02:59:24.4466063+00:00",
+    "generatedAtUtc":  "2026-07-28T03:45:02.5264497+00:00",
     "addons":  [
                    {
                        "id":  "weakauras",
@@ -82,6 +82,206 @@
                                        "Questie"
                                    ],
                        "sourceUrl":  "https://github.com/Questie/Questie/releases/tag/v10.19.2"
+                   },
+                   {
+                       "id":  "dbm",
+                       "name":  "Deadly Boss Mods (DBM)",
+                       "description":  "Alertes de boss pour les raids et donjons Vanilla, Burning Crusade et WotLK.",
+                       "version":  "11.0.34+r337+r122+r713",
+                       "interface":  "30403",
+                       "url":  "http://152.228.225.7/launcher/addons/packages/DBM-Core-11.0.34-wotlk-30403.zip",
+                       "size":  7382836,
+                       "sha256":  "8a6d083da9b7606418a77c98c56ec71b79d6c870ce1bbc87bc8c8650e49febe6",
+                       "installHash":  "83ea150ee1dc85adb80d618c9a38bfa7fd732641d3e798c5d3bebbc8db514054",
+                       "stripPrefix":  "",
+                       "components":  [
+                                          {
+                                              "name":  "Raids WotLK r337",
+                                              "url":  "https://edge.forgecdn.net/files/5763/677/DBM-Raids-WoTLK-r337.zip",
+                                              "size":  533745,
+                                              "sha256":  "3a869eb49e8930fa8ce85902939e6535287a953cb30daed38b420c22ca4b31a8",
+                                              "stripPrefix":  ""
+                                          },
+                                          {
+                                              "name":  "Donjons Vanilla, BC et WotLK r122",
+                                              "url":  "https://edge.forgecdn.net/files/5194/699/DBM-Party-WotLK-r122-wrath.zip",
+                                              "size":  452637,
+                                              "sha256":  "d2f7a54b1cc433a47dafb24b4c8badbf25e443675c01c4279d6be2112ff4b0ec",
+                                              "stripPrefix":  ""
+                                          },
+                                          {
+                                              "name":  "Raids Vanilla et BC r713",
+                                              "url":  "https://edge.forgecdn.net/files/5237/506/DBM-Vanilla_SoD_BC-r713.zip",
+                                              "size":  680252,
+                                              "sha256":  "dd228f7e65f6cf53129b2b92ad6ef38433980de92856fd53a7ea447ba6719532",
+                                              "stripPrefix":  ""
+                                          }
+                                      ],
+                       "tokenReplacements":  {
+
+                                             },
+                       "folders":  [
+                                       "DBM-Core",
+                                       "DBM-GUI",
+                                       "DBM-StatusBarTimers",
+                                       "DBM-VPVEM",
+                                       "DBM-Raids-WoTLK",
+                                       "DBM-Party-BC",
+                                       "DBM-Party-Vanilla",
+                                       "DBM-Party-WotLK",
+                                       "DBM-WorldEvents",
+                                       "DBM-Azeroth",
+                                       "DBM-Outlands",
+                                       "DBM-Raids-BC",
+                                       "DBM-Raids-Vanilla"
+                                   ],
+                       "sourceUrl":  "https://www.curseforge.com/wow/addons/deadly-boss-mods/files/5961449"
+                   },
+                   {
+                       "id":  "details",
+                       "name":  "Details!",
+                       "description":  "Mesure des dégâts, soins, menaces et statistiques de combat.",
+                       "version":  "20250119.13388.161",
+                       "interface":  "30403",
+                       "url":  "https://edge.forgecdn.net/files/6102/986/Details-Details.20250119.13388.161.zip",
+                       "size":  5160009,
+                       "sha256":  "e8a5d367db44a540cb85005c092ffd9cf32f59e44c946cffc7070509cf91a303",
+                       "installHash":  "e8a5d367db44a540cb85005c092ffd9cf32f59e44c946cffc7070509cf91a303",
+                       "stripPrefix":  "",
+                       "components":  [
+
+                                      ],
+                       "tokenReplacements":  {
+
+                                             },
+                       "folders":  [
+                                       "Details",
+                                       "Details_Compare2",
+                                       "Details_DataStorage",
+                                       "Details_EncounterDetails",
+                                       "Details_RaidCheck",
+                                       "Details_Streamer",
+                                       "Details_TinyThreat",
+                                       "Details_Vanguard"
+                                   ],
+                       "sourceUrl":  "https://www.curseforge.com/wow/addons/details/files/6102986"
+                   },
+                   {
+                       "id":  "atlaslootclassic",
+                       "name":  "AtlasLootClassic",
+                       "description":  "Catalogue des butins de donjons, raids, factions, JcJ et artisanat.",
+                       "version":  "3.2.0",
+                       "interface":  "30403",
+                       "url":  "https://edge.forgecdn.net/files/4811/104/AtlasLootClassic-v3.2.0.zip",
+                       "size":  1199740,
+                       "sha256":  "06aa9fa4c3de314422f45c67f2a555849e9f90657a980a8c7b922107b6aa90af",
+                       "installHash":  "06aa9fa4c3de314422f45c67f2a555849e9f90657a980a8c7b922107b6aa90af",
+                       "stripPrefix":  "",
+                       "components":  [
+
+                                      ],
+                       "tokenReplacements":  {
+
+                                             },
+                       "folders":  [
+                                       "AtlasLootClassic",
+                                       "AtlasLootClassic_Collections",
+                                       "AtlasLootClassic_Crafting",
+                                       "AtlasLootClassic_Data",
+                                       "AtlasLootClassic_DungeonsAndRaids",
+                                       "AtlasLootClassic_Factions",
+                                       "AtlasLootClassic_Options",
+                                       "AtlasLootClassic_PvP"
+                                   ],
+                       "sourceUrl":  "https://www.curseforge.com/wow/addons/atlaslootclassic/files/4811104"
+                   },
+                   {
+                       "id":  "auctionator",
+                       "name":  "Auctionator",
+                       "description":  "Outils pratiques pour acheter, vendre et analyser l\u0027hôtel des ventes.",
+                       "version":  "10.2.0-wrath",
+                       "interface":  "30403",
+                       "url":  "https://edge.forgecdn.net/files/4869/540/Auctionator-10.2.0-wrath.zip",
+                       "size":  753810,
+                       "sha256":  "819f9e7aa63c3bbeb6437bbf0743cfb248f653f3dd97de6c321e563e9ea076e1",
+                       "installHash":  "819f9e7aa63c3bbeb6437bbf0743cfb248f653f3dd97de6c321e563e9ea076e1",
+                       "stripPrefix":  "",
+                       "components":  [
+
+                                      ],
+                       "tokenReplacements":  {
+
+                                             },
+                       "folders":  [
+                                       "Auctionator"
+                                   ],
+                       "sourceUrl":  "https://www.curseforge.com/wow/addons/auctionator/files/4869540"
+                   },
+                   {
+                       "id":  "leatrix-plus",
+                       "name":  "Leatrix Plus",
+                       "description":  "Améliorations de confort, automatisations et réglages pratiques du client.",
+                       "version":  "3.0.191",
+                       "interface":  "30403",
+                       "url":  "https://edge.forgecdn.net/files/5275/306/Leatrix_Plus-3.0.191.zip",
+                       "size":  549285,
+                       "sha256":  "233067de2af6d770895b7329975dc0c2b4379f4ae31123780f833a6c09acc5c3",
+                       "installHash":  "233067de2af6d770895b7329975dc0c2b4379f4ae31123780f833a6c09acc5c3",
+                       "stripPrefix":  "",
+                       "components":  [
+
+                                      ],
+                       "tokenReplacements":  {
+
+                                             },
+                       "folders":  [
+                                       "Leatrix_Plus"
+                                   ],
+                       "sourceUrl":  "https://www.curseforge.com/wow/addons/leatrix-plus-wrath/files/5275306"
+                   },
+                   {
+                       "id":  "nova-instance-tracker",
+                       "name":  "Nova Instance Tracker",
+                       "description":  "Suivi des entrées, verrouillages et temps passé dans les instances.",
+                       "version":  "1.55-Wrath",
+                       "interface":  "30403",
+                       "url":  "https://edge.forgecdn.net/files/5292/821/NovaInstanceTracker-v1.55-Wrath.zip",
+                       "size":  639358,
+                       "sha256":  "3a5633148ff5d2c091b7ade195753bde5ef717bf59b0c1e1a62b8f0d4bf62165",
+                       "installHash":  "3a5633148ff5d2c091b7ade195753bde5ef717bf59b0c1e1a62b8f0d4bf62165",
+                       "stripPrefix":  "",
+                       "components":  [
+
+                                      ],
+                       "tokenReplacements":  {
+
+                                             },
+                       "folders":  [
+                                       "NovaInstanceTracker"
+                                   ],
+                       "sourceUrl":  "https://www.curseforge.com/wow/addons/nova-instance-tracker/files/5292821"
+                   },
+                   {
+                       "id":  "attune",
+                       "name":  "Attune",
+                       "description":  "Suivi des accès, prérequis et progressions d\u0027harmonisation.",
+                       "version":  "WOTLK-314",
+                       "interface":  "30403",
+                       "url":  "https://edge.forgecdn.net/files/5758/185/Attune-WOTLK-314.zip",
+                       "size":  642467,
+                       "sha256":  "855b68e4c1231df84edf940bbccbff4195e8c33cd5b7a6414a6e3f029fb8e861",
+                       "installHash":  "855b68e4c1231df84edf940bbccbff4195e8c33cd5b7a6414a6e3f029fb8e861",
+                       "stripPrefix":  "",
+                       "components":  [
+
+                                      ],
+                       "tokenReplacements":  {
+
+                                             },
+                       "folders":  [
+                                       "Attune"
+                                   ],
+                       "sourceUrl":  "https://www.curseforge.com/wow/addons/attune/files/5758185"
                    }
                ]
 }

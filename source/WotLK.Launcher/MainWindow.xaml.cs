@@ -68,6 +68,7 @@ public partial class MainWindow : Window
 
         _settings = LauncherSettings.Load();
         _settings.Save();
+        GameDirectoryAccess.PrepareElevatedSession(_settings.InstallPath);
         InstallPathBox.Text = _settings.InstallPath;
         UpdateAddonInstallPathText();
         SetLanguageSelection(_settings.GameLocale);
@@ -132,6 +133,11 @@ public partial class MainWindow : Window
         }
 
         SaveSettingsFromUi();
+        if (!EnsureGameDirectoryWritable())
+        {
+            return;
+        }
+
         if (_gameAction == GameAction.Play)
         {
             PlayGame();
@@ -214,6 +220,11 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!EnsureGameDirectoryWritable())
+        {
+            return;
+        }
+
         try
         {
             var configPath = GameInstallServices.EnsureDefaultClientConfig(_settings.InstallPath, _settings.GameLocale);
@@ -258,6 +269,11 @@ public partial class MainWindow : Window
         if (!GameInstallServices.HasPlayableClient(_settings.InstallPath))
         {
             System.Windows.MessageBox.Show(this, "Installe d'abord le client WotLK avant de gérer ses addons.", "Client introuvable", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (!EnsureGameDirectoryWritable())
+        {
             return;
         }
 
@@ -930,6 +946,11 @@ public partial class MainWindow : Window
 
     private void SaveInstalledManifestHistory(LauncherManifest manifest)
     {
+        if (!GameDirectoryAccess.CanWrite(_settings.InstallPath))
+        {
+            return;
+        }
+
         Directory.CreateDirectory(_settings.InstallPath);
         var historyPath = GetInstalledManifestHistoryPath();
         var options = new JsonSerializerOptions(JsonOptions)
@@ -1112,6 +1133,11 @@ public partial class MainWindow : Window
 
     private void RegisterGameApplication(string clientVersion)
     {
+        if (!GameDirectoryAccess.CanWrite(_settings.InstallPath))
+        {
+            return;
+        }
+
         var configPath = GameInstallServices.EnsureDefaultClientConfig(_settings.InstallPath, _settings.GameLocale);
         var uninstallerPath = GameInstallServices.RegisterInstalledGame(_settings.InstallPath, clientVersion);
         AppendLog("Configuration video/langue WotLK ajustee: " + configPath);
@@ -1356,6 +1382,33 @@ public partial class MainWindow : Window
         _settings.GameLocale = GetSelectedGameLocale();
         _settings.Save();
         InstallPathBox.Text = _settings.InstallPath;
+    }
+
+    private bool EnsureGameDirectoryWritable()
+    {
+        try
+        {
+            if (GameDirectoryAccess.EnsureWritable(this, _settings.InstallPath))
+            {
+                return true;
+            }
+
+            SetStatus("Autorisation annulee.");
+            AppendLog("Autorisation du dossier WotLK annulee.");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Autorisation requise.");
+            AppendLog("Autorisation du dossier WotLK impossible: " + ex.Message);
+            System.Windows.MessageBox.Show(
+                this,
+                ex.Message,
+                "Autorisation requise",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return false;
+        }
     }
 
     private void SetLanguageSelection(string locale)

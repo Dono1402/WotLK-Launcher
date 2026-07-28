@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -100,6 +101,39 @@ internal static class InstallerServices
         }
 
         return Path.Combine(programFilesX86, "WotLK");
+    }
+
+    internal static void PrepareGameInstallRoot()
+    {
+        var gameRoot = GetGameInstallRoot();
+        var sid = WindowsIdentity.GetCurrent().User?.Value;
+        if (string.IsNullOrWhiteSpace(sid))
+        {
+            throw new InvalidOperationException("Impossible d'identifier le compte Windows.");
+        }
+
+        Directory.CreateDirectory(gameRoot);
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = Path.Combine(Environment.SystemDirectory, "icacls.exe"),
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
+        startInfo.ArgumentList.Add(gameRoot);
+        startInfo.ArgumentList.Add("/grant");
+        startInfo.ArgumentList.Add($"*{sid}:(OI)(CI)M");
+        startInfo.ArgumentList.Add("/T");
+        startInfo.ArgumentList.Add("/C");
+        startInfo.ArgumentList.Add("/Q");
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Impossible de preparer le dossier WotLK.");
+        process.WaitForExit();
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException("Impossible d'autoriser l'acces au dossier WotLK.");
+        }
     }
 
     internal static string GetRegisteredInstallRoot()

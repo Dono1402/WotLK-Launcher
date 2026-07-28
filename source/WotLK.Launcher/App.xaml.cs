@@ -8,6 +8,12 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        if (GameDirectoryAccess.IsGrantAccessMode(e.Args))
+        {
+            Shutdown(GameDirectoryAccess.RunGrantAccess(e.Args));
+            return;
+        }
+
         if (GameInstallServices.IsGameUninstallMode(e.Args))
         {
             Shutdown(GameInstallServices.RunGameUninstall(e.Args));

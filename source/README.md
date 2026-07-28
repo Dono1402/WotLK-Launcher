@@ -6,6 +6,8 @@ Le launcher lit le manifeste du feed, telecharge les fichiers manquants ou modif
 
 Le client distribue est WotLK Classic 3.4.3.54261. Le bouton Jouer lance `Arctium Game Launcher Atlas.exe` avec le portail `animeclub.fr`; le feed ne contient ni `WTF`, ni caches, ni journaux utilisateur.
 
+Le launcher s'execute sans elevation permanente. L'installer accorde au compte Windows courant un acces en modification limite au dossier du client; une ancienne installation est migree lors de sa derniere mise a jour elevee. Seules l'auto-mise a jour du launcher et la desinstallation peuvent encore demander une validation administrateur.
+
 L'onglet Addons propose des installations optionnelles et independantes du feed client. Le launcher ne supprime que les dossiers qu'il a lui-meme enregistres dans `_classic_\Interface\AddOns\.atlas-addons.json`; les `SavedVariables` et les addons utilisateur restent intacts.
 
 ## Catalogue addons 3.4.3
@@ -30,6 +32,7 @@ Le catalogue fige des versions testees declarant l'interface `30403`:
 - Leatrix Plus 3.0.191
 - Nova Instance Tracker 1.55-Wrath
 - Attune WOTLK-314
+- Baganator 158-wrath
 
 ## Feed Classic frFR
 

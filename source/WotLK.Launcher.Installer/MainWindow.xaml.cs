@@ -65,6 +65,7 @@ public partial class MainWindow : Window
 
         Dispatcher.Invoke(() => AppendLog("Création du dossier: " + installRoot));
         Directory.CreateDirectory(installRoot);
+        InstallerServices.PrepareGameInstallRoot();
         Dispatcher.Invoke(() => Progress.Value = 18);
 
         Dispatcher.Invoke(() => AppendLog("Extraction du launcher..."));

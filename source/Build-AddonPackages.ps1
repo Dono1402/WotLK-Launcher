@@ -205,6 +205,12 @@ $sources = @(
         File = 'Attune-WOTLK-314.zip'
         Url = 'https://edge.forgecdn.net/files/5758/185/Attune-WOTLK-314.zip'
         Sha256 = '855b68e4c1231df84edf940bbccbff4195e8c33cd5b7a6414a6e3f029fb8e861'
+    },
+    [ordered]@{
+        Id = 'baganator'
+        File = 'Baganator-158-wrath.zip'
+        Url = 'https://edge.forgecdn.net/files/5112/311/Baganator-158-wrath.zip'
+        Sha256 = '93a609a516c145bbce0283130bff0986a81a6114a3879a224fd524d1f29a33f1'
     }
 )
 
@@ -349,6 +355,7 @@ $auctionatorArchive = Join-Path $downloadDirectory 'Auctionator-10.2.0-wrath.zip
 $leatrixPlusArchive = Join-Path $downloadDirectory 'Leatrix_Plus-3.0.191.zip'
 $novaInstanceTrackerArchive = Join-Path $downloadDirectory 'NovaInstanceTracker-v1.55-Wrath.zip'
 $attuneArchive = Join-Path $downloadDirectory 'Attune-WOTLK-314.zip'
+$baganatorArchive = Join-Path $downloadDirectory 'Baganator-158-wrath.zip'
 
 Assert-ZipRoots $weakAurasArchive @('WeakAuras', 'WeakAurasArchive', 'WeakAurasModelPaths', 'WeakAurasOptions', 'WeakAurasTemplates')
 Assert-ZipRoots $questieArchive @('Questie')
@@ -364,6 +371,7 @@ Assert-ZipRoots $auctionatorArchive @('Auctionator')
 Assert-ZipRoots $leatrixPlusArchive @('Leatrix_Plus')
 Assert-ZipRoots $novaInstanceTrackerArchive @('NovaInstanceTracker')
 Assert-ZipRoots $attuneArchive @('Attune')
+Assert-ZipRoots $baganatorArchive @('Baganator')
 
 $weakAurasSha256 = Get-Sha256 $weakAurasArchive
 $questieSha256 = Get-Sha256 $questieArchive
@@ -570,6 +578,21 @@ $packageDefinitions = @(
         tokenReplacements = [ordered]@{}
         folders = @('Attune')
         sourceUrl = 'https://www.curseforge.com/wow/addons/attune/files/5758185'
+    },
+    [ordered]@{
+        id = 'baganator'
+        name = 'Baganator'
+        description = [System.Text.RegularExpressions.Regex]::Unescape('Sacs et banque unifi\u00e9s avec cat\u00e9gories, recherche, tri et inventaire des personnages.')
+        version = '158-wrath'
+        interface = '30403'
+        archive = $baganatorArchive
+        url = 'https://edge.forgecdn.net/files/5112/311/Baganator-158-wrath.zip'
+        installHash = Get-Sha256 $baganatorArchive
+        stripPrefix = ''
+        components = @()
+        tokenReplacements = [ordered]@{}
+        folders = @('Baganator')
+        sourceUrl = 'https://www.curseforge.com/wow/addons/baganator/files/5112311'
     }
 )
 

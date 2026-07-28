@@ -187,11 +187,10 @@ internal static class GameInstallServices
 
     private static RegistryKey OpenUninstallBaseKey()
     {
-        var view = Environment.Is64BitOperatingSystem ? RegistryView.Registry64 : RegistryView.Default;
-        return RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
+        return RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, RegistryView.Default);
     }
 
-    private static string NormalizeAndValidateGameRoot(string installRoot)
+    internal static string NormalizeAndValidateGameRoot(string installRoot)
     {
         var root = Path.GetFullPath(installRoot).TrimEnd(Path.DirectorySeparatorChar);
         var driveRoot = Path.GetPathRoot(root)?.TrimEnd(Path.DirectorySeparatorChar);

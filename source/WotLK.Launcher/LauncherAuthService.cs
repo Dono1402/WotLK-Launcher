@@ -358,7 +358,8 @@ internal sealed record GameTicket(
     string Ticket,
     DateTimeOffset ExpiresAt,
     string Username,
-    string GameAccount);
+    string GameAccount,
+    uint AccountId);
 
 internal sealed record LauncherDeviceSession(
     string Id,

@@ -716,19 +716,8 @@
                         </StackPanel>
 
                         <StackPanel Grid.Row="1">
-                            <Button x:Name="HomeTabButton"
-                                    Tag="Active"
-                                    Style="{StaticResource NavButton}"
-                                    Click="HomeTabButton_Click">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Width="27"
-                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                               FontSize="15"
-                                               Text="&#xE80F;"/>
-                                    <TextBlock Text="ACCUEIL"/>
-                                </StackPanel>
-                            </Button>
                             <Button x:Name="ClientTabButton"
+                                    Tag="Active"
                                     Style="{StaticResource NavButton}"
                                     Click="ClientTabButton_Click">
                                 <StackPanel Orientation="Horizontal">

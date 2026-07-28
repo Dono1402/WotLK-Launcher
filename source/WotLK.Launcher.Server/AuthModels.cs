@@ -54,7 +54,8 @@ public sealed record GameTicketResponse(
     string Ticket,
     DateTimeOffset ExpiresAt,
     string Username,
-    string GameAccount);
+    string GameAccount,
+    uint AccountId);
 
 public sealed record HermesTicketRequest(
     [property: JsonPropertyName("username")] string Username,

@@ -22,7 +22,7 @@ public sealed class TokenService
         => SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token));
 
     public static string CreateGameTicket()
-        => CreateToken("ATL");
+        => "HP-" + Convert.ToHexString(RandomNumberGenerator.GetBytes(20));
 
     private static string CreateToken(string prefix)
         => prefix + "-" + Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))

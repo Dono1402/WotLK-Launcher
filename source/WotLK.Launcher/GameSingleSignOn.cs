@@ -21,12 +21,12 @@ internal static class GameSingleSignOn
         string normalizedLocale = LauncherSettings.NormalizeGameLocale(locale);
         string accountState = JsonSerializer.Serialize(new
         {
-            account_country = "BE",
-            account_id = ticket.Username,
+            account_country = "BEL",
+            account_id = ticket.AccountId,
             game_account = new
             {
                 has_game_time = true,
-                id = ticket.GameAccount,
+                id = ticket.AccountId,
                 is_trial = false,
                 name = ticket.GameAccount,
                 region = "EU"

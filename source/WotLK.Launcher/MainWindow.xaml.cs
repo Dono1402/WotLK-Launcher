@@ -27,7 +27,6 @@ public partial class MainWindow : Window
 
     private enum LauncherPage
     {
-        Home,
         Game,
         Addons,
         News,
@@ -68,7 +67,7 @@ public partial class MainWindow : Window
     private bool _isLoadingAccountData;
     private bool _isLoadingServerStatus;
     private string _selectedAddonCategory = "All";
-    private LauncherPage _currentPage = LauncherPage.Home;
+    private LauncherPage _currentPage = LauncherPage.Game;
     private string? _announcedLauncherUpdateHash;
     private string? _announcedGameUpdateVersion;
 
@@ -110,7 +109,7 @@ public partial class MainWindow : Window
 
         AppendLog("Launcher prêt.");
         SetInitialGameActionFromDisk();
-        NavigateTo(LauncherPage.Home);
+        NavigateTo(LauncherPage.Game);
         if (_settings.AutomaticLauncherUpdates)
         {
             _ = CheckLauncherUpdateAsync();
@@ -330,17 +329,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void HomeTabButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_downloadCancellation is not null)
-        {
-            return;
-        }
-
-        NavigateTo(LauncherPage.Home);
-        _ = RefreshDashboardAsync();
-    }
-
     private void ClientTabButton_Click(object sender, RoutedEventArgs e)
     {
         if (_downloadCancellation is null)
@@ -521,7 +509,7 @@ public partial class MainWindow : Window
         _currentPage = page;
         _isAddonTabActive = page == LauncherPage.Addons;
 
-        HomePanel.Visibility = page == LauncherPage.Home ? Visibility.Visible : Visibility.Collapsed;
+        HomePanel.Visibility = Visibility.Collapsed;
         GamePanel.Visibility = page == LauncherPage.Game ? Visibility.Visible : Visibility.Collapsed;
         AddonsPanel.Visibility = page == LauncherPage.Addons ? Visibility.Visible : Visibility.Collapsed;
         NewsPanel.Visibility = page == LauncherPage.News ? Visibility.Visible : Visibility.Collapsed;
@@ -529,7 +517,6 @@ public partial class MainWindow : Window
         AccountPanel.Visibility = page == LauncherPage.Account ? Visibility.Visible : Visibility.Collapsed;
         SettingsPanel.Visibility = page == LauncherPage.Settings ? Visibility.Visible : Visibility.Collapsed;
 
-        HomeTabButton.Tag = page == LauncherPage.Home ? "Active" : null;
         ClientTabButton.Tag = page == LauncherPage.Game ? "Active" : null;
         AddonsTabButton.Tag = page == LauncherPage.Addons ? "Active" : null;
         NewsTabButton.Tag = page == LauncherPage.News ? "Active" : null;
@@ -831,7 +818,7 @@ public partial class MainWindow : Window
     {
         await _auth.LogoutAsync();
         ProfileButton.Visibility = Visibility.Collapsed;
-        NavigateTo(LauncherPage.Home);
+        NavigateTo(LauncherPage.Game);
         ShowLogin();
         AppendLog("Déconnecté du launcher.");
     }
@@ -1153,7 +1140,7 @@ public partial class MainWindow : Window
         AuthOverlay.Visibility = Visibility.Collapsed;
         ProfileButton.Visibility = Visibility.Visible;
         UpdateProfileUi(profile);
-        NavigateTo(LauncherPage.Home);
+        NavigateTo(LauncherPage.Game);
         _ = RefreshDashboardAsync();
     }
 
@@ -2390,7 +2377,6 @@ public partial class MainWindow : Window
         LauncherSelfUpdateButton.IsEnabled = !busy;
         BrowseInstallPathButton.IsEnabled = !busy;
         GameLanguageComboBox.IsEnabled = !busy;
-        HomeTabButton.IsEnabled = !busy;
         ClientTabButton.IsEnabled = !busy;
         AddonsTabButton.IsEnabled = !busy;
         NewsTabButton.IsEnabled = !busy;

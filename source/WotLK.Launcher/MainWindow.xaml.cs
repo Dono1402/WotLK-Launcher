@@ -841,11 +841,19 @@ public partial class MainWindow : Window
     {
         try
         {
-            LauncherProfile profile = await _auth.ChangeEmailAsync(ChangeEmailBox.Text.Trim());
-            UpdateProfileUi(profile);
+            EmailChangeResult result =
+                await _auth.ChangeEmailAsync(ChangeEmailBox.Text.Trim());
+            UpdateProfileUi(result.Profile);
             ChangeEmailPanel.Visibility = Visibility.Collapsed;
-            EmailWarningBorder.Visibility = Visibility.Visible;
-            AppendLog("Adresse e-mail du compte mise à jour.");
+            AppendLog(result.VerificationMessage);
+            System.Windows.MessageBox.Show(
+                this,
+                result.VerificationMessage,
+                "Adresse e-mail",
+                MessageBoxButton.OK,
+                result.VerificationEmailSent || result.Profile.EmailVerified
+                    ? MessageBoxImage.Information
+                    : MessageBoxImage.Warning);
         }
         catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
         {
@@ -860,12 +868,17 @@ public partial class MainWindow : Window
 
     private async void ResendVerificationButton_Click(object sender, RoutedEventArgs e)
     {
+        ResendVerificationButton.IsEnabled = false;
         try
         {
-            await _auth.ResendVerificationAsync();
+            string message = await _auth.ResendVerificationAsync();
+            LauncherProfile profile = await _auth.RefreshProfileAsync();
+            UpdateProfileUi(profile);
+            AppendLog(message);
             System.Windows.MessageBox.Show(
                 this,
-                "L'envoi d'e-mail sera activé à la dernière étape avec Brevo. Ton compte reste pleinement utilisable.",
+                message + Environment.NewLine + Environment.NewLine
+                + "Pense à vérifier le dossier des courriers indésirables.",
                 "Validation de l'e-mail",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
@@ -878,6 +891,10 @@ public partial class MainWindow : Window
                 "Validation de l'e-mail",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
+        }
+        finally
+        {
+            ResendVerificationButton.IsEnabled = true;
         }
     }
 
@@ -972,6 +989,8 @@ public partial class MainWindow : Window
         _isLoadingAccountData = true;
         try
         {
+            LauncherProfile profile = await _auth.RefreshProfileAsync();
+            UpdateProfileUi(profile);
             IReadOnlyList<LauncherDeviceSession> sessions = await _auth.GetSessionsAsync();
             _sessionItems.Clear();
             foreach (LauncherDeviceSession session in sessions)

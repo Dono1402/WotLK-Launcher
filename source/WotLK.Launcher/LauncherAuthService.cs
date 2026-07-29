@@ -141,7 +141,7 @@ internal sealed class LauncherAuthService : IDisposable
             ?? throw new LauncherAuthException("Le serveur n'a pas renvoyé de ticket de jeu.");
     }
 
-    public async Task<LauncherProfile> ChangeEmailAsync(
+    public async Task<EmailChangeResult> ChangeEmailAsync(
         string email,
         CancellationToken cancellationToken = default)
     {
@@ -149,6 +149,26 @@ internal sealed class LauncherAuthService : IDisposable
             HttpMethod.Patch,
             "me/email");
         request.Content = JsonContent.Create(new { email });
+        using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        EmailChangeResponse result =
+            await response.Content.ReadFromJsonAsync<EmailChangeResponse>(
+                JsonOptions,
+                cancellationToken)
+            ?? throw new LauncherAuthException("Le profil renvoyé est invalide.");
+        Session = Session! with { Profile = result.Profile };
+        return new EmailChangeResult(
+            result.Profile,
+            result.VerificationEmailSent,
+            result.VerificationMessage);
+    }
+
+    public async Task<LauncherProfile> RefreshProfileAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using HttpRequestMessage request = CreateAuthorizedRequest(
+            HttpMethod.Get,
+            "me");
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
         LauncherProfile profile = await response.Content.ReadFromJsonAsync<LauncherProfile>(
@@ -243,7 +263,7 @@ internal sealed class LauncherAuthService : IDisposable
             ?? [];
     }
 
-    public async Task ResendVerificationAsync(CancellationToken cancellationToken = default)
+    public async Task<string> ResendVerificationAsync(CancellationToken cancellationToken = default)
     {
         using HttpRequestMessage request = CreateAuthorizedRequest(
             HttpMethod.Post,
@@ -251,6 +271,12 @@ internal sealed class LauncherAuthService : IDisposable
         request.Content = JsonContent.Create(new { });
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
+        ApiMessage? result = await response.Content.ReadFromJsonAsync<ApiMessage>(
+            JsonOptions,
+            cancellationToken);
+        return string.IsNullOrWhiteSpace(result?.Message)
+            ? "L'e-mail de validation a été envoyé."
+            : result.Message;
     }
 
     public async Task LogoutAsync(CancellationToken cancellationToken = default)
@@ -341,6 +367,7 @@ internal sealed class LauncherAuthService : IDisposable
     }
 
     private sealed record ApiError(string Error);
+    private sealed record ApiMessage(string Message);
 }
 
 internal sealed record LauncherAuthSession(
@@ -359,6 +386,16 @@ internal sealed record LauncherProfile(
     bool TwoFactorEnabled,
     bool RecoveryCodesGenerated,
     int Completion);
+
+internal sealed record EmailChangeResult(
+    LauncherProfile Profile,
+    bool VerificationEmailSent,
+    string VerificationMessage);
+
+internal sealed record EmailChangeResponse(
+    LauncherProfile Profile,
+    bool VerificationEmailSent,
+    string VerificationMessage);
 
 internal sealed record GameTicket(
     string Ticket,

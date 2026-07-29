@@ -10,7 +10,7 @@ Le launcher s'execute sans elevation permanente. L'installer accorde au compte W
 
 Le launcher comprend les pages Accueil, Jeu, Addons, Actualites, Serveur, Mon compte et Parametres. La page Addons propose des installations optionnelles classees par categorie avec recherche. Le launcher ne supprime que les dossiers qu'il a lui-meme enregistres dans `_classic_\Interface\AddOns\.atlas-addons.json`; les `SavedVariables` et les addons utilisateur restent intacts.
 
-Le compte Atlas permet de modifier l'e-mail, l'avatar et le mot de passe, de consulter les sessions actives et d'en revoquer une a distance. Le tableau de bord affiche aussi l'etat direct des passerelles et du worldserver. La validation d'e-mail, la double authentification et les codes de recuperation seront actives avec l'integration Brevo.
+Le compte Atlas permet de modifier et valider l'e-mail via Brevo, de choisir l'avatar, de changer le mot de passe, de consulter les sessions actives et d'en revoquer une a distance. Le tableau de bord affiche aussi l'etat direct des passerelles et du worldserver. La double authentification et les codes de recuperation restent des ameliorations futures.
 
 ## Catalogue addons 3.4.3
 

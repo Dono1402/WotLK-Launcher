@@ -50,6 +50,20 @@ public sealed class LauncherDatabase
                 CONSTRAINT fk_atlas_session_account
                     FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS atlas_launcher_email_verification (
+                id BINARY(16) NOT NULL PRIMARY KEY,
+                account_id INT UNSIGNED NOT NULL,
+                email_normalized VARCHAR(254) NOT NULL,
+                token_hash BINARY(32) NOT NULL UNIQUE,
+                expires_at DATETIME NOT NULL,
+                consumed_at DATETIME NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                INDEX ix_atlas_email_account_created (account_id, created_at),
+                INDEX ix_atlas_email_expiry (expires_at),
+                CONSTRAINT fk_atlas_email_account
+                    FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE CASCADE
+            );
             """;
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
@@ -364,6 +378,17 @@ public sealed class LauncherDatabase
         await using MySqlTransaction transaction =
             await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
 
+        AccountProfile currentProfile = await LoadProfileAsync(
+            connection, transaction, accountId, cancellationToken);
+        if (string.Equals(
+                currentProfile.Email,
+                normalized,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return currentProfile;
+        }
+
         if (await EmailExistsAsync(
                 connection,
                 transaction,
@@ -390,10 +415,254 @@ public sealed class LauncherDatabase
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
+        await using (MySqlCommand invalidate = connection.CreateCommand())
+        {
+            invalidate.Transaction = transaction;
+            invalidate.CommandText = """
+                UPDATE atlas_launcher_email_verification
+                SET consumed_at = UTC_TIMESTAMP()
+                WHERE account_id = @accountId
+                  AND consumed_at IS NULL;
+                """;
+            invalidate.Parameters.AddWithValue("@accountId", accountId);
+            await invalidate.ExecuteNonQueryAsync(cancellationToken);
+        }
+
         AccountProfile profile = await LoadProfileAsync(
             connection, transaction, accountId, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return profile;
+    }
+
+    public async Task<EmailVerificationChallenge?> CreateEmailVerificationAsync(
+        uint accountId,
+        int expiryHours,
+        int cooldownSeconds,
+        CancellationToken cancellationToken)
+    {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        await using MySqlConnection connection = await OpenAsync(cancellationToken);
+        await using MySqlTransaction transaction =
+            await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+
+        string username;
+        string email;
+        bool verified;
+        DateTime? latestCreatedAt;
+        await using (MySqlCommand profile = connection.CreateCommand())
+        {
+            profile.Transaction = transaction;
+            profile.CommandText = """
+                SELECT p.display_username, p.email_normalized, p.email_verified_at,
+                       (
+                           SELECT MAX(v.created_at)
+                           FROM atlas_launcher_email_verification v
+                           WHERE v.account_id = p.account_id
+                             AND v.consumed_at IS NULL
+                             AND v.expires_at > UTC_TIMESTAMP()
+                       ) AS latest_created_at
+                FROM atlas_launcher_profile p
+                WHERE p.account_id = @accountId
+                LIMIT 1
+                FOR UPDATE;
+                """;
+            profile.Parameters.AddWithValue("@accountId", accountId);
+
+            await using MySqlDataReader reader =
+                await profile.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
+                throw new InvalidOperationException("Profil launcher introuvable.");
+
+            username = reader.GetString("display_username");
+            email = reader.GetString("email_normalized").ToLowerInvariant();
+            verified = !reader.IsDBNull("email_verified_at");
+            latestCreatedAt = reader.IsDBNull("latest_created_at")
+                ? null
+                : reader.GetDateTime("latest_created_at");
+        }
+
+        if (verified)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return null;
+        }
+
+        if (latestCreatedAt.HasValue)
+        {
+            DateTimeOffset latest = new(
+                DateTime.SpecifyKind(latestCreatedAt.Value, DateTimeKind.Utc));
+            int remaining = Math.Max(
+                0,
+                cooldownSeconds - (int)(now - latest).TotalSeconds);
+            if (remaining > 0)
+                throw new EmailVerificationCooldownException(remaining);
+        }
+
+        string token = TokenService.CreateEmailVerificationToken();
+        byte[] tokenHash = TokenService.Hash(token);
+        DateTimeOffset expiresAt = now.AddHours(Math.Clamp(expiryHours, 1, 168));
+
+        await using (MySqlCommand cleanup = connection.CreateCommand())
+        {
+            cleanup.Transaction = transaction;
+            cleanup.CommandText = """
+                DELETE FROM atlas_launcher_email_verification
+                WHERE expires_at < UTC_TIMESTAMP() - INTERVAL 7 DAY
+                   OR consumed_at < UTC_TIMESTAMP() - INTERVAL 7 DAY;
+                """;
+            await cleanup.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using (MySqlCommand insert = connection.CreateCommand())
+        {
+            insert.Transaction = transaction;
+            insert.CommandText = """
+                INSERT INTO atlas_launcher_email_verification
+                    (id, account_id, email_normalized, token_hash, expires_at)
+                VALUES
+                    (@id, @accountId, @email, @tokenHash, @expiresAt);
+                """;
+            insert.Parameters.Add("@id", MySqlDbType.Binary, 16).Value =
+                Guid.NewGuid().ToByteArray();
+            insert.Parameters.AddWithValue("@accountId", accountId);
+            insert.Parameters.AddWithValue("@email", email.ToUpperInvariant());
+            insert.Parameters.Add("@tokenHash", MySqlDbType.Binary, 32).Value = tokenHash;
+            insert.Parameters.AddWithValue("@expiresAt", expiresAt.UtcDateTime);
+            await insert.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return new EmailVerificationChallenge(
+            accountId,
+            username,
+            email,
+            token,
+            tokenHash,
+            expiresAt);
+    }
+
+    public async Task CancelEmailVerificationAsync(
+        uint accountId,
+        byte[] tokenHash,
+        CancellationToken cancellationToken)
+    {
+        await using MySqlConnection connection = await OpenAsync(cancellationToken);
+        await using MySqlCommand command = connection.CreateCommand();
+        command.CommandText = """
+            DELETE FROM atlas_launcher_email_verification
+            WHERE account_id = @accountId
+              AND token_hash = @tokenHash
+              AND consumed_at IS NULL;
+            """;
+        command.Parameters.AddWithValue("@accountId", accountId);
+        command.Parameters.Add("@tokenHash", MySqlDbType.Binary, 32).Value = tokenHash;
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<EmailVerificationResult> VerifyEmailAsync(
+        string token,
+        CancellationToken cancellationToken)
+    {
+        if (!TokenService.IsEmailVerificationToken(token))
+        {
+            return EmailVerificationResult.Invalid;
+        }
+
+        byte[] tokenHash = TokenService.Hash(token);
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        await using MySqlConnection connection = await OpenAsync(cancellationToken);
+        await using MySqlTransaction transaction =
+            await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+
+        uint accountId;
+        string tokenEmail;
+        string currentEmail;
+        DateTime expiresAt;
+        bool consumed;
+        bool alreadyVerified;
+        await using (MySqlCommand select = connection.CreateCommand())
+        {
+            select.Transaction = transaction;
+            select.CommandText = """
+                SELECT v.account_id, v.email_normalized, v.expires_at, v.consumed_at,
+                       p.email_normalized AS current_email, p.email_verified_at
+                FROM atlas_launcher_email_verification v
+                JOIN atlas_launcher_profile p ON p.account_id = v.account_id
+                WHERE v.token_hash = @tokenHash
+                LIMIT 1
+                FOR UPDATE;
+                """;
+            select.Parameters.Add("@tokenHash", MySqlDbType.Binary, 32).Value = tokenHash;
+
+            await using MySqlDataReader reader =
+                await select.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
+                return EmailVerificationResult.Invalid;
+
+            accountId = reader.GetUInt32("account_id");
+            tokenEmail = reader.GetString("email_normalized");
+            currentEmail = reader.GetString("current_email");
+            expiresAt = reader.GetDateTime("expires_at");
+            consumed = !reader.IsDBNull("consumed_at");
+            alreadyVerified = !reader.IsDBNull("email_verified_at");
+        }
+
+        EmailVerificationResult result;
+        if (!string.Equals(tokenEmail, currentEmail, StringComparison.OrdinalIgnoreCase))
+        {
+            result = EmailVerificationResult.Invalid;
+        }
+        else if (alreadyVerified)
+        {
+            result = EmailVerificationResult.AlreadyVerified;
+        }
+        else if (consumed)
+        {
+            result = EmailVerificationResult.Invalid;
+        }
+        else if (new DateTimeOffset(DateTime.SpecifyKind(expiresAt, DateTimeKind.Utc)) <= now)
+        {
+            result = EmailVerificationResult.Expired;
+        }
+        else
+        {
+            await using MySqlCommand verify = connection.CreateCommand();
+            verify.Transaction = transaction;
+            verify.CommandText = """
+                UPDATE atlas_launcher_profile
+                SET email_verified_at = UTC_TIMESTAMP()
+                WHERE account_id = @accountId
+                  AND email_verified_at IS NULL;
+                """;
+            verify.Parameters.AddWithValue("@accountId", accountId);
+            await verify.ExecuteNonQueryAsync(cancellationToken);
+            result = EmailVerificationResult.Verified;
+        }
+
+        await using (MySqlCommand consume = connection.CreateCommand())
+        {
+            consume.Transaction = transaction;
+            consume.CommandText = result is EmailVerificationResult.Verified
+                or EmailVerificationResult.AlreadyVerified
+                ? """
+                    UPDATE atlas_launcher_email_verification
+                    SET consumed_at = COALESCE(consumed_at, UTC_TIMESTAMP())
+                    WHERE account_id = @accountId
+                      AND BINARY email_normalized = BINARY @email;
+                    """
+                : """
+                    UPDATE atlas_launcher_email_verification
+                    SET consumed_at = COALESCE(consumed_at, UTC_TIMESTAMP())
+                    WHERE token_hash = @tokenHash;
+                    """;
+            consume.Parameters.AddWithValue("@accountId", accountId);
+            consume.Parameters.AddWithValue("@email", tokenEmail);
+            consume.Parameters.Add("@tokenHash", MySqlDbType.Binary, 32).Value = tokenHash;
+            await consume.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return result;
     }
 
     public async Task<bool> ChangePasswordAsync(

@@ -1835,7 +1835,8 @@
                                                                        Text="Le téléchargement et le jeu restent disponibles."
                                                                        TextWrapping="Wrap"/>
                                                             <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
-                                                                <Button Content="RENVOYER"
+                                                                <Button x:Name="ResendVerificationButton"
+                                                                        Content="RENVOYER"
                                                                         Style="{StaticResource SecondaryActionButton}"
                                                                         Click="ResendVerificationButton_Click"/>
                                                                 <Button Margin="8,0,0,0"

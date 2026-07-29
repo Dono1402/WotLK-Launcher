@@ -7,6 +7,8 @@ AUTH_CONF=/opt/arthas/server/etc/authserver.conf
 ENV_DIR=/etc/wotlk
 ENV_FILE=$ENV_DIR/launcher-api.env
 INTERNAL_SECRET_FILE=/etc/atlas-wotlk-internal.secret
+BREVO_SECRET_FILE=/etc/atlas-brevo-api-key
+BREVO_SANDBOX_FILE=/etc/atlas-brevo-sandbox
 
 if [ ! -f "$ARCHIVE" ]; then
   echo "missing archive: $ARCHIVE" >&2
@@ -35,6 +37,25 @@ if [ ! -s "$INTERNAL_SECRET_FILE" ]; then
   chmod 0600 "$INTERNAL_SECRET_FILE"
 fi
 internal_secret=$(cat "$INTERNAL_SECRET_FILE")
+brevo_api_key=
+if [ -s "$BREVO_SECRET_FILE" ]; then
+  chown root:root "$BREVO_SECRET_FILE"
+  chmod 0600 "$BREVO_SECRET_FILE"
+  brevo_api_key=$(tr -d '\r\n' < "$BREVO_SECRET_FILE")
+fi
+brevo_sandbox=false
+if [ -s "$BREVO_SANDBOX_FILE" ]; then
+  chown root:root "$BREVO_SANDBOX_FILE"
+  chmod 0600 "$BREVO_SANDBOX_FILE"
+  brevo_sandbox=$(tr -d '\r\n' < "$BREVO_SANDBOX_FILE")
+  case "$brevo_sandbox" in
+    true|false) ;;
+    *)
+      echo "invalid Brevo sandbox value: expected true or false" >&2
+      exit 1
+      ;;
+  esac
+fi
 
 systemctl stop wotlk-launcher-api.service 2>/dev/null || true
 rm -rf "$APP_DIR"
@@ -49,6 +70,13 @@ install -d -m 0755 "$ENV_DIR"
   printf "DOTNET_ENVIRONMENT=Production\n"
   printf "WOTLK_LAUNCHER_DB='%s'\n" "$conn"
   printf "WOTLK_HERMES_SHARED_SECRET=%s\n" "$internal_secret"
+  printf "WOTLK_PUBLIC_BASE_URL=https://animeclub.fr/wotlk\n"
+  printf "WOTLK_BREVO_SENDER_EMAIL=noreply@animeclub.fr\n"
+  printf "WOTLK_BREVO_SENDER_NAME='Atlas - Arthas'\n"
+  printf "WOTLK_BREVO_SANDBOX=%s\n" "$brevo_sandbox"
+  if [ -n "$brevo_api_key" ]; then
+    printf "WOTLK_BREVO_API_KEY=%s\n" "$brevo_api_key"
+  fi
 } > "$ENV_FILE"
 chown root:root "$ENV_FILE"
 chmod 0600 "$ENV_FILE"

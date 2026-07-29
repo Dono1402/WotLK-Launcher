@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Data;
+using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.RateLimiting;
@@ -15,6 +16,24 @@ options.ConnectionString = FirstNonEmpty(
 options.HermesSharedSecret = FirstNonEmpty(
     Environment.GetEnvironmentVariable("WOTLK_HERMES_SHARED_SECRET"),
     builder.Configuration["LauncherServer:HermesSharedSecret"]);
+options.PublicBaseUrl = FirstNonEmpty(
+    Environment.GetEnvironmentVariable("WOTLK_PUBLIC_BASE_URL"),
+    options.PublicBaseUrl);
+options.BrevoApiKey = FirstNonEmpty(
+    Environment.GetEnvironmentVariable("WOTLK_BREVO_API_KEY"),
+    options.BrevoApiKey);
+options.BrevoSenderEmail = FirstNonEmpty(
+    Environment.GetEnvironmentVariable("WOTLK_BREVO_SENDER_EMAIL"),
+    options.BrevoSenderEmail);
+options.BrevoSenderName = FirstNonEmpty(
+    Environment.GetEnvironmentVariable("WOTLK_BREVO_SENDER_NAME"),
+    options.BrevoSenderName);
+if (bool.TryParse(
+        Environment.GetEnvironmentVariable("WOTLK_BREVO_SANDBOX"),
+        out bool brevoSandbox))
+{
+    options.BrevoSandbox = brevoSandbox;
+}
 
 if (string.IsNullOrWhiteSpace(options.ConnectionString))
     throw new InvalidOperationException("LauncherServer:ConnectionString est obligatoire.");
@@ -27,6 +46,12 @@ builder.Services.AddHttpClient<HermesTicketClient>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(5);
 });
+builder.Services.AddHttpClient<BrevoEmailClient>(client =>
+{
+    client.BaseAddress = new Uri("https://api.brevo.com/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddTransient<EmailVerificationService>();
 builder.Services.AddRateLimiter(rateLimiter =>
 {
     rateLimiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -50,6 +75,7 @@ app.MapPost("/api/v1/accounts", async (
     RegisterRequest request,
     HttpContext context,
     LauncherDatabase db,
+    EmailVerificationService emailVerification,
     CancellationToken cancellationToken) =>
 {
     string? validation = ValidateRegistration(request);
@@ -61,6 +87,9 @@ app.MapPost("/api/v1/accounts", async (
         string? deviceName = context.Request.Headers["X-Atlas-Device"].FirstOrDefault();
         AuthResponse response = await db.RegisterAsync(
             request, deviceName, cancellationToken);
+        await emailVerification.SendAsync(
+            response.Profile.AccountId,
+            cancellationToken);
         return Results.Ok(response);
     }
     catch (DuplicateNameException ex)
@@ -138,6 +167,7 @@ app.MapPatch("/api/v1/me/email", async (
     ChangeEmailRequest request,
     HttpContext context,
     LauncherDatabase db,
+    EmailVerificationService emailVerification,
     CancellationToken cancellationToken) =>
 {
     AuthenticatedAccount? account = await AuthenticateAsync(context, db, cancellationToken);
@@ -148,8 +178,29 @@ app.MapPatch("/api/v1/me/email", async (
 
     try
     {
-        return Results.Ok(await db.ChangeEmailAsync(
-            account.AccountId, request.Email, cancellationToken));
+        AccountProfile profile = await db.ChangeEmailAsync(
+            account.AccountId,
+            request.Email,
+            cancellationToken);
+        EmailVerificationDispatchResult delivery =
+            await emailVerification.SendAsync(
+                account.AccountId,
+                cancellationToken);
+        return Results.Ok(new
+        {
+            profile.AccountId,
+            profile.Username,
+            profile.Email,
+            profile.EmailVerified,
+            profile.AvatarKey,
+            profile.TwoFactorEnabled,
+            profile.RecoveryCodesGenerated,
+            profile.Completion,
+            Profile = profile,
+            VerificationEmailSent =
+                delivery.Status == EmailVerificationDispatchStatus.Sent,
+            VerificationMessage = DeliveryMessage(delivery)
+        });
     }
     catch (Exception ex) when (
         ex is DuplicateNameException
@@ -162,16 +213,122 @@ app.MapPatch("/api/v1/me/email", async (
 app.MapPost("/api/v1/me/email/resend", async (
     HttpContext context,
     LauncherDatabase db,
+    EmailVerificationService emailVerification,
     CancellationToken cancellationToken) =>
 {
     AuthenticatedAccount? account = await AuthenticateAsync(context, db, cancellationToken);
-    return account is null
-        ? Results.Unauthorized()
-        : Results.Accepted(value: new
+    if (account is null)
+        return Results.Unauthorized();
+
+    EmailVerificationDispatchResult delivery =
+        await emailVerification.SendAsync(
+            account.AccountId,
+            cancellationToken);
+    if (delivery.Status == EmailVerificationDispatchStatus.Cooldown)
+    {
+        context.Response.Headers.RetryAfter =
+            Math.Max(1, delivery.RetryAfterSeconds).ToString();
+    }
+
+    return delivery.Status switch
+    {
+        EmailVerificationDispatchStatus.Sent => Results.Accepted(value: new
         {
-            deliveryConfigured = false,
-            message = "L'envoi Brevo sera activé dans la dernière étape."
-        });
+            message = "L'e-mail de validation a été envoyé."
+        }),
+        EmailVerificationDispatchStatus.AlreadyVerified => Results.Ok(new
+        {
+            message = "Cette adresse e-mail est déjà validée."
+        }),
+        EmailVerificationDispatchStatus.Cooldown => Results.Json(
+            new
+            {
+                error = $"Un e-mail vient déjà d'être envoyé. Réessaie dans {Math.Max(1, delivery.RetryAfterSeconds)} seconde(s)."
+            },
+            statusCode: StatusCodes.Status429TooManyRequests),
+        EmailVerificationDispatchStatus.NotConfigured => Results.Json(
+            new
+            {
+                error = "L'envoi des e-mails Atlas est temporairement indisponible."
+            },
+            statusCode: StatusCodes.Status503ServiceUnavailable),
+        _ => Results.Json(
+            new
+            {
+                error = "Brevo n'a pas pu envoyer l'e-mail. Réessaie dans quelques instants."
+            },
+            statusCode: StatusCodes.Status502BadGateway)
+    };
+}).RequireRateLimiting("auth");
+
+app.MapGet("/api/v1/email/verify", (
+    string? token,
+    HttpContext context,
+    LauncherServerOptions serverOptions) =>
+{
+    SetVerificationPageHeaders(context);
+    if (!TokenService.IsEmailVerificationToken(token))
+    {
+        return Results.Content(
+            EmailVerificationPages.Invalid(),
+            "text/html; charset=utf-8",
+            Encoding.UTF8,
+            StatusCodes.Status400BadRequest);
+    }
+
+    return Results.Content(
+        EmailVerificationPages.Confirmation(
+            token!,
+            serverOptions.PublicBaseUrl),
+        "text/html; charset=utf-8",
+        Encoding.UTF8);
+}).RequireRateLimiting("auth");
+
+app.MapPost("/api/v1/email/verify", async (
+    HttpContext context,
+    LauncherDatabase db,
+    CancellationToken cancellationToken) =>
+{
+    SetVerificationPageHeaders(context);
+    if (!context.Request.HasFormContentType
+        || context.Request.ContentLength > 4096)
+    {
+        return Results.Content(
+            EmailVerificationPages.Invalid(),
+            "text/html; charset=utf-8",
+            Encoding.UTF8,
+            StatusCodes.Status400BadRequest);
+    }
+
+    IFormCollection form;
+    try
+    {
+        form = await context.Request.ReadFormAsync(cancellationToken);
+    }
+    catch (InvalidDataException)
+    {
+        return Results.Content(
+            EmailVerificationPages.Invalid(),
+            "text/html; charset=utf-8",
+            Encoding.UTF8,
+            StatusCodes.Status400BadRequest);
+    }
+
+    EmailVerificationResult result = await db.VerifyEmailAsync(
+        form["token"].ToString(),
+        cancellationToken);
+    int statusCode = result switch
+    {
+        EmailVerificationResult.Verified => StatusCodes.Status200OK,
+        EmailVerificationResult.AlreadyVerified => StatusCodes.Status200OK,
+        EmailVerificationResult.Expired => StatusCodes.Status410Gone,
+        _ => StatusCodes.Status400BadRequest
+    };
+    return Results.Content(
+        EmailVerificationPages.Result(result),
+        "text/html; charset=utf-8",
+        Encoding.UTF8,
+        statusCode);
 }).RequireRateLimiting("auth");
 
 app.MapPost("/api/v1/me/password", async (
@@ -433,5 +590,32 @@ static string? ResolveUnderRoot(string root, string relativePath)
 
 static string FirstNonEmpty(params string?[] values)
     => values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? "";
+
+static string DeliveryMessage(EmailVerificationDispatchResult delivery)
+{
+    return delivery.Status switch
+    {
+        EmailVerificationDispatchStatus.Sent =>
+            "Adresse mise à jour. Un e-mail de validation vient d'être envoyé.",
+        EmailVerificationDispatchStatus.AlreadyVerified =>
+            "Cette adresse e-mail est déjà validée.",
+        EmailVerificationDispatchStatus.Cooldown =>
+            "Adresse mise à jour. Un e-mail de validation a déjà été envoyé récemment.",
+        EmailVerificationDispatchStatus.NotConfigured =>
+            "Adresse mise à jour. L'envoi de l'e-mail est temporairement indisponible.",
+        _ =>
+            "Adresse mise à jour, mais l'e-mail n'a pas pu être envoyé. Utilise le bouton Renvoyer."
+    };
+}
+
+static void SetVerificationPageHeaders(HttpContext context)
+{
+    context.Response.Headers.CacheControl = "no-store";
+    context.Response.Headers.Append("Referrer-Policy", "no-referrer");
+    context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+    context.Response.Headers.Append(
+        "Content-Security-Policy",
+        "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
+}
 
 public partial class Program;

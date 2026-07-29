@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using WotLK.Launcher;
 using WotLK.Launcher.Server;
@@ -18,6 +19,98 @@ if (args.Length == 1
 }
 
 if (args.Length == 1
+    && string.Equals(args[0], "--email-token-format", StringComparison.OrdinalIgnoreCase))
+{
+    string first = TokenService.CreateEmailVerificationToken();
+    string second = TokenService.CreateEmailVerificationToken();
+    Assert(
+        Regex.IsMatch(
+            first,
+            "^atl_email-[A-Za-z0-9_-]{43}$",
+            RegexOptions.CultureInvariant),
+        "Le jeton e-mail doit contenir 32 octets aléatoires encodés en Base64 URL-safe.");
+    Assert(first != second, "Deux jetons e-mail consécutifs doivent être distincts.");
+    Assert(
+        TokenService.Hash(first).Length == 32,
+        "L'empreinte stockée en base doit être un SHA-256 de 32 octets.");
+    Assert(
+        TokenService.IsEmailVerificationToken(first),
+        "Le validateur doit accepter un jeton généré par Atlas.");
+    Assert(
+        !TokenService.IsEmailVerificationToken(first + "="),
+        "Le validateur doit refuser les caractères hors Base64 URL-safe.");
+    string page = EmailVerificationPages.Confirmation(
+        first,
+        "https://animeclub.fr/wotlk");
+    Assert(
+        page.Contains("method=\"post\"", StringComparison.Ordinal)
+        && page.Contains(first, StringComparison.Ordinal),
+        "Le lien reçu par e-mail doit demander une confirmation POST avant de consommer le jeton.");
+    Console.WriteLine("Email verification token format OK.");
+    return 0;
+}
+
+if (args.Length == 1
+    && string.Equals(args[0], "--brevo-payload", StringComparison.OrdinalIgnoreCase))
+{
+    BrevoCaptureHandler handler = new();
+    using HttpClient http = new(handler)
+    {
+        BaseAddress = new Uri("https://api.brevo.com/")
+    };
+    LauncherServerOptions options = new()
+    {
+        PublicBaseUrl = "https://animeclub.fr/wotlk",
+        BrevoApiKey = "integration-test-api-key",
+        BrevoSenderEmail = "noreply@animeclub.fr",
+        BrevoSenderName = "Atlas - Arthas",
+        BrevoSandbox = true
+    };
+    BrevoEmailClient brevo = new(http, options);
+    string token = TokenService.CreateEmailVerificationToken();
+    await brevo.SendVerificationAsync(
+        new EmailVerificationChallenge(
+            42,
+            "Dono1402",
+            "dono@example.test",
+            token,
+            TokenService.Hash(token),
+            DateTimeOffset.UtcNow.AddHours(24)),
+        CancellationToken.None);
+
+    Assert(
+        handler.Method == HttpMethod.Post
+        && handler.RequestUri == new Uri("https://api.brevo.com/v3/smtp/email"),
+        "Brevo doit être appelé avec POST /v3/smtp/email.");
+    Assert(
+        handler.ApiKey == "integration-test-api-key",
+        "La clé Brevo doit être transmise dans l'en-tête api-key.");
+    Assert(handler.Body is not null, "La requête Brevo doit contenir un document JSON.");
+    using JsonDocument document = JsonDocument.Parse(handler.Body!);
+    JsonElement root = document.RootElement;
+    Assert(
+        root.GetProperty("sender").GetProperty("email").GetString()
+            == "noreply@animeclub.fr",
+        "L'expéditeur Brevo est incorrect.");
+    Assert(
+        root.GetProperty("to")[0].GetProperty("email").GetString()
+            == "dono@example.test",
+        "Le destinataire Brevo est incorrect.");
+    Assert(
+        root.GetProperty("headers").GetProperty("X-Sib-Sandbox").GetString()
+            == "drop",
+        "Le test Brevo doit activer le mode bac à sable.");
+    Assert(
+        root.GetProperty("htmlContent").GetString()!.Contains(token, StringComparison.Ordinal),
+        "Le contenu Brevo doit inclure le jeton de validation.");
+    Assert(
+        !handler.Body!.Contains("integration-test-api-key", StringComparison.Ordinal),
+        "La clé Brevo ne doit jamais apparaître dans le corps JSON.");
+    Console.WriteLine("Brevo transactional payload OK.");
+    return 0;
+}
+
+if (args.Length == 1
     && string.Equals(args[0], "--game-ticket-live", StringComparison.OrdinalIgnoreCase))
 {
     using LauncherAuthService auth = new();
@@ -32,6 +125,18 @@ if (args.Length == 1
         "Le ticket doit appartenir a la session launcher active.");
     Console.WriteLine(
         $"Live game ticket OK: account={ticket.Username}, id={ticket.AccountId}, expires={ticket.ExpiresAt:O}.");
+    return 0;
+}
+
+if (args.Length == 1
+    && string.Equals(args[0], "--email-resend-live", StringComparison.OrdinalIgnoreCase))
+{
+    using LauncherAuthService auth = new();
+    Assert(
+        await auth.RestoreAsync(),
+        "Une session launcher Atlas valide est requise pour envoyer l'e-mail de test.");
+    string message = await auth.ResendVerificationAsync();
+    Console.WriteLine($"Live email verification request OK: {message}");
     return 0;
 }
 
@@ -213,5 +318,31 @@ internal sealed class PackageDirectoryHandler(IReadOnlyList<string> archiveDirec
         };
         response.Content.Headers.ContentLength = stream.Length;
         return Task.FromResult(response);
+    }
+}
+
+internal sealed class BrevoCaptureHandler : HttpMessageHandler
+{
+    internal HttpMethod? Method { get; private set; }
+    internal Uri? RequestUri { get; private set; }
+    internal string? ApiKey { get; private set; }
+    internal string? Body { get; private set; }
+
+    protected override async Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        Method = request.Method;
+        RequestUri = request.RequestUri;
+        ApiKey = request.Headers.TryGetValues("api-key", out IEnumerable<string>? values)
+            ? values.SingleOrDefault()
+            : null;
+        Body = request.Content is null
+            ? null
+            : await request.Content.ReadAsStringAsync(cancellationToken);
+        return new HttpResponseMessage(HttpStatusCode.Created)
+        {
+            Content = JsonContent.Create(new { messageId = "sandbox-test" })
+        };
     }
 }

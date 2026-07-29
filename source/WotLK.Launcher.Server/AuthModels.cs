@@ -9,6 +9,27 @@ public sealed record ChangeEmailRequest(string Email);
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public sealed record ChangeAvatarRequest(string? AvatarKey);
 
+public sealed record ChangeEmailResponse(
+    AccountProfile Profile,
+    bool VerificationEmailSent,
+    string VerificationMessage);
+
+public sealed record EmailVerificationChallenge(
+    uint AccountId,
+    string Username,
+    string Email,
+    string Token,
+    byte[] TokenHash,
+    DateTimeOffset ExpiresAt);
+
+public enum EmailVerificationResult
+{
+    Verified,
+    AlreadyVerified,
+    Expired,
+    Invalid
+}
+
 public sealed record LauncherSessionInfo(
     string Id,
     string DeviceName,
@@ -78,3 +99,14 @@ public sealed record SessionTokens(
     DateTimeOffset RefreshExpiresAt);
 
 public sealed record AuthenticatedAccount(uint AccountId, string Username);
+
+public sealed class EmailVerificationCooldownException : Exception
+{
+    public EmailVerificationCooldownException(int retryAfterSeconds)
+        : base("Un e-mail de validation vient déjà d'être envoyé.")
+    {
+        RetryAfterSeconds = retryAfterSeconds;
+    }
+
+    public int RetryAfterSeconds { get; }
+}

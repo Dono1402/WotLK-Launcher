@@ -40,6 +40,8 @@ public partial class MainWindow : Window
     private const string LauncherUpdateRequestHeader = "X-WotLK-Launcher-Update";
     private const string LauncherUpdateRequestMarker = "1";
     private static readonly TimeSpan LauncherUpdateCheckInterval = TimeSpan.FromSeconds(30);
+    private static readonly StringComparer AddonNameComparer =
+        StringComparer.Create(CultureInfo.GetCultureInfo("fr-FR"), ignoreCase: true);
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -610,7 +612,9 @@ public partial class MainWindow : Window
 
         var inspections = AddonInstallServices.Inspect(_addonCatalog, _settings.InstallPath);
         _allAddonItems.Clear();
-        foreach (var package in _addonCatalog.Addons)
+        foreach (var package in _addonCatalog.Addons
+                     .OrderBy(package => package.Name, AddonNameComparer)
+                     .ThenBy(package => package.Id, StringComparer.OrdinalIgnoreCase))
         {
             var item = new AddonSelectionItem(package);
             if (inspections.TryGetValue(package.Id, out var inspection))

@@ -24,7 +24,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Test-AddonPackages.ps1
 
 Le catalogue fige des versions testees declarant l'interface `30403`:
 
-- WeakAuras 5.13.1
+- WeakAuras 5.12.8 (derniere version compatible WotLK Classic 3.4.3)
 - ElvUI 13.61
 - Questie 10.19.2
 - Deadly Boss Mods 11.0.34 avec les modules Vanilla, Burning Crusade et WotLK

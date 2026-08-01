@@ -106,9 +106,9 @@ function Assert-ZipRoots([string]$ArchivePath, [string[]]$ExpectedRoots) {
 $sources = @(
     [ordered]@{
         Id = 'weakauras'
-        File = 'WeakAuras-5.13.1.zip'
-        Url = 'https://github.com/WeakAuras/WeakAuras2/releases/download/5.13.1/WeakAuras-5.13.1.zip'
-        Sha256 = '2164b8e4f0254f13e6b54044d5d5b358bc04fb4823ba8ff4a59b262052ac03d4'
+        File = 'WeakAuras-5.12.8.zip'
+        Url = 'https://github.com/WeakAuras/WeakAuras2/releases/download/5.12.8/WeakAuras-5.12.8.zip'
+        Sha256 = '11b1e50ee43fb99685cb53312a1cb6dfd5c0f8299befb47137f79a2bd2889746'
     },
     [ordered]@{
         Id = 'questie'
@@ -251,7 +251,7 @@ foreach ($source in $sources | Where-Object {
 }) {
     Expand-Zip (Join-Path $downloadDirectory $source.File) (Join-Path $extractDirectory $source.Id)
 }
-Expand-Zip (Join-Path $downloadDirectory 'WeakAuras-5.13.1.zip') (Join-Path $extractDirectory 'weakauras')
+Expand-Zip (Join-Path $downloadDirectory 'WeakAuras-5.12.8.zip') (Join-Path $extractDirectory 'weakauras')
 
 foreach ($folder in @('DBM-Core', 'DBM-GUI', 'DBM-StatusBarTimers', 'DBM-VPVEM')) {
     Copy-Folder (Join-Path (Join-Path $extractDirectory 'dbm-core-source') $folder) (Join-Path $dbmCorePackageDirectory $folder)
@@ -343,7 +343,7 @@ $dbmCoreArchive = Join-Path $publicPackagesDirectory 'DBM-Core-11.0.34-wotlk-304
 [System.IO.Compression.ZipFile]::CreateFromDirectory($overlayDirectory, $elvuiOverlayArchive, [System.IO.Compression.CompressionLevel]::Optimal, $false)
 [System.IO.Compression.ZipFile]::CreateFromDirectory($dbmCorePackageDirectory, $dbmCoreArchive, [System.IO.Compression.CompressionLevel]::Optimal, $false)
 
-$weakAurasArchive = Join-Path $downloadDirectory 'WeakAuras-5.13.1.zip'
+$weakAurasArchive = Join-Path $downloadDirectory 'WeakAuras-5.12.8.zip'
 $questieArchive = Join-Path $downloadDirectory 'Questie-v10.19.2.zip'
 $elvuiSourceArchive = Join-Path $downloadDirectory 'v13.61.zip'
 $dbmWotlkArchive = Join-Path $downloadDirectory 'DBM-Raids-WoTLK-r337.zip'
@@ -389,16 +389,16 @@ $packageDefinitions = @(
         id = 'weakauras'
         name = 'WeakAuras'
         description = [System.Text.RegularExpressions.Regex]::Unescape("Auras, alertes et \u00e9l\u00e9ments d'interface personnalisables.")
-        version = '5.13.1'
+        version = '5.12.8'
         interface = '30403'
         archive = $weakAurasArchive
-        url = 'https://github.com/WeakAuras/WeakAuras2/releases/download/5.13.1/WeakAuras-5.13.1.zip'
+        url = 'https://github.com/WeakAuras/WeakAuras2/releases/download/5.12.8/WeakAuras-5.12.8.zip'
         installHash = $weakAurasSha256
         stripPrefix = ''
         components = @()
         tokenReplacements = [ordered]@{}
         folders = @('WeakAuras', 'WeakAurasArchive', 'WeakAurasModelPaths', 'WeakAurasOptions', 'WeakAurasTemplates')
-        sourceUrl = 'https://github.com/WeakAuras/WeakAuras2/releases/tag/5.13.1'
+        sourceUrl = 'https://github.com/WeakAuras/WeakAuras2/releases/tag/5.12.8'
     },
     [ordered]@{
         id = 'elvui'

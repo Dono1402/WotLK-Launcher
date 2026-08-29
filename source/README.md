@@ -31,6 +31,7 @@ Le catalogue fige des versions testees declarant l'interface `30403`:
 - Details! 20250119.13388.161
 - AtlasLootClassic 3.2.0
 - Auctionator 10.2.0-wrath
+- Leatrix Maps 3.0.191
 - Leatrix Plus 3.0.191
 - Nova Instance Tracker 1.55-Wrath
 - Attune WOTLK-314

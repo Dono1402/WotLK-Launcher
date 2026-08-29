@@ -195,6 +195,12 @@ $sources = @(
         Sha256 = '233067de2af6d770895b7329975dc0c2b4379f4ae31123780f833a6c09acc5c3'
     },
     [ordered]@{
+        Id = 'leatrix-maps'
+        File = 'Leatrix_Maps-3.0.191.zip'
+        Url = 'https://edge.forgecdn.net/files/5275/301/Leatrix_Maps-3.0.191.zip'
+        Sha256 = 'ddcc5d5391df1362cd8dd7b18a1fc5d89185a7881d07828f63fbeb37ee9481a3'
+    },
+    [ordered]@{
         Id = 'nova-instance-tracker'
         File = 'NovaInstanceTracker-v1.55-Wrath.zip'
         Url = 'https://edge.forgecdn.net/files/5292/821/NovaInstanceTracker-v1.55-Wrath.zip'
@@ -353,6 +359,7 @@ $detailsArchive = Join-Path $downloadDirectory 'Details-Details.20250119.13388.1
 $atlasLootArchive = Join-Path $downloadDirectory 'AtlasLootClassic-v3.2.0.zip'
 $auctionatorArchive = Join-Path $downloadDirectory 'Auctionator-10.2.0-wrath.zip'
 $leatrixPlusArchive = Join-Path $downloadDirectory 'Leatrix_Plus-3.0.191.zip'
+$leatrixMapsArchive = Join-Path $downloadDirectory 'Leatrix_Maps-3.0.191.zip'
 $novaInstanceTrackerArchive = Join-Path $downloadDirectory 'NovaInstanceTracker-v1.55-Wrath.zip'
 $attuneArchive = Join-Path $downloadDirectory 'Attune-WOTLK-314.zip'
 $baganatorArchive = Join-Path $downloadDirectory 'Baganator-158-wrath.zip'
@@ -369,6 +376,7 @@ Assert-ZipRoots $detailsArchive @('Details', 'Details_Compare2', 'Details_DataSt
 Assert-ZipRoots $atlasLootArchive @('AtlasLootClassic', 'AtlasLootClassic_Collections', 'AtlasLootClassic_Crafting', 'AtlasLootClassic_Data', 'AtlasLootClassic_DungeonsAndRaids', 'AtlasLootClassic_Factions', 'AtlasLootClassic_Options', 'AtlasLootClassic_PvP')
 Assert-ZipRoots $auctionatorArchive @('Auctionator')
 Assert-ZipRoots $leatrixPlusArchive @('Leatrix_Plus')
+Assert-ZipRoots $leatrixMapsArchive @('Leatrix_Maps')
 Assert-ZipRoots $novaInstanceTrackerArchive @('NovaInstanceTracker')
 Assert-ZipRoots $attuneArchive @('Attune')
 Assert-ZipRoots $baganatorArchive @('Baganator')
@@ -535,6 +543,21 @@ $packageDefinitions = @(
         sourceUrl = 'https://www.curseforge.com/wow/addons/auctionator/files/4869540'
     },
     [ordered]@{
+        id = 'leatrix-maps'
+        name = 'Leatrix Maps'
+        description = [System.Text.RegularExpressions.Regex]::Unescape('Carte du monde am\u00e9lior\u00e9e avec exploration, coordonn\u00e9es, redimensionnement et options de navigation.')
+        version = '3.0.191'
+        interface = '30403'
+        archive = $leatrixMapsArchive
+        url = 'https://edge.forgecdn.net/files/5275/301/Leatrix_Maps-3.0.191.zip'
+        installHash = Get-Sha256 $leatrixMapsArchive
+        stripPrefix = ''
+        components = @()
+        tokenReplacements = [ordered]@{}
+        folders = @('Leatrix_Maps')
+        sourceUrl = 'https://www.curseforge.com/wow/addons/leatrix-maps/files/5275301'
+    },
+    [ordered]@{
         id = 'leatrix-plus'
         name = 'Leatrix Plus'
         description = [System.Text.RegularExpressions.Regex]::Unescape('Am\u00e9liorations de confort, automatisations et r\u00e9glages pratiques du client.')
@@ -604,6 +627,7 @@ $addonCategories = @{
     'details' = 'Combat'
     'atlaslootclassic' = 'Collections'
     'auctionator' = 'Économie'
+    'leatrix-maps' = 'Interface'
     'leatrix-plus' = 'Interface'
     'nova-instance-tracker' = 'Instances'
     'attune' = 'Quêtes'

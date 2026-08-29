@@ -59,6 +59,7 @@ publish_tree() {
   stage="$(mktemp -d "$parent/.${name}-stage-XXXXXX")"
   previous="$parent/.${name}-previous-$timestamp"
 
+  chmod 0755 "$stage"
   install -d -m 0755 "$stage/packages"
   install -m 0644 "$input_root/catalog.json" "$stage/catalog.json"
   if [ -f "$input_root/SOURCES.json" ]; then

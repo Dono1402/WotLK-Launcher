@@ -100,11 +100,6 @@ internal static partial class AddonInstallServices
             throw new InvalidOperationException("Installe d'abord le client WotLK avant de gérer ses addons.");
         }
 
-        if (GameInstallServices.IsGameRunning(installRoot))
-        {
-            throw new InvalidOperationException("Ferme World of Warcraft avant de modifier les addons.");
-        }
-
         var addonsDirectory = GetAddonsDirectory(installRoot);
         Directory.CreateDirectory(addonsDirectory);
         var state = LoadState(addonsDirectory);

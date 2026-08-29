@@ -476,8 +476,13 @@ public partial class MainWindow : Window
             PopulateAddonItemsFromState();
             AddonProgress.Value = 100;
             AddonProgressText.Text = "Terminé";
-            AddonStatusText.Text = "Sélection appliquée";
-            AppendLog("Configuration des addons terminée.");
+            var gameIsRunning = GameInstallServices.IsGameRunning(_settings.InstallPath);
+            AddonStatusText.Text = gameIsRunning
+                ? "Addons prêts - /reload en jeu"
+                : "Sélection appliquée";
+            AppendLog(gameIsRunning
+                ? "Configuration des addons terminée. Utilise /reload dans le jeu."
+                : "Configuration des addons terminée.");
         }
         catch (OperationCanceledException)
         {

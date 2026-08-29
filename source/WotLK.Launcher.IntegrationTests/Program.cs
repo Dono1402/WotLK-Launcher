@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -184,6 +185,7 @@ await File.WriteAllTextAsync(
     Path.Combine(customAddonDirectory, "AtlasUserAddon.toc"),
     "## Interface: 30403\n## Title: Atlas user addon\n");
 
+Process? simulatedGame = null;
 try
 {
     using LauncherAuthService? auth = live ? new LauncherAuthService() : null;
@@ -207,6 +209,26 @@ try
     var selectAll = catalog.Addons.ToDictionary(addon => addon.Id, _ => true, StringComparer.OrdinalIgnoreCase);
     var expectedArchiveRequests = catalog.Addons.Count + catalog.Addons.Sum(addon => addon.Components.Count);
 
+    if (OperatingSystem.IsWindows())
+    {
+        var wowExecutable = Path.Combine(classicDirectory, "WowClassic.exe");
+        var commandProcessor = Environment.GetEnvironmentVariable("ComSpec")
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
+        File.Copy(commandProcessor, wowExecutable, overwrite: true);
+        simulatedGame = Process.Start(new ProcessStartInfo
+        {
+            FileName = wowExecutable,
+            Arguments = "/d /c ping 127.0.0.1 -n 120 > nul",
+            UseShellExecute = false,
+            CreateNoWindow = true
+        });
+        Assert(simulatedGame is not null, "Le faux processus WoW n'a pas pu démarrer.");
+        await Task.Delay(250);
+        Assert(
+            GameInstallServices.IsGameRunning(testRoot),
+            "Le test doit détecter le faux client WoW ouvert.");
+    }
+
     await AddonInstallServices.ApplySelectionAsync(
         http,
         catalog,
@@ -220,6 +242,9 @@ try
     {
         Assert(handler.RequestCount == expectedArchiveRequests, "Chaque archive doit etre telechargee une fois.");
     }
+    Assert(
+        simulatedGame is null || !simulatedGame.HasExited,
+        "L'installation des addons ne doit pas fermer le jeu en cours.");
     foreach (var addon in catalog.Addons)
     {
         foreach (var folder in addon.Folders)
@@ -275,6 +300,13 @@ try
 }
 finally
 {
+    if (simulatedGame is { HasExited: false })
+    {
+        simulatedGame.Kill(entireProcessTree: true);
+        simulatedGame.WaitForExit(5_000);
+    }
+    simulatedGame?.Dispose();
+
     if (Directory.Exists(testRoot))
     {
         Directory.Delete(testRoot, recursive: true);

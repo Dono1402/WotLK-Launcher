@@ -3,6 +3,13 @@
     <FontFamily x:Key="AtlasV2.Font.Manrope">pack://application:,,,/WotLK.Launcher;component/Assets/Fonts/#Manrope</FontFamily>
 
     <SolidColorBrush x:Key="AtlasV2.Brush.Window" Color="#090C10"/>
+    <LinearGradientBrush x:Key="AtlasV2.Brush.WindowAmbient"
+                         StartPoint="0,0"
+                         EndPoint="1,1">
+        <GradientStop Offset="0" Color="#FF0A0E13"/>
+        <GradientStop Offset="0.58" Color="#FF0C1219"/>
+        <GradientStop Offset="1" Color="#FF090C10"/>
+    </LinearGradientBrush>
     <SolidColorBrush x:Key="AtlasV2.Brush.TopBar" Color="#0D1116"/>
     <SolidColorBrush x:Key="AtlasV2.Brush.Surface" Color="#12171D"/>
     <SolidColorBrush x:Key="AtlasV2.Brush.SurfaceRaised" Color="#181E25"/>
@@ -19,7 +26,7 @@
     <SolidColorBrush x:Key="AtlasV2.Brush.Cyan" Color="#61D5E8"/>
     <SolidColorBrush x:Key="AtlasV2.Brush.Success" Color="#51D7A2"/>
     <SolidColorBrush x:Key="AtlasV2.Brush.Danger" Color="#EE6571"/>
-    <SolidColorBrush x:Key="AtlasV2.Brush.Scrim" Color="#B805080B"/>
+    <SolidColorBrush x:Key="AtlasV2.Brush.Scrim" Color="#9905080B"/>
 
     <Style x:Key="AtlasV2.Text.Body" TargetType="{x:Type TextBlock}">
         <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Manrope}"/>

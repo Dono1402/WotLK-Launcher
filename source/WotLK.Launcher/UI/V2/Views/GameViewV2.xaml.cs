@@ -48,44 +48,49 @@ public partial class GameViewV2 : UserControl
             return;
         }
 
-        bool stacked = mode == AdaptiveLayoutMode.Stacked;
         ContentFrame.Margin = mode switch
         {
-            AdaptiveLayoutMode.Wide => new Thickness(34, 26, 34, 34),
-            AdaptiveLayoutMode.Compact => new Thickness(26, 22, 26, 32),
-            _ => new Thickness(20, 18, 20, 30)
+            AdaptiveLayoutMode.Wide => new Thickness(34, 22, 34, 30),
+            AdaptiveLayoutMode.Compact => new Thickness(26, 18, 26, 26),
+            _ => new Thickness(20, 16, 20, 24)
         };
-        HeroCard.Height = stacked ? 284 : 300;
-        HeroCopyPanel.Padding = stacked
-            ? new Thickness(32, 26, 32, 26)
-            : new Thickness(44, 32, 44, 32);
-        HeroTitle.FontSize = stacked ? 34 : mode == AdaptiveLayoutMode.Compact ? 36 : 38;
+        HeroCard.Height = mode switch
+        {
+            AdaptiveLayoutMode.Wide => 296,
+            AdaptiveLayoutMode.Compact => 280,
+            _ => 276
+        };
+        HeroCopyPanel.Padding = mode switch
+        {
+            AdaptiveLayoutMode.Wide => new Thickness(44, 30, 44, 30),
+            AdaptiveLayoutMode.Compact => new Thickness(38, 28, 38, 28),
+            _ => new Thickness(32, 26, 32, 26)
+        };
+        HeroTitle.FontSize = mode switch
+        {
+            AdaptiveLayoutMode.Wide => 38,
+            AdaptiveLayoutMode.Compact => 36,
+            _ => 34
+        };
+        HeroArtwork.Width = mode switch
+        {
+            AdaptiveLayoutMode.Wide => 940,
+            AdaptiveLayoutMode.Compact => 860,
+            _ => 820
+        };
+        HeroArtwork.Margin = mode switch
+        {
+            AdaptiveLayoutMode.Wide => new Thickness(0, 0, 56, 0),
+            AdaptiveLayoutMode.Compact => new Thickness(0, 0, 32, 0),
+            _ => new Thickness(0, 0, 20, 0)
+        };
 
-        if (stacked)
-        {
-            NewsColumn.Width = new GridLength(1, GridUnitType.Star);
-            CardGapColumn.Width = new GridLength(0);
-            InstallColumn.Width = new GridLength(0);
-            FirstCardRow.Height = GridLength.Auto;
-            CardGapRow.Height = new GridLength(20);
-            SecondCardRow.Height = GridLength.Auto;
-            Grid.SetRow(NewsCard, 0);
-            Grid.SetColumn(NewsCard, 0);
-            Grid.SetRow(InstallCard, 2);
-            Grid.SetColumn(InstallCard, 0);
-        }
-        else
-        {
-            NewsColumn.Width = new GridLength(2, GridUnitType.Star);
-            CardGapColumn.Width = new GridLength(24);
-            InstallColumn.Width = new GridLength(1, GridUnitType.Star);
-            FirstCardRow.Height = GridLength.Auto;
-            CardGapRow.Height = new GridLength(0);
-            SecondCardRow.Height = new GridLength(0);
-            Grid.SetRow(NewsCard, 0);
-            Grid.SetColumn(NewsCard, 0);
-            Grid.SetRow(InstallCard, 0);
-            Grid.SetColumn(InstallCard, 2);
-        }
+        NewsColumn.Width = new GridLength(1, GridUnitType.Star);
+        CardGapColumn.Width = new GridLength(20);
+        InstallColumn.Width = new GridLength(mode == AdaptiveLayoutMode.Wide ? 360 : 340);
+        Grid.SetRow(NewsCard, 0);
+        Grid.SetColumn(NewsCard, 0);
+        Grid.SetRow(InstallCard, 0);
+        Grid.SetColumn(InstallCard, 2);
     }
 }

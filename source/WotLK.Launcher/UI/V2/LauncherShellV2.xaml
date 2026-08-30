@@ -26,7 +26,7 @@
                             UseAeroCaptionButtons="False"/>
     </shell:WindowChrome.WindowChrome>
 
-    <Border Background="{StaticResource AtlasV2.Brush.Window}"
+    <Border Background="{StaticResource AtlasV2.Brush.WindowAmbient}"
             BorderBrush="#3A444F"
             BorderThickness="1"
             TextElement.FontFamily="{StaticResource AtlasV2.Font.Manrope}">
@@ -50,21 +50,21 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <Grid Grid.Column="0" Margin="18,0,12,0" VerticalAlignment="Center">
+                    <Grid Grid.Column="0" Margin="20,0,14,0" VerticalAlignment="Center">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="32"/>
+                            <ColumnDefinition Width="34"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Image Width="28"
-                               Height="28"
+                        <Image Width="30"
+                               Height="30"
                                Source="/WotLK.Launcher;component/Assets/Branding/AtlasLauncherLogo.png"
                                Stretch="Uniform"/>
                         <TextBlock Grid.Column="1"
                                    Margin="10,0,0,0"
                                    VerticalAlignment="Center"
-                                   Text="ATLAS LAUNCHER"
+                                   Text="Atlas Launcher"
                                    Style="{StaticResource AtlasV2.Text.Body}"
                                    FontWeight="Bold"
                                    Foreground="{StaticResource AtlasV2.Brush.Text}"/>
@@ -87,13 +87,13 @@
                                 Orientation="Horizontal">
                         <Button Style="{StaticResource AtlasV2.Button.Nav}"
                                 Tag="Active"
-                                Content="JEU"
+                                Content="Jeu"
                                 Focusable="False"/>
                         <Button Style="{StaticResource AtlasV2.Button.Nav}"
-                                Content="ADDONS"
+                                Content="Addons"
                                 Focusable="False"/>
                         <Button Style="{StaticResource AtlasV2.Button.Nav}"
-                                Content="ACTUALITÉS"
+                                Content="Actualités"
                                 Focusable="False"/>
                     </StackPanel>
 
@@ -101,7 +101,7 @@
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center">
                         <Border x:Name="RealmStatusChip"
-                                Height="38"
+                                Height="36"
                                 Margin="0,0,8,0"
                                 Padding="11,0"
                                 Background="{StaticResource AtlasV2.Brush.Surface}"
@@ -137,7 +137,7 @@
                                 <TextBlock x:Name="FriendsButtonText"
                                            Margin="8,0,0,0"
                                            VerticalAlignment="Center"
-                                           Text="AMIS"
+                                           Text="Amis"
                                            FontWeight="SemiBold"/>
                             </StackPanel>
                         </Button>

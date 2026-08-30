@@ -60,11 +60,15 @@ public partial class LauncherShellV2 : Window
         AdaptiveLayoutMode mode = AdaptiveLayoutClassifier.FromWidth(ActualWidth);
         ShellState.LayoutMode = mode;
 
+        bool wide = mode == AdaptiveLayoutMode.Wide;
         bool stacked = mode == AdaptiveLayoutMode.Stacked;
-        ProductGameName.Visibility = stacked ? Visibility.Collapsed : Visibility.Visible;
-        ProductDivider.Visibility = stacked ? Visibility.Collapsed : Visibility.Visible;
+        ProductGameName.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
+        ProductDivider.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
         FriendsButtonText.Visibility = stacked ? Visibility.Collapsed : Visibility.Visible;
         VersionText.Visibility = stacked ? Visibility.Collapsed : Visibility.Visible;
+        RealmStatusText.SetCurrentValue(
+            TextBlock.TextProperty,
+            wide ? $"Arthas {ShellState.RealmStatus.ToLowerInvariant()}" : ShellState.RealmStatus);
         TopNavigation.Margin = mode == AdaptiveLayoutMode.Wide
             ? new Thickness(8, 0, 0, 0)
             : new Thickness(0);

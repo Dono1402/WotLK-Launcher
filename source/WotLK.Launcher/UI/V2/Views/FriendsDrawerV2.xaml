@@ -88,11 +88,16 @@
                 <ScrollViewer Grid.Row="2"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer.Resources>
+                        <Style TargetType="{x:Type ScrollBar}"
+                               BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/>
+                    </ScrollViewer.Resources>
                     <ItemsControl ItemsSource="{Binding State.Friends, ElementName=Root}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Margin="0,0,0,10"
-                                        Padding="13"
+                                <Border Height="92"
+                                        Margin="0,0,0,8"
+                                        Padding="12"
                                         Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
                                         BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
                                         BorderThickness="1"
@@ -103,12 +108,12 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <Border Width="38"
-                                                Height="38"
+                                        <Border Width="36"
+                                                Height="36"
                                                 HorizontalAlignment="Left"
                                                 VerticalAlignment="Center"
                                                 Background="#D6A94E"
-                                                CornerRadius="19">
+                                                CornerRadius="18">
                                             <TextBlock HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
                                                        Text="{Binding Initial}"
@@ -124,14 +129,14 @@
                                                        Style="{StaticResource AtlasV2.Text.Body}"
                                                        FontWeight="SemiBold"
                                                        Foreground="{StaticResource AtlasV2.Brush.Text}"/>
-                                            <TextBlock Margin="0,3,0,0"
+                                            <TextBlock Margin="0,2,0,0"
                                                        Text="{Binding CharacterName}"
                                                        Style="{StaticResource AtlasV2.Text.Caption}"
                                                        Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
-                                            <TextBlock Margin="0,2,0,0"
+                                            <TextBlock Margin="0,1,0,0"
                                                        Text="{Binding CharacterDetails}"
                                                        Style="{StaticResource AtlasV2.Text.Caption}"/>
-                                            <TextBlock Margin="0,5,0,0"
+                                            <TextBlock Margin="0,3,0,0"
                                                        Text="{Binding PresenceText}"
                                                        Style="{StaticResource AtlasV2.Text.Caption}"/>
                                         </StackPanel>
@@ -161,7 +166,7 @@
                 <Button Grid.Row="3"
                         Margin="0,12,0,0"
                         Style="{StaticResource AtlasV2.Button.Secondary}"
-                        Content="GÉRER MES AMIS"
+                        Content="Gérer mes amis"
                         AutomationProperties.Name="Gérer mes amis"/>
             </Grid>
         </Border>

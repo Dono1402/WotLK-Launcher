@@ -22,7 +22,7 @@ public sealed class GameUiState : BindableUiState
 
     public double Progress { get; init; } = 100;
 
-    public string NewsCategory { get; init; } = "DERNIER PATCH NOTE";
+    public string NewsCategory { get; init; } = "DERNIÈRE NOTE DE MISE À JOUR";
 
     public string NewsVersion { get; init; } = "v1.1.0";
 

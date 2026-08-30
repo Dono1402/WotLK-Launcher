@@ -391,7 +391,7 @@
                                             <ColumnDefinition Width="6"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding IsVerifyEnabled}" AutomationProperties.Name="Vérifier le client">
+                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding IsVerifyEnabled}" Command="{Binding VerifyCommand}" AutomationProperties.Name="Vérifier le client">
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Width="13" Height="13" Margin="0,0,6,0" Data="{StaticResource AtlasV2.Icon.Check}" Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="{StaticResource AtlasV2.Brush.Cyan}"/>
                                                 <TextBlock VerticalAlignment="Center" Text="Vérifier"/>
@@ -499,7 +499,7 @@
                                             <ColumnDefinition Width="6"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding IsVerifyEnabled}" AutomationProperties.Name="Vérifier le client">
+                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding IsVerifyEnabled}" Command="{Binding VerifyCommand}" AutomationProperties.Name="Vérifier le client">
                                             <TextBlock Text="Vérifier"/>
                                         </Button>
                                         <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" Command="{Binding OpenGameFolderCommand}" AutomationProperties.Name="Ouvrir le dossier du client">

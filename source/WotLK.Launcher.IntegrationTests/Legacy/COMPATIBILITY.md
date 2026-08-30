@@ -34,6 +34,25 @@ not implemented in 02A.0. Their clarified contracts apply to the later checkpoin
   repair them. This preserves the v1.1.0 path behavior while the legacy window
   remains the default.
 
+## Client verification extraction (02C)
+
+- `LoadManifestAsync` now delegates to `GameManifestClient`; the authorized
+  `HttpClient`, URL, JSON options and HTTP failure behavior are unchanged.
+- `Load/SaveInstalledManifestHistory` now delegate to
+  `InstalledManifestStore`, retaining `client-manifest-cache.json`, UTF-8
+  without BOM, the same ignored read failures and the existing write check.
+- `FindMissingOrChanged*`, `CompareManifestFiles` and the SHA-256 loop now live
+  in `GameFileVerifier`. `MainWindow` keeps thin wrappers for the unchanged
+  install/update pipeline.
+- The fast cache deliberately still compares remote metadata with cached
+  metadata without proving that each local file exists. The installed-version
+  shortcut also remains. Exhaustive manual rehashing belongs to 02C.1.
+- `GameVerificationCoordinator` is only a non-queuing, single-flight guard for
+  verification. It has no user cancellation API and uses only the runtime
+  lifetime token. Its compatibility role is replaced by the global operation
+  lease introduced atomically in 02D.0; it must not be expanded to addons,
+  downloads or launcher auto-update.
+
 ## Locked contracts for later checkpoints
 
 - `TryBegin` returns immediately with `Started`, `Busy`, `ShuttingDown` or

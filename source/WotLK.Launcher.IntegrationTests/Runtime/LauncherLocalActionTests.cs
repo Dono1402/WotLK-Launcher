@@ -386,7 +386,11 @@ internal static class LauncherLocalActionTests
                 True(diagnosticButtons.All(button => button.IsEnabled), "Diagnostic réel doit être exécutable avant l'arrêt.");
 
                 List<Button> verifyButtons = FindButtons(buttons, "Vérifier le client");
-                True(verifyButtons.All(button => !button.IsEnabled && button.Command is null), "Vérifier doit rester sans commande réelle.");
+                True(
+                    verifyButtons.All(button =>
+                        !button.IsEnabled
+                        && ReferenceEquals(button.Command, gameState.VerifyCommand)),
+                    "Sans coordinateur 02C, Vérifier doit conserver sa commande désactivée.");
                 Button primary = FindButtons(buttons, "Jouer").Single();
                 Button options = FindButtons(buttons, "Options").Single();
                 True(!primary.IsEnabled && primary.Command is null, "Jouer doit rester désactivé et non reconnecté.");

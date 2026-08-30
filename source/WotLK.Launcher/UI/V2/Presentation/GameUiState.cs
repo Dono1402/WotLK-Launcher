@@ -26,13 +26,36 @@ public enum GameSemanticTone
 
 public sealed class GameUiState : BindableUiState
 {
+    private GamePreviewScenario _scenario = GamePreviewScenario.Ready;
+    private GameSemanticTone _semanticTone = GameSemanticTone.Success;
+    private string _clientStatus = "Client prêt";
+    private string _primaryActionLabel = "Jouer";
+    private bool _isPrimaryActionEnabled = true;
+    private bool _isVerifyEnabled = true;
+    private string _installBadgeText = "À jour";
+    private string _availableClientVersion = string.Empty;
+    private bool _isClientReady = true;
+    private double _progress = 100;
+    private bool _isProgressIndeterminate;
+    private string _progressTitle = string.Empty;
+    private string _progressPercentText = string.Empty;
+    private string _progressPrimaryDetail = string.Empty;
+    private string _progressSecondaryDetail = string.Empty;
     private string _notificationMessage = string.Empty;
     private GameSemanticTone _notificationTone = GameSemanticTone.Neutral;
     private bool _showsNotification;
 
-    public GamePreviewScenario Scenario { get; init; } = GamePreviewScenario.Ready;
+    public GamePreviewScenario Scenario
+    {
+        get => _scenario;
+        init => _scenario = value;
+    }
 
-    public GameSemanticTone SemanticTone { get; init; } = GameSemanticTone.Success;
+    public GameSemanticTone SemanticTone
+    {
+        get => _semanticTone;
+        init => _semanticTone = value;
+    }
 
     public string RealmLabel { get; init; } = "ROYAUME ARTHAS";
 
@@ -42,15 +65,31 @@ public sealed class GameUiState : BindableUiState
 
     public string RealmStatus { get; init; } = "Royaume en ligne";
 
-    public string ClientStatus { get; init; } = "Client prêt";
+    public string ClientStatus
+    {
+        get => _clientStatus;
+        init => _clientStatus = value;
+    }
 
-    public string PrimaryActionLabel { get; init; } = "Jouer";
+    public string PrimaryActionLabel
+    {
+        get => _primaryActionLabel;
+        init => _primaryActionLabel = value;
+    }
 
-    public bool IsPrimaryActionEnabled { get; init; } = true;
+    public bool IsPrimaryActionEnabled
+    {
+        get => _isPrimaryActionEnabled;
+        init => _isPrimaryActionEnabled = value;
+    }
 
     public bool IsOptionsEnabled { get; init; } = true;
 
-    public bool IsVerifyEnabled { get; init; } = true;
+    public bool IsVerifyEnabled
+    {
+        get => _isVerifyEnabled;
+        init => _isVerifyEnabled = value;
+    }
 
     public bool IsRetryEnabled { get; init; } = true;
 
@@ -58,29 +97,67 @@ public sealed class GameUiState : BindableUiState
 
     public ICommand OpenDiagnosticCommand { get; private set; } = DisabledCommand.Instance;
 
-    public string InstallBadgeText { get; init; } = "À jour";
+    public ICommand VerifyCommand { get; private set; } = DisabledCommand.Instance;
+
+    public string InstallBadgeText
+    {
+        get => _installBadgeText;
+        init => _installBadgeText = value;
+    }
 
     public string ClientVersion { get; init; } = "3.4.3.54261";
 
-    public string AvailableClientVersion { get; init; } = string.Empty;
+    public string AvailableClientVersion
+    {
+        get => _availableClientVersion;
+        init => _availableClientVersion = value;
+    }
 
     public string InstallPath { get; init; } = @"C:\Program Files (x86)\WotLK";
 
     public string Language { get; init; } = "Français";
 
-    public bool IsClientReady { get; init; } = true;
+    public bool IsClientReady
+    {
+        get => _isClientReady;
+        init => _isClientReady = value;
+    }
 
-    public double Progress { get; init; } = 100;
+    public double Progress
+    {
+        get => _progress;
+        init => _progress = value;
+    }
 
-    public bool IsProgressIndeterminate { get; init; }
+    public bool IsProgressIndeterminate
+    {
+        get => _isProgressIndeterminate;
+        init => _isProgressIndeterminate = value;
+    }
 
-    public string ProgressTitle { get; init; } = string.Empty;
+    public string ProgressTitle
+    {
+        get => _progressTitle;
+        init => _progressTitle = value;
+    }
 
-    public string ProgressPercentText { get; init; } = string.Empty;
+    public string ProgressPercentText
+    {
+        get => _progressPercentText;
+        init => _progressPercentText = value;
+    }
 
-    public string ProgressPrimaryDetail { get; init; } = string.Empty;
+    public string ProgressPrimaryDetail
+    {
+        get => _progressPrimaryDetail;
+        init => _progressPrimaryDetail = value;
+    }
 
-    public string ProgressSecondaryDetail { get; init; } = string.Empty;
+    public string ProgressSecondaryDetail
+    {
+        get => _progressSecondaryDetail;
+        init => _progressSecondaryDetail = value;
+    }
 
     public string ErrorTitle { get; init; } = string.Empty;
 
@@ -121,6 +198,33 @@ public sealed class GameUiState : BindableUiState
         OpenDiagnosticCommand = openDiagnostic ?? throw new ArgumentNullException(nameof(openDiagnostic));
         RaisePropertyChanged(nameof(OpenGameFolderCommand));
         RaisePropertyChanged(nameof(OpenDiagnosticCommand));
+    }
+
+    internal void AttachVerifyCommand(ICommand verifyCommand)
+    {
+        VerifyCommand = verifyCommand ?? throw new ArgumentNullException(nameof(verifyCommand));
+        RaisePropertyChanged(nameof(VerifyCommand));
+    }
+
+    internal void ApplyRuntimeView(GameViewState viewState)
+    {
+        ArgumentNullException.ThrowIfNull(viewState);
+        _scenario = viewState.Scenario;
+        _semanticTone = viewState.SemanticTone;
+        _clientStatus = viewState.ClientStatus;
+        _primaryActionLabel = viewState.PrimaryActionLabel;
+        _isPrimaryActionEnabled = viewState.IsPrimaryActionEnabled;
+        _isVerifyEnabled = viewState.IsVerifyEnabled;
+        _installBadgeText = viewState.InstallBadgeText;
+        _availableClientVersion = viewState.AvailableClientVersion;
+        _isClientReady = viewState.IsClientReady;
+        _progress = viewState.Progress;
+        _isProgressIndeterminate = viewState.IsProgressIndeterminate;
+        _progressTitle = viewState.ProgressTitle;
+        _progressPercentText = viewState.ProgressPercentText;
+        _progressPrimaryDetail = viewState.ProgressPrimaryDetail;
+        _progressSecondaryDetail = viewState.ProgressSecondaryDetail;
+        RaisePropertyChanged(string.Empty);
     }
 
     internal void ShowNotification(string message, GameSemanticTone tone)

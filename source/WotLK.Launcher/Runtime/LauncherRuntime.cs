@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net.Http;
 using System.Reflection;
 using System.Text;
 using WotLK.Launcher.Game;
@@ -27,6 +28,30 @@ internal sealed class LauncherRuntimeDependencies
 
     internal TimeProvider LocalActionTimeProvider { get; init; } = TimeProvider.System;
 
+    internal Func<Func<string?>, HttpClient> CreateAuthorizedHttpClient { get; init; } =
+        static accessTokenProvider => new HttpClient(
+            new AtlasAuthorizationHandler(accessTokenProvider))
+        {
+            Timeout = TimeSpan.FromMinutes(30)
+        };
+
+    internal Func<HttpClient, GameClientStateReader, IGameClientVerificationService>
+        CreateGameVerificationService { get; init; } =
+        static (httpClient, stateReader) =>
+        {
+            InstalledManifestStore manifestStore = new();
+            GameFileVerifier verifier = new(manifestStore, stateReader);
+            return new GameClientVerificationService(
+                new GameManifestClient(httpClient),
+                verifier,
+                manifestStore);
+        };
+
+    internal Func<string, bool> HasPlayableClient { get; init; } =
+        GameInstallServices.HasPlayableClient;
+
+    internal TimeProvider VerificationTimeProvider { get; init; } = TimeProvider.System;
+
     internal static LauncherRuntimeDependencies CreateProduction()
     {
         return new LauncherRuntimeDependencies
@@ -37,6 +62,11 @@ internal sealed class LauncherRuntimeDependencies
             WriteRuntimeLog = WriteProductionLog,
             WriteLocalActionLog = WriteProductionLog,
             LocalShellService = LauncherShellService.CreateProduction(),
+            CreateAuthorizedHttpClient = static accessTokenProvider => new HttpClient(
+                new AtlasAuthorizationHandler(accessTokenProvider))
+            {
+                Timeout = TimeSpan.FromMinutes(30)
+            },
             GetLauncherVersion = static () =>
             {
                 Version? version = Assembly.GetExecutingAssembly().GetName().Version;
@@ -68,6 +98,7 @@ internal sealed class LauncherRuntime : IDisposable
     private readonly object _lifecycleSync = new();
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly ILauncherAuthService _authentication;
+    private readonly HttpClient _verificationHttpClient;
     private readonly LauncherSessionCoordinator _sessionCoordinator;
     private int _disposeState;
 
@@ -79,6 +110,21 @@ internal sealed class LauncherRuntime : IDisposable
         _authentication = dependencies.CreateAuthentication();
         LocalClient = dependencies.GameClientStateReader.Read(Settings);
         LauncherVersion = dependencies.GetLauncherVersion();
+        _verificationHttpClient = dependencies.CreateAuthorizedHttpClient(
+            () => _authentication.AccessToken);
+        IGameClientVerificationService verificationService =
+            dependencies.CreateGameVerificationService(
+                _verificationHttpClient,
+                dependencies.GameClientStateReader);
+        Verification = new GameVerificationCoordinator(
+            verificationService,
+            Settings,
+            LocalClient,
+            () => _authentication.IsAuthenticated,
+            _lifetimeCancellation.Token,
+            dependencies.WriteRuntimeLog,
+            dependencies.HasPlayableClient,
+            dependencies.VerificationTimeProvider);
         LocalActions = new LauncherLocalActionCoordinator(
             Settings,
             dependencies.GetLauncherLogPath(),
@@ -99,6 +145,8 @@ internal sealed class LauncherRuntime : IDisposable
 
     internal ILauncherLocalActions LocalActions { get; }
 
+    internal GameVerificationCoordinator Verification { get; }
+
     internal bool IsDisposed => Volatile.Read(ref _disposeState) != 0;
 
     internal static LauncherRuntime CreateProduction()
@@ -106,19 +154,28 @@ internal sealed class LauncherRuntime : IDisposable
         return new LauncherRuntime(LauncherRuntimeDependencies.CreateProduction());
     }
 
-    internal Task<LauncherSessionRestoreResult> InitializeAsync()
+    internal async Task<LauncherSessionRestoreResult> InitializeAsync()
     {
+        Task<LauncherSessionRestoreResult> restoreTask;
         lock (_lifecycleSync)
         {
             if (IsDisposed)
             {
-                return Task.FromResult(new LauncherSessionRestoreResult(
+                return new LauncherSessionRestoreResult(
                     LauncherSessionRestoreStatus.Cancelled,
-                    null));
+                    null);
             }
 
-            return _sessionCoordinator.RestoreOnceAsync();
+            restoreTask = _sessionCoordinator.RestoreOnceAsync();
         }
+
+        LauncherSessionRestoreResult result = await restoreTask.ConfigureAwait(false);
+        if (!IsDisposed)
+        {
+            Verification.RefreshAuthenticationAvailability();
+        }
+
+        return result;
     }
 
     public void Dispose()
@@ -132,7 +189,9 @@ internal sealed class LauncherRuntime : IDisposable
 
             Volatile.Write(ref _disposeState, 1);
             LocalActions.BeginShutdown();
+            Verification.BeginShutdown();
             _lifetimeCancellation.Cancel();
+            _verificationHttpClient.Dispose();
             _authentication.Dispose();
             _lifetimeCancellation.Dispose();
         }

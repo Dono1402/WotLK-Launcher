@@ -123,6 +123,12 @@ public partial class App : Application
             shellState,
             gameState,
             LauncherV2RuntimePresentation.CreateFriends());
+        GameVerificationCommand verificationCommand = new(runtime.Verification);
+        gameState.AttachVerifyCommand(verificationCommand.Command);
+        GameStateAdapter gameStateAdapter = new(
+            gameState,
+            runtime.Verification,
+            window.Dispatcher);
 
         RoutedEventHandler? loadedHandler = null;
         loadedHandler = async (_, _) =>
@@ -132,12 +138,18 @@ public partial class App : Application
             if (!runtime.IsDisposed && window.IsVisible)
             {
                 LauncherV2RuntimePresentation.ApplySession(shellState, result);
+                if (result.Status == LauncherSessionRestoreStatus.Restored)
+                {
+                    _ = runtime.Verification.TryStartVerification();
+                }
             }
         };
         window.Loaded += loadedHandler;
         window.Closed += (_, _) =>
         {
             window.Loaded -= loadedHandler;
+            verificationCommand.Dispose();
+            gameStateAdapter.Dispose();
             gameCommands.Dispose();
             gameState.ClearNotification();
             runtime.Dispose();

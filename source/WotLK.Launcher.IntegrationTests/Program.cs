@@ -32,6 +32,12 @@ if (args.Length == 1
 }
 
 if (args.Length == 1
+    && string.Equals(args[0], "--game-verification", StringComparison.OrdinalIgnoreCase))
+{
+    return await GameVerificationTests.RunAsync();
+}
+
+if (args.Length == 1
     && string.Equals(args[0], "--local-shell-windows-smoke", StringComparison.OrdinalIgnoreCase))
 {
     return LauncherLocalActionTests.RunWindowsSmoke();

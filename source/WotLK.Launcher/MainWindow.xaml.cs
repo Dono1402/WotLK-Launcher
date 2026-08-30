@@ -54,6 +54,10 @@ public partial class MainWindow : Window
     private readonly LegacyMainWindowDependencies _dependencies;
     private readonly ILegacyStartupObserver _startupObserver;
     private readonly GameClientStateReader _gameClientStateReader;
+    private readonly GameManifestClient _gameManifestClient;
+    private readonly InstalledManifestStore _installedManifestStore;
+    private readonly GameFileVerifier _gameFileVerifier;
+    private readonly GameClientVerificationService _gameVerificationService;
     private readonly ILauncherAuthService _auth;
     private readonly HttpClient _http;
     private readonly LauncherSettings _settings;
@@ -119,6 +123,15 @@ public partial class MainWindow : Window
 
         _settings = dependencies.LoadSettings();
         _startupObserver.Record(LegacyStartupEvent.SettingsLoaded);
+        _gameManifestClient = new GameManifestClient(_http);
+        _installedManifestStore = new InstalledManifestStore();
+        _gameFileVerifier = new GameFileVerifier(
+            _installedManifestStore,
+            _gameClientStateReader);
+        _gameVerificationService = new GameClientVerificationService(
+            _gameManifestClient,
+            _gameFileVerifier,
+            _installedManifestStore);
         dependencies.SaveSettings(_settings);
         _startupObserver.Record(LegacyStartupEvent.SettingsSaved);
         dependencies.PrepareGameDirectory(_settings.InstallPath);
@@ -1936,85 +1949,12 @@ public partial class MainWindow : Window
         {
             _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
             InstallPathBox.Text = _settings.InstallPath;
-
-            if (!GameInstallServices.HasPlayableClient(_settings.InstallPath))
-            {
-                SetGameAction(GameAction.Install);
-                if (!silentWhenUpToDate)
-                {
-                    SetStatus("Pret.");
-                    MainProgress.Value = 0;
-                    ProgressText.Text = string.Empty;
-                }
-                return;
-            }
-
-            if (GameInstallServices.IsGameRunning(_settings.InstallPath))
-            {
-                SetGameAction(GameAction.Play);
-                SetStatus("Jeu en cours.");
-                MainProgress.Value = 100;
-                ProgressText.Text = "Jeu en cours";
-                return;
-            }
-
-            if (!silentWhenUpToDate || _gameAction != GameAction.Update)
-            {
-                SetGameAction(GameAction.Play);
-            }
-            if (!silentWhenUpToDate)
-            {
-                SetStatus("Comparaison du manifeste...");
-            }
-            var manifest = await LoadManifestAsync(CancellationToken.None);
-            if (manifest.Files.Count == 0)
-            {
-                SetGameAction(GameAction.Play);
-                if (!silentWhenUpToDate)
-                {
-                    SetStatus("Pret.");
-                }
-                return;
-            }
-
-            var missingOrChanged = await FindMissingOrChangedFilesForManifestAsync(manifest, updateProgress: false, CancellationToken.None);
-            var removedFiles = FindRemovedFilesForManifest(manifest);
-            var changeCount = missingOrChanged.Count + removedFiles.Count;
-            if (changeCount == 0)
-            {
-                SaveInstalledManifestHistory(manifest);
-                _announcedGameUpdateVersion = null;
-                SetGameAction(GameAction.Play);
-                if (!silentWhenUpToDate)
-                {
-                    RegisterGameApplication(manifest.Version);
-                    SetStatus("Client a jour.");
-                    MainProgress.Value = 100;
-                    ProgressText.Text = "Client à jour";
-                }
-                else if (_gameAction == GameAction.Play)
-                {
-                    MainProgress.Value = 100;
-                    ProgressText.Text = "Client à jour";
-                }
-            }
-            else
-            {
-                SetGameAction(GameAction.Update);
-                SetStatus("Mise a jour disponible.");
-                ProgressText.Text = changeCount + " fichier(s)";
-
-                var gameUpdateKey = string.IsNullOrWhiteSpace(manifest.Version)
-                    ? changeCount.ToString(CultureInfo.InvariantCulture)
-                    : manifest.Version;
-                if (!string.Equals(_announcedGameUpdateVersion, gameUpdateKey, StringComparison.OrdinalIgnoreCase))
-                {
-                    _announcedGameUpdateVersion = gameUpdateKey;
-                    AppendLog(string.IsNullOrWhiteSpace(manifest.Version)
-                        ? $"Mise a jour jeu disponible: {changeCount} fichier(s)."
-                        : $"Mise a jour jeu disponible: {manifest.Version} ({changeCount} fichier(s)).");
-                }
-            }
+            GameClientVerificationResult result = await _gameVerificationService.VerifyAsync(
+                _settings,
+                reportFileProgress: false,
+                progress => ApplyLegacyVerificationProgress(progress, silentWhenUpToDate),
+                CancellationToken.None);
+            ApplyLegacyVerificationResult(result, silentWhenUpToDate);
         }
         catch (Exception ex)
         {
@@ -2032,106 +1972,119 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ApplyLegacyVerificationProgress(
+        GameVerificationProgress progress,
+        bool silentWhenUpToDate)
+    {
+        if (progress.Phase != GameVerificationPhase.LoadingManifest)
+        {
+            return;
+        }
+
+        if (!silentWhenUpToDate || _gameAction != GameAction.Update)
+        {
+            SetGameAction(GameAction.Play);
+        }
+
+        if (!silentWhenUpToDate)
+        {
+            SetStatus("Comparaison du manifeste...");
+        }
+    }
+
+    private void ApplyLegacyVerificationResult(
+        GameClientVerificationResult result,
+        bool silentWhenUpToDate)
+    {
+        switch (result.Outcome)
+        {
+            case GameVerificationOutcome.NotInstalled:
+                SetGameAction(GameAction.Install);
+                if (!silentWhenUpToDate)
+                {
+                    SetStatus("Pret.");
+                    MainProgress.Value = 0;
+                    ProgressText.Text = string.Empty;
+                }
+                return;
+
+            case GameVerificationOutcome.GameRunning:
+                SetGameAction(GameAction.Play);
+                SetStatus("Jeu en cours.");
+                MainProgress.Value = 100;
+                ProgressText.Text = "Jeu en cours";
+                return;
+
+            case GameVerificationOutcome.EmptyManifest:
+                SetGameAction(GameAction.Play);
+                if (!silentWhenUpToDate)
+                {
+                    SetStatus("Pret.");
+                }
+                return;
+
+            case GameVerificationOutcome.UpToDate:
+                _announcedGameUpdateVersion = null;
+                SetGameAction(GameAction.Play);
+                if (!silentWhenUpToDate)
+                {
+                    RegisterGameApplication(result.AvailableVersion);
+                    SetStatus("Client a jour.");
+                    MainProgress.Value = 100;
+                    ProgressText.Text = "Client à jour";
+                }
+                else if (_gameAction == GameAction.Play)
+                {
+                    MainProgress.Value = 100;
+                    ProgressText.Text = "Client à jour";
+                }
+                return;
+
+            case GameVerificationOutcome.UpdateAvailable:
+                SetGameAction(GameAction.Update);
+                SetStatus("Mise a jour disponible.");
+                ProgressText.Text = result.ChangeCount + " fichier(s)";
+
+                string gameUpdateKey = string.IsNullOrWhiteSpace(result.AvailableVersion)
+                    ? result.ChangeCount.ToString(CultureInfo.InvariantCulture)
+                    : result.AvailableVersion;
+                if (!string.Equals(
+                        _announcedGameUpdateVersion,
+                        gameUpdateKey,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    _announcedGameUpdateVersion = gameUpdateKey;
+                    AppendLog(string.IsNullOrWhiteSpace(result.AvailableVersion)
+                        ? $"Mise a jour jeu disponible: {result.ChangeCount} fichier(s)."
+                        : $"Mise a jour jeu disponible: {result.AvailableVersion} ({result.ChangeCount} fichier(s)).");
+                }
+                return;
+        }
+    }
+
     private async Task<List<LauncherFile>> FindMissingOrChangedFilesForManifestAsync(LauncherManifest manifest, bool updateProgress, CancellationToken cancellationToken)
     {
-        var fromHistory = FindMissingOrChangedFilesFromManifestHistory(manifest);
-        if (fromHistory is not null)
+        GameFileComparisonResult comparison = await _gameFileVerifier
+            .FindMissingOrChangedFilesAsync(
+                _settings.InstallPath,
+                manifest,
+                updateProgress
+                    ? progress => ProgressText.Text = $"{progress.ProcessedFileCount}/{progress.TotalFileCount}"
+                    : null,
+                cancellationToken);
+        if (updateProgress && comparison.Source != GameFileComparisonSource.FileSystem)
         {
-            if (updateProgress)
-            {
-                ProgressText.Text = fromHistory.Count == 0 ? "Historique OK" : fromHistory.Count + " fichier(s)";
-            }
-
-            return fromHistory;
+            ProgressText.Text = comparison.MissingOrChangedFiles.Count == 0
+                ? "Historique OK"
+                : comparison.MissingOrChangedFiles.Count + " fichier(s)";
         }
 
-        return await FindMissingOrChangedFilesAsync(manifest, updateProgress, cancellationToken);
-    }
-
-    private List<LauncherFile>? FindMissingOrChangedFilesFromManifestHistory(LauncherManifest manifest)
-    {
-        var cachedManifest = LoadInstalledManifestHistory();
-        if (cachedManifest is not null && cachedManifest.Files.Count > 0)
-        {
-            return CompareManifestFiles(manifest, cachedManifest);
-        }
-
-        var installedVersion = _gameClientStateReader.ReadInstalledVersion(_settings.InstallPath);
-        if (!string.IsNullOrWhiteSpace(manifest.Version) &&
-            string.Equals(installedVersion, manifest.Version, StringComparison.OrdinalIgnoreCase) &&
-            GameInstallServices.HasPlayableClient(_settings.InstallPath))
-        {
-            SaveInstalledManifestHistory(manifest);
-            return [];
-        }
-
-        return null;
-    }
-
-    private static List<LauncherFile> CompareManifestFiles(LauncherManifest remoteManifest, LauncherManifest installedManifest)
-    {
-        var installedFiles = installedManifest.Files
-            .GroupBy(file => NormalizeManifestPath(file.Path), StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
-
-        var missingOrChanged = new List<LauncherFile>();
-        foreach (var remoteFile in remoteManifest.Files)
-        {
-            var key = NormalizeManifestPath(remoteFile.Path);
-            if (!installedFiles.TryGetValue(key, out var installedFile) ||
-                installedFile.Size != remoteFile.Size ||
-                !string.Equals(installedFile.Sha256, remoteFile.Sha256, StringComparison.OrdinalIgnoreCase))
-            {
-                missingOrChanged.Add(remoteFile);
-            }
-        }
-
-        return missingOrChanged;
+        return comparison.MissingOrChangedFiles.ToList();
     }
 
     private List<string> FindRemovedFilesForManifest(LauncherManifest manifest)
     {
-        var remotePaths = manifest.Files
-            .Select(file => NormalizeManifestPath(file.Path))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var removedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        var cachedManifest = LoadInstalledManifestHistory();
-        if (cachedManifest is not null && cachedManifest.Files.Count > 0)
-        {
-            foreach (var cachedFile in cachedManifest.Files)
-            {
-                var key = NormalizeManifestPath(cachedFile.Path);
-                if (!remotePaths.Contains(key))
-                {
-                    removedPaths.Add(cachedFile.Path);
-                }
-            }
-        }
-
-        AddRetiredDirectoryFilesIfAbsent(remotePaths, removedPaths, "Interface/AddOns/UnBot");
-        AddRetiredDirectoryFilesIfAbsent(remotePaths, removedPaths, "Interface/AddOns/MultiBot");
-        return removedPaths.ToList();
-    }
-
-    private void AddRetiredDirectoryFilesIfAbsent(HashSet<string> remotePaths, HashSet<string> removedPaths, string relativeDirectory)
-    {
-        var normalizedPrefix = NormalizeManifestPath(relativeDirectory).TrimEnd('/') + "/";
-        if (remotePaths.Any(path => path.StartsWith(normalizedPrefix, StringComparison.OrdinalIgnoreCase)))
-        {
-            return;
-        }
-
-        var directory = GetSafeTargetPath(_settings.InstallPath, relativeDirectory);
-        if (!Directory.Exists(directory))
-        {
-            return;
-        }
-
-        foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
-        {
-            removedPaths.Add(Path.GetRelativePath(_settings.InstallPath, file).Replace('\\', '/'));
-        }
+        return _gameFileVerifier.FindRemovedFiles(_settings.InstallPath, manifest).ToList();
     }
 
     private int DeleteRemovedClientFiles(List<string> relativePaths, CancellationToken cancellationToken)
@@ -2211,88 +2164,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private LauncherManifest? LoadInstalledManifestHistory()
-    {
-        var historyPath = GetInstalledManifestHistoryPath();
-        if (!File.Exists(historyPath))
-        {
-            return null;
-        }
-
-        try
-        {
-            using var stream = File.OpenRead(historyPath);
-            return JsonSerializer.Deserialize<LauncherManifest>(stream, JsonOptions);
-        }
-        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
-
     private void SaveInstalledManifestHistory(LauncherManifest manifest)
     {
-        if (!GameDirectoryAccess.CanWrite(_settings.InstallPath))
-        {
-            return;
-        }
-
-        Directory.CreateDirectory(_settings.InstallPath);
-        var historyPath = GetInstalledManifestHistoryPath();
-        var options = new JsonSerializerOptions(JsonOptions)
-        {
-            WriteIndented = true
-        };
-        var json = JsonSerializer.Serialize(manifest, options);
-        File.WriteAllText(historyPath, json + Environment.NewLine, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-    }
-
-    private string GetInstalledManifestHistoryPath()
-    {
-        return Path.Combine(_settings.InstallPath, "client-manifest-cache.json");
-    }
-
-    private static string NormalizeManifestPath(string path)
-    {
-        return path.Replace('\\', '/').TrimStart('/').ToLowerInvariant();
-    }
-
-    private async Task<List<LauncherFile>> FindMissingOrChangedFilesAsync(LauncherManifest manifest, bool updateProgress, CancellationToken cancellationToken)
-    {
-        var missingOrChanged = new List<LauncherFile>();
-        var checkedCount = 0;
-
-        foreach (var file in manifest.Files)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            checkedCount++;
-            if (updateProgress)
-            {
-                ProgressText.Text = $"{checkedCount}/{manifest.Files.Count}";
-            }
-
-            var target = GetSafeTargetPath(_settings.InstallPath, file.Path);
-            if (!File.Exists(target) || new FileInfo(target).Length != file.Size)
-            {
-                missingOrChanged.Add(file);
-                continue;
-            }
-
-            try
-            {
-                var localHash = await ComputeSha256Async(target, cancellationToken);
-                if (!string.Equals(localHash, file.Sha256, StringComparison.OrdinalIgnoreCase))
-                {
-                    missingOrChanged.Add(file);
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                missingOrChanged.Add(file);
-            }
-        }
-
-        return missingOrChanged;
+        _installedManifestStore.Save(_settings.InstallPath, manifest);
     }
 
     private async Task InstallOrUpdateAsync(CancellationToken cancellationToken)
@@ -2416,12 +2290,9 @@ public partial class MainWindow : Window
 
     private async Task<LauncherManifest> LoadManifestAsync(CancellationToken cancellationToken)
     {
-        using var response = await _http.GetAsync(_settings.ManifestUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        return await JsonSerializer.DeserializeAsync<LauncherManifest>(stream, JsonOptions, cancellationToken)
-            ?? throw new InvalidOperationException("Impossible de lire le manifeste.");
+        return await _gameManifestClient.LoadAsync(
+            _settings.ManifestUrl,
+            cancellationToken);
     }
 
     private async Task<LauncherUpdateManifest> LoadLauncherUpdateManifestAsync(CancellationToken cancellationToken)
@@ -2584,33 +2455,12 @@ public partial class MainWindow : Window
 
     private static async Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken)
     {
-        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1024 * 256, useAsync: true);
-        using var sha = SHA256.Create();
-        var hash = await sha.ComputeHashAsync(stream, cancellationToken);
-        return Convert.ToHexString(hash).ToLowerInvariant();
+        return await GameFileVerifier.ComputeSha256Async(path, cancellationToken);
     }
 
     private static string GetSafeTargetPath(string installRoot, string relativePath)
     {
-        if (string.IsNullOrWhiteSpace(relativePath))
-        {
-            throw new InvalidOperationException("Chemin vide dans le manifeste.");
-        }
-
-        var normalizedRelative = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
-        if (Path.IsPathRooted(normalizedRelative))
-        {
-            throw new InvalidOperationException("Chemin absolu interdit dans le manifeste: " + relativePath);
-        }
-
-        var root = Path.GetFullPath(installRoot);
-        var target = Path.GetFullPath(Path.Combine(root, normalizedRelative));
-        if (!target.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("Chemin hors dossier d'installation: " + relativePath);
-        }
-
-        return target;
+        return GamePathPolicy.GetSafeTargetPath(installRoot, relativePath);
     }
 
     private static Uri BuildFileUri(LauncherManifest manifest, LauncherFile file)

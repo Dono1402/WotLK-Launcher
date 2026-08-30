@@ -19,7 +19,7 @@ internal static class GameInstallServices
 
     private const string Publisher = "WotLK";
     private const string RegistrySubKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WotLK.Client";
-    private const string ClientMarkerFileName = "client-install.json";
+    internal const string ClientMarkerFileName = "client-install.json";
     private const string VideoDefaultsMarkerFileName = "launcher-video-defaults.json";
     private const int SystemMetricPrimaryScreenWidth = 0;
     private const int SystemMetricPrimaryScreenHeight = 1;

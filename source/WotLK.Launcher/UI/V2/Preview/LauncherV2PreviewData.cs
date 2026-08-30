@@ -38,7 +38,9 @@ public static class LauncherV2PreviewData
     public static ShellUiState CreateShell(GamePreviewScenario scenario) => new()
     {
         RealmStatus = scenario == GamePreviewScenario.RealmOffline ? "Hors ligne" : "En ligne",
-        IsRealmOnline = scenario != GamePreviewScenario.RealmOffline,
+        RealmState = scenario == GamePreviewScenario.RealmOffline
+            ? RealmServiceState.Offline
+            : RealmServiceState.Online,
         IsNavigationEnabled = scenario is not GamePreviewScenario.Downloading
             and not GamePreviewScenario.Installing
     };

@@ -117,8 +117,11 @@
                                             <Style TargetType="{x:Type TextBlock}"
                                                    BasedOn="{StaticResource AtlasV2.Text.Caption}">
                                                 <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextSecondary}"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Accent}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Neutral}">
+                                                    <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Accent}">
                                                         <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Warning}">
@@ -288,6 +291,9 @@
                                             <Style TargetType="{x:Type Ellipse}">
                                                 <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Success}"/>
                                                 <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Neutral}">
+                                                        <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                                                    </DataTrigger>
                                                     <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Accent}">
                                                         <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
                                                     </DataTrigger>
@@ -307,6 +313,9 @@
                                                    BasedOn="{StaticResource AtlasV2.Text.Caption}">
                                                 <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Success}"/>
                                                 <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Neutral}">
+                                                        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                                                    </DataTrigger>
                                                     <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Accent}">
                                                         <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
                                                     </DataTrigger>
@@ -381,19 +390,19 @@
                                             <ColumnDefinition Width="6"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Vérifier le client">
+                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Vérifier le client">
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Width="13" Height="13" Margin="0,0,6,0" Data="{StaticResource AtlasV2.Icon.Check}" Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="{StaticResource AtlasV2.Brush.Cyan}"/>
                                                 <TextBlock VerticalAlignment="Center" Text="Vérifier"/>
                                             </StackPanel>
                                         </Button>
-                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Ouvrir le dossier du client">
+                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Ouvrir le dossier du client">
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Width="13" Height="13" Margin="0,0,6,0" Data="{StaticResource AtlasV2.Icon.Folder}" Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="{StaticResource AtlasV2.Brush.Gold}"/>
                                                 <TextBlock VerticalAlignment="Center" Text="Dossier"/>
                                             </StackPanel>
                                         </Button>
-                                        <Button Grid.Column="4" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Ouvrir le diagnostic">
+                                        <Button Grid.Column="4" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Ouvrir le diagnostic">
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Width="13" Height="13" Margin="0,0,6,0" Data="{StaticResource AtlasV2.Icon.Settings}" Style="{StaticResource AtlasV2.Icon.Stroke}"/>
                                                 <TextBlock VerticalAlignment="Center" Text="Diagnostic"/>
@@ -436,13 +445,13 @@
                                             <ColumnDefinition Width="6"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Choisir le dossier du client">
+                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Choisir le dossier du client">
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Width="13" Height="13" Margin="0,0,6,0" Data="{StaticResource AtlasV2.Icon.Folder}" Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="{StaticResource AtlasV2.Brush.Gold}"/>
                                                 <TextBlock VerticalAlignment="Center" Text="Dossier"/>
                                             </StackPanel>
                                         </Button>
-                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Ouvrir le diagnostic">
+                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Ouvrir le diagnostic">
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Width="13" Height="13" Margin="0,0,6,0" Data="{StaticResource AtlasV2.Icon.Settings}" Style="{StaticResource AtlasV2.Icon.Stroke}"/>
                                                 <TextBlock VerticalAlignment="Center" Text="Diagnostic"/>
@@ -489,13 +498,13 @@
                                             <ColumnDefinition Width="6"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Vérifier le client">
+                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Vérifier le client">
                                             <TextBlock Text="Vérifier"/>
                                         </Button>
-                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Ouvrir le dossier du client">
+                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Ouvrir le dossier du client">
                                             <TextBlock Text="Dossier"/>
                                         </Button>
-                                        <Button Grid.Column="4" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Ouvrir le diagnostic">
+                                        <Button Grid.Column="4" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Ouvrir le diagnostic">
                                             <TextBlock Text="Diagnostic"/>
                                         </Button>
                                     </Grid>
@@ -561,10 +570,10 @@
                                             <ColumnDefinition Width="6"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Voir les détails de l'erreur">
+                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Voir les détails de l'erreur">
                                                 <TextBlock Text="Réessayer"/>
                                         </Button>
-                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Ouvrir le diagnostic">
+                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Ouvrir le diagnostic">
                                             <TextBlock Text="Diagnostic"/>
                                         </Button>
                                     </Grid>

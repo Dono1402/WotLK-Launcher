@@ -2,6 +2,7 @@ using System.IO;
 using System.Net.Http;
 using System.Text;
 using System.Windows.Threading;
+using WotLK.Launcher.Game;
 
 namespace WotLK.Launcher;
 
@@ -139,7 +140,7 @@ internal sealed class LegacyMainWindowDependencies
 }
 
 internal sealed record LegacyMainWindowSnapshot(
-    MainWindow.GameAction GameAction,
+    GameAction GameAction,
     string UpdateButtonLabel,
     bool UpdateButtonEnabled,
     string HomeButtonLabel,

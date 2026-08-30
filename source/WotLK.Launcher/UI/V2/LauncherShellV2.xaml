@@ -3,6 +3,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:presentation="clr-namespace:WotLK.Launcher.UI.V2.Presentation"
         xmlns:views="clr-namespace:WotLK.Launcher.UI.V2.Views"
         Title="Atlas Launcher · Prévisualisation V2"
         Icon="/WotLK.Launcher;component/Assets/AppIcon.ico"
@@ -88,7 +89,7 @@
                         <Button Style="{StaticResource AtlasV2.Button.Nav}"
                                 Tag="Active"
                                 Content="Jeu"
-                                IsEnabled="{Binding ShellState.IsNavigationEnabled}"
+                                IsEnabled="{Binding ShellState.IsGameNavigationEnabled}"
                                 Focusable="False"/>
                         <Button Style="{StaticResource AtlasV2.Button.Nav}"
                                 Content="Addons"
@@ -118,9 +119,15 @@
                                          Margin="0,0,7,0">
                                     <Ellipse.Style>
                                         <Style TargetType="{x:Type Ellipse}">
-                                            <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Success}"/>
+                                            <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding ShellState.IsRealmOnline}" Value="False">
+                                                <DataTrigger Binding="{Binding ShellState.RealmState}" Value="{x:Static presentation:RealmServiceState.Online}">
+                                                    <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Success}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding ShellState.RealmState}" Value="{x:Static presentation:RealmServiceState.Degraded}">
+                                                    <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding ShellState.RealmState}" Value="{x:Static presentation:RealmServiceState.Offline}">
                                                     <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Danger}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -133,9 +140,15 @@
                                     <TextBlock.Style>
                                         <Style TargetType="{x:Type TextBlock}"
                                                BasedOn="{StaticResource AtlasV2.Text.Caption}">
-                                            <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Success}"/>
+                                            <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding ShellState.IsRealmOnline}" Value="False">
+                                                <DataTrigger Binding="{Binding ShellState.RealmState}" Value="{x:Static presentation:RealmServiceState.Online}">
+                                                    <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Success}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding ShellState.RealmState}" Value="{x:Static presentation:RealmServiceState.Degraded}">
+                                                    <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding ShellState.RealmState}" Value="{x:Static presentation:RealmServiceState.Offline}">
                                                     <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Danger}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -182,17 +195,17 @@
                                 Margin="0,0,8,0"
                                 Padding="0"
                                 Style="{StaticResource AtlasV2.Button.Icon}"
-                                ToolTip="Profil Dono1402"
+                                ToolTip="{Binding ShellState.ProfileToolTip}"
                                 IsEnabled="{Binding ShellState.IsNavigationEnabled}"
                                 Focusable="False"
-                                AutomationProperties.Name="Profil Dono1402">
+                                AutomationProperties.Name="{Binding ShellState.ProfileToolTip}">
                             <Border Width="34"
                                     Height="34"
                                     Background="{StaticResource AtlasV2.Brush.Gold}"
                                     CornerRadius="17">
                                 <TextBlock HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
-                                           Text="D"
+                                           Text="{Binding ShellState.ProfileInitial}"
                                            FontSize="14"
                                            FontWeight="Bold"
                                            Foreground="#111318"/>

@@ -13,18 +13,12 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using WotLK.Launcher.Game;
 
 namespace WotLK.Launcher;
 
 public partial class MainWindow : Window
 {
-    internal enum GameAction
-    {
-        Install,
-        Update,
-        Play
-    }
-
     private enum ToastKind
     {
         Info,
@@ -59,6 +53,7 @@ public partial class MainWindow : Window
 
     private readonly LegacyMainWindowDependencies _dependencies;
     private readonly ILegacyStartupObserver _startupObserver;
+    private readonly GameClientStateReader _gameClientStateReader;
     private readonly ILauncherAuthService _auth;
     private readonly HttpClient _http;
     private readonly LauncherSettings _settings;
@@ -101,6 +96,7 @@ public partial class MainWindow : Window
     {
         _dependencies = dependencies ?? throw new ArgumentNullException(nameof(dependencies));
         _startupObserver = dependencies.StartupObserver;
+        _gameClientStateReader = new GameClientStateReader(dependencies.HasPlayableClient);
         InitializeComponent();
         _startupObserver.Record(LegacyStartupEvent.ComponentsInitialized);
         _auth = dependencies.CreateAuthentication();
@@ -1922,10 +1918,10 @@ public partial class MainWindow : Window
         _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
         InstallPathBox.Text = _settings.InstallPath;
 
-        var hasClient = _dependencies.HasPlayableClient(_settings.InstallPath);
-        SetGameAction(hasClient ? GameAction.Play : GameAction.Install);
-        MainProgress.Value = hasClient ? 100 : 0;
-        ProgressText.Text = hasClient ? "Client à jour" : string.Empty;
+        GameClientLocalState localState = _gameClientStateReader.Read(_settings);
+        SetGameAction(localState.Action);
+        MainProgress.Value = localState.IsPlayable ? 100 : 0;
+        ProgressText.Text = localState.IsPlayable ? "Client à jour" : string.Empty;
     }
 
     private async Task RefreshGameActionAsync(bool silentWhenUpToDate = false)
@@ -2060,7 +2056,7 @@ public partial class MainWindow : Window
             return CompareManifestFiles(manifest, cachedManifest);
         }
 
-        var installedVersion = TryReadInstalledClientVersion();
+        var installedVersion = _gameClientStateReader.ReadInstalledVersion(_settings.InstallPath);
         if (!string.IsNullOrWhiteSpace(manifest.Version) &&
             string.Equals(installedVersion, manifest.Version, StringComparison.OrdinalIgnoreCase) &&
             GameInstallServices.HasPlayableClient(_settings.InstallPath))
@@ -2249,27 +2245,6 @@ public partial class MainWindow : Window
         };
         var json = JsonSerializer.Serialize(manifest, options);
         File.WriteAllText(historyPath, json + Environment.NewLine, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-    }
-
-    private string? TryReadInstalledClientVersion()
-    {
-        var markerPath = Path.Combine(_settings.InstallPath, "client-install.json");
-        if (!File.Exists(markerPath))
-        {
-            return null;
-        }
-
-        try
-        {
-            using var document = JsonDocument.Parse(File.ReadAllText(markerPath));
-            return document.RootElement.TryGetProperty("clientVersion", out var versionElement)
-                ? versionElement.GetString()
-                : null;
-        }
-        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
-        {
-            return null;
-        }
     }
 
     private string GetInstalledManifestHistoryPath()

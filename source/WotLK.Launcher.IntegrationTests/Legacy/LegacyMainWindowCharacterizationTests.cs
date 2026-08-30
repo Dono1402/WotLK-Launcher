@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Windows.Threading;
 using WotLK.Launcher;
+using WotLK.Launcher.Game;
 
 internal static class LegacyMainWindowCharacterizationTests
 {
@@ -62,9 +63,17 @@ internal static class LegacyMainWindowCharacterizationTests
             App.ResolveStartupMode([]),
             "Sans argument, le launcher doit sélectionner uniquement la fenêtre legacy.");
         Equal(
-            LauncherStartupMode.UiV2Preview,
+            LauncherStartupMode.UiV2,
             App.ResolveStartupMode(["--ui-v2"]),
-            "--ui-v2 doit court-circuiter la fenêtre legacy.");
+            "--ui-v2 doit sélectionner uniquement la composition V2 réelle.");
+        Equal(
+            LauncherStartupMode.UiV2Preview,
+            App.ResolveStartupMode(["--ui-v2", "--preview-state=Ready"]),
+            "Un état preview explicite doit isoler les données fictives de la V2 réelle.");
+        Equal(
+            LauncherStartupMode.Legacy,
+            App.ResolveStartupMode(["--preview-state=Ready"]),
+            "Un argument preview isolé ne doit jamais activer la V2.");
         Equal(
             LauncherStartupMode.GrantGameDirectoryAccess,
             App.ResolveStartupMode(["--grant-game-access", "C:\\Atlas", "S-1-5-18"]),
@@ -117,7 +126,7 @@ internal static class LegacyMainWindowCharacterizationTests
         Equal(1, friendTimer.SubscriptionAdds, "Le timer amis doit avoir un seul handler.");
 
         LegacyMainWindowSnapshot snapshot = window.CaptureCharacterizationSnapshot();
-        Equal(MainWindow.GameAction.Install, snapshot.GameAction, "Un client absent doit sélectionner Install.");
+        Equal(GameAction.Install, snapshot.GameAction, "Un client absent doit sélectionner Install.");
         Equal("INSTALLER", snapshot.UpdateButtonLabel, "Le bouton principal legacy doit afficher INSTALLER.");
         Equal(0d, snapshot.Progress, "Un client absent doit conserver une progression nulle.");
 
@@ -133,7 +142,7 @@ internal static class LegacyMainWindowCharacterizationTests
         MainWindow window = new(environment.CreateDependencies());
 
         LegacyMainWindowSnapshot snapshot = window.CaptureCharacterizationSnapshot();
-        Equal(MainWindow.GameAction.Play, snapshot.GameAction, "Un client local jouable doit sélectionner Play.");
+        Equal(GameAction.Play, snapshot.GameAction, "Un client local jouable doit sélectionner Play.");
         Equal("JOUER", snapshot.UpdateButtonLabel, "Play doit afficher JOUER.");
         Equal("JOUER", snapshot.HomeButtonLabel, "Les deux boutons doivent partager le même libellé.");
         Equal("Prêt à jouer", snapshot.HomeClientStatus, "Le statut local Play doit rester celui de la v1.1.0.");
@@ -143,17 +152,17 @@ internal static class LegacyMainWindowCharacterizationTests
             snapshot.ProgressText,
             "02A.0 fige le libellé legacy, même avant la future séparation de l'état de connaissance.");
 
-        window.SetGameActionForCharacterization(MainWindow.GameAction.Update);
+        window.SetGameActionForCharacterization(GameAction.Update);
         snapshot = window.CaptureCharacterizationSnapshot();
         Equal("METTRE A JOUR", snapshot.UpdateButtonLabel, "Update doit afficher METTRE A JOUR.");
         Equal("Mise à jour disponible", snapshot.HomeClientStatus, "Update doit exposer son statut legacy.");
 
-        window.SetGameActionForCharacterization(MainWindow.GameAction.Install);
+        window.SetGameActionForCharacterization(GameAction.Install);
         snapshot = window.CaptureCharacterizationSnapshot();
         Equal("INSTALLER", snapshot.UpdateButtonLabel, "Install doit afficher INSTALLER.");
         Equal("Installation requise", snapshot.HomeClientStatus, "Install doit exposer son statut legacy.");
 
-        window.SetGameActionForCharacterization(MainWindow.GameAction.Update);
+        window.SetGameActionForCharacterization(GameAction.Update);
         window.SetBusyForCharacterization(true);
         snapshot = window.CaptureCharacterizationSnapshot();
         True(snapshot.UpdateButtonEnabled, "Le bouton principal reste actif pour annuler l'opération legacy.");
@@ -194,7 +203,7 @@ internal static class LegacyMainWindowCharacterizationTests
                 < environment.Http.FirstManifestRequestEventIndex,
             "La restauration doit finir avant la première requête de manifeste.");
         Equal(
-            MainWindow.GameAction.Play,
+            GameAction.Play,
             window.CaptureCharacterizationSnapshot().GameAction,
             "Une analyse distante sans changement doit conserver Play.");
         window.Close();
@@ -615,6 +624,8 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
 {
     internal bool RestoreResult { get; set; }
 
+    internal Func<CancellationToken, Task<bool>>? RestoreHandler { get; set; }
+
     public LauncherAuthSession? Session { get; set; }
 
     public string? AccessToken => Session?.AccessToken;
@@ -632,7 +643,7 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
     public Task<bool> RestoreAsync(CancellationToken cancellationToken = default)
     {
         RestoreCalls++;
-        return Task.FromResult(RestoreResult);
+        return RestoreHandler?.Invoke(cancellationToken) ?? Task.FromResult(RestoreResult);
     }
 
     public Task<bool> EnsureFreshAsync(CancellationToken cancellationToken = default)

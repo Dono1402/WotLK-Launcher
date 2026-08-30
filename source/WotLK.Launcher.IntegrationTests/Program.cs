@@ -13,6 +13,12 @@ if (args.Length == 1
 }
 
 if (args.Length == 1
+    && string.Equals(args[0], "--runtime-composition", StringComparison.OrdinalIgnoreCase))
+{
+    return await LauncherRuntimeCompositionTests.RunAsync();
+}
+
+if (args.Length == 1
     && string.Equals(args[0], "--ticket-format", StringComparison.OrdinalIgnoreCase))
 {
     string first = TokenService.CreateGameTicket();

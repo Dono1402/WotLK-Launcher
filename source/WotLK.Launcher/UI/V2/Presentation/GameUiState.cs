@@ -43,6 +43,8 @@ public sealed class GameUiState : BindableUiState
 
     public bool IsOptionsEnabled { get; init; } = true;
 
+    public bool AreLocalActionsEnabled { get; init; } = true;
+
     public string InstallBadgeText { get; init; } = "À jour";
 
     public string ClientVersion { get; init; } = "3.4.3.54261";

@@ -10,12 +10,35 @@ namespace WotLK.Launcher.UI.V2;
 public partial class LauncherShellV2 : Window
 {
     public LauncherShellV2(GamePreviewScenario scenario = GamePreviewScenario.Ready)
+        : this(
+            LauncherV2PreviewData.CreateShell(scenario),
+            LauncherV2PreviewData.CreateGame(scenario),
+            LauncherV2PreviewData.CreateFriends(),
+            isPreviewMode: true)
     {
-        ShellState = LauncherV2PreviewData.CreateShell(scenario);
-        GameState = LauncherV2PreviewData.CreateGame(scenario);
-        FriendsState = LauncherV2PreviewData.CreateFriends();
+    }
+
+    internal LauncherShellV2(
+        ShellUiState shellState,
+        GameUiState gameState,
+        FriendsUiState friendsState)
+        : this(shellState, gameState, friendsState, isPreviewMode: false)
+    {
+    }
+
+    private LauncherShellV2(
+        ShellUiState shellState,
+        GameUiState gameState,
+        FriendsUiState friendsState,
+        bool isPreviewMode)
+    {
+        ShellState = shellState ?? throw new ArgumentNullException(nameof(shellState));
+        GameState = gameState ?? throw new ArgumentNullException(nameof(gameState));
+        FriendsState = friendsState ?? throw new ArgumentNullException(nameof(friendsState));
+        IsPreviewMode = isPreviewMode;
 
         InitializeComponent();
+        Title = isPreviewMode ? "Atlas Launcher · Prévisualisation V2" : "Atlas Launcher";
         DataContext = this;
 
         SizeChanged += LauncherShellV2_SizeChanged;
@@ -30,6 +53,8 @@ public partial class LauncherShellV2 : Window
     public GameUiState GameState { get; }
 
     public FriendsUiState FriendsState { get; }
+
+    internal bool IsPreviewMode { get; }
 
     internal void SetFriendsDrawerOpenForPreview()
     {

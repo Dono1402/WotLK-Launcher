@@ -1,5 +1,7 @@
 using System.Windows;
+using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2;
+using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Preview;
 using WotLK.Launcher.UI.V2.Validation;
 
@@ -8,6 +10,7 @@ namespace WotLK.Launcher;
 internal enum LauncherStartupMode
 {
     Legacy,
+    UiV2,
     UiV2Preview,
     GrantGameDirectoryAccess,
     UninstallGame
@@ -21,18 +24,17 @@ public partial class App : Application
 
         base.OnStartup(e);
 
-        if (startupMode == LauncherStartupMode.UiV2Preview)
+        if (startupMode is LauncherStartupMode.UiV2 or LauncherStartupMode.UiV2Preview)
         {
-            var previewScenario = LauncherV2PreviewData.ResolveScenario(e.Args);
             try
             {
                 ManropeFontValidator.ValidateOrThrow();
-                LoadV2PreviewResources();
+                LoadV2Resources();
             }
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Atlas Launcher ne peut pas afficher la prévisualisation V2.\n\n{ex.Message}",
+                    $"Atlas Launcher ne peut pas afficher l'interface V2.\n\n{ex.Message}",
                     "Erreur de validation Manrope",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -40,10 +42,17 @@ public partial class App : Application
                 return;
             }
 
-            LauncherShellV2 previewWindow = new(previewScenario);
-            ApplyV2PreviewOptions(previewWindow, e.Args);
-            MainWindow = previewWindow;
-            previewWindow.Show();
+            if (startupMode == LauncherStartupMode.UiV2Preview)
+            {
+                GamePreviewScenario previewScenario = LauncherV2PreviewData.ResolveScenario(e.Args);
+                LauncherShellV2 previewWindow = new(previewScenario);
+                ApplyV2PreviewOptions(previewWindow, e.Args);
+                MainWindow = previewWindow;
+                previewWindow.Show();
+                return;
+            }
+
+            StartRuntimeV2();
             return;
         }
 
@@ -67,10 +76,13 @@ public partial class App : Application
     internal static LauncherStartupMode ResolveStartupMode(IEnumerable<string> arguments)
     {
         string[] args = arguments as string[] ?? arguments.ToArray();
-        if (args.Any(argument =>
-                string.Equals(argument, "--ui-v2", StringComparison.OrdinalIgnoreCase)))
+        bool useUiV2 = args.Any(argument =>
+            string.Equals(argument, "--ui-v2", StringComparison.OrdinalIgnoreCase));
+        if (useUiV2)
         {
-            return LauncherStartupMode.UiV2Preview;
+            bool usePreview = args.Any(argument =>
+                argument.StartsWith("--preview-state=", StringComparison.OrdinalIgnoreCase));
+            return usePreview ? LauncherStartupMode.UiV2Preview : LauncherStartupMode.UiV2;
         }
 
         if (GameDirectoryAccess.IsGrantAccessMode(args))
@@ -83,7 +95,52 @@ public partial class App : Application
             : LauncherStartupMode.Legacy;
     }
 
-    private void LoadV2PreviewResources()
+    private void StartRuntimeV2()
+    {
+        LauncherRuntime runtime;
+        try
+        {
+            runtime = LauncherRuntime.CreateProduction();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Atlas Launcher ne peut pas lire l'installation locale.\n\n{ex.Message}",
+                "Erreur de démarrage V2",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Shutdown(1);
+            return;
+        }
+
+        ShellUiState shellState = LauncherV2RuntimePresentation.CreateShell(runtime);
+        LauncherShellV2 window = new(
+            shellState,
+            LauncherV2RuntimePresentation.CreateGame(runtime.LocalClient),
+            LauncherV2RuntimePresentation.CreateFriends());
+
+        RoutedEventHandler? loadedHandler = null;
+        loadedHandler = async (_, _) =>
+        {
+            window.Loaded -= loadedHandler;
+            LauncherSessionRestoreResult result = await runtime.InitializeAsync();
+            if (!runtime.IsDisposed && window.IsVisible)
+            {
+                LauncherV2RuntimePresentation.ApplySession(shellState, result);
+            }
+        };
+        window.Loaded += loadedHandler;
+        window.Closed += (_, _) =>
+        {
+            window.Loaded -= loadedHandler;
+            runtime.Dispose();
+        };
+
+        MainWindow = window;
+        window.Show();
+    }
+
+    private void LoadV2Resources()
     {
         string[] resourcePaths =
         [

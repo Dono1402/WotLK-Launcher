@@ -104,15 +104,15 @@ public static class LauncherV2PreviewData
             {
                 Scenario = scenario,
                 SemanticTone = GameSemanticTone.Accent,
-                ClientStatus = "Vérification en cours",
-                PrimaryActionLabel = "Jouer",
-                InstallBadgeText = "Analyse",
+                ClientStatus = "Analyse en arrière-plan",
+                PrimaryActionLabel = "Lancer le jeu",
+                InstallBadgeText = "En arrière-plan",
                 IsClientReady = false,
                 Progress = 0,
                 IsProgressIndeterminate = true,
                 ProgressTitle = "Vérification des fichiers",
-                ProgressPrimaryDetail = "Analyse du manifeste et des fichiers locaux",
-                ProgressSecondaryDetail = "Vérification manuelle non annulable"
+                ProgressPrimaryDetail = "Analyse des fichiers locaux en cours",
+                ProgressSecondaryDetail = "Tu peux jouer pendant l’analyse"
             },
             GamePreviewScenario.Error => new GameUiState
             {

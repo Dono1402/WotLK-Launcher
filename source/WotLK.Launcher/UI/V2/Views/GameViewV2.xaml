@@ -409,7 +409,7 @@
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="Client WotLK introuvable"
+                                        <TextBlock Text="Client non installé"
                                                    Style="{StaticResource AtlasV2.Text.Body}"
                                                    FontWeight="SemiBold"
                                                    Foreground="{StaticResource AtlasV2.Brush.Text}"/>

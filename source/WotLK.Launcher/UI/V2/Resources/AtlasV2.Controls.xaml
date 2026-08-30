@@ -208,14 +208,21 @@
                                 Background="{TemplateBinding Foreground}"
                                 CornerRadius="3"/>
                         <Border x:Name="IndeterminateSegment"
-                                Width="82"
+                                Width="62"
                                 HorizontalAlignment="Left"
                                 Background="{TemplateBinding Foreground}"
                                 CornerRadius="3"
                                 Opacity="0.9"
                                 Visibility="Collapsed">
+                            <Border.OpacityMask>
+                                <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                    <GradientStop Color="Transparent" Offset="0"/>
+                                    <GradientStop Color="White" Offset="0.5"/>
+                                    <GradientStop Color="Transparent" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.OpacityMask>
                             <Border.RenderTransform>
-                                <TranslateTransform x:Name="IndeterminateTransform" X="-82"/>
+                                <TranslateTransform x:Name="IndeterminateTransform" X="-62"/>
                             </Border.RenderTransform>
                         </Border>
                     </Grid>
@@ -228,9 +235,9 @@
                                     <Storyboard RepeatBehavior="Forever">
                                         <DoubleAnimation Storyboard.TargetName="IndeterminateTransform"
                                                          Storyboard.TargetProperty="X"
-                                                         From="-82"
-                                                         To="330"
-                                                         Duration="0:0:1.15"/>
+                                                         From="-62"
+                                                         To="390"
+                                                         Duration="0:0:1.35"/>
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.EnterActions>

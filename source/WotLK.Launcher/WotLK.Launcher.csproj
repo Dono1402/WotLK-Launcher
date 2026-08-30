@@ -22,6 +22,8 @@
     <Resource Include="Assets\AppIcon.png" />
     <Resource Include="Assets\Fonts\*.ttf" />
     <Resource Include="Assets\Fonts\*.txt" />
+    <Resource Include="Assets\Branding\*.png" />
+    <Resource Include="Assets\Images\*.png" />
     <Resource Include="Assets\Launcher\visuals\*.png" />
     <Resource Include="Assets\Launcher\addon-icons\*.png" />
   </ItemGroup>

@@ -1,0 +1,159 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework">
+    <Style x:Key="AtlasV2.Button.Base" TargetType="{x:Type Button}">
+        <Setter Property="Height" Value="44"/>
+        <Setter Property="Padding" Value="18,0"/>
+        <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfaceRaised}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Border}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
+        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Manrope}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border x:Name="Chrome"
+                            CornerRadius="6"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Chrome" Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AtlasV2.Button.Primary" TargetType="{x:Type Button}" BasedOn="{StaticResource AtlasV2.Button.Base}">
+        <Setter Property="Height" Value="52"/>
+        <Setter Property="MinWidth" Value="170"/>
+        <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+        <Setter Property="Foreground" Value="#111318"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.GoldHover}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.GoldHover}"/>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.GoldPressed}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.GoldPressed}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="AtlasV2.Button.Secondary" TargetType="{x:Type Button}" BasedOn="{StaticResource AtlasV2.Button.Base}">
+        <Setter Property="Height" Value="52"/>
+        <Setter Property="Background" Value="#D9141A20"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfaceHover}"/>
+                <Setter Property="BorderBrush" Value="#536170"/>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfacePressed}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="AtlasV2.Button.Icon" TargetType="{x:Type Button}" BasedOn="{StaticResource AtlasV2.Button.Base}">
+        <Setter Property="Width" Value="40"/>
+        <Setter Property="Height" Value="40"/>
+        <Setter Property="Padding" Value="10"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfaceHover}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Border}"/>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfacePressed}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="AtlasV2.Button.Window" TargetType="{x:Type Button}" BasedOn="{StaticResource AtlasV2.Button.Icon}">
+        <Setter Property="Width" Value="42"/>
+        <Setter Property="Height" Value="64"/>
+        <Setter Property="Padding" Value="13"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+    </Style>
+
+    <Style x:Key="AtlasV2.Button.WindowClose" TargetType="{x:Type Button}" BasedOn="{StaticResource AtlasV2.Button.Window}">
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="#B93643"/>
+                <Setter Property="BorderBrush" Value="#B93643"/>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="#962B36"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="AtlasV2.Button.Nav" TargetType="{x:Type Button}" BasedOn="{StaticResource AtlasV2.Button.Base}">
+        <Setter Property="Height" Value="64"/>
+        <Setter Property="Padding" Value="16,0"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Grid Background="{TemplateBinding Background}">
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                        <Border x:Name="Indicator"
+                                Height="2"
+                                Margin="12,0"
+                                VerticalAlignment="Bottom"
+                                Background="{StaticResource AtlasV2.Brush.Gold}"
+                                Visibility="Collapsed"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
+                        </Trigger>
+                        <Trigger Property="Tag" Value="Active">
+                            <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
+                            <Setter TargetName="Indicator" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AtlasV2.Card" TargetType="{x:Type Border}">
+        <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfaceRaised}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Border}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="22"/>
+    </Style>
+
+    <Style x:Key="AtlasV2.StatusChip" TargetType="{x:Type Border}">
+        <Setter Property="Background" Value="#B312171D"/>
+        <Setter Property="BorderBrush" Value="#44515E"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="5"/>
+        <Setter Property="Padding" Value="10,6"/>
+    </Style>
+</ResourceDictionary>

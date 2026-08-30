@@ -17,6 +17,16 @@ internal sealed class LauncherRuntimeDependencies
 
     internal Action<string> WriteRuntimeLog { get; init; } = static _ => { };
 
+    internal Action<string> WriteLocalActionLog { get; init; } = static _ => { };
+
+    internal ILauncherShellService LocalShellService { get; init; } =
+        LauncherShellService.CreateProduction();
+
+    internal Func<string> GetLauncherLogPath { get; init; } =
+        static () => LauncherSettings.LauncherLogPath;
+
+    internal TimeProvider LocalActionTimeProvider { get; init; } = TimeProvider.System;
+
     internal static LauncherRuntimeDependencies CreateProduction()
     {
         return new LauncherRuntimeDependencies
@@ -25,6 +35,8 @@ internal sealed class LauncherRuntimeDependencies
             CreateAuthentication = static () => new LauncherAuthService(),
             GameClientStateReader = new GameClientStateReader(),
             WriteRuntimeLog = WriteProductionLog,
+            WriteLocalActionLog = WriteProductionLog,
+            LocalShellService = LauncherShellService.CreateProduction(),
             GetLauncherVersion = static () =>
             {
                 Version? version = Assembly.GetExecutingAssembly().GetName().Version;
@@ -40,7 +52,7 @@ internal sealed class LauncherRuntimeDependencies
             Directory.CreateDirectory(LauncherSettings.SettingsDirectory);
             string line = $"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}";
             File.AppendAllText(
-                Path.Combine(LauncherSettings.SettingsDirectory, "launcher.log"),
+                LauncherSettings.LauncherLogPath,
                 line,
                 new UTF8Encoding(false));
         }
@@ -67,6 +79,12 @@ internal sealed class LauncherRuntime : IDisposable
         _authentication = dependencies.CreateAuthentication();
         LocalClient = dependencies.GameClientStateReader.Read(Settings);
         LauncherVersion = dependencies.GetLauncherVersion();
+        LocalActions = new LauncherLocalActionCoordinator(
+            Settings,
+            dependencies.GetLauncherLogPath(),
+            dependencies.LocalShellService,
+            dependencies.WriteLocalActionLog,
+            dependencies.LocalActionTimeProvider);
         _sessionCoordinator = new LauncherSessionCoordinator(
             _authentication,
             _lifetimeCancellation.Token,
@@ -78,6 +96,8 @@ internal sealed class LauncherRuntime : IDisposable
     internal GameClientLocalState LocalClient { get; }
 
     internal string LauncherVersion { get; }
+
+    internal ILauncherLocalActions LocalActions { get; }
 
     internal bool IsDisposed => Volatile.Read(ref _disposeState) != 0;
 
@@ -111,6 +131,7 @@ internal sealed class LauncherRuntime : IDisposable
             }
 
             Volatile.Write(ref _disposeState, 1);
+            LocalActions.BeginShutdown();
             _lifetimeCancellation.Cancel();
             _authentication.Dispose();
             _lifetimeCancellation.Dispose();

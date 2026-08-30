@@ -15,6 +15,7 @@
              TextOptions.TextRenderingMode="ClearType"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True">
+    <Grid>
     <ScrollViewer x:Name="GameScrollViewer"
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
@@ -390,19 +391,19 @@
                                             <ColumnDefinition Width="6"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Vérifier le client">
+                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding IsVerifyEnabled}" AutomationProperties.Name="Vérifier le client">
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Width="13" Height="13" Margin="0,0,6,0" Data="{StaticResource AtlasV2.Icon.Check}" Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="{StaticResource AtlasV2.Brush.Cyan}"/>
                                                 <TextBlock VerticalAlignment="Center" Text="Vérifier"/>
                                             </StackPanel>
                                         </Button>
-                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Ouvrir le dossier du client">
+                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" Command="{Binding OpenGameFolderCommand}" AutomationProperties.Name="Ouvrir le dossier du client">
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Width="13" Height="13" Margin="0,0,6,0" Data="{StaticResource AtlasV2.Icon.Folder}" Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="{StaticResource AtlasV2.Brush.Gold}"/>
                                                 <TextBlock VerticalAlignment="Center" Text="Dossier"/>
                                             </StackPanel>
                                         </Button>
-                                        <Button Grid.Column="4" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Ouvrir le diagnostic">
+                                        <Button Grid.Column="4" Style="{StaticResource AtlasV2.Button.GhostCompact}" Command="{Binding OpenDiagnosticCommand}" ToolTip="Afficher le journal du launcher" AutomationProperties.Name="Ouvrir le diagnostic">
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Width="13" Height="13" Margin="0,0,6,0" Data="{StaticResource AtlasV2.Icon.Settings}" Style="{StaticResource AtlasV2.Icon.Stroke}"/>
                                                 <TextBlock VerticalAlignment="Center" Text="Diagnostic"/>
@@ -423,7 +424,7 @@
                                                    FontWeight="SemiBold"
                                                    Foreground="{StaticResource AtlasV2.Brush.Text}"/>
                                         <TextBlock Margin="0,3,0,0"
-                                                   Text="Choisis un dossier pour installer le client."
+                                                   Text="Aucune installation détectée à cet emplacement."
                                                    Style="{StaticResource AtlasV2.Text.Caption}"/>
                                     </StackPanel>
                                     <Grid Grid.Row="1" Margin="0,8,0,0" VerticalAlignment="Top">
@@ -445,13 +446,13 @@
                                             <ColumnDefinition Width="6"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Choisir le dossier du client">
+                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" Command="{Binding OpenGameFolderCommand}" AutomationProperties.Name="Ouvrir le dossier du client">
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Width="13" Height="13" Margin="0,0,6,0" Data="{StaticResource AtlasV2.Icon.Folder}" Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="{StaticResource AtlasV2.Brush.Gold}"/>
                                                 <TextBlock VerticalAlignment="Center" Text="Dossier"/>
                                             </StackPanel>
                                         </Button>
-                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Ouvrir le diagnostic">
+                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" Command="{Binding OpenDiagnosticCommand}" ToolTip="Afficher le journal du launcher" AutomationProperties.Name="Ouvrir le diagnostic">
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Width="13" Height="13" Margin="0,0,6,0" Data="{StaticResource AtlasV2.Icon.Settings}" Style="{StaticResource AtlasV2.Icon.Stroke}"/>
                                                 <TextBlock VerticalAlignment="Center" Text="Diagnostic"/>
@@ -498,13 +499,13 @@
                                             <ColumnDefinition Width="6"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Vérifier le client">
+                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding IsVerifyEnabled}" AutomationProperties.Name="Vérifier le client">
                                             <TextBlock Text="Vérifier"/>
                                         </Button>
-                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Ouvrir le dossier du client">
+                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" Command="{Binding OpenGameFolderCommand}" AutomationProperties.Name="Ouvrir le dossier du client">
                                             <TextBlock Text="Dossier"/>
                                         </Button>
-                                        <Button Grid.Column="4" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Ouvrir le diagnostic">
+                                        <Button Grid.Column="4" Style="{StaticResource AtlasV2.Button.GhostCompact}" Command="{Binding OpenDiagnosticCommand}" ToolTip="Afficher le journal du launcher" AutomationProperties.Name="Ouvrir le diagnostic">
                                             <TextBlock Text="Diagnostic"/>
                                         </Button>
                                     </Grid>
@@ -570,10 +571,10 @@
                                             <ColumnDefinition Width="6"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Voir les détails de l'erreur">
+                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding IsRetryEnabled}" AutomationProperties.Name="Voir les détails de l'erreur">
                                                 <TextBlock Text="Réessayer"/>
                                         </Button>
-                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding AreLocalActionsEnabled}" AutomationProperties.Name="Ouvrir le diagnostic">
+                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" Command="{Binding OpenDiagnosticCommand}" ToolTip="Afficher le journal du launcher" AutomationProperties.Name="Ouvrir le diagnostic">
                                             <TextBlock Text="Diagnostic"/>
                                         </Button>
                                     </Grid>
@@ -585,4 +586,45 @@
             </StackPanel>
         </Border>
     </ScrollViewer>
+        <Border x:Name="LocalNotification"
+                Panel.ZIndex="20"
+                MaxWidth="430"
+                Margin="24"
+                Padding="14,11"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                BorderThickness="1"
+                CornerRadius="6"
+                IsHitTestVisible="False"
+                Visibility="{Binding State.ShowsNotification, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
+                AutomationProperties.Name="Notification locale">
+            <Border.Style>
+                <Style TargetType="{x:Type Border}">
+                    <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding State.NotificationTone, ElementName=Root}" Value="{x:Static presentation:GameSemanticTone.Warning}">
+                            <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding State.NotificationTone, ElementName=Root}" Value="{x:Static presentation:GameSemanticTone.Error}">
+                            <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Danger}"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <StackPanel Orientation="Horizontal">
+                <Path Width="15"
+                      Height="15"
+                      Margin="0,1,9,0"
+                      Data="{StaticResource AtlasV2.Icon.AlertCircle}"
+                      Style="{StaticResource AtlasV2.Icon.Stroke}"
+                      Stroke="{Binding BorderBrush, ElementName=LocalNotification}"/>
+                <TextBlock MaxWidth="370"
+                           Text="{Binding State.NotificationMessage, ElementName=Root}"
+                           Style="{StaticResource AtlasV2.Text.Body}"
+                           Foreground="{StaticResource AtlasV2.Brush.Text}"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+    </Grid>
 </UserControl>

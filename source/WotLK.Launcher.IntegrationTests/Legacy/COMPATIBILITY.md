@@ -19,6 +19,21 @@ It is a characterization baseline, not the target coordinator design.
 `Known`, `Unavailable`), immutable snapshots and event coalescing are deliberately
 not implemented in 02A.0. Their clarified contracts apply to the later checkpoints.
 
+## Local shell baseline (02B)
+
+- `OpenGameFolderButton_Click` first saves the current UI fields. That save
+  normalizes `InstallPath`, persists the settings, creates the configured
+  directory when it is absent, then starts that path with shell execution.
+- `OpenLogsButton_Click` creates the legacy settings directory, writes the
+  current in-memory log box to `launcher.log` when the file is absent, then
+  starts Explorer with `/select,"<log path>"`.
+- Neither legacy handler catches a shell, path, access or creation error, and
+  neither displays a dedicated error message for an absent target.
+- The V2 checkpoint intentionally does not redirect these handlers. Its local
+  actions use the same configured paths but never create, normalize, persist or
+  repair them. This preserves the v1.1.0 path behavior while the legacy window
+  remains the default.
+
 ## Locked contracts for later checkpoints
 
 - `TryBegin` returns immediately with `Started`, `Busy`, `ShuttingDown` or

@@ -1,6 +1,7 @@
 using System.Windows;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2;
+using WotLK.Launcher.UI.V2.Commands;
 using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Preview;
 using WotLK.Launcher.UI.V2.Validation;
@@ -114,9 +115,13 @@ public partial class App : Application
         }
 
         ShellUiState shellState = LauncherV2RuntimePresentation.CreateShell(runtime);
+        GameUiState gameState = LauncherV2RuntimePresentation.CreateGame(runtime.LocalClient);
+        GameCommands gameCommands = LauncherV2RuntimePresentation.ConnectLocalActions(
+            gameState,
+            runtime.LocalActions);
         LauncherShellV2 window = new(
             shellState,
-            LauncherV2RuntimePresentation.CreateGame(runtime.LocalClient),
+            gameState,
             LauncherV2RuntimePresentation.CreateFriends());
 
         RoutedEventHandler? loadedHandler = null;
@@ -133,6 +138,8 @@ public partial class App : Application
         window.Closed += (_, _) =>
         {
             window.Loaded -= loadedHandler;
+            gameCommands.Dispose();
+            gameState.ClearNotification();
             runtime.Dispose();
         };
 

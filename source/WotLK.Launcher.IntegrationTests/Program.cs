@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -22,6 +23,18 @@ if (args.Length == 1
     && string.Equals(args[0], "--runtime-hardening", StringComparison.OrdinalIgnoreCase))
 {
     return await LauncherRuntimeHardeningTests.RunAsync();
+}
+
+if (args.Length == 1
+    && string.Equals(args[0], "--local-shell-actions", StringComparison.OrdinalIgnoreCase))
+{
+    return await LauncherLocalActionTests.RunAsync();
+}
+
+if (args.Length == 1
+    && string.Equals(args[0], "--local-shell-windows-smoke", StringComparison.OrdinalIgnoreCase))
+{
+    return LauncherLocalActionTests.RunWindowsSmoke();
 }
 
 if (args.Length == 1

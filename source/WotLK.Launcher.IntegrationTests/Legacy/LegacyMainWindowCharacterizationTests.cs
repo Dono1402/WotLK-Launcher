@@ -49,11 +49,34 @@ internal static class LegacyMainWindowCharacterizationTests
     {
         CharacterizeStartupRouting();
         CharacterizeConstructorOrderAndSingleInitialization();
+        CharacterizeLocalShellPaths();
         CharacterizeLocalGameActionsAndPrimaryButtons();
         await CharacterizeRestoreBeforeInitialAnalysisAsync();
         await CharacterizeTimerResponsibilitiesAsync();
         await CharacterizeLegacyCompatibilityMatrixAsync();
         CharacterizeCloseDuringOperation();
+    }
+
+    private static void CharacterizeLocalShellPaths()
+    {
+        using LegacyTestEnvironment environment = new(initialPlayableClient: true);
+        MainWindow window = new(environment.CreateDependencies());
+
+        LegacyLocalPathSnapshot paths = window.CaptureLocalPathCharacterization();
+        Equal(
+            environment.Settings.InstallPath,
+            paths.InstallPath,
+            "Dossier doit continuer à prendre le chemin actif des paramètres legacy.");
+        Equal(
+            Path.Combine(LauncherSettings.SettingsDirectory, "launcher.log"),
+            paths.LauncherLogPath,
+            "Logs doit conserver exactement la convention historique du fichier launcher.log.");
+        Equal(
+            LauncherSettings.LauncherLogPath,
+            paths.LauncherLogPath,
+            "La propriété centralisée doit rester identique au helper legacy.");
+
+        window.Close();
     }
 
     private static void CharacterizeStartupRouting()

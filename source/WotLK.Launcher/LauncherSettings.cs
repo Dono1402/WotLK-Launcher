@@ -21,6 +21,8 @@ public sealed class LauncherSettings
 
     public static string SettingsPath => Path.Combine(SettingsDirectory, "settings.json");
 
+    public static string LauncherLogPath => Path.Combine(SettingsDirectory, "launcher.log");
+
     public static LauncherSettings Load()
     {
         LauncherSettings settings;

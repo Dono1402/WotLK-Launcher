@@ -2944,9 +2944,14 @@ public partial class MainWindow : Window
             _isRefreshingGameAction);
     }
 
+    internal LegacyLocalPathSnapshot CaptureLocalPathCharacterization()
+    {
+        return new LegacyLocalPathSnapshot(_settings.InstallPath, GetLauncherLogPath());
+    }
+
     private static string GetLauncherLogPath()
     {
-        return Path.Combine(LauncherSettings.SettingsDirectory, "launcher.log");
+        return LauncherSettings.LauncherLogPath;
     }
 
     private static void WriteLauncherUpdateScript(string scriptPath, string targetExe, string downloadedExe, int processId)

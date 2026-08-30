@@ -1,3 +1,6 @@
+using System.Windows.Input;
+using WotLK.Launcher.UI.V2.Commands;
+
 namespace WotLK.Launcher.UI.V2.Presentation;
 
 public enum GamePreviewScenario
@@ -23,6 +26,10 @@ public enum GameSemanticTone
 
 public sealed class GameUiState : BindableUiState
 {
+    private string _notificationMessage = string.Empty;
+    private GameSemanticTone _notificationTone = GameSemanticTone.Neutral;
+    private bool _showsNotification;
+
     public GamePreviewScenario Scenario { get; init; } = GamePreviewScenario.Ready;
 
     public GameSemanticTone SemanticTone { get; init; } = GameSemanticTone.Success;
@@ -43,7 +50,13 @@ public sealed class GameUiState : BindableUiState
 
     public bool IsOptionsEnabled { get; init; } = true;
 
-    public bool AreLocalActionsEnabled { get; init; } = true;
+    public bool IsVerifyEnabled { get; init; } = true;
+
+    public bool IsRetryEnabled { get; init; } = true;
+
+    public ICommand OpenGameFolderCommand { get; private set; } = DisabledCommand.Instance;
+
+    public ICommand OpenDiagnosticCommand { get; private set; } = DisabledCommand.Instance;
 
     public string InstallBadgeText { get; init; } = "À jour";
 
@@ -73,6 +86,12 @@ public sealed class GameUiState : BindableUiState
 
     public string ErrorSummary { get; init; } = string.Empty;
 
+    public string NotificationMessage => _notificationMessage;
+
+    public GameSemanticTone NotificationTone => _notificationTone;
+
+    public bool ShowsNotification => _showsNotification;
+
     public string NewsCategory { get; init; } = "DERNIÈRE NOTE DE MISE À JOUR";
 
     public string NewsVersion { get; init; } = "v1.1.0";
@@ -95,4 +114,32 @@ public sealed class GameUiState : BindableUiState
         or GamePreviewScenario.Verifying;
 
     public bool ShowsError => Scenario == GamePreviewScenario.Error;
+
+    internal void AttachLocalCommands(ICommand openGameFolder, ICommand openDiagnostic)
+    {
+        OpenGameFolderCommand = openGameFolder ?? throw new ArgumentNullException(nameof(openGameFolder));
+        OpenDiagnosticCommand = openDiagnostic ?? throw new ArgumentNullException(nameof(openDiagnostic));
+        RaisePropertyChanged(nameof(OpenGameFolderCommand));
+        RaisePropertyChanged(nameof(OpenDiagnosticCommand));
+    }
+
+    internal void ShowNotification(string message, GameSemanticTone tone)
+    {
+        _notificationMessage = message;
+        _notificationTone = tone;
+        _showsNotification = !string.IsNullOrWhiteSpace(message);
+        RaisePropertyChanged(nameof(NotificationMessage));
+        RaisePropertyChanged(nameof(NotificationTone));
+        RaisePropertyChanged(nameof(ShowsNotification));
+    }
+
+    internal void ClearNotification()
+    {
+        _notificationMessage = string.Empty;
+        _notificationTone = GameSemanticTone.Neutral;
+        _showsNotification = false;
+        RaisePropertyChanged(nameof(NotificationMessage));
+        RaisePropertyChanged(nameof(NotificationTone));
+        RaisePropertyChanged(nameof(ShowsNotification));
+    }
 }

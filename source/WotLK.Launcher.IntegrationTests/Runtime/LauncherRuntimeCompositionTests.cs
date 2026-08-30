@@ -50,7 +50,9 @@ internal static class LauncherRuntimeCompositionTests
         Equal(GamePreviewScenario.NotInstalled, presentation.Scenario, "La vue locale doit afficher NotInstalled.");
         Equal("Client non installé", presentation.ClientStatus, "Le libellé local absent est incorrect.");
         True(!presentation.IsPrimaryActionEnabled, "Installer doit rester désactivé pendant 02A.");
-        True(!presentation.AreLocalActionsEnabled, "Les actions locales restent désactivées pendant 02A.");
+        True(!presentation.IsVerifyEnabled, "Vérifier reste désactivé avant 02C.");
+        True(!presentation.OpenGameFolderCommand.CanExecute(null), "Dossier attend sa connexion 02B.");
+        True(!presentation.OpenDiagnosticCommand.CanExecute(null), "Diagnostic attend sa connexion 02B.");
     }
 
     private static void CharacterizePlayableClientAndVersion()
@@ -76,7 +78,9 @@ internal static class LauncherRuntimeCompositionTests
             "Le mode local ne doit jamais inventer un statut À jour.");
         True(!presentation.IsPrimaryActionEnabled, "Jouer doit rester désactivé pendant 02A.");
         True(!presentation.IsOptionsEnabled, "Options doit rester désactivé avant 02G.");
-        True(!presentation.AreLocalActionsEnabled, "Vérifier, Dossier et Diagnostic attendent leurs checkpoints.");
+        True(!presentation.IsVerifyEnabled, "Vérifier attend toujours 02C.");
+        True(!presentation.OpenGameFolderCommand.CanExecute(null), "Dossier est inactif avant la composition 02B.");
+        True(!presentation.OpenDiagnosticCommand.CanExecute(null), "Diagnostic est inactif avant la composition 02B.");
         Equal(client.Root, presentation.InstallPath, "Le chemin réel doit être projeté dans la V2.");
         Equal("Français", presentation.Language, "La locale frFR doit être présentée en français.");
     }

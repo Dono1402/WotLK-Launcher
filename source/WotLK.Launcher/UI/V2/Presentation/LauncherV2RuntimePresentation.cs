@@ -1,5 +1,6 @@
 using WotLK.Launcher.Game;
 using WotLK.Launcher.Runtime;
+using WotLK.Launcher.UI.V2.Commands;
 
 namespace WotLK.Launcher.UI.V2.Presentation;
 
@@ -37,7 +38,8 @@ internal static class LauncherV2RuntimePresentation
                 PrimaryActionLabel = "Installer",
                 IsPrimaryActionEnabled = false,
                 IsOptionsEnabled = false,
-                AreLocalActionsEnabled = false,
+                IsVerifyEnabled = false,
+                IsRetryEnabled = false,
                 InstallBadgeText = "Non installé",
                 ClientVersion = installedVersion,
                 InstallPath = localClient.InstallPath,
@@ -56,7 +58,8 @@ internal static class LauncherV2RuntimePresentation
             PrimaryActionLabel = "Jouer",
             IsPrimaryActionEnabled = false,
             IsOptionsEnabled = false,
-            AreLocalActionsEnabled = false,
+            IsVerifyEnabled = false,
+            IsRetryEnabled = false,
             InstallBadgeText = "Non vérifié",
             ClientVersion = installedVersion,
             InstallPath = localClient.InstallPath,
@@ -71,6 +74,15 @@ internal static class LauncherV2RuntimePresentation
         return new FriendsUiState();
     }
 
+    internal static GameCommands ConnectLocalActions(
+        GameUiState gameState,
+        ILauncherLocalActions localActions)
+    {
+        GameCommands commands = new(localActions, result => ApplyLocalActionResult(gameState, result));
+        gameState.AttachLocalCommands(commands.OpenGameFolder, commands.OpenDiagnostic);
+        return commands;
+    }
+
     internal static void ApplySession(
         ShellUiState shellState,
         LauncherSessionRestoreResult restoreResult)
@@ -80,5 +92,28 @@ internal static class LauncherV2RuntimePresentation
         {
             shellState.ApplyAuthenticatedUser(restoreResult.Session.Profile.Username);
         }
+    }
+
+    private static void ApplyLocalActionResult(
+        GameUiState gameState,
+        LauncherLocalActionResult result)
+    {
+        if (result.Status == LauncherLocalActionStatus.Succeeded)
+        {
+            gameState.ClearNotification();
+            return;
+        }
+
+        if (result.Status is LauncherLocalActionStatus.Busy
+            or LauncherLocalActionStatus.ShuttingDown
+            || string.IsNullOrWhiteSpace(result.UserMessage))
+        {
+            return;
+        }
+
+        GameSemanticTone tone = result.Status == LauncherLocalActionStatus.Failed
+            ? GameSemanticTone.Error
+            : GameSemanticTone.Warning;
+        gameState.ShowNotification(result.UserMessage, tone);
     }
 }

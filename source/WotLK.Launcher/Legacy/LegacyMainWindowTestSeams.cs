@@ -131,7 +131,7 @@ internal sealed class LegacyMainWindowDependencies
             {
                 Directory.CreateDirectory(LauncherSettings.SettingsDirectory);
                 File.AppendAllText(
-                    Path.Combine(LauncherSettings.SettingsDirectory, "launcher.log"),
+                    LauncherSettings.LauncherLogPath,
                     line,
                     new UTF8Encoding(false));
             }
@@ -153,3 +153,7 @@ internal sealed record LegacyMainWindowSnapshot(
     string ProgressText,
     bool HasActiveOperation,
     bool IsRefreshingGameAction);
+
+internal sealed record LegacyLocalPathSnapshot(
+    string InstallPath,
+    string LauncherLogPath);

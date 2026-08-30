@@ -4,7 +4,7 @@ using MySqlConnector;
 
 namespace WotLK.Launcher.Server;
 
-public sealed class LauncherDatabase
+public sealed partial class LauncherDatabase
 {
     private readonly LauncherServerOptions _options;
     private readonly TokenService _tokens;
@@ -66,6 +66,7 @@ public sealed class LauncherDatabase
             );
             """;
         await command.ExecuteNonQueryAsync(cancellationToken);
+        await InitializeFriendsAsync(connection, cancellationToken);
     }
 
     public async Task<AuthResponse> RegisterAsync(

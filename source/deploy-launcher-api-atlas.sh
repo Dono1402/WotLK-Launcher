@@ -3,7 +3,8 @@ set -euo pipefail
 
 APP_DIR=/opt/wotlk-launcher-api
 ARCHIVE=/tmp/wotlk-launcher-api.tar.gz
-AUTH_CONF=/opt/arthas/server/etc/authserver.conf
+AUTH_CONF=${AUTH_CONF:-$(systemctl cat arthas-authserver.service | sed -n 's|^ExecStart=.* --config \([^ ]*\).*$|\1|p' | tail -n 1)}
+WORLD_CONF=${WORLD_CONF:-$(systemctl cat arthas-worldserver.service | sed -n 's|^ExecStart=.* --config \([^ ]*\).*$|\1|p' | tail -n 1)}
 ENV_DIR=/etc/wotlk
 ENV_FILE=$ENV_DIR/launcher-api.env
 INTERNAL_SECRET_FILE=/etc/atlas-wotlk-internal.secret
@@ -18,6 +19,10 @@ if [ ! -f "$AUTH_CONF" ]; then
   echo "missing auth config: $AUTH_CONF" >&2
   exit 1
 fi
+if [ ! -f "$WORLD_CONF" ]; then
+  echo "missing world config: $WORLD_CONF" >&2
+  exit 1
+fi
 
 if ! id wotlklauncher >/dev/null 2>&1; then
   useradd --system --home-dir "$APP_DIR" --shell /usr/sbin/nologin wotlklauncher
@@ -30,6 +35,15 @@ if [ -z "$dbhost" ] || [ -z "$dbport" ] || [ -z "$dbuser" ] || [ -z "$dbname" ];
   exit 1
 fi
 conn="Server=${dbhost};Port=${dbport};User ID=${dbuser};Password=${dbpass};Database=${dbname};TreatTinyAsBoolean=false;Allow User Variables=true"
+
+character_dbinfo=$(awk -F'"' '/^[[:space:]]*CharacterDatabaseInfo[[:space:]]*=/{print $2; exit}' "$WORLD_CONF")
+IFS=';' read -r _ _ _ _ character_db <<< "$character_dbinfo"
+case "$character_db" in
+  ''|*[!A-Za-z0-9_]*)
+    echo "invalid CharacterDatabaseInfo" >&2
+    exit 1
+    ;;
+esac
 
 if [ ! -s "$INTERNAL_SECRET_FILE" ]; then
   openssl rand -hex 32 > "$INTERNAL_SECRET_FILE"
@@ -69,6 +83,7 @@ install -d -m 0755 "$ENV_DIR"
   printf "ASPNETCORE_URLS=http://127.0.0.1:4323\n"
   printf "DOTNET_ENVIRONMENT=Production\n"
   printf "WOTLK_LAUNCHER_DB='%s'\n" "$conn"
+  printf "WOTLK_CHARACTER_DB=%s\n" "$character_db"
   printf "WOTLK_HERMES_SHARED_SECRET=%s\n" "$internal_secret"
   printf "WOTLK_PUBLIC_BASE_URL=https://animeclub.fr/wotlk\n"
   printf "WOTLK_BREVO_SENDER_EMAIL=noreply@animeclub.fr\n"

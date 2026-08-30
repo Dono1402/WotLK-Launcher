@@ -235,6 +235,61 @@ internal sealed class LauncherAuthService : IDisposable
         await EnsureSuccessAsync(response, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<LauncherFriend>> GetFriendsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using HttpRequestMessage request = CreateAuthorizedRequest(
+            HttpMethod.Get,
+            "friends");
+        using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<List<LauncherFriend>>(
+            JsonOptions,
+            cancellationToken)
+            ?? [];
+    }
+
+    public async Task<string> SendFriendRequestAsync(
+        string username,
+        CancellationToken cancellationToken = default)
+    {
+        using HttpRequestMessage request = CreateAuthorizedRequest(
+            HttpMethod.Post,
+            "friends/requests");
+        request.Content = JsonContent.Create(new { username });
+        using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        ApiMessage? result = await response.Content.ReadFromJsonAsync<ApiMessage>(
+            JsonOptions,
+            cancellationToken);
+        return string.IsNullOrWhiteSpace(result?.Message)
+            ? "Demande d'ami envoyée."
+            : result.Message;
+    }
+
+    public async Task AcceptFriendAsync(
+        uint accountId,
+        CancellationToken cancellationToken = default)
+    {
+        using HttpRequestMessage request = CreateAuthorizedRequest(
+            HttpMethod.Post,
+            $"friends/{accountId}/accept");
+        request.Content = JsonContent.Create(new { });
+        using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+    }
+
+    public async Task RemoveFriendAsync(
+        uint accountId,
+        CancellationToken cancellationToken = default)
+    {
+        using HttpRequestMessage request = CreateAuthorizedRequest(
+            HttpMethod.Delete,
+            $"friends/{accountId}");
+        using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+    }
+
     public async Task<LauncherServerStatus> GetStatusAsync(
         CancellationToken cancellationToken = default)
     {
@@ -418,6 +473,48 @@ internal sealed record LauncherDeviceSession(
         Current ? "Session actuelle" : $"Dernière activité {LastSeenAt.ToLocalTime():dd/MM/yyyy HH:mm}";
 
     public string ExpiresText => $"Expire le {ExpiresAt.ToLocalTime():dd/MM/yyyy}";
+}
+
+internal sealed record LauncherFriend(
+    uint AccountId,
+    string Username,
+    string? AvatarKey,
+    string Relationship,
+    bool Online,
+    string? CharacterName,
+    byte? Level,
+    byte? ClassId,
+    uint? ZoneId,
+    DateTimeOffset? LastSeenAt)
+{
+    public string Initial => string.IsNullOrWhiteSpace(Username)
+        ? "?"
+        : Username[..1].ToUpperInvariant();
+
+    public string CharacterText => string.IsNullOrWhiteSpace(CharacterName)
+        ? "Aucun personnage créé"
+        : $"{CharacterName} · {GetClassName(ClassId)} niveau {Level}";
+
+    public string PresenceText => Online
+        ? "En jeu"
+        : LastSeenAt is null
+            ? "Hors ligne"
+            : $"Hors ligne · vu le {LastSeenAt.Value.ToLocalTime():dd/MM à HH:mm}";
+
+    private static string GetClassName(byte? classId) => classId switch
+    {
+        1 => "Guerrier",
+        2 => "Paladin",
+        3 => "Chasseur",
+        4 => "Voleur",
+        5 => "Prêtre",
+        6 => "Chevalier de la mort",
+        7 => "Chaman",
+        8 => "Mage",
+        9 => "Démoniste",
+        11 => "Druide",
+        _ => "Personnage"
+    };
 }
 
 internal sealed record LauncherServerStatus(

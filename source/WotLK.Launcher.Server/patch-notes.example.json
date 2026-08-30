@@ -1,0 +1,23 @@
+[
+  {
+    "id": "atlas-launcher-1-1-0",
+    "category": "Launcher",
+    "title": "Atlas Launcher 1.1",
+    "summary": "Nouvel écran Jeu, catalogue avec logos officiels des addons, navigation simplifiée, notifications intégrées et suivi détaillé des téléchargements.",
+    "publishedAt": "2026-08-29T21:00:00Z"
+  },
+  {
+    "id": "atlas-social-friends",
+    "category": "Social",
+    "title": "Les amis Atlas arrivent en jeu",
+    "summary": "Les comptes ajoutés depuis le launcher suivent désormais le personnage connecté et sa présence sur Arthas.",
+    "publishedAt": "2026-08-28T19:00:00Z"
+  },
+  {
+    "id": "atlas-addons-catalog",
+    "category": "Addons",
+    "title": "Le catalogue compatible s'agrandit",
+    "summary": "Treize addons vérifiés pour WotLK Classic 3.4.3 sont disponibles et triés par catégorie.",
+    "publishedAt": "2026-08-27T19:00:00Z"
+  }
+]

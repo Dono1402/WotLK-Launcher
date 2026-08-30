@@ -25,10 +25,19 @@ public partial class MainWindow : Window
         Play
     }
 
+    private enum ToastKind
+    {
+        Info,
+        Success,
+        Warning,
+        Error
+    }
+
     private enum LauncherPage
     {
         Game,
         Addons,
+        Friends,
         News,
         Server,
         Account,
@@ -52,9 +61,14 @@ public partial class MainWindow : Window
     private readonly HttpClient _http;
     private readonly LauncherSettings _settings;
     private readonly DispatcherTimer _launcherUpdateTimer;
+    private readonly DispatcherTimer _friendRefreshTimer;
+    private readonly DispatcherTimer _toastTimer;
     private readonly ObservableCollection<AddonSelectionItem> _addonItems = [];
     private readonly ObservableCollection<LauncherNews> _newsItems = [];
     private readonly ObservableCollection<LauncherDeviceSession> _sessionItems = [];
+    private readonly ObservableCollection<LauncherFriend> _friendItems = [];
+    private readonly ObservableCollection<LauncherFriend> _incomingFriendItems = [];
+    private readonly ObservableCollection<LauncherFriend> _outgoingFriendItems = [];
     private readonly List<AddonSelectionItem> _allAddonItems = [];
     private CancellationTokenSource? _downloadCancellation;
     private LauncherUpdateManifest? _launcherUpdate;
@@ -67,8 +81,11 @@ public partial class MainWindow : Window
     private bool _isApplyingAddons;
     private bool _isInitializingUi = true;
     private bool _isLoadingAccountData;
+    private bool _isLoadingFriends;
     private bool _isLoadingServerStatus;
     private string _selectedAddonCategory = "All";
+    private string _selectedAddonView = "Catalog";
+    private string _selectedAddonSort = "Name";
     private LauncherPage _currentPage = LauncherPage.Game;
     private string? _announcedLauncherUpdateHash;
     private string? _announcedGameUpdateVersion;
@@ -84,6 +101,10 @@ public partial class MainWindow : Window
         AddonItemsControl.ItemsSource = _addonItems;
         NewsItemsControl.ItemsSource = _newsItems;
         SessionsItemsControl.ItemsSource = _sessionItems;
+        FriendItemsControl.ItemsSource = _friendItems;
+        GameFriendItemsControl.ItemsSource = _friendItems;
+        IncomingFriendItemsControl.ItemsSource = _incomingFriendItems;
+        OutgoingFriendItemsControl.ItemsSource = _outgoingFriendItems;
 
         Title = "Arthas Launcher";
         TitleText.Text = "ARTHAS";
@@ -108,6 +129,16 @@ public partial class MainWindow : Window
             Interval = LauncherUpdateCheckInterval
         };
         _launcherUpdateTimer.Tick += LauncherUpdateTimer_Tick;
+        _friendRefreshTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromSeconds(15)
+        };
+        _friendRefreshTimer.Tick += FriendRefreshTimer_Tick;
+        _toastTimer = new DispatcherTimer(DispatcherPriority.Normal)
+        {
+            Interval = TimeSpan.FromSeconds(8)
+        };
+        _toastTimer.Tick += ToastTimer_Tick;
 
         AppendLog("Launcher prêt.");
         SetInitialGameActionFromDisk();
@@ -121,6 +152,7 @@ public partial class MainWindow : Window
         {
             _launcherUpdateTimer.Start();
         }
+        _friendRefreshTimer.Start();
     }
 
     protected override void OnClosed(EventArgs e)
@@ -128,6 +160,10 @@ public partial class MainWindow : Window
         _downloadCancellation?.Cancel();
         _launcherUpdateTimer.Stop();
         _launcherUpdateTimer.Tick -= LauncherUpdateTimer_Tick;
+        _friendRefreshTimer.Stop();
+        _friendRefreshTimer.Tick -= FriendRefreshTimer_Tick;
+        _toastTimer.Stop();
+        _toastTimer.Tick -= ToastTimer_Tick;
         Loaded -= MainWindow_Loaded;
         _http.Dispose();
         _auth.Dispose();
@@ -179,7 +215,7 @@ public partial class MainWindow : Window
         {
             SetStatus("Erreur.");
             AppendLog("Erreur mise à jour launcher: " + ex.Message);
-            System.Windows.MessageBox.Show(this, ex.Message, "Erreur mise à jour launcher", MessageBoxButton.OK, MessageBoxImage.Error);
+            ShowToast("Mise à jour du launcher", ex.Message, ToastKind.Error);
         }
         finally
         {
@@ -242,7 +278,7 @@ public partial class MainWindow : Window
         {
             SetStatus("Erreur.");
             AppendLog("Erreur: " + ex.Message);
-            System.Windows.MessageBox.Show(this, ex.Message, "Erreur launcher", MessageBoxButton.OK, MessageBoxImage.Error);
+            ShowToast("Erreur du launcher", ex.Message, ToastKind.Error);
         }
         finally
         {
@@ -355,6 +391,26 @@ public partial class MainWindow : Window
         await RefreshAddonCatalogAsync(reloadCatalog: _addonCatalog is null);
     }
 
+    private async void FriendsTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!EnsureAuthenticated())
+        {
+            return;
+        }
+
+        NavigateTo(LauncherPage.Friends);
+        await RefreshFriendsAsync();
+    }
+
+    private async void FriendRefreshTimer_Tick(object? sender, EventArgs e)
+    {
+        if ((_currentPage == LauncherPage.Friends || _currentPage == LauncherPage.Game)
+            && _auth.Session is not null)
+        {
+            await RefreshFriendsAsync(showLoadingStatus: false);
+        }
+    }
+
     private async void NewsTabButton_Click(object sender, RoutedEventArgs e)
     {
         if (!EnsureAuthenticated())
@@ -404,6 +460,29 @@ public partial class MainWindow : Window
         AddonsTabButton_Click(sender, e);
     }
 
+    private async void VerifyClientButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_downloadCancellation is not null || !EnsureAuthenticated())
+        {
+            return;
+        }
+
+        SetStatus("Vérification du client...");
+        ProgressText.Text = "Analyse en cours";
+        await RefreshGameActionAsync();
+    }
+
+    private void OpenGameFolderButton_Click(object sender, RoutedEventArgs e)
+    {
+        SaveSettingsFromUi();
+        Directory.CreateDirectory(_settings.InstallPath);
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = _settings.InstallPath,
+            UseShellExecute = true
+        });
+    }
+
     private async void AddonApplyButton_Click(object sender, RoutedEventArgs e)
     {
         if (_downloadCancellation is not null)
@@ -420,7 +499,7 @@ public partial class MainWindow : Window
         SaveSettingsFromUi();
         if (!GameInstallServices.HasPlayableClient(_settings.InstallPath))
         {
-            System.Windows.MessageBox.Show(this, "Installe d'abord le client WotLK avant de gérer ses addons.", "Client introuvable", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ShowToast("Client introuvable", "Installe d'abord le client WotLK avant de gérer ses addons.", ToastKind.Warning);
             return;
         }
 
@@ -453,15 +532,28 @@ public partial class MainWindow : Window
             }
 
             var selection = _allAddonItems.ToDictionary(item => item.Id, item => item.IsSelected, StringComparer.OrdinalIgnoreCase);
+            var addonTransferStopwatch = Stopwatch.StartNew();
+            string currentTransferAddon = string.Empty;
+            long previousTransferBytes = 0;
             var progress = new Progress<AddonTransferProgress>(value =>
             {
+                if (!string.Equals(currentTransferAddon, value.AddonName, StringComparison.Ordinal)
+                    || value.BytesReceived < previousTransferBytes)
+                {
+                    currentTransferAddon = value.AddonName;
+                    previousTransferBytes = 0;
+                    addonTransferStopwatch.Restart();
+                }
+
+                previousTransferBytes = value.BytesReceived;
                 AddonStatusText.Text = "Téléchargement de " + value.AddonName;
                 AddonProgress.Value = value.TotalBytes > 0
                     ? Math.Clamp((double)value.BytesReceived / value.TotalBytes * 100, 0, 100)
                     : 0;
-                AddonProgressText.Text = value.TotalBytes > 0
-                    ? $"{FormatBytes(value.BytesReceived)} / {FormatBytes(value.TotalBytes)}"
-                    : FormatBytes(value.BytesReceived);
+                AddonProgressText.Text = FormatTransferProgress(
+                    value.BytesReceived,
+                    value.TotalBytes > 0 ? value.TotalBytes : null,
+                    addonTransferStopwatch.Elapsed);
             });
 
             await AddonInstallServices.ApplySelectionAsync(
@@ -483,6 +575,10 @@ public partial class MainWindow : Window
             AppendLog(gameIsRunning
                 ? "Configuration des addons terminée. Utilise /reload dans le jeu."
                 : "Configuration des addons terminée.");
+            ShowToast(
+                "Addons appliqués",
+                gameIsRunning ? "Les changements sont prêts. Utilise /reload dans le jeu." : "Ta sélection d'addons est à jour.",
+                ToastKind.Success);
         }
         catch (OperationCanceledException)
         {
@@ -495,7 +591,7 @@ public partial class MainWindow : Window
             AddonStatusText.Text = "Erreur lors de la configuration";
             AddonProgressText.Text = string.Empty;
             AppendLog("Erreur addons: " + ex.Message);
-            System.Windows.MessageBox.Show(this, ex.Message, "Erreur addons", MessageBoxButton.OK, MessageBoxImage.Error);
+            ShowToast("Erreur addons", ex.Message, ToastKind.Error);
         }
         finally
         {
@@ -519,6 +615,7 @@ public partial class MainWindow : Window
         HomePanel.Visibility = Visibility.Collapsed;
         GamePanel.Visibility = page == LauncherPage.Game ? Visibility.Visible : Visibility.Collapsed;
         AddonsPanel.Visibility = page == LauncherPage.Addons ? Visibility.Visible : Visibility.Collapsed;
+        FriendsPanel.Visibility = page == LauncherPage.Friends ? Visibility.Visible : Visibility.Collapsed;
         NewsPanel.Visibility = page == LauncherPage.News ? Visibility.Visible : Visibility.Collapsed;
         ServerPanel.Visibility = page == LauncherPage.Server ? Visibility.Visible : Visibility.Collapsed;
         AccountPanel.Visibility = page == LauncherPage.Account ? Visibility.Visible : Visibility.Collapsed;
@@ -526,6 +623,7 @@ public partial class MainWindow : Window
 
         ClientTabButton.Tag = page == LauncherPage.Game ? "Active" : null;
         AddonsTabButton.Tag = page == LauncherPage.Addons ? "Active" : null;
+        FriendsTabButton.Tag = page == LauncherPage.Friends ? "Active" : null;
         NewsTabButton.Tag = page == LauncherPage.News ? "Active" : null;
         ServerTabButton.Tag = page == LauncherPage.Server ? "Active" : null;
         AccountTabButton.Tag = page == LauncherPage.Account ? "Active" : null;
@@ -549,6 +647,13 @@ public partial class MainWindow : Window
         yield return AddonInventoryCategoryButton;
     }
 
+    private IEnumerable<Button> GetAddonViewButtons()
+    {
+        yield return AddonInstalledTabButton;
+        yield return AddonCatalogTabButton;
+        yield return AddonUpdatesTabButton;
+    }
+
     private void UpdateAddonCategoryCounts()
     {
         AddonAllCountText.Text = _allAddonItems.Count.ToString(CultureInfo.InvariantCulture);
@@ -559,6 +664,17 @@ public partial class MainWindow : Window
         AddonCollectionsCountText.Text = CountAddons("Collections");
         AddonEconomyCountText.Text = CountAddons("Économie");
         AddonInventoryCountText.Text = CountAddons("Inventaire");
+        UpdateAddonViewCounts();
+    }
+
+    private void UpdateAddonViewCounts()
+    {
+        int installed = _allAddonItems.Count(item => item.IsInstalled);
+        int updates = _allAddonItems.Count(item => item.NeedsUpdate);
+        AddonInstalledCountText.Text = $"({installed})";
+        AddonCatalogCountText.Text = $"({_allAddonItems.Count})";
+        AddonUpdatesCountText.Text = updates.ToString(CultureInfo.InvariantCulture);
+        AddonUpdatesBadge.Visibility = updates > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private string CountAddons(string category)
@@ -591,6 +707,9 @@ public partial class MainWindow : Window
             }
 
             PopulateAddonItemsFromState();
+            AddonGameRunningNoticeText.Visibility = GameInstallServices.IsGameRunning(_settings.InstallPath)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
             AddonStatusText.Text = GameInstallServices.HasPlayableClient(_settings.InstallPath)
                 ? $"{_addonItems.Count} addons compatibles disponibles"
                 : "Client WotLK requis";
@@ -649,9 +768,45 @@ public partial class MainWindow : Window
         ApplyAddonCategoryFilter();
     }
 
+    private void AddonViewButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button)
+        {
+            return;
+        }
+
+        _selectedAddonView = button.CommandParameter?.ToString() ?? "Catalog";
+        foreach (Button viewButton in GetAddonViewButtons())
+        {
+            viewButton.Tag = ReferenceEquals(viewButton, button) ? "Active" : null;
+        }
+
+        ApplyAddonCategoryFilter();
+    }
+
     private void AddonSearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
+        if (AddonSearchPlaceholder is not null)
+        {
+            AddonSearchPlaceholder.Visibility = string.IsNullOrEmpty(AddonSearchBox.Text)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
         ApplyAddonCategoryFilter();
+    }
+
+    private void AddonSortComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isInitializingUi)
+        {
+            return;
+        }
+
+        if (AddonSortComboBox.SelectedItem is ComboBoxItem item)
+        {
+            _selectedAddonSort = item.Tag?.ToString() ?? "Name";
+            ApplyAddonCategoryFilter();
+        }
     }
 
     private void ApplyAddonCategoryFilter()
@@ -662,21 +817,45 @@ public partial class MainWindow : Window
         }
 
         string search = AddonSearchBox?.Text.Trim() ?? string.Empty;
-        _addonItems.Clear();
-        foreach (AddonSelectionItem item in _allAddonItems)
+        IEnumerable<AddonSelectionItem> filtered = _allAddonItems.Where(item =>
         {
+            bool viewMatches = _selectedAddonView switch
+            {
+                "Installed" => item.IsInstalled,
+                "Updates" => item.NeedsUpdate,
+                _ => true
+            };
             bool categoryMatches = _selectedAddonCategory == "All"
                 || string.Equals(item.Category, _selectedAddonCategory, StringComparison.OrdinalIgnoreCase);
             bool searchMatches = string.IsNullOrWhiteSpace(search)
                 || item.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase)
-                || item.Description.Contains(search, StringComparison.CurrentCultureIgnoreCase);
-            if (categoryMatches && searchMatches)
-            {
-                _addonItems.Add(item);
-            }
+                || item.Description.Contains(search, StringComparison.CurrentCultureIgnoreCase)
+                || item.Category.Contains(search, StringComparison.CurrentCultureIgnoreCase);
+            return viewMatches && categoryMatches && searchMatches;
+        });
+
+        filtered = _selectedAddonSort switch
+        {
+            "Category" => filtered.OrderBy(item => item.Category, AddonNameComparer)
+                .ThenBy(item => item.Name, AddonNameComparer),
+            "Status" => filtered.OrderBy(item => item.StatusText, AddonNameComparer)
+                .ThenBy(item => item.Name, AddonNameComparer),
+            _ => filtered.OrderBy(item => item.Name, AddonNameComparer)
+        };
+
+        _addonItems.Clear();
+        foreach (AddonSelectionItem item in filtered)
+        {
+            _addonItems.Add(item);
         }
 
         UpdateAddonCategoryCounts();
+        (AddonLibraryTitleText.Text, AddonLibrarySummaryText.Text) = _selectedAddonView switch
+        {
+            "Installed" => ("Mes addons installés", "Gère les addons déjà présents sur ce client."),
+            "Updates" => ("Mises à jour disponibles", "Répare ou actualise les addons qui en ont besoin."),
+            _ => ("Catalogue compatible", "Choisis les addons à installer ou retirer.")
+        };
         AddonStatusText.Text = _allAddonItems.Count == 0
             ? "Catalogue prêt"
             : $"{_addonItems.Count} addon(s) affiché(s) sur {_allAddonItems.Count}";
@@ -685,6 +864,194 @@ public partial class MainWindow : Window
     private void UpdateAddonInstallPathText()
     {
         AddonInstallPathText.Text = AddonInstallServices.GetAddonsDirectory(_settings.InstallPath);
+    }
+
+    private async void RefreshFriendsButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshFriendsAsync();
+    }
+
+    private async void SendFriendRequestButton_Click(object sender, RoutedEventArgs e)
+    {
+        await SendFriendRequestAsync();
+    }
+
+    private async void FriendUsernameBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            await SendFriendRequestAsync();
+        }
+    }
+
+    private async Task SendFriendRequestAsync()
+    {
+        string username = FriendUsernameBox.Text.Trim();
+        if (username.Length is < 2 or > 32)
+        {
+            FriendStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xF1, 0x8A, 0x91));
+            FriendStatusText.Text = "Saisis le nom d'utilisateur Atlas exact.";
+            return;
+        }
+
+        SendFriendRequestButton.IsEnabled = false;
+        try
+        {
+            string message = await _auth.SendFriendRequestAsync(username);
+            FriendUsernameBox.Clear();
+            FriendStatusText.Foreground = (Brush)FindResource("SuccessBrush");
+            FriendStatusText.Text = message;
+            AppendLog(message);
+            await RefreshFriendsAsync(showLoadingStatus: false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
+        {
+            FriendStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xF1, 0x8A, 0x91));
+            FriendStatusText.Text = ex.Message;
+        }
+        finally
+        {
+            SendFriendRequestButton.IsEnabled = true;
+        }
+    }
+
+    private async void AcceptFriendButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.CommandParameter is not uint accountId)
+        {
+            return;
+        }
+
+        button.IsEnabled = false;
+        try
+        {
+            await _auth.AcceptFriendAsync(accountId);
+            FriendStatusText.Foreground = (Brush)FindResource("SuccessBrush");
+            FriendStatusText.Text = "Demande d'ami acceptée.";
+            await RefreshFriendsAsync(showLoadingStatus: false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
+        {
+            FriendStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xF1, 0x8A, 0x91));
+            FriendStatusText.Text = ex.Message;
+        }
+        finally
+        {
+            button.IsEnabled = true;
+        }
+    }
+
+    private async void RemoveFriendButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button
+            || button.CommandParameter is not uint accountId
+            || button.DataContext is not LauncherFriend friend)
+        {
+            return;
+        }
+
+        if (string.Equals(friend.Relationship, "accepted", StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBoxResult confirmation = System.Windows.MessageBox.Show(
+                this,
+                $"Retirer {friend.Username} de tes amis Atlas ?",
+                "Retirer un ami",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (confirmation != MessageBoxResult.Yes)
+            {
+                return;
+            }
+        }
+
+        button.IsEnabled = false;
+        try
+        {
+            await _auth.RemoveFriendAsync(accountId);
+            FriendStatusText.Foreground = (Brush)FindResource("TextSecondaryBrush");
+            FriendStatusText.Text = string.Equals(friend.Relationship, "accepted", StringComparison.OrdinalIgnoreCase)
+                ? $"{friend.Username} a été retiré de tes amis."
+                : "Demande d'ami supprimée.";
+            await RefreshFriendsAsync(showLoadingStatus: false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
+        {
+            FriendStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xF1, 0x8A, 0x91));
+            FriendStatusText.Text = ex.Message;
+        }
+        finally
+        {
+            button.IsEnabled = true;
+        }
+    }
+
+    private async Task RefreshFriendsAsync(bool showLoadingStatus = true)
+    {
+        if (_isLoadingFriends || _auth.Session is null)
+        {
+            return;
+        }
+
+        _isLoadingFriends = true;
+        if (showLoadingStatus)
+        {
+            FriendStatusText.Foreground = (Brush)FindResource("TextSecondaryBrush");
+            FriendStatusText.Text = "Actualisation de la liste d'amis...";
+        }
+
+        try
+        {
+            IReadOnlyList<LauncherFriend> friends = await _auth.GetFriendsAsync();
+            _friendItems.Clear();
+            _incomingFriendItems.Clear();
+            _outgoingFriendItems.Clear();
+
+            foreach (LauncherFriend friend in friends)
+            {
+                switch (friend.Relationship.ToLowerInvariant())
+                {
+                    case "incoming":
+                        _incomingFriendItems.Add(friend);
+                        break;
+                    case "outgoing":
+                        _outgoingFriendItems.Add(friend);
+                        break;
+                    default:
+                        _friendItems.Add(friend);
+                        break;
+                }
+            }
+
+            IncomingFriendSection.Visibility = _incomingFriendItems.Count > 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            OutgoingFriendSection.Visibility = _outgoingFriendItems.Count > 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            FriendsEmptyText.Visibility = _friendItems.Count == 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+            int onlineCount = _friendItems.Count(friend => friend.Online);
+            GameFriendCountText.Text = _friendItems.Count == 0
+                ? "Aucun ami Atlas"
+                : $"{onlineCount} en jeu sur {_friendItems.Count}";
+            FriendStatusText.Foreground = (Brush)FindResource("TextSecondaryBrush");
+            FriendStatusText.Text = _friendItems.Count == 0
+                ? "Aucun ami Atlas pour le moment."
+                : $"{_friendItems.Count} ami(s) · {onlineCount} en jeu";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
+        {
+            FriendStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xF1, 0x8A, 0x91));
+            FriendStatusText.Text = "Liste d'amis indisponible : " + ex.Message;
+            AppendLog("Liste d'amis indisponible: " + ex.Message);
+        }
+        finally
+        {
+            _isLoadingFriends = false;
+        }
     }
 
     private async void LoginButton_Click(object sender, RoutedEventArgs e)
@@ -855,23 +1222,14 @@ public partial class MainWindow : Window
             UpdateProfileUi(result.Profile);
             ChangeEmailPanel.Visibility = Visibility.Collapsed;
             AppendLog(result.VerificationMessage);
-            System.Windows.MessageBox.Show(
-                this,
-                result.VerificationMessage,
+            ShowToast(
                 "Adresse e-mail",
-                MessageBoxButton.OK,
-                result.VerificationEmailSent || result.Profile.EmailVerified
-                    ? MessageBoxImage.Information
-                    : MessageBoxImage.Warning);
+                result.VerificationMessage,
+                result.VerificationEmailSent || result.Profile.EmailVerified ? ToastKind.Info : ToastKind.Warning);
         }
         catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
         {
-            System.Windows.MessageBox.Show(
-                this,
-                ex.Message,
-                "Adresse e-mail",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            ShowToast("Adresse e-mail", ex.Message, ToastKind.Error);
         }
     }
 
@@ -884,22 +1242,14 @@ public partial class MainWindow : Window
             LauncherProfile profile = await _auth.RefreshProfileAsync();
             UpdateProfileUi(profile);
             AppendLog(message);
-            System.Windows.MessageBox.Show(
-                this,
-                message + Environment.NewLine + Environment.NewLine
-                + "Pense à vérifier le dossier des courriers indésirables.",
+            ShowToast(
                 "Validation de l'e-mail",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                message + " Pense à vérifier le dossier des courriers indésirables.",
+                ToastKind.Info);
         }
         catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
         {
-            System.Windows.MessageBox.Show(
-                this,
-                ex.Message,
-                "Validation de l'e-mail",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            ShowToast("Validation de l'e-mail", ex.Message, ToastKind.Error);
         }
         finally
         {
@@ -919,10 +1269,11 @@ public partial class MainWindow : Window
             LauncherProfile profile = await _auth.ChangeAvatarAsync(avatarKey);
             UpdateProfileUi(profile);
             AppendLog("Avatar du compte mis à jour.");
+            ShowToast("Profil mis à jour", "Ton avatar Atlas a bien été modifié.", ToastKind.Success);
         }
         catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
         {
-            System.Windows.MessageBox.Show(this, ex.Message, "Avatar", MessageBoxButton.OK, MessageBoxImage.Error);
+            ShowToast("Avatar", ex.Message, ToastKind.Error);
         }
     }
 
@@ -980,11 +1331,12 @@ public partial class MainWindow : Window
         {
             await _auth.RevokeSessionAsync(sessionId);
             AppendLog("Session distante révoquée.");
+            ShowToast("Session révoquée", "L'appareil a été déconnecté de ton compte.", ToastKind.Success);
             await RefreshAccountDataAsync();
         }
         catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
         {
-            System.Windows.MessageBox.Show(this, ex.Message, "Sessions", MessageBoxButton.OK, MessageBoxImage.Error);
+            ShowToast("Sessions", ex.Message, ToastKind.Error);
         }
     }
 
@@ -1039,14 +1391,18 @@ public partial class MainWindow : Window
             }
 
             LauncherNews? latest = _newsItems.FirstOrDefault();
-            HomeNewsTitleText.Text = latest?.Title ?? "Aucune actualité";
+            HomeNewsTitleText.Text = latest?.Title ?? "Aucun patch note";
             HomeNewsSummaryText.Text = latest?.Summary ?? string.Empty;
+            GamePatchTitleText.Text = latest?.Title ?? "Aucun patch note";
+            GamePatchSummaryText.Text = latest?.Summary ?? "Les prochaines modifications du launcher et du royaume apparaîtront ici.";
         }
         catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
         {
-            HomeNewsTitleText.Text = "Actualités indisponibles";
+            HomeNewsTitleText.Text = "Patch notes indisponibles";
             HomeNewsSummaryText.Text = "Atlas n’a pas pu répondre pour le moment.";
-            AppendLog("Actualités indisponibles: " + ex.Message);
+            GamePatchTitleText.Text = "Patch notes indisponibles";
+            GamePatchSummaryText.Text = "Atlas n’a pas pu répondre pour le moment.";
+            AppendLog("Patch notes indisponibles: " + ex.Message);
         }
     }
 
@@ -1081,6 +1437,13 @@ public partial class MainWindow : Window
             HomeServerStatusText.Foreground = (Brush)FindResource(online ? "SuccessBrush" : "GoldHoverBrush");
             HomeServerDot.Fill = (Brush)FindResource(online ? "SuccessBrush" : "GoldHoverBrush");
             HomeServerCheckedText.Text = $"Vérifié à {status.CheckedAt.ToLocalTime():HH:mm:ss}";
+            HeaderServerStatusText.Text = online ? "Serveur en ligne" : "Service dégradé";
+            HeaderServerStatusText.Foreground = (Brush)FindResource(online ? "SuccessBrush" : "GoldHoverBrush");
+            HeaderServerDot.Fill = (Brush)FindResource(online ? "SuccessBrush" : "GoldHoverBrush");
+            GameServerStatusText.Text = online ? "En ligne" : "Service dégradé";
+            GameServerStatusText.Foreground = (Brush)FindResource(online ? "SuccessBrush" : "GoldHoverBrush");
+            GameServerDot.Fill = (Brush)FindResource(online ? "SuccessBrush" : "GoldHoverBrush");
+            GameServerCheckedText.Text = $"Vérifié à {status.CheckedAt.ToLocalTime():HH:mm:ss}";
 
             SetServiceStatus(ApiStatusText, status.Api);
             SetServiceStatus(AuthenticationStatusText, status.Authentication);
@@ -1093,6 +1456,12 @@ public partial class MainWindow : Window
             ServerGlobalStatusText.Text = "Statut indisponible";
             HomeServerStatusText.Text = "Indisponible";
             HomeServerDot.Fill = (Brush)FindResource("TextMutedBrush");
+            HeaderServerStatusText.Text = "Serveur indisponible";
+            HeaderServerStatusText.Foreground = (Brush)FindResource("TextMutedBrush");
+            HeaderServerDot.Fill = (Brush)FindResource("TextMutedBrush");
+            GameServerStatusText.Text = "Indisponible";
+            GameServerStatusText.Foreground = (Brush)FindResource("TextMutedBrush");
+            GameServerDot.Fill = (Brush)FindResource("TextMutedBrush");
             AppendLog("Statut Atlas indisponible: " + ex.Message);
         }
         finally
@@ -1104,7 +1473,7 @@ public partial class MainWindow : Window
 
     private async Task RefreshDashboardAsync()
     {
-        await Task.WhenAll(RefreshNewsAsync(), RefreshServerStatusAsync());
+        await Task.WhenAll(RefreshNewsAsync(), RefreshServerStatusAsync(), RefreshFriendsAsync(showLoadingStatus: false));
         HomeClientStatusText.Text = GetGameActionLabel(_gameAction) switch
         {
             "JOUER" => "Prêt à jouer",
@@ -1240,6 +1609,40 @@ public partial class MainWindow : Window
         Close();
     }
 
+    private void ToastCloseButton_Click(object sender, RoutedEventArgs e)
+    {
+        HideToast();
+    }
+
+    private void ToastTimer_Tick(object? sender, EventArgs e)
+    {
+        HideToast();
+    }
+
+    private void ShowToast(string title, string message, ToastKind kind)
+    {
+        string brushKey = kind switch
+        {
+            ToastKind.Success => "SuccessBrush",
+            ToastKind.Warning => "GoldHoverBrush",
+            ToastKind.Error => "DangerBrush",
+            _ => "IceBrush"
+        };
+
+        ToastTitleText.Text = title;
+        ToastMessageText.Text = message;
+        ToastAccentBorder.Background = (Brush)FindResource(brushKey);
+        ToastBorder.Visibility = Visibility.Visible;
+        _toastTimer.Stop();
+        _toastTimer.Start();
+    }
+
+    private void HideToast()
+    {
+        _toastTimer.Stop();
+        ToastBorder.Visibility = Visibility.Collapsed;
+    }
+
     private void ToggleWindowState()
     {
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
@@ -1251,7 +1654,7 @@ public partial class MainWindow : Window
         var gameLauncherPath = GameInstallServices.GetGameLauncherPath(_settings.InstallPath);
         if (!GameInstallServices.HasPlayableClient(_settings.InstallPath))
         {
-            System.Windows.MessageBox.Show(this, "Le client Classic ou le lanceur Atlas est introuvable. Installe ou mets a jour le client d'abord.", "Client introuvable", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ShowToast("Client introuvable", "Le client Classic ou le lanceur Atlas est introuvable. Installe ou mets à jour le client d'abord.", ToastKind.Warning);
             SetGameAction(GameAction.Install);
             return;
         }
@@ -1284,12 +1687,7 @@ public partial class MainWindow : Window
         {
             AppendLog("Connexion automatique impossible: " + ex.Message);
             SetStatus("Connexion requise.");
-            System.Windows.MessageBox.Show(
-                this,
-                ex.Message,
-                "Connexion automatique",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            ShowToast("Connexion automatique", ex.Message, ToastKind.Error);
             if (ex is LauncherAuthException)
             {
                 ShowLogin();
@@ -1945,22 +2343,26 @@ public partial class MainWindow : Window
         }
 
         SetStatus("Telechargement...");
+        var downloadStopwatch = Stopwatch.StartNew();
+        var fileIndex = 0;
 
         foreach (var file in missingOrChanged)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            fileIndex++;
             var target = GetSafeTargetPath(_settings.InstallPath, file.Path);
             var uri = BuildFileUri(manifest, file);
 
+            SetStatus($"Téléchargement {fileIndex}/{missingOrChanged.Count}...");
             AppendLog("Téléchargement: " + file.Path);
             await DownloadFileAsync(uri, target, file.Size, file.Sha256, progressBytes =>
             {
                 var current = downloadedBytes + progressBytes;
                 MainProgress.Value = totalBytes == 0 ? 0 : Math.Clamp((double)current / totalBytes * 100, 0, 100);
-                ProgressText.Text = $"{FormatBytes(current)} / {FormatBytes(totalBytes)}";
+                ProgressText.Text = FormatTransferProgress(current, totalBytes, downloadStopwatch.Elapsed);
             }, cancellationToken);
 
-            downloadedBytes += file.Size;
+            downloadedBytes += Math.Max(file.Size, 0);
         }
 
         SaveInstalledManifestHistory(manifest);
@@ -1971,6 +2373,7 @@ public partial class MainWindow : Window
         ProgressText.Text = "Terminé";
         SetStatus("Installation terminée.");
         AppendLog("Client prêt: " + _settings.InstallPath);
+        ShowToast("Client prêt", "L'installation du client WotLK est terminée.", ToastKind.Success);
     }
 
     private void RegisterGameApplication(string clientVersion)
@@ -2124,6 +2527,7 @@ public partial class MainWindow : Window
 
         var buffer = new byte[1024 * 128];
         long written = 0;
+        var downloadStopwatch = Stopwatch.StartNew();
 
         while (true)
         {
@@ -2139,11 +2543,11 @@ public partial class MainWindow : Window
             if (totalSize is > 0)
             {
                 MainProgress.Value = Math.Clamp((double)written / totalSize.Value * 100, 0, 100);
-                ProgressText.Text = $"{FormatBytes(written)} / {FormatBytes(totalSize.Value)}";
+                ProgressText.Text = FormatTransferProgress(written, totalSize.Value, downloadStopwatch.Elapsed);
             }
             else
             {
-                ProgressText.Text = FormatBytes(written);
+                ProgressText.Text = FormatTransferProgress(written, null, downloadStopwatch.Elapsed);
             }
         }
 
@@ -2312,12 +2716,7 @@ public partial class MainWindow : Window
         {
             SetStatus("Autorisation requise.");
             AppendLog("Autorisation du dossier WotLK impossible: " + ex.Message);
-            System.Windows.MessageBox.Show(
-                this,
-                ex.Message,
-                "Autorisation requise",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+            ShowToast("Autorisation requise", ex.Message, ToastKind.Warning);
             return false;
         }
     }
@@ -2403,10 +2802,14 @@ public partial class MainWindow : Window
     private void SetBusy(bool busy)
     {
         LauncherSelfUpdateButton.IsEnabled = !busy;
+        HeaderServerStatusButton.IsEnabled = !busy;
+        HeaderSettingsButton.IsEnabled = !busy;
+        ProfileButton.IsEnabled = !busy;
         BrowseInstallPathButton.IsEnabled = !busy;
         GameLanguageComboBox.IsEnabled = !busy;
         ClientTabButton.IsEnabled = !busy;
         AddonsTabButton.IsEnabled = !busy;
+        FriendsTabButton.IsEnabled = !busy;
         NewsTabButton.IsEnabled = !busy;
         ServerTabButton.IsEnabled = !busy;
         AccountTabButton.IsEnabled = !busy;
@@ -2537,5 +2940,50 @@ public partial class MainWindow : Window
         }
 
         return string.Format(CultureInfo.InvariantCulture, "{0:0.##} {1}", value, units[unit]);
+    }
+
+    private static string FormatTransferProgress(long received, long? total, TimeSpan elapsed)
+    {
+        var parts = new List<string>
+        {
+            total is > 0
+                ? $"{FormatBytes(received)} / {FormatBytes(total.Value)}"
+                : FormatBytes(received)
+        };
+
+        if (received <= 0 || elapsed.TotalSeconds < 0.5)
+        {
+            return string.Join(" · ", parts);
+        }
+
+        var bytesPerSecond = received / elapsed.TotalSeconds;
+        if (bytesPerSecond <= 0)
+        {
+            return string.Join(" · ", parts);
+        }
+
+        parts.Add(FormatBytes((long)bytesPerSecond) + "/s");
+        if (total is > 0 && total.Value > received)
+        {
+            var remaining = TimeSpan.FromSeconds((total.Value - received) / bytesPerSecond);
+            parts.Add(FormatRemainingTime(remaining));
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    private static string FormatRemainingTime(TimeSpan remaining)
+    {
+        if (remaining.TotalSeconds < 60)
+        {
+            return $"{Math.Max(1, (int)Math.Ceiling(remaining.TotalSeconds))} s restantes";
+        }
+
+        if (remaining.TotalHours < 1)
+        {
+            return $"{Math.Max(1, (int)Math.Ceiling(remaining.TotalMinutes))} min restantes";
+        }
+
+        return $"{(int)remaining.TotalHours} h {remaining.Minutes:00} restantes";
     }
 }

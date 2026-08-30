@@ -37,6 +37,7 @@
         <SolidColorBrush x:Key="WindowBrush" Color="#0D0F12"/>
         <SolidColorBrush x:Key="SurfaceBrush" Color="#15181C"/>
         <SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#1B1F24"/>
+        <SolidColorBrush x:Key="SurfaceDeepBrush" Color="#101318"/>
         <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#242A30"/>
         <SolidColorBrush x:Key="LineBrush" Color="#373D44"/>
         <SolidColorBrush x:Key="LineSoftBrush" Color="#292E34"/>
@@ -47,6 +48,7 @@
         <SolidColorBrush x:Key="GoldHoverBrush" Color="#E8C875"/>
         <SolidColorBrush x:Key="IceBrush" Color="#66D7EC"/>
         <SolidColorBrush x:Key="SuccessBrush" Color="#61D6A3"/>
+        <SolidColorBrush x:Key="DangerBrush" Color="#F18A91"/>
 
         <Style x:Key="WindowControlButton" TargetType="{x:Type Button}">
             <Setter Property="Width" Value="46"/>
@@ -585,6 +587,190 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="HeaderStatusButton" TargetType="{x:Type Button}">
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Margin" Value="0,8,9,8"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="Background" Value="#171B20"/>
+            <Setter Property="BorderBrush" Value="#383F46"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#242A30"/>
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#66707A"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="HeaderAvatarButton" TargetType="{x:Type Button}">
+            <Setter Property="Width" Value="36"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Margin" Value="0,7,9,7"/>
+            <Setter Property="Background" Value="{StaticResource GoldBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource GoldHoverBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="#17130C"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="18">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{StaticResource GoldHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#B88D3D"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PageTabButton" TargetType="{x:Type Button}">
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Padding" Value="13,0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0,0,0,2"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontFamily" Value="{StaticResource UiSemiBoldFont}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="Active">
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource GoldBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CategoryChipButton" TargetType="{x:Type Button}">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Margin" Value="0,0,7,0"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="Background" Value="#171B20"/>
+            <Setter Property="BorderBrush" Value="#383F46"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#242A30"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="Active">
+                                <Setter TargetName="Chrome" Property="Background" Value="#332B1D"/>
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#8B713D"/>
+                                <Setter Property="Foreground" Value="{StaticResource GoldHoverBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="QuickToolButton" TargetType="{x:Type Button}">
+            <Setter Property="MinHeight" Value="62"/>
+            <Setter Property="Padding" Value="13,9"/>
+            <Setter Property="Background" Value="#171B20"/>
+            <Setter Property="BorderBrush" Value="#383F46"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#22282E"/>
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#66707A"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Border Background="{StaticResource WindowBrush}"
@@ -635,11 +821,34 @@
                     </Grid>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
-                        <Button x:Name="ProfileButton"
+                        <Button x:Name="HeaderServerStatusButton"
+                                Style="{StaticResource HeaderStatusButton}"
+                                ToolTip="Voir l'état du serveur"
+                                Click="ServerTabButton_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse x:Name="HeaderServerDot"
+                                         Width="7"
+                                         Height="7"
+                                         Margin="0,0,8,0"
+                                         VerticalAlignment="Center"
+                                         Fill="{StaticResource TextMutedBrush}"/>
+                                <TextBlock x:Name="HeaderServerStatusText"
+                                           VerticalAlignment="Center"
+                                           FontSize="11"
+                                           Text="Serveur..."/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="HeaderSettingsButton"
                                 Width="36"
                                 Height="36"
-                                Margin="0,7,12,7"
+                                Margin="0,7,9,7"
+                                Content="&#xE713;"
                                 Style="{StaticResource IconButton}"
+                                ToolTip="Paramètres"
+                                shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                                Click="SettingsTabButton_Click"/>
+                        <Button x:Name="ProfileButton"
+                                Style="{StaticResource HeaderAvatarButton}"
                                 ToolTip="Mon profil"
                                 shell:WindowChrome.IsHitTestVisibleInChrome="True"
                                 Click="ProfileButton_Click"
@@ -682,7 +891,7 @@
 
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="218"/>
+                    <ColumnDefinition Width="208"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
@@ -692,13 +901,13 @@
                         BorderThickness="0,0,1,0">
                     <Grid>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="126"/>
+                            <RowDefinition Height="118"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="92"/>
                         </Grid.RowDefinitions>
 
-                        <StackPanel Margin="27,22,22,0">
+                        <StackPanel Margin="27,19,18,0">
                             <TextBlock Foreground="{StaticResource GoldBrush}"
                                        FontSize="10"
                                        FontWeight="Bold"
@@ -739,6 +948,17 @@
                                     <TextBlock Text="ADDONS"/>
                                 </StackPanel>
                             </Button>
+                            <Button x:Name="FriendsTabButton"
+                                    Style="{StaticResource NavButton}"
+                                    Click="FriendsTabButton_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Width="27"
+                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                               FontSize="15"
+                                               Text="&#xE716;"/>
+                                    <TextBlock Text="AMIS"/>
+                                </StackPanel>
+                            </Button>
                             <Button x:Name="NewsTabButton"
                                     Style="{StaticResource NavButton}"
                                     Click="NewsTabButton_Click">
@@ -747,10 +967,11 @@
                                                FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                                FontSize="15"
                                                Text="&#xE8A5;"/>
-                                    <TextBlock Text="ACTUALITÉS"/>
+                                    <TextBlock Text="PATCH NOTES"/>
                                 </StackPanel>
                             </Button>
                             <Button x:Name="ServerTabButton"
+                                    Visibility="Collapsed"
                                     Style="{StaticResource NavButton}"
                                     Click="ServerTabButton_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -762,6 +983,7 @@
                                 </StackPanel>
                             </Button>
                             <Button x:Name="AccountTabButton"
+                                    Visibility="Collapsed"
                                     Style="{StaticResource NavButton}"
                                     Click="AccountTabButton_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -773,6 +995,7 @@
                                 </StackPanel>
                             </Button>
                             <Button x:Name="SettingsTabButton"
+                                    Visibility="Collapsed"
                                     Style="{StaticResource NavButton}"
                                     Click="SettingsTabButton_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -982,14 +1205,14 @@
 
                     <Grid x:Name="GamePanel" Visibility="Collapsed">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="230"/>
+                            <RowDefinition Height="188"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <Grid Grid.Row="0" Margin="44,30,42,26">
+                        <Grid Grid.Row="0" Margin="36,22,34,20">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="250"/>
+                                <ColumnDefinition Width="248"/>
                             </Grid.ColumnDefinitions>
 
                             <StackPanel VerticalAlignment="Center">
@@ -997,95 +1220,149 @@
                                            FontSize="10"
                                            FontWeight="Bold"
                                            Text="WRATH OF THE LICH KING CLASSIC"/>
-                                <TextBlock Margin="0,8,0,0"
+                                <TextBlock Margin="0,7,0,0"
                                            Foreground="{StaticResource TextBrush}"
                                            FontFamily="{StaticResource UiExtraBoldFont}"
-                                           FontSize="34"
-                                           FontWeight="Normal"
+                                           FontSize="31"
                                            Text="Bienvenue sur Arthas"/>
-                                <TextBlock Margin="0,10,0,0"
+                                <TextBlock Margin="0,7,0,0"
                                            Foreground="#CDD1D4"
-                                           FontSize="14"
+                                           FontSize="13"
                                            Text="Votre aventure en Norfendre vous attend."/>
-                                <Border Margin="0,21,0,0"
-                                        Padding="12,7"
+                                <Border Margin="0,16,0,0"
+                                        Padding="11,6"
                                         HorizontalAlignment="Left"
                                         Background="#D1171A1E"
                                         BorderBrush="#555D65"
                                         BorderThickness="1"
-                                        CornerRadius="3">
+                                        CornerRadius="4">
                                     <StackPanel Orientation="Horizontal">
-                                        <Ellipse Width="7" Height="7" Margin="0,0,9,0" Fill="{StaticResource SuccessBrush}"/>
+                                        <Ellipse Width="7" Height="7" Margin="0,0,8,0" Fill="{StaticResource SuccessBrush}"/>
                                         <TextBlock x:Name="StatusText"
                                                    MaxWidth="430"
                                                    VerticalAlignment="Center"
                                                    Foreground="{StaticResource TextBrush}"
-                                                   FontSize="12"
+                                                   FontSize="11"
                                                    FontWeight="SemiBold"
-                                                   Text="Client &#x00E0; jour - Pr&#x00EA;t &#x00E0; jouer"
+                                                   Text="Client à jour - Prêt à jouer"
                                                    TextTrimming="CharacterEllipsis"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
 
-                            <StackPanel Grid.Column="1" VerticalAlignment="Top">
-                                <TextBlock Margin="0,0,0,8"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"
-                                           Text="LANGUE DU JEU"/>
-                                <ComboBox x:Name="GameLanguageComboBox"
-                                          Style="{StaticResource DarkComboBox}"
-                                          SelectionChanged="GameLanguageComboBox_SelectionChanged">
-                                    <ComboBoxItem Content="Fran&#x00E7;ais" Tag="frFR"/>
-                                    <ComboBoxItem Content="English" Tag="enUS"/>
-                                </ComboBox>
-                            </StackPanel>
+                            <Grid Grid.Column="1">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="72"/>
+                                    <RowDefinition Height="12"/>
+                                    <RowDefinition Height="48"/>
+                                </Grid.RowDefinitions>
+                                <Button Style="{StaticResource HeaderStatusButton}"
+                                        Margin="0"
+                                        Height="72"
+                                        HorizontalContentAlignment="Stretch"
+                                        Click="ServerTabButton_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Foreground="{StaticResource TextMutedBrush}"
+                                                       FontSize="9"
+                                                       FontWeight="SemiBold"
+                                                       Text="ROYAUME ARTHAS"/>
+                                            <TextBlock x:Name="GameServerStatusText"
+                                                       Margin="0,7,0,0"
+                                                       Foreground="{StaticResource TextBrush}"
+                                                       FontSize="15"
+                                                       FontWeight="SemiBold"
+                                                       Text="Vérification..."/>
+                                            <TextBlock x:Name="GameServerCheckedText"
+                                                       Margin="0,4,0,0"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       FontSize="9"/>
+                                        </StackPanel>
+                                        <Ellipse x:Name="GameServerDot"
+                                                 Grid.Column="1"
+                                                 Width="9"
+                                                 Height="9"
+                                                 VerticalAlignment="Top"
+                                                 Fill="{StaticResource TextMutedBrush}"/>
+                                    </Grid>
+                                </Button>
+                                <Grid Grid.Row="2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="88"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Text="LANGUE DU JEU"/>
+                                    <ComboBox x:Name="GameLanguageComboBox"
+                                              Grid.Column="1"
+                                              Height="42"
+                                              Style="{StaticResource DarkComboBox}"
+                                              SelectionChanged="GameLanguageComboBox_SelectionChanged">
+                                        <ComboBoxItem Content="Français" Tag="frFR"/>
+                                        <ComboBoxItem Content="English" Tag="enUS"/>
+                                    </ComboBox>
+                                </Grid>
+                            </Grid>
                         </Grid>
 
                         <Border Grid.Row="1"
                                 Background="#F214171B"
                                 BorderBrush="#383E45"
                                 BorderThickness="0,1,0,0">
-                            <Grid Margin="42,25,42,28">
+                            <Grid Margin="32,18,32,20">
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="78"/>
+                                    <RowDefinition Height="96"/>
                                     <RowDefinition Height="*"/>
-                                    <RowDefinition Height="78"/>
+                                    <RowDefinition Height="72"/>
                                 </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="238"/>
+                                </Grid.ColumnDefinitions>
 
-                                <Grid Grid.Row="0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Foreground="{StaticResource TextBrush}"
-                                               FontSize="14"
-                                               FontWeight="SemiBold"
-                                               Text="Installation du jeu"/>
-                                    <TextBlock Grid.Column="1"
-                                               Foreground="{StaticResource TextMutedBrush}"
-                                               FontSize="11"
-                                               Text="WOTLK CLASSIC 3.4.3"/>
-                                </Grid>
-
-                                <Grid Grid.Row="1" Margin="0,12,0,16">
-                                    <Border Background="#15191E"
+                                <Grid Grid.Row="0" Margin="0,0,18,14">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="18"/>
+                                        <RowDefinition Height="44"/>
+                                        <RowDefinition Height="18"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Foreground="{StaticResource TextBrush}"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   Text="Client du jeu"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="10"
+                                                   Text="WOTLK CLASSIC 3.4.3"/>
+                                    </Grid>
+                                    <Border Grid.Row="1"
+                                            Margin="0,7,0,0"
+                                            Background="#15191E"
                                             BorderBrush="#414850"
                                             BorderThickness="1"
                                             CornerRadius="4">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="42"/>
+                                                <ColumnDefinition Width="38"/>
                                                 <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="48"/>
+                                                <ColumnDefinition Width="44"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0"
-                                                       HorizontalAlignment="Center"
+                                            <TextBlock HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
                                                        FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                                       FontSize="16"
+                                                       FontSize="15"
                                                        Foreground="{StaticResource TextMutedBrush}"
                                                        Text="&#xE838;"/>
                                             <TextBox x:Name="InstallPathBox"
@@ -1096,117 +1373,274 @@
                                                      Focusable="False"/>
                                             <Button x:Name="BrowseInstallPathButton"
                                                     Grid.Column="2"
-                                                    Width="38"
-                                                    Height="36"
+                                                    Width="34"
+                                                    Height="32"
                                                     Content="&#xE8B7;"
                                                     Style="{StaticResource IconButton}"
                                                     ToolTip="Choisir le dossier du jeu"
                                                     Click="BrowseInstallPathButton_Click"/>
                                         </Grid>
                                     </Border>
-                                </Grid>
-
-                                <Grid Grid.Row="2">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="18"/>
-                                        <RowDefinition Height="*"/>
-                                    </Grid.RowDefinitions>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
-                                                   FontSize="11"
-                                                   FontWeight="SemiBold"
-                                                   Text="&#x00C9;TAT DU CLIENT"/>
+                                    <Grid Grid.Row="2" Margin="0,7,0,0">
+                                        <ProgressBar x:Name="MainProgress"
+                                                     Height="5"
+                                                     Margin="0,2,260,0"
+                                                     Minimum="0"
+                                                     Maximum="100"
+                                                     Style="{StaticResource SlimProgressBar}"/>
                                         <TextBlock x:Name="ProgressText"
-                                                   Grid.Column="1"
+                                                   HorizontalAlignment="Right"
                                                    Foreground="{StaticResource TextSecondaryBrush}"
                                                    FontFamily="Consolas"
-                                                   FontSize="11"
-                                                   Text="Client &#x00E0; jour"/>
+                                                   FontSize="10"
+                                                   Text="Client à jour"/>
                                     </Grid>
-                                    <ProgressBar x:Name="MainProgress"
-                                                 Grid.Row="1"
-                                                 Margin="0,7,0,5"
-                                                 Minimum="0"
-                                                 Maximum="100"
-                                                 Style="{StaticResource SlimProgressBar}"/>
-                                    <Expander Grid.Row="2"
-                                              Style="{StaticResource LogExpander}"
-                                              IsExpanded="False">
-                                        <Expander.Header>
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Margin="0,0,9,0"
-                                                           VerticalAlignment="Center"
-                                                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                                           FontSize="13"
-                                                           Foreground="{StaticResource TextMutedBrush}"
-                                                           Text="&#xE946;"/>
-                                                <TextBlock VerticalAlignment="Center"
-                                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                                           FontSize="12"
-                                                           FontWeight="SemiBold"
-                                                           Text="Logs techniques"/>
-                                            </StackPanel>
-                                        </Expander.Header>
-                                        <TextBox x:Name="LogBox"
-                                                 MinHeight="110"
-                                                 Margin="0,4,0,0"
-                                                 Style="{StaticResource LogTextBox}"
-                                                 IsReadOnly="True"/>
-                                    </Expander>
                                 </Grid>
 
-                                <Grid Grid.Row="3" Margin="0,18,0,0">
+                                <Grid Grid.Row="1" Margin="0,0,18,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1.05*"/>
+                                        <ColumnDefinition Width="18"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Padding="16,14"
+                                            Background="#191D22"
+                                            BorderBrush="#3A4148"
+                                            BorderThickness="1"
+                                            CornerRadius="4">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid>
+                                                <TextBlock Foreground="{StaticResource GoldBrush}"
+                                                           FontSize="9"
+                                                           FontWeight="Bold"
+                                                           Text="DERNIER PATCH NOTE"/>
+                                                <TextBlock HorizontalAlignment="Right"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           FontSize="9"
+                                                           Text="v1.1.0"/>
+                                            </Grid>
+                                            <StackPanel Grid.Row="1" Margin="0,12,0,8">
+                                                <TextBlock x:Name="GamePatchTitleText"
+                                                           Foreground="{StaticResource TextBrush}"
+                                                           FontSize="15"
+                                                           FontWeight="SemiBold"
+                                                           Text="Atlas Launcher 1.1"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock x:Name="GamePatchSummaryText"
+                                                           Margin="0,7,0,0"
+                                                           MaxHeight="56"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                           FontSize="11"
+                                                           LineHeight="16"
+                                                           Text="Une interface plus claire pour jouer, gérer ses addons et retrouver ses amis."
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <Button Grid.Row="2"
+                                                    HorizontalAlignment="Left"
+                                                    Content="LIRE LE PATCH NOTE"
+                                                    Style="{StaticResource SecondaryActionButton}"
+                                                    Click="NewsTabButton_Click"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <UniformGrid Grid.Column="2" Rows="2" Columns="2">
+                                        <Button Margin="0,0,7,7"
+                                                Style="{StaticResource QuickToolButton}"
+                                                ToolTip="Vérifier les fichiers du client"
+                                                Click="VerifyClientButton_Click">
+                                            <StackPanel>
+                                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource IceBrush}" Text="&#xE73E;"/>
+                                                <TextBlock Margin="0,7,0,0" Foreground="{StaticResource TextBrush}" FontSize="10" Text="Vérifier"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Margin="0,0,0,7"
+                                                Style="{StaticResource QuickToolButton}"
+                                                ToolTip="Ouvrir le dossier du jeu"
+                                                Click="OpenGameFolderButton_Click">
+                                            <StackPanel>
+                                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource GoldBrush}" Text="&#xE8B7;"/>
+                                                <TextBlock Margin="0,7,0,0" Foreground="{StaticResource TextBrush}" FontSize="10" Text="Dossier"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Margin="0,0,7,0"
+                                                Style="{StaticResource QuickToolButton}"
+                                                ToolTip="Gérer les addons"
+                                                Click="HomeAddonsButton_Click">
+                                            <StackPanel>
+                                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource GoldBrush}" Text="&#xE74C;"/>
+                                                <TextBlock Margin="0,7,0,0" Foreground="{StaticResource TextBrush}" FontSize="10" Text="Addons"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{StaticResource QuickToolButton}"
+                                                ToolTip="Diagnostic et paramètres"
+                                                Click="SettingsTabButton_Click">
+                                            <StackPanel>
+                                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16" Foreground="{StaticResource TextSecondaryBrush}" Text="&#xE713;"/>
+                                                <TextBlock Margin="0,7,0,0" Foreground="{StaticResource TextBrush}" FontSize="10" Text="Diagnostic"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </UniformGrid>
+                                </Grid>
+
+                                <Border Grid.Row="0"
+                                        Grid.RowSpan="2"
+                                        Grid.Column="1"
+                                        Padding="14"
+                                        Background="#191D22"
+                                        BorderBrush="#3A4148"
+                                        BorderThickness="1"
+                                        CornerRadius="4">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid>
+                                            <TextBlock Foreground="{StaticResource TextBrush}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Text="Amis Atlas"/>
+                                            <Button HorizontalAlignment="Right"
+                                                    Width="30"
+                                                    Height="30"
+                                                    Content="&#xE72C;"
+                                                    Style="{StaticResource IconButton}"
+                                                    ToolTip="Actualiser"
+                                                    Click="RefreshFriendsButton_Click"/>
+                                        </Grid>
+                                        <TextBlock x:Name="GameFriendCountText"
+                                                   Grid.Row="1"
+                                                   Margin="0,5,0,9"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="9"
+                                                   Text="Aucun ami en ligne"/>
+                                        <ScrollViewer Grid.Row="2"
+                                                      VerticalScrollBarVisibility="Auto"
+                                                      HorizontalScrollBarVisibility="Disabled">
+                                            <ItemsControl x:Name="GameFriendItemsControl">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border MinHeight="52"
+                                                                Margin="0,0,0,6"
+                                                                Padding="8"
+                                                                Background="#14181C"
+                                                                BorderBrush="#30373E"
+                                                                BorderThickness="1"
+                                                                CornerRadius="4">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="36"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <Border Width="30" Height="30" Background="{StaticResource GoldBrush}" CornerRadius="15">
+                                                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#101317" FontSize="11" FontWeight="Bold" Text="{Binding Initial}"/>
+                                                                </Border>
+                                                                <StackPanel Grid.Column="1" Margin="7,0,5,0" VerticalAlignment="Center">
+                                                                    <TextBlock Foreground="{StaticResource TextBrush}" FontSize="11" FontWeight="SemiBold" Text="{Binding Username}" TextTrimming="CharacterEllipsis"/>
+                                                                    <TextBlock Margin="0,3,0,0" Foreground="{StaticResource TextMutedBrush}" FontSize="8" Text="{Binding CharacterText}" TextTrimming="CharacterEllipsis"/>
+                                                                </StackPanel>
+                                                                <Ellipse x:Name="GamePresenceDot" Grid.Column="2" Width="7" Height="7" Fill="#68717B"/>
+                                                            </Grid>
+                                                        </Border>
+                                                        <DataTemplate.Triggers>
+                                                            <DataTrigger Binding="{Binding Online}" Value="True">
+                                                                <Setter TargetName="GamePresenceDot" Property="Fill" Value="{StaticResource SuccessBrush}"/>
+                                                            </DataTrigger>
+                                                        </DataTemplate.Triggers>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                        <Button Grid.Row="3"
+                                                Margin="0,8,0,0"
+                                                Content="GÉRER MES AMIS"
+                                                Style="{StaticResource SecondaryActionButton}"
+                                                Click="FriendsTabButton_Click"/>
+                                    </Grid>
+                                </Border>
+
+                                <Grid Grid.Row="2" Grid.ColumnSpan="2" Margin="0,14,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Foreground="{StaticResource TextBrush}"
-                                                   FontSize="13"
+                                                   FontSize="12"
                                                    FontWeight="SemiBold"
-                                                   Text="Arthas est pr&#x00EA;t"/>
+                                                   Text="Arthas est prêt"/>
                                         <TextBlock Margin="0,4,0,0"
                                                    Foreground="{StaticResource TextMutedBrush}"
-                                                   FontSize="11"
+                                                   FontSize="10"
                                                    Text="Royaume Arthas  |  WotLK Classic"/>
                                     </StackPanel>
                                     <Button x:Name="UpdateButton"
                                             Grid.Column="1"
+                                            MinWidth="214"
+                                            Height="56"
                                             Content="INSTALLER"
                                             Style="{StaticResource PrimaryActionButton}"
                                             Click="UpdateButton_Click"/>
                                 </Grid>
+
+                                <TextBox x:Name="LogBox"
+                                         Visibility="Collapsed"
+                                         Style="{StaticResource LogTextBox}"
+                                         IsReadOnly="True"/>
                             </Grid>
                         </Border>
                     </Grid>
 
                     <Grid x:Name="AddonsPanel" Visibility="Collapsed">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="172"/>
+                            <RowDefinition Height="126"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <Grid Grid.Row="0" Margin="44,28,42,24">
+                        <Grid Grid.Row="0" Margin="36,18,34,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
                             <StackPanel VerticalAlignment="Center">
                                 <TextBlock Foreground="{StaticResource IceBrush}"
                                            FontSize="10"
                                            FontWeight="Bold"
-                                           Text="BIBLIOTH&#x00C8;QUE ATLAS"/>
-                                <TextBlock Margin="0,8,0,0"
+                                           Text="BIBLIOTHÈQUE ATLAS"/>
+                                <TextBlock Margin="0,6,0,0"
                                            Foreground="{StaticResource TextBrush}"
                                            FontFamily="{StaticResource UiExtraBoldFont}"
-                                           FontSize="32"
-                                           FontWeight="Normal"
-                                           Text="Vos addons"/>
-                                <TextBlock Margin="0,9,0,0"
+                                           FontSize="29"
+                                           Text="Mes addons"/>
+                                <TextBlock Margin="0,6,0,0"
                                            Foreground="#CDD1D4"
-                                           FontSize="13"
-                                           Text="WeakAuras, ElvUI et Questie pour WotLK Classic 3.4.3."/>
+                                           FontSize="12"
+                                           Text="Une sélection vérifiée pour WotLK Classic 3.4.3."/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                <TextBlock HorizontalAlignment="Right"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontSize="9"
+                                           FontWeight="SemiBold"
+                                           Text="DOSSIER D'INSTALLATION"/>
+                                <TextBlock x:Name="AddonInstallPathText"
+                                           Width="360"
+                                           Margin="0,6,0,0"
+                                           HorizontalAlignment="Right"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           FontFamily="Consolas"
+                                           FontSize="9"
+                                           TextAlignment="Right"
+                                           TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                         </Grid>
 
@@ -1214,142 +1648,132 @@
                                 Background="#F214171B"
                                 BorderBrush="#383E45"
                                 BorderThickness="0,1,0,0">
-                            <Grid Margin="42,24,42,26">
+                            <Grid Margin="30,12,30,18">
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="58"/>
+                                    <RowDefinition Height="40"/>
+                                    <RowDefinition Height="42"/>
+                                    <RowDefinition Height="48"/>
                                     <RowDefinition Height="*"/>
-                                    <RowDefinition Height="92"/>
+                                    <RowDefinition Height="72"/>
                                 </Grid.RowDefinitions>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="190"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
 
-                                <Border Grid.RowSpan="2"
-                                        Margin="0,0,18,0"
-                                        Padding="10"
-                                        Background="#171B20"
-                                        BorderBrush="#383F46"
-                                        BorderThickness="1"
-                                        CornerRadius="4">
-                                    <StackPanel>
-                                        <TextBlock Margin="12,7,0,12"
-                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                   FontSize="10"
-                                                   FontWeight="SemiBold"
-                                                   Text="CATÉGORIES"/>
-                                        <Button x:Name="AddonAllCategoryButton"
-                                                Tag="Active"
-                                                CommandParameter="All"
-                                                Style="{StaticResource CategoryButton}"
-                                                Click="AddonCategoryButton_Click">
-                                            <Grid>
-                                                <TextBlock Text="Tous"/>
-                                                <TextBlock x:Name="AddonAllCountText"
-                                                           HorizontalAlignment="Right"
-                                                           Foreground="{StaticResource TextMutedBrush}"/>
-                                            </Grid>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="AddonInstalledTabButton"
+                                            CommandParameter="Installed"
+                                            Content="INSTALLÉS"
+                                            Style="{StaticResource PageTabButton}"
+                                            Click="AddonViewButton_Click"/>
+                                    <TextBlock x:Name="AddonInstalledCountText"
+                                               Margin="-7,0,10,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="10"/>
+                                    <Button x:Name="AddonCatalogTabButton"
+                                            Tag="Active"
+                                            CommandParameter="Catalog"
+                                            Content="CATALOGUE"
+                                            Style="{StaticResource PageTabButton}"
+                                            Click="AddonViewButton_Click"/>
+                                    <TextBlock x:Name="AddonCatalogCountText"
+                                               Margin="-7,0,10,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="10"/>
+                                    <Button x:Name="AddonUpdatesTabButton"
+                                            CommandParameter="Updates"
+                                            Content="MISES À JOUR"
+                                            Style="{StaticResource PageTabButton}"
+                                            Click="AddonViewButton_Click"/>
+                                    <Border x:Name="AddonUpdatesBadge"
+                                            MinWidth="20"
+                                            Height="20"
+                                            Margin="-6,9,0,0"
+                                            Padding="5,0"
+                                            VerticalAlignment="Top"
+                                            Background="#513A20"
+                                            CornerRadius="4">
+                                        <TextBlock x:Name="AddonUpdatesCountText"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource GoldHoverBrush}"
+                                                   FontSize="9"
+                                                   FontWeight="Bold"/>
+                                    </Border>
+                                </StackPanel>
+
+                                <ScrollViewer Grid.Row="1"
+                                              VerticalScrollBarVisibility="Disabled"
+                                              HorizontalScrollBarVisibility="Auto">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button x:Name="AddonAllCategoryButton" Tag="Active" CommandParameter="All" Style="{StaticResource CategoryChipButton}" Click="AddonCategoryButton_Click">
+                                            <StackPanel Orientation="Horizontal"><TextBlock Text="Tous"/><TextBlock x:Name="AddonAllCountText" Margin="7,0,0,0" Foreground="{StaticResource TextMutedBrush}"/></StackPanel>
                                         </Button>
-                                        <Button x:Name="AddonCombatCategoryButton"
-                                                CommandParameter="Combat"
-                                                Style="{StaticResource CategoryButton}"
-                                                Click="AddonCategoryButton_Click">
-                                            <Grid>
-                                                <TextBlock Text="Combat"/>
-                                                <TextBlock x:Name="AddonCombatCountText" HorizontalAlignment="Right" Foreground="{StaticResource TextMutedBrush}"/>
-                                            </Grid>
+                                        <Button x:Name="AddonCombatCategoryButton" CommandParameter="Combat" Style="{StaticResource CategoryChipButton}" Click="AddonCategoryButton_Click">
+                                            <StackPanel Orientation="Horizontal"><TextBlock Text="Combat"/><TextBlock x:Name="AddonCombatCountText" Margin="7,0,0,0" Foreground="{StaticResource TextMutedBrush}"/></StackPanel>
                                         </Button>
-                                        <Button x:Name="AddonInterfaceCategoryButton"
-                                                CommandParameter="Interface"
-                                                Style="{StaticResource CategoryButton}"
-                                                Click="AddonCategoryButton_Click">
-                                            <Grid>
-                                                <TextBlock Text="Interface"/>
-                                                <TextBlock x:Name="AddonInterfaceCountText" HorizontalAlignment="Right" Foreground="{StaticResource TextMutedBrush}"/>
-                                            </Grid>
+                                        <Button x:Name="AddonInterfaceCategoryButton" CommandParameter="Interface" Style="{StaticResource CategoryChipButton}" Click="AddonCategoryButton_Click">
+                                            <StackPanel Orientation="Horizontal"><TextBlock Text="Interface"/><TextBlock x:Name="AddonInterfaceCountText" Margin="7,0,0,0" Foreground="{StaticResource TextMutedBrush}"/></StackPanel>
                                         </Button>
-                                        <Button x:Name="AddonQuestsCategoryButton"
-                                                CommandParameter="Quêtes"
-                                                Style="{StaticResource CategoryButton}"
-                                                Click="AddonCategoryButton_Click">
-                                            <Grid>
-                                                <TextBlock Text="Quêtes"/>
-                                                <TextBlock x:Name="AddonQuestsCountText" HorizontalAlignment="Right" Foreground="{StaticResource TextMutedBrush}"/>
-                                            </Grid>
+                                        <Button x:Name="AddonQuestsCategoryButton" CommandParameter="Quêtes" Style="{StaticResource CategoryChipButton}" Click="AddonCategoryButton_Click">
+                                            <StackPanel Orientation="Horizontal"><TextBlock Text="Quêtes"/><TextBlock x:Name="AddonQuestsCountText" Margin="7,0,0,0" Foreground="{StaticResource TextMutedBrush}"/></StackPanel>
                                         </Button>
-                                        <Button x:Name="AddonInstancesCategoryButton"
-                                                CommandParameter="Instances"
-                                                Style="{StaticResource CategoryButton}"
-                                                Click="AddonCategoryButton_Click">
-                                            <Grid>
-                                                <TextBlock Text="Instances"/>
-                                                <TextBlock x:Name="AddonInstancesCountText" HorizontalAlignment="Right" Foreground="{StaticResource TextMutedBrush}"/>
-                                            </Grid>
+                                        <Button x:Name="AddonInstancesCategoryButton" CommandParameter="Instances" Style="{StaticResource CategoryChipButton}" Click="AddonCategoryButton_Click">
+                                            <StackPanel Orientation="Horizontal"><TextBlock Text="Instances"/><TextBlock x:Name="AddonInstancesCountText" Margin="7,0,0,0" Foreground="{StaticResource TextMutedBrush}"/></StackPanel>
                                         </Button>
-                                        <Button x:Name="AddonCollectionsCategoryButton"
-                                                CommandParameter="Collections"
-                                                Style="{StaticResource CategoryButton}"
-                                                Click="AddonCategoryButton_Click">
-                                            <Grid>
-                                                <TextBlock Text="Collections"/>
-                                                <TextBlock x:Name="AddonCollectionsCountText" HorizontalAlignment="Right" Foreground="{StaticResource TextMutedBrush}"/>
-                                            </Grid>
+                                        <Button x:Name="AddonCollectionsCategoryButton" CommandParameter="Collections" Style="{StaticResource CategoryChipButton}" Click="AddonCategoryButton_Click">
+                                            <StackPanel Orientation="Horizontal"><TextBlock Text="Collections"/><TextBlock x:Name="AddonCollectionsCountText" Margin="7,0,0,0" Foreground="{StaticResource TextMutedBrush}"/></StackPanel>
                                         </Button>
-                                        <Button x:Name="AddonEconomyCategoryButton"
-                                                CommandParameter="Économie"
-                                                Style="{StaticResource CategoryButton}"
-                                                Click="AddonCategoryButton_Click">
-                                            <Grid>
-                                                <TextBlock Text="Économie"/>
-                                                <TextBlock x:Name="AddonEconomyCountText" HorizontalAlignment="Right" Foreground="{StaticResource TextMutedBrush}"/>
-                                            </Grid>
+                                        <Button x:Name="AddonEconomyCategoryButton" CommandParameter="Économie" Style="{StaticResource CategoryChipButton}" Click="AddonCategoryButton_Click">
+                                            <StackPanel Orientation="Horizontal"><TextBlock Text="Économie"/><TextBlock x:Name="AddonEconomyCountText" Margin="7,0,0,0" Foreground="{StaticResource TextMutedBrush}"/></StackPanel>
                                         </Button>
-                                        <Button x:Name="AddonInventoryCategoryButton"
-                                                CommandParameter="Inventaire"
-                                                Style="{StaticResource CategoryButton}"
-                                                Click="AddonCategoryButton_Click">
-                                            <Grid>
-                                                <TextBlock Text="Inventaire"/>
-                                                <TextBlock x:Name="AddonInventoryCountText" HorizontalAlignment="Right" Foreground="{StaticResource TextMutedBrush}"/>
-                                            </Grid>
+                                        <Button x:Name="AddonInventoryCategoryButton" CommandParameter="Inventaire" Style="{StaticResource CategoryChipButton}" Click="AddonCategoryButton_Click">
+                                            <StackPanel Orientation="Horizontal"><TextBlock Text="Inventaire"/><TextBlock x:Name="AddonInventoryCountText" Margin="7,0,0,0" Foreground="{StaticResource TextMutedBrush}"/></StackPanel>
                                         </Button>
                                     </StackPanel>
-                                </Border>
+                                </ScrollViewer>
 
-                                <Grid Grid.Row="0" Grid.Column="1">
+                                <Grid Grid.Row="2" Margin="0,3,0,7">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="280"/>
+                                        <ColumnDefinition Width="292"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="158"/>
                                     </Grid.ColumnDefinitions>
-                                    <StackPanel>
-                                        <TextBlock VerticalAlignment="Top"
-                                               Foreground="{StaticResource TextBrush}"
-                                               FontSize="14"
-                                               FontWeight="SemiBold"
-                                               Text="Addons compatibles"/>
-                                        <TextBlock x:Name="AddonInstallPathText"
-                                                   Margin="0,5,20,0"
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock x:Name="AddonLibraryTitleText"
+                                                   Foreground="{StaticResource TextBrush}"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   Text="Catalogue compatible"/>
+                                        <TextBlock x:Name="AddonLibrarySummaryText"
+                                                   Margin="0,3,12,0"
                                                    Foreground="{StaticResource TextMutedBrush}"
-                                                   FontFamily="Consolas"
                                                    FontSize="9"
-                                                   TextTrimming="CharacterEllipsis"/>
+                                                   Text="Choisis les addons à installer ou retirer."/>
                                     </StackPanel>
                                     <Border Grid.Column="1"
-                                            Height="40"
-                                            Padding="12,0"
+                                            Height="38"
+                                            Padding="11,0"
                                             Background="#15191E"
                                             BorderBrush="#414850"
                                             BorderThickness="1"
                                             CornerRadius="4">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="25"/>
+                                                <ColumnDefinition Width="24"/>
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
                                             <TextBlock VerticalAlignment="Center"
                                                        FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                                        Foreground="{StaticResource TextMutedBrush}"
                                                        Text="&#xE721;"/>
+                                            <TextBlock x:Name="AddonSearchPlaceholder"
+                                                       Grid.Column="1"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       FontSize="11"
+                                                       IsHitTestVisible="False"
+                                                       Text="Rechercher un addon..."/>
                                             <TextBox x:Name="AddonSearchBox"
                                                      Grid.Column="1"
                                                      Style="{StaticResource FieldTextBox}"
@@ -1357,76 +1781,130 @@
                                                      ToolTip="Rechercher un addon"/>
                                         </Grid>
                                     </Border>
+                                    <ComboBox x:Name="AddonSortComboBox"
+                                              Grid.Column="3"
+                                              Height="38"
+                                              SelectedIndex="0"
+                                              Style="{StaticResource DarkComboBox}"
+                                              SelectionChanged="AddonSortComboBox_SelectionChanged">
+                                        <ComboBoxItem Content="Nom A-Z" Tag="Name"/>
+                                        <ComboBoxItem Content="Catégorie" Tag="Category"/>
+                                        <ComboBoxItem Content="État" Tag="Status"/>
+                                    </ComboBox>
                                 </Grid>
 
-                                <ScrollViewer Grid.Row="1"
-                                              Grid.Column="1"
+                                <ScrollViewer Grid.Row="3"
                                               VerticalScrollBarVisibility="Auto"
                                               HorizontalScrollBarVisibility="Disabled">
-                                    <ItemsControl x:Name="AddonItemsControl">
+                                    <ItemsControl x:Name="AddonItemsControl" Margin="0,0,0,2">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <UniformGrid Columns="2"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Height="78"
-                                                    Margin="0,0,0,7"
-                                                    Padding="18,0"
-                                                    Background="#DF1B1F24"
-                                                    BorderBrush="#383F46"
-                                                    BorderThickness="1"
-                                                    CornerRadius="4">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="42"/>
-                                                        <ColumnDefinition Width="195"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="170"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <CheckBox Grid.Column="0"
-                                                              VerticalAlignment="Center"
-                                                              IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                              Style="{StaticResource AddonCheckBox}"/>
-                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                        <TextBlock Foreground="{StaticResource TextBrush}"
-                                                                   FontSize="15"
-                                                                   FontWeight="SemiBold"
-                                                                   Text="{Binding Name}"/>
-                                                        <TextBlock Margin="0,5,0,0"
-                                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                                   FontFamily="Consolas"
-                                                                   FontSize="10"
-                                                                   Text="{Binding VersionText}"/>
-                                                    </StackPanel>
-                                                    <TextBlock Grid.Column="2"
-                                                               Margin="18,0,24,0"
-                                                               VerticalAlignment="Center"
-                                                               Foreground="#B9BEC3"
-                                                               FontSize="12"
-                                                               LineHeight="17"
-                                                               Text="{Binding Description}"
-                                                               TextWrapping="Wrap"/>
-                                                    <TextBlock Grid.Column="3"
-                                                               VerticalAlignment="Center"
-                                                               Foreground="{StaticResource IceBrush}"
-                                                               FontSize="12"
-                                                               FontWeight="SemiBold"
-                                                               Text="{Binding StatusText}"
-                                                               TextAlignment="Right"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                </Grid>
+                                                <Border Height="118"
+                                                        Margin="0,0,10,10"
+                                                        Padding="11"
+                                                        Background="#DF1B1F24"
+                                                        BorderBrush="#383F46"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4"
+                                                        ToolTip="{Binding DependencyText}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="74"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="30"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Width="64"
+                                                                Height="64"
+                                                                VerticalAlignment="Top"
+                                                                BorderBrush="#59616A"
+                                                                BorderThickness="1"
+                                                                CornerRadius="4">
+                                                            <Border.Background>
+                                                                <ImageBrush ImageSource="{Binding IconPath}"
+                                                                            Stretch="UniformToFill"/>
+                                                            </Border.Background>
+                                                        </Border>
+                                                        <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                                            <TextBlock Foreground="{StaticResource TextBrush}"
+                                                                       FontSize="14"
+                                                                       FontWeight="SemiBold"
+                                                                       Text="{Binding Name}"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                            <TextBlock Margin="0,3,0,0"
+                                                                       Foreground="{StaticResource GoldBrush}"
+                                                                       FontSize="9"
+                                                                       Text="{Binding Category}"/>
+                                                            <TextBlock Margin="0,6,0,0"
+                                                                       Height="31"
+                                                                       Foreground="#B9BEC3"
+                                                                       FontSize="10"
+                                                                       LineHeight="14"
+                                                                       Text="{Binding Description}"
+                                                                       TextWrapping="Wrap"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                            <Grid Margin="0,7,0,0">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Foreground="{StaticResource TextMutedBrush}"
+                                                                           FontFamily="Consolas"
+                                                                           FontSize="8"
+                                                                           Text="{Binding ShortVersionText}"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                                <TextBlock x:Name="AddonCardStatusText"
+                                                                           Grid.Column="1"
+                                                                           FontSize="9"
+                                                                           FontWeight="SemiBold"
+                                                                           Text="{Binding StatusText}"
+                                                                           TextTrimming="CharacterEllipsis">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="{x:Type TextBlock}">
+                                                                            <Setter Property="Foreground" Value="{StaticResource IceBrush}"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding StatusText}" Value="À jour">
+                                                                                    <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding StatusText}" Value="Mise à jour disponible">
+                                                                                    <Setter Property="Foreground" Value="{StaticResource GoldHoverBrush}"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding StatusText}" Value="Installation à réparer">
+                                                                                    <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                            </Grid>
+                                                        </StackPanel>
+                                                        <CheckBox Grid.Column="2"
+                                                                  HorizontalAlignment="Right"
+                                                                  VerticalAlignment="Top"
+                                                                  IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                  Style="{StaticResource AddonCheckBox}"
+                                                                  ToolTip="Installer ou retirer cet addon"/>
+                                                    </Grid>
                                                 </Border>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </ScrollViewer>
 
-                                <Grid Grid.Row="2" Grid.ColumnSpan="2" Margin="0,17,0,0">
+                                <Grid Grid.Row="4" Margin="0,12,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <Grid Margin="0,0,28,0" VerticalAlignment="Center">
+                                    <Grid Margin="0,0,24,0" VerticalAlignment="Center">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="18"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="13"/>
                                         </Grid.RowDefinitions>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
@@ -1435,17 +1913,26 @@
                                             </Grid.ColumnDefinitions>
                                             <TextBlock x:Name="AddonStatusText"
                                                        Foreground="{StaticResource TextSecondaryBrush}"
-                                                       FontSize="12"
-                                                       Text="Catalogue pr&#x00EA;t"/>
+                                                       FontSize="11"
+                                                       Text="Catalogue prêt"/>
                                             <TextBlock x:Name="AddonProgressText"
                                                        Grid.Column="1"
+                                                       MaxWidth="320"
                                                        Foreground="{StaticResource TextMutedBrush}"
                                                        FontFamily="Consolas"
-                                                       FontSize="10"/>
+                                                       FontSize="9"
+                                                       TextTrimming="CharacterEllipsis"/>
                                         </Grid>
+                                        <TextBlock x:Name="AddonGameRunningNoticeText"
+                                                   Grid.Row="1"
+                                                   Margin="0,3,0,0"
+                                                   Foreground="{StaticResource GoldHoverBrush}"
+                                                   FontSize="9"
+                                                   Text="Le jeu est ouvert : applique les changements puis utilise /reload."
+                                                   Visibility="Collapsed"/>
                                         <ProgressBar x:Name="AddonProgress"
-                                                     Grid.Row="1"
-                                                     Margin="0,7,0,5"
+                                                     Grid.Row="2"
+                                                     Margin="0,6,0,0"
                                                      Minimum="0"
                                                      Maximum="100"
                                                      Style="{StaticResource SlimProgressBar}"/>
@@ -1453,10 +1940,236 @@
                                     <Button x:Name="AddonApplyButton"
                                             Grid.Column="1"
                                             MinWidth="200"
+                                            Height="56"
                                             Content="APPLIQUER"
                                             Style="{StaticResource PrimaryActionButton}"
                                             Click="AddonApplyButton_Click"/>
                                 </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <Grid x:Name="FriendsPanel" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="154"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Grid Margin="44,28,42,22">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Foreground="{StaticResource IceBrush}"
+                                           FontSize="10"
+                                           FontWeight="Bold"
+                                           Text="SOCIAL ATLAS"/>
+                                <TextBlock Margin="0,8,0,0"
+                                           Foreground="{StaticResource TextBrush}"
+                                           FontFamily="{StaticResource UiExtraBoldFont}"
+                                           FontSize="32"
+                                           Text="Amis"/>
+                                <TextBlock Margin="0,8,0,0"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           FontSize="13"
+                                           Text="Tes amis Atlas et leur personnage actuellement connecté."/>
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Content="ACTUALISER"
+                                    Style="{StaticResource SecondaryActionButton}"
+                                    Click="RefreshFriendsButton_Click"/>
+                        </Grid>
+
+                        <Border Grid.Row="1"
+                                Background="#F214171B"
+                                BorderBrush="#383E45"
+                                BorderThickness="0,1,0,0">
+                            <Grid Margin="42,24,42,30">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <Border Padding="18"
+                                        Background="#1A1E23"
+                                        BorderBrush="#3C434B"
+                                        BorderThickness="1"
+                                        CornerRadius="4">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Foreground="{StaticResource TextBrush}"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Text="Ajouter un ami"/>
+                                            <Border Height="42"
+                                                    Margin="0,11,0,0"
+                                                    Padding="12,0"
+                                                    Background="#0E1115"
+                                                    BorderBrush="#414850"
+                                                    BorderThickness="1"
+                                                    CornerRadius="4">
+                                                <TextBox x:Name="FriendUsernameBox"
+                                                         Style="{StaticResource FieldTextBox}"
+                                                         ToolTip="Nom d'utilisateur Atlas"
+                                                         KeyDown="FriendUsernameBox_KeyDown"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <Button x:Name="SendFriendRequestButton"
+                                                Grid.Column="2"
+                                                Margin="0,32,0,0"
+                                                Content="ENVOYER LA DEMANDE"
+                                                Style="{StaticResource PrimaryActionButton}"
+                                                Click="SendFriendRequestButton_Click"/>
+                                    </Grid>
+                                </Border>
+
+                                <TextBlock x:Name="FriendStatusText"
+                                           Grid.Row="1"
+                                           MinHeight="20"
+                                           Margin="2,10,0,7"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           FontSize="11"/>
+
+                                <ScrollViewer Grid.Row="2"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <StackPanel>
+                                        <Border x:Name="IncomingFriendSection"
+                                                Margin="0,0,0,14"
+                                                Padding="18"
+                                                Background="#1A1E23"
+                                                BorderBrush="#8C6D35"
+                                                BorderThickness="1"
+                                                CornerRadius="4"
+                                                Visibility="Collapsed">
+                                            <StackPanel>
+                                                <TextBlock Foreground="{StaticResource GoldBrush}"
+                                                           FontSize="13"
+                                                           FontWeight="SemiBold"
+                                                           Text="Demandes reçues"/>
+                                                <ItemsControl x:Name="IncomingFriendItemsControl" Margin="0,12,0,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border MinHeight="66"
+                                                                    Margin="0,0,0,7"
+                                                                    Padding="14,10"
+                                                                    Background="#15191E"
+                                                                    BorderBrush="#373E45"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="4">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="42"/>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <Border Width="34" Height="34" Background="#D7AE59" CornerRadius="17">
+                                                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#101317" FontWeight="Bold" Text="{Binding Initial}"/>
+                                                                    </Border>
+                                                                    <StackPanel Grid.Column="1" Margin="10,0,16,0" VerticalAlignment="Center">
+                                                                        <TextBlock Foreground="{StaticResource TextBrush}" FontSize="13" FontWeight="SemiBold" Text="{Binding Username}"/>
+                                                                        <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMutedBrush}" FontSize="10" Text="Souhaite t'ajouter à ses amis"/>
+                                                                    </StackPanel>
+                                                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                                        <Button Content="ACCEPTER" CommandParameter="{Binding AccountId}" Style="{StaticResource SecondaryActionButton}" Click="AcceptFriendButton_Click"/>
+                                                                        <Button Margin="8,0,0,0" Content="REFUSER" CommandParameter="{Binding AccountId}" Style="{StaticResource SecondaryActionButton}" Click="RemoveFriendButton_Click"/>
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border x:Name="OutgoingFriendSection"
+                                                Margin="0,0,0,14"
+                                                Padding="18"
+                                                Background="#1A1E23"
+                                                BorderBrush="#3C434B"
+                                                BorderThickness="1"
+                                                CornerRadius="4"
+                                                Visibility="Collapsed">
+                                            <StackPanel>
+                                                <TextBlock Foreground="{StaticResource TextBrush}" FontSize="13" FontWeight="SemiBold" Text="Demandes envoyées"/>
+                                                <ItemsControl x:Name="OutgoingFriendItemsControl" Margin="0,12,0,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border MinHeight="58" Margin="0,0,0,7" Padding="14,9" Background="#15191E" BorderBrush="#373E45" BorderThickness="1" CornerRadius="4">
+                                                                <Grid>
+                                                                    <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" FontSize="12" FontWeight="SemiBold" Text="{Binding Username}"/>
+                                                                    <Button HorizontalAlignment="Right" Content="ANNULER" CommandParameter="{Binding AccountId}" Style="{StaticResource SecondaryActionButton}" Click="RemoveFriendButton_Click"/>
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Padding="18"
+                                                Background="#1A1E23"
+                                                BorderBrush="#3C434B"
+                                                BorderThickness="1"
+                                                CornerRadius="4">
+                                            <StackPanel>
+                                                <TextBlock Foreground="{StaticResource TextBrush}" FontSize="13" FontWeight="SemiBold" Text="Mes amis"/>
+                                                <TextBlock x:Name="FriendsEmptyText"
+                                                           Margin="0,17,0,5"
+                                                           HorizontalAlignment="Center"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           FontSize="11"
+                                                           Text="Ajoute un compte Atlas pour le retrouver ici."/>
+                                                <ItemsControl x:Name="FriendItemsControl" Margin="0,12,0,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border MinHeight="76"
+                                                                    Margin="0,0,0,8"
+                                                                    Padding="14,10"
+                                                                    Background="#15191E"
+                                                                    BorderBrush="#373E45"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="4">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="50"/>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="190"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <Border Width="40" Height="40" Background="#D7AE59" CornerRadius="20">
+                                                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#101317" FontSize="14" FontWeight="Bold" Text="{Binding Initial}"/>
+                                                                    </Border>
+                                                                    <StackPanel Grid.Column="1" Margin="10,0,16,0" VerticalAlignment="Center">
+                                                                        <TextBlock Foreground="{StaticResource TextBrush}" FontSize="13" FontWeight="SemiBold" Text="{Binding Username}"/>
+                                                                        <TextBlock Margin="0,5,0,0" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" Text="{Binding CharacterText}"/>
+                                                                    </StackPanel>
+                                                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                                        <Ellipse x:Name="PresenceDot" Width="8" Height="8" Margin="0,0,8,0" Fill="#68717B"/>
+                                                                        <TextBlock x:Name="PresenceText" Foreground="{StaticResource TextMutedBrush}" FontSize="10" Text="{Binding PresenceText}"/>
+                                                                    </StackPanel>
+                                                                    <Button Grid.Column="3" Content="RETIRER" CommandParameter="{Binding AccountId}" Style="{StaticResource SecondaryActionButton}" Click="RemoveFriendButton_Click"/>
+                                                                </Grid>
+                                                            </Border>
+                                                            <DataTemplate.Triggers>
+                                                                <DataTrigger Binding="{Binding Online}" Value="True">
+                                                                    <Setter TargetName="PresenceDot" Property="Fill" Value="{StaticResource SuccessBrush}"/>
+                                                                    <Setter TargetName="PresenceText" Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                                                </DataTrigger>
+                                                            </DataTemplate.Triggers>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </ScrollViewer>
                             </Grid>
                         </Border>
                     </Grid>
@@ -1475,19 +2188,19 @@
                                 <TextBlock Foreground="{StaticResource IceBrush}"
                                            FontSize="10"
                                            FontWeight="Bold"
-                                           Text="JOURNAL D’ARTHAS"/>
+                                           Text="MISES À JOUR D'ATLAS"/>
                                 <TextBlock Margin="0,8,0,0"
                                            Foreground="{StaticResource TextBrush}"
                                            FontFamily="{StaticResource UiExtraBoldFont}"
                                            FontSize="32"
-                                           Text="Actualités"/>
+                                           Text="Patch notes"/>
                                 <TextBlock Margin="0,8,0,0"
                                            Foreground="{StaticResource TextSecondaryBrush}"
                                            FontSize="13"
-                                           Text="Mises à jour du royaume, du client et du catalogue."/>
+                                           Text="Historique publié manuellement pour le launcher, le client et le royaume."/>
                             </StackPanel>
                             <Button Grid.Column="1"
-                                    Content="ACTUALISER"
+                                    Content="RECHARGER"
                                     Style="{StaticResource SecondaryActionButton}"
                                     Click="RefreshNewsButton_Click"/>
                         </Grid>
@@ -2280,6 +2993,59 @@
                     </Grid>
                 </Border>
             </Grid>
+
+            <Border x:Name="ToastBorder"
+                    Grid.Row="1"
+                    Panel.ZIndex="300"
+                    Width="390"
+                    MaxHeight="150"
+                    Margin="0,16,18,0"
+                    Padding="0"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Background="#F21A1E23"
+                    BorderBrush="#4A5159"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Visibility="Collapsed">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="4"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="ToastAccentBorder"
+                            Background="{StaticResource IceBrush}"
+                            CornerRadius="3,0,0,3"/>
+                    <Grid Grid.Column="1" Margin="15,12,9,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="30"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock x:Name="ToastTitleText"
+                                       Foreground="{StaticResource TextBrush}"
+                                       FontFamily="{StaticResource UiSemiBoldFont}"
+                                       FontSize="13"
+                                       Text="Information"/>
+                            <TextBlock x:Name="ToastMessageText"
+                                       Margin="0,5,4,0"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       FontSize="10"
+                                       LineHeight="14"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Width="26"
+                                Height="26"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Content="&#xE711;"
+                                Style="{StaticResource IconButton}"
+                                ToolTip="Fermer"
+                                Click="ToastCloseButton_Click"/>
+                    </Grid>
+                </Grid>
+            </Border>
         </Grid>
     </Border>
 </Window>

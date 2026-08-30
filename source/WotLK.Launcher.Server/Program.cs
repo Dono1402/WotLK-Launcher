@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.RateLimiting;
@@ -13,6 +14,9 @@ builder.Configuration.GetSection("LauncherServer").Bind(options);
 options.ConnectionString = FirstNonEmpty(
     Environment.GetEnvironmentVariable("WOTLK_LAUNCHER_DB"),
     builder.Configuration["LauncherServer:ConnectionString"]);
+options.CharacterDatabaseName = FirstNonEmpty(
+    Environment.GetEnvironmentVariable("WOTLK_CHARACTER_DB"),
+    options.CharacterDatabaseName);
 options.HermesSharedSecret = FirstNonEmpty(
     Environment.GetEnvironmentVariable("WOTLK_HERMES_SHARED_SECRET"),
     builder.Configuration["LauncherServer:HermesSharedSecret"]);
@@ -37,6 +41,8 @@ if (bool.TryParse(
 
 if (string.IsNullOrWhiteSpace(options.ConnectionString))
     throw new InvalidOperationException("LauncherServer:ConnectionString est obligatoire.");
+if (!Regex.IsMatch(options.CharacterDatabaseName, "^[A-Za-z0-9_]+$", RegexOptions.CultureInvariant))
+    throw new InvalidOperationException("LauncherServer:CharacterDatabaseName est invalide.");
 
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<TokenService>();
@@ -409,6 +415,99 @@ app.MapDelete("/api/v1/me/sessions/{sessionId}", async (
         : Results.NotFound();
 });
 
+app.MapGet("/api/v1/friends", async (
+    HttpContext context,
+    LauncherDatabase db,
+    CancellationToken cancellationToken) =>
+{
+    AuthenticatedAccount? account = await AuthenticateAsync(context, db, cancellationToken);
+    return account is null
+        ? Results.Unauthorized()
+        : Results.Ok(await db.ListFriendsAsync(account.AccountId, cancellationToken));
+});
+
+app.MapPost("/api/v1/friends/requests", async (
+    CreateFriendRequest request,
+    HttpContext context,
+    LauncherDatabase db,
+    CancellationToken cancellationToken) =>
+{
+    AuthenticatedAccount? account = await AuthenticateAsync(context, db, cancellationToken);
+    if (account is null)
+        return Results.Unauthorized();
+
+    string username = request.Username.Trim();
+    if (username.Length is < 2 or > 32)
+        return Results.BadRequest(new { error = "Saisis un nom d'utilisateur Atlas valide." });
+
+    FriendRequestResult result = await db.SendFriendRequestAsync(
+        account.AccountId,
+        username,
+        cancellationToken);
+    return result.Outcome switch
+    {
+        FriendRequestOutcome.Requested => Results.Ok(new
+        {
+            message = $"Demande envoyée à {result.TargetUsername}."
+        }),
+        FriendRequestOutcome.Accepted => Results.Ok(new
+        {
+            message = $"{result.TargetUsername} fait maintenant partie de tes amis."
+        }),
+        FriendRequestOutcome.NotFound => Results.NotFound(new
+        {
+            error = "Aucun compte Atlas ne porte ce nom d'utilisateur."
+        }),
+        FriendRequestOutcome.Self => Results.BadRequest(new
+        {
+            error = "Tu ne peux pas t'ajouter toi-même."
+        }),
+        FriendRequestOutcome.AlreadyPending => Results.Conflict(new
+        {
+            error = "Une demande est déjà en attente pour ce compte."
+        }),
+        FriendRequestOutcome.AlreadyFriends => Results.Conflict(new
+        {
+            error = "Ce compte fait déjà partie de tes amis."
+        }),
+        _ => Results.BadRequest()
+    };
+}).RequireRateLimiting("auth");
+
+app.MapPost("/api/v1/friends/{friendAccountId:int}/accept", async (
+    uint friendAccountId,
+    HttpContext context,
+    LauncherDatabase db,
+    CancellationToken cancellationToken) =>
+{
+    AuthenticatedAccount? account = await AuthenticateAsync(context, db, cancellationToken);
+    if (account is null)
+        return Results.Unauthorized();
+
+    bool accepted = await db.AcceptFriendAsync(
+        account.AccountId,
+        friendAccountId,
+        cancellationToken);
+    return accepted ? Results.NoContent() : Results.NotFound();
+}).RequireRateLimiting("auth");
+
+app.MapDelete("/api/v1/friends/{friendAccountId:int}", async (
+    uint friendAccountId,
+    HttpContext context,
+    LauncherDatabase db,
+    CancellationToken cancellationToken) =>
+{
+    AuthenticatedAccount? account = await AuthenticateAsync(context, db, cancellationToken);
+    if (account is null)
+        return Results.Unauthorized();
+
+    bool removed = await db.RemoveFriendAsync(
+        account.AccountId,
+        friendAccountId,
+        cancellationToken);
+    return removed ? Results.NoContent() : Results.NotFound();
+});
+
 app.MapGet("/api/v1/status", async (
     HttpContext context,
     LauncherDatabase db,
@@ -421,38 +520,8 @@ app.MapGet("/api/v1/status", async (
         : Results.Ok(await status.GetAsync(cancellationToken));
 });
 
-app.MapGet("/api/v1/news", async (
-    HttpContext context,
-    LauncherDatabase db,
-    CancellationToken cancellationToken) =>
-{
-    AuthenticatedAccount? account = await AuthenticateAsync(context, db, cancellationToken);
-    if (account is null)
-        return Results.Unauthorized();
-
-    LauncherNewsItem[] news =
-    [
-        new(
-            "launcher-account",
-            "Launcher",
-            "Le compte Atlas arrive dans le launcher",
-            "Connexion unique, profil, appareils connectés et téléchargements protégés.",
-            new DateTimeOffset(2026, 7, 28, 6, 0, 0, TimeSpan.Zero)),
-        new(
-            "addons-catalog",
-            "Addons",
-            "Le catalogue Atlas s'agrandit",
-            "Onze addons validés pour WotLK Classic sont disponibles par catégorie.",
-            new DateTimeOffset(2026, 7, 28, 5, 0, 0, TimeSpan.Zero)),
-        new(
-            "french-client",
-            "Client",
-            "Le client français est disponible",
-            "Interface, textes et voix françaises sont distribués directement par Atlas.",
-            new DateTimeOffset(2026, 7, 27, 18, 0, 0, TimeSpan.Zero))
-    ];
-    return Results.Ok(news);
-});
+app.MapGet("/api/v1/patch-notes", GetPatchNotesAsync);
+app.MapGet("/api/v1/news", GetPatchNotesAsync);
 
 app.MapPost("/api/v1/game-ticket", async (
     HttpContext context,
@@ -483,7 +552,7 @@ app.MapGet("/manifest.json", async (
     JsonNode manifest = JsonNode.Parse(
         await File.ReadAllTextAsync(manifestPath, cancellationToken))
         ?? throw new InvalidOperationException("Le manifeste du client est invalide.");
-    manifest["baseUrl"] = "https://animeclub.fr/wotlk/files/";
+    manifest["baseUrl"] = serverOptions.PublicBaseUrl.TrimEnd('/') + "/";
     return Results.Text(manifest.ToJsonString(), "application/json");
 });
 
@@ -540,6 +609,50 @@ app.MapGet("/addons/packages/{**relativePath}", async (
 });
 
 app.Run();
+
+static async Task<IResult> GetPatchNotesAsync(
+    HttpContext context,
+    LauncherDatabase db,
+    LauncherServerOptions serverOptions,
+    CancellationToken cancellationToken)
+{
+    AuthenticatedAccount? account = await AuthenticateAsync(context, db, cancellationToken);
+    if (account is null)
+        return Results.Unauthorized();
+
+    string patchNotesPath = Path.Combine(serverOptions.FeedRoot, "patch-notes.json");
+    LauncherNewsItem[] notes =
+    [
+        new(
+            "atlas-launcher-1-1-0",
+            "Launcher",
+            "Atlas Launcher 1.1",
+            "Nouvel écran Jeu, catalogue avec logos officiels des addons, navigation simplifiée, notifications intégrées et suivi détaillé des téléchargements.",
+            new DateTimeOffset(2026, 8, 29, 21, 0, 0, TimeSpan.Zero))
+    ];
+
+    if (File.Exists(patchNotesPath))
+    {
+        try
+        {
+            await using FileStream stream = File.OpenRead(patchNotesPath);
+            LauncherNewsItem[]? published = await JsonSerializer.DeserializeAsync<LauncherNewsItem[]>(
+                stream,
+                new JsonSerializerOptions(JsonSerializerDefaults.Web),
+                cancellationToken);
+            if (published is { Length: > 0 })
+            {
+                notes = published;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            // Keep the embedded release note available if the editable feed is temporarily invalid.
+        }
+    }
+
+    return Results.Ok(notes.OrderByDescending(item => item.PublishedAt));
+}
 
 static async Task<AuthenticatedAccount?> AuthenticateAsync(
     HttpContext context,

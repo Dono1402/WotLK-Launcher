@@ -63,6 +63,12 @@ public sealed class AddonPackage
     [JsonPropertyName("sourceUrl")]
     public string SourceUrl { get; set; } = "";
 
+    [JsonPropertyName("author")]
+    public string Author { get; set; } = "";
+
+    [JsonPropertyName("dependencies")]
+    public List<string> Dependencies { get; set; } = [];
+
     [JsonIgnore]
     internal string EffectiveInstallHash => string.IsNullOrWhiteSpace(InstallHash) ? Sha256 : InstallHash;
 }
@@ -102,6 +108,7 @@ internal sealed class AddonSelectionItem : INotifyPropertyChanged
 {
     private bool _isSelected;
     private string _statusText = "Non installé";
+    private AddonLocalStatus _localStatus = AddonLocalStatus.NotInstalled;
 
     internal AddonSelectionItem(AddonPackage package)
     {
@@ -115,6 +122,17 @@ internal sealed class AddonSelectionItem : INotifyPropertyChanged
     public string Description => Package.Description;
     public string Category => Package.Category;
     public string VersionText => $"Version {Package.Version}  |  Interface {Package.Interface}";
+    public string ShortVersionText => $"v{Package.Version}";
+    public string AuthorText => string.IsNullOrWhiteSpace(Package.Author) ? "Sélection Atlas" : Package.Author;
+    public string CompatibilityText => Package.Interface == "30403"
+        ? "Compatible WotLK 3.4.3"
+        : $"Interface {Package.Interface}";
+    public string DependencyText => Package.Dependencies.Count == 0
+        ? "Aucune dépendance requise"
+        : "Dépendances : " + string.Join(", ", Package.Dependencies);
+    public bool IsInstalled => _localStatus != AddonLocalStatus.NotInstalled;
+    public bool NeedsUpdate => _localStatus is AddonLocalStatus.UpdateAvailable or AddonLocalStatus.MissingFiles;
+    public string IconPath => $"Assets/Launcher/addon-icons/{Package.Id.ToLowerInvariant()}.png";
 
     public bool IsSelected
     {
@@ -148,6 +166,7 @@ internal sealed class AddonSelectionItem : INotifyPropertyChanged
 
     internal void ApplyInspection(AddonInspection inspection)
     {
+        _localStatus = inspection.Status;
         IsSelected = inspection.Status != AddonLocalStatus.NotInstalled;
         StatusText = inspection.Status switch
         {
@@ -157,6 +176,8 @@ internal sealed class AddonSelectionItem : INotifyPropertyChanged
             AddonLocalStatus.DetectedUnmanaged => "Détecté (non géré)",
             _ => "Non installé"
         };
+        OnPropertyChanged(nameof(IsInstalled));
+        OnPropertyChanged(nameof(NeedsUpdate));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

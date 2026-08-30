@@ -1,0 +1,24 @@
+{
+  "version": "1.1.0",
+  "tag": "v1.1.0",
+  "createdAt": "2026-08-30T04:04:22Z",
+  "publishedRoot": "/var/www/wotlk-launcher/launcher",
+  "artifactStore": "/srv/wotlk/launcher-releases/v1.1.0",
+  "assets": [
+    {
+      "name": "WotLK-Launcher.exe",
+      "size": 75643199,
+      "sha256": "88295d1ea9b29f755611bc46e178154cefd0af5fb2556e6c6f77ef0d776dd7ac"
+    },
+    {
+      "name": "WotLK-Launcher-Installer.exe",
+      "size": 178876139,
+      "sha256": "ad2dad4dba0ffdf81594f59f301ebef1a85782e8bf6225e16c52dd8afd8e833b"
+    },
+    {
+      "name": "launcher-update.json",
+      "size": 186,
+      "sha256": "c2011f8b36f28817c313db4e998f1ee74197454d293ec031784960469f091c8f"
+    }
+  ]
+}

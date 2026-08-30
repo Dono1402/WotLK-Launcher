@@ -164,6 +164,41 @@ if (args.Length == 1
     return 0;
 }
 
+if (args.Length == 1
+    && string.Equals(args[0], "--client-config", StringComparison.OrdinalIgnoreCase))
+{
+    string root = Path.Combine(Path.GetTempPath(), "AtlasClientConfigTest", Guid.NewGuid().ToString("N"));
+    string wtfDirectory = Path.Combine(root, "_classic_", "WTF");
+    Directory.CreateDirectory(wtfDirectory);
+    string configPath = Path.Combine(wtfDirectory, "Config.wtf");
+
+    try
+    {
+        await File.WriteAllTextAsync(
+            configPath,
+            "SET textLocale \"enUS\"\nSET instantQuestText \"0\"\nSET instantQuestText \"0\"\n");
+
+        string writtenPath = GameInstallServices.EnsureDefaultClientConfig(root, "frFR");
+        string[] lines = await File.ReadAllLinesAsync(writtenPath);
+        Assert(
+            lines.Count(line => line.StartsWith("SET instantQuestText ", StringComparison.OrdinalIgnoreCase)) == 1
+            && lines.Any(line => string.Equals(line, "SET instantQuestText \"1\"", StringComparison.OrdinalIgnoreCase)),
+            "Le launcher doit forcer une seule valeur instantQuestText active.");
+        Assert(
+            lines.Any(line => string.Equals(line, "SET textLocale \"frFR\"", StringComparison.OrdinalIgnoreCase)),
+            "Le launcher doit conserver la langue demandée dans Config.wtf.");
+        Console.WriteLine("Client Config.wtf defaults OK.");
+        return 0;
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+}
+
 if (args.Length < 1)
 {
     Console.Error.WriteLine("Usage: WotLK.Launcher.IntegrationTests --live | <catalog-directory> [archive-cache-directory ...]");

@@ -4,6 +4,7 @@ import secrets
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 
@@ -67,8 +68,12 @@ status, manifest = request(
     token=refreshed["accessToken"],
 )
 assert status == 200, ("authorized manifest", status)
-assert manifest["baseUrl"] == "https://animeclub.fr/wotlk/files/"
+assert manifest["baseUrl"] == "https://animeclub.fr/wotlk/"
 assert len(manifest["files"]) > 0
+assert urllib.parse.urljoin(
+    manifest["baseUrl"],
+    "files/.build.info",
+) == "https://animeclub.fr/wotlk/files/.build.info"
 
 status, logged_in = request(
     "api/v1/auth/login",

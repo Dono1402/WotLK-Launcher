@@ -76,30 +76,116 @@
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,18">
                                     <Path Width="11" Height="11"
                                           Margin="0,0,7,0"
-                                          Data="{StaticResource AtlasV2.Icon.Check}"
-                                          Stroke="{StaticResource AtlasV2.Brush.Cyan}"
                                           StrokeThickness="2"
                                           StrokeStartLineCap="Round"
                                           StrokeEndLineCap="Round"
-                                          Stretch="Uniform"/>
-                                    <TextBlock Text="{Binding ClientStatus}"
-                                               Style="{StaticResource AtlasV2.Text.Caption}"
-                                               Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+                                          StrokeLineJoin="Round"
+                                          Stretch="Uniform">
+                                        <Path.Style>
+                                            <Style TargetType="{x:Type Path}">
+                                                <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Check}"/>
+                                                <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
+                                                <Setter Property="Fill" Value="Transparent"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Scenario}" Value="{x:Static presentation:GamePreviewScenario.NotInstalled}">
+                                                        <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Download}"/>
+                                                        <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Scenario}" Value="{x:Static presentation:GamePreviewScenario.UpdateAvailable}">
+                                                        <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Refresh}"/>
+                                                        <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Scenario}" Value="{x:Static presentation:GamePreviewScenario.Downloading}">
+                                                        <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Download}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Scenario}" Value="{x:Static presentation:GamePreviewScenario.Installing}">
+                                                        <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Refresh}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Scenario}" Value="{x:Static presentation:GamePreviewScenario.Verifying}">
+                                                        <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Refresh}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Scenario}" Value="{x:Static presentation:GamePreviewScenario.Error}">
+                                                        <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.AlertCircle}"/>
+                                                        <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Danger}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Path.Style>
+                                    </Path>
+                                    <TextBlock Text="{Binding ClientStatus}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="{x:Type TextBlock}"
+                                                   BasedOn="{StaticResource AtlasV2.Text.Caption}">
+                                                <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Accent}">
+                                                        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Warning}">
+                                                        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Error}">
+                                                        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Danger}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal">
-                                    <Button Style="{StaticResource AtlasV2.Button.Primary}"
+                                    <Button Width="170"
+                                            Style="{StaticResource AtlasV2.Button.Primary}"
                                             Margin="0,0,10,0"
-                                            AutomationProperties.Name="Jouer">
+                                            IsEnabled="{Binding IsPrimaryActionEnabled}"
+                                            AutomationProperties.Name="{Binding PrimaryActionLabel}">
                                         <StackPanel Orientation="Horizontal">
                                             <Path Width="16" Height="16"
                                                   Margin="0,0,9,0"
-                                                  Data="{StaticResource AtlasV2.Icon.Play}"
-                                                  Fill="#111318"
-                                                  Stretch="Uniform"/>
-                                            <TextBlock Text="Jouer" FontWeight="Bold"/>
+                                                  StrokeThickness="2"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  Stretch="Uniform">
+                                                <Path.Style>
+                                                    <Style TargetType="{x:Type Path}">
+                                                        <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Play}"/>
+                                                        <Setter Property="Fill" Value="#111318"/>
+                                                        <Setter Property="Stroke" Value="Transparent"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Scenario}" Value="{x:Static presentation:GamePreviewScenario.NotInstalled}">
+                                                                <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Download}"/>
+                                                                <Setter Property="Fill" Value="Transparent"/>
+                                                                <Setter Property="Stroke" Value="#111318"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Scenario}" Value="{x:Static presentation:GamePreviewScenario.UpdateAvailable}">
+                                                                <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Refresh}"/>
+                                                                <Setter Property="Fill" Value="Transparent"/>
+                                                                <Setter Property="Stroke" Value="#111318"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Scenario}" Value="{x:Static presentation:GamePreviewScenario.Downloading}">
+                                                                <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Close}"/>
+                                                                <Setter Property="Fill" Value="Transparent"/>
+                                                                <Setter Property="Stroke" Value="#111318"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Scenario}" Value="{x:Static presentation:GamePreviewScenario.Installing}">
+                                                                <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Close}"/>
+                                                                <Setter Property="Fill" Value="Transparent"/>
+                                                                <Setter Property="Stroke" Value="#111318"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Scenario}" Value="{x:Static presentation:GamePreviewScenario.Error}">
+                                                                <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Refresh}"/>
+                                                                <Setter Property="Fill" Value="Transparent"/>
+                                                                <Setter Property="Stroke" Value="#111318"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Path.Style>
+                                            </Path>
+                                            <TextBlock Text="{Binding PrimaryActionLabel}" FontWeight="Bold"/>
                                         </StackPanel>
                                     </Button>
                                     <Button Style="{StaticResource AtlasV2.Button.Secondary}"
+                                            IsEnabled="{Binding IsOptionsEnabled}"
                                             AutomationProperties.Name="Options">
                                         <StackPanel Orientation="Horizontal">
                                             <Path Width="16" Height="16"
@@ -191,110 +277,298 @@
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <Grid Grid.Row="0" Margin="0,0,0,7">
                                 <TextBlock Text="Installation"
                                            Style="{StaticResource AtlasV2.Text.SectionTitle}"/>
                                 <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
-                                    <Ellipse Width="7" Height="7"
-                                             Margin="0,0,7,0"
-                                             Fill="{StaticResource AtlasV2.Brush.Success}"/>
-                                    <TextBlock Text="Prêt"
-                                               Style="{StaticResource AtlasV2.Text.Caption}"
-                                               Foreground="{StaticResource AtlasV2.Brush.Success}"/>
+                                    <Ellipse Width="7" Height="7" Margin="0,0,7,0">
+                                        <Ellipse.Style>
+                                            <Style TargetType="{x:Type Ellipse}">
+                                                <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Success}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Accent}">
+                                                        <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Warning}">
+                                                        <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Error}">
+                                                        <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Danger}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                    <TextBlock Text="{Binding InstallBadgeText}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="{x:Type TextBlock}"
+                                                   BasedOn="{StaticResource AtlasV2.Text.Caption}">
+                                                <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Success}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Accent}">
+                                                        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Warning}">
+                                                        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Error}">
+                                                        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Danger}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </StackPanel>
                             </Grid>
-                            <Grid Grid.Row="1" Margin="0,0,0,8">
-                                <Path Width="15" Height="15"
-                                      HorizontalAlignment="Left"
-                                      VerticalAlignment="Top"
-                                      Data="{StaticResource AtlasV2.Icon.Folder}"
-                                      Stroke="{StaticResource AtlasV2.Brush.Gold}"
-                                      StrokeThickness="1.6"
-                                      StrokeLineJoin="Round"
-                                      Stretch="Uniform"/>
-                                <TextBlock Margin="24,0,0,0"
-                                           Text="{Binding InstallPath}"
-                                           Style="{StaticResource AtlasV2.Text.Body}"
-                                           FontSize="12"
-                                           LineHeight="17"
-                                           Foreground="{StaticResource AtlasV2.Brush.Text}"
-                                           TextWrapping="Wrap"/>
-                            </Grid>
-                            <Border Grid.Row="2" Height="1" Margin="0,0,0,8"
-                                    Background="{StaticResource AtlasV2.Brush.BorderSoft}"/>
-                            <Grid Grid.Row="3">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <Grid>
-                                    <TextBlock Text="Version du client"
-                                               Style="{StaticResource AtlasV2.Text.Caption}"/>
-                                    <TextBlock Text="{Binding ClientVersion}"
-                                               HorizontalAlignment="Right"
-                                               Style="{StaticResource AtlasV2.Text.Caption}"
-                                               FontWeight="SemiBold"
-                                               Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+
+                            <Grid Grid.Row="1">
+                                <Grid Visibility="{Binding ShowsReadyInstallation, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid Margin="0,0,0,8">
+                                        <Path Width="15" Height="15"
+                                              HorizontalAlignment="Left"
+                                              Data="{StaticResource AtlasV2.Icon.Folder}"
+                                              Stroke="{StaticResource AtlasV2.Brush.Gold}"
+                                              StrokeThickness="1.6"
+                                              StrokeLineJoin="Round"
+                                              Stretch="Uniform"/>
+                                        <TextBlock Margin="24,0,0,0"
+                                                   Text="{Binding InstallPath}"
+                                                   ToolTip="{Binding InstallPath}"
+                                                   Style="{StaticResource AtlasV2.Text.Body}"
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource AtlasV2.Brush.Text}"
+                                                   TextWrapping="NoWrap"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </Grid>
+                                    <Border Grid.Row="1" Height="1" Margin="0,0,0,8"
+                                            Background="{StaticResource AtlasV2.Brush.BorderSoft}"/>
+                                    <Grid Grid.Row="2">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid>
+                                            <TextBlock Text="Version du client" Style="{StaticResource AtlasV2.Text.Caption}"/>
+                                            <TextBlock Text="{Binding ClientVersion}"
+                                                       HorizontalAlignment="Right"
+                                                       Style="{StaticResource AtlasV2.Text.Caption}"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                                        </Grid>
+                                        <Grid Grid.Row="1" Margin="0,4,0,0">
+                                            <TextBlock Text="Langue" Style="{StaticResource AtlasV2.Text.Caption}"/>
+                                            <TextBlock Text="{Binding Language}"
+                                                       HorizontalAlignment="Right"
+                                                       Style="{StaticResource AtlasV2.Text.Caption}"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                                        </Grid>
+                                    </Grid>
+                                    <Grid Grid.Row="4" Margin="0,9,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="6"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="6"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Vérifier le client">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Width="13" Height="13" Margin="0,0,6,0" Data="{StaticResource AtlasV2.Icon.Check}" Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="{StaticResource AtlasV2.Brush.Cyan}"/>
+                                                <TextBlock VerticalAlignment="Center" Text="Vérifier"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Ouvrir le dossier du client">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Width="13" Height="13" Margin="0,0,6,0" Data="{StaticResource AtlasV2.Icon.Folder}" Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="{StaticResource AtlasV2.Brush.Gold}"/>
+                                                <TextBlock VerticalAlignment="Center" Text="Dossier"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="4" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Ouvrir le diagnostic">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Width="13" Height="13" Margin="0,0,6,0" Data="{StaticResource AtlasV2.Icon.Settings}" Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                                <TextBlock VerticalAlignment="Center" Text="Diagnostic"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
                                 </Grid>
-                                <Grid Grid.Row="1" Margin="0,4,0,0">
-                                    <TextBlock Text="Langue"
-                                               Style="{StaticResource AtlasV2.Text.Caption}"/>
-                                    <TextBlock Text="{Binding Language}"
-                                               HorizontalAlignment="Right"
-                                               Style="{StaticResource AtlasV2.Text.Caption}"
-                                               FontWeight="SemiBold"
-                                               Foreground="{StaticResource AtlasV2.Brush.Text}"/>
-                                </Grid>
-                            </Grid>
-                            <Grid Grid.Row="5" Margin="0,9,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="6"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="6"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <Button Grid.Column="0"
-                                        Style="{StaticResource AtlasV2.Button.GhostCompact}"
-                                        AutomationProperties.Name="Vérifier le client">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Width="13" Height="13"
-                                              Margin="0,0,6,0"
-                                              Data="{StaticResource AtlasV2.Icon.Check}"
-                                              Style="{StaticResource AtlasV2.Icon.Stroke}"
-                                              Stroke="{StaticResource AtlasV2.Brush.Cyan}"/>
-                                        <TextBlock VerticalAlignment="Center" Text="Vérifier"/>
+
+                                <Grid Visibility="{Binding ShowsNotInstalled, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="Client WotLK introuvable"
+                                                   Style="{StaticResource AtlasV2.Text.Body}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                                        <TextBlock Margin="0,3,0,0"
+                                                   Text="Choisis un dossier pour installer le client."
+                                                   Style="{StaticResource AtlasV2.Text.Caption}"/>
                                     </StackPanel>
-                                </Button>
-                                <Button Grid.Column="2"
-                                        Style="{StaticResource AtlasV2.Button.GhostCompact}"
-                                        AutomationProperties.Name="Ouvrir le dossier du client">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Width="13" Height="13"
-                                              Margin="0,0,6,0"
+                                    <Grid Grid.Row="1" Margin="0,8,0,0" VerticalAlignment="Top">
+                                        <Path Width="15" Height="15"
+                                              HorizontalAlignment="Left"
                                               Data="{StaticResource AtlasV2.Icon.Folder}"
                                               Style="{StaticResource AtlasV2.Icon.Stroke}"
                                               Stroke="{StaticResource AtlasV2.Brush.Gold}"/>
-                                        <TextBlock VerticalAlignment="Center" Text="Dossier"/>
+                                        <TextBlock Margin="24,0,0,0"
+                                                   Text="{Binding InstallPath}"
+                                                   ToolTip="{Binding InstallPath}"
+                                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                                   Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </Grid>
+                                    <Grid Grid.Row="2" Margin="0,9,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="6"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Choisir le dossier du client">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Width="13" Height="13" Margin="0,0,6,0" Data="{StaticResource AtlasV2.Icon.Folder}" Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="{StaticResource AtlasV2.Brush.Gold}"/>
+                                                <TextBlock VerticalAlignment="Center" Text="Dossier"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Ouvrir le diagnostic">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Width="13" Height="13" Margin="0,0,6,0" Data="{StaticResource AtlasV2.Icon.Settings}" Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                                <TextBlock VerticalAlignment="Center" Text="Diagnostic"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </Grid>
+
+                                <Grid Visibility="{Binding ShowsUpdateAvailable, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid Margin="0,0,0,7">
+                                        <Path Width="15" Height="15" HorizontalAlignment="Left" Data="{StaticResource AtlasV2.Icon.Folder}" Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="{StaticResource AtlasV2.Brush.Gold}"/>
+                                        <TextBlock Margin="24,0,0,0"
+                                                   Text="{Binding InstallPath}"
+                                                   ToolTip="{Binding InstallPath}"
+                                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                                   Foreground="{StaticResource AtlasV2.Brush.Text}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </Grid>
+                                    <Grid Grid.Row="1">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid>
+                                            <TextBlock Text="Version installée" Style="{StaticResource AtlasV2.Text.Caption}"/>
+                                            <TextBlock Text="{Binding ClientVersion}" HorizontalAlignment="Right" Style="{StaticResource AtlasV2.Text.Caption}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                                        </Grid>
+                                        <Grid Grid.Row="1" Margin="0,4,0,0">
+                                            <TextBlock Text="Version disponible" Style="{StaticResource AtlasV2.Text.Caption}"/>
+                                            <TextBlock Text="{Binding AvailableClientVersion}" HorizontalAlignment="Right" Style="{StaticResource AtlasV2.Text.Caption}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Gold}"/>
+                                        </Grid>
+                                    </Grid>
+                                    <Grid Grid.Row="3" Margin="0,9,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="6"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="6"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Vérifier le client">
+                                            <TextBlock Text="Vérifier"/>
+                                        </Button>
+                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Ouvrir le dossier du client">
+                                            <TextBlock Text="Dossier"/>
+                                        </Button>
+                                        <Button Grid.Column="4" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Ouvrir le diagnostic">
+                                            <TextBlock Text="Diagnostic"/>
+                                        </Button>
+                                    </Grid>
+                                </Grid>
+
+                                <Grid Visibility="{Binding ShowsProgress, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                                    <StackPanel VerticalAlignment="Center">
+                                        <Grid>
+                                            <TextBlock Text="{Binding ProgressTitle}"
+                                                       Style="{StaticResource AtlasV2.Text.Body}"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                                            <TextBlock Text="{Binding ProgressPercentText}"
+                                                       HorizontalAlignment="Right"
+                                                       Style="{StaticResource AtlasV2.Text.Caption}"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
+                                        </Grid>
+                                        <ProgressBar Margin="0,9,0,9"
+                                                     Style="{StaticResource AtlasV2.Progress.Compact}"
+                                                     Value="{Binding Progress}"
+                                                     IsIndeterminate="{Binding IsProgressIndeterminate}"/>
+                                        <TextBlock Text="{Binding ProgressPrimaryDetail}"
+                                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                                   Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Text="{Binding ProgressSecondaryDetail}"
+                                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                                   Foreground="{StaticResource AtlasV2.Brush.TextMuted}"
+                                                   TextTrimming="CharacterEllipsis"/>
                                     </StackPanel>
-                                </Button>
-                                <Button Grid.Column="4"
-                                        Style="{StaticResource AtlasV2.Button.GhostCompact}"
-                                        AutomationProperties.Name="Ouvrir le diagnostic">
+                                </Grid>
+
+                                <Grid Visibility="{Binding ShowsError, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
                                     <StackPanel Orientation="Horizontal">
-                                        <Path Width="13" Height="13"
-                                              Margin="0,0,6,0"
-                                              Data="{StaticResource AtlasV2.Icon.Settings}"
-                                              Style="{StaticResource AtlasV2.Icon.Stroke}"/>
-                                        <TextBlock VerticalAlignment="Center" Text="Diagnostic"/>
+                                        <Path Width="15" Height="15"
+                                              Margin="0,1,7,0"
+                                              Data="{StaticResource AtlasV2.Icon.AlertCircle}"
+                                              Style="{StaticResource AtlasV2.Icon.Stroke}"
+                                              Stroke="{StaticResource AtlasV2.Brush.Danger}"/>
+                                        <TextBlock Text="{Binding ErrorTitle}"
+                                                   Style="{StaticResource AtlasV2.Text.Body}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource AtlasV2.Brush.Text}"/>
                                     </StackPanel>
-                                </Button>
+                                    <TextBlock Grid.Row="1"
+                                               Margin="0,7,0,0"
+                                               VerticalAlignment="Top"
+                                               Text="{Binding ErrorSummary}"
+                                               Style="{StaticResource AtlasV2.Text.Caption}"
+                                               LineHeight="17"
+                                               MaxHeight="36"
+                                               TextWrapping="Wrap"/>
+                                    <Grid Grid.Row="2" Margin="0,9,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="6"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Voir les détails de l'erreur">
+                                                <TextBlock Text="Réessayer"/>
+                                        </Button>
+                                        <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" AutomationProperties.Name="Ouvrir le diagnostic">
+                                            <TextBlock Text="Diagnostic"/>
+                                        </Button>
+                                    </Grid>
+                                </Grid>
                             </Grid>
                         </Grid>
                     </Border>

@@ -1,5 +1,6 @@
 using System.Windows;
 using WotLK.Launcher.UI.V2;
+using WotLK.Launcher.UI.V2.Preview;
 using WotLK.Launcher.UI.V2.Validation;
 
 namespace WotLK.Launcher;
@@ -15,6 +16,7 @@ public partial class App : Application
 
         if (useUiV2Preview)
         {
+            var previewScenario = LauncherV2PreviewData.ResolveScenario(e.Args);
             try
             {
                 ManropeFontValidator.ValidateOrThrow();
@@ -31,7 +33,7 @@ public partial class App : Application
                 return;
             }
 
-            LauncherShellV2 previewWindow = new();
+            LauncherShellV2 previewWindow = new(previewScenario);
             ApplyV2PreviewOptions(previewWindow, e.Args);
             MainWindow = previewWindow;
             previewWindow.Show();

@@ -14,6 +14,10 @@ public sealed class ShellUiState : BindableUiState
 
     public string RealmStatus { get; init; } = "En ligne";
 
+    public bool IsRealmOnline { get; init; } = true;
+
+    public bool IsNavigationEnabled { get; init; } = true;
+
     public AdaptiveLayoutMode LayoutMode
     {
         get => _layoutMode;

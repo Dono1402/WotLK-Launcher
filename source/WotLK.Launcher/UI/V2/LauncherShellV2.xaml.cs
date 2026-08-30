@@ -9,10 +9,10 @@ namespace WotLK.Launcher.UI.V2;
 
 public partial class LauncherShellV2 : Window
 {
-    public LauncherShellV2()
+    public LauncherShellV2(GamePreviewScenario scenario = GamePreviewScenario.Ready)
     {
-        ShellState = LauncherV2PreviewData.CreateShell();
-        GameState = LauncherV2PreviewData.CreateGame();
+        ShellState = LauncherV2PreviewData.CreateShell(scenario);
+        GameState = LauncherV2PreviewData.CreateGame(scenario);
         FriendsState = LauncherV2PreviewData.CreateFriends();
 
         InitializeComponent();

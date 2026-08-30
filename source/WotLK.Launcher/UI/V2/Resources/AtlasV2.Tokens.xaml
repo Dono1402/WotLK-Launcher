@@ -1,6 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <FontFamily x:Key="AtlasV2.Font.Manrope">pack://application:,,,/WotLK.Launcher;component/Assets/Fonts/#Manrope</FontFamily>
+    <BooleanToVisibilityConverter x:Key="AtlasV2.Converter.BooleanToVisibility"/>
 
     <SolidColorBrush x:Key="AtlasV2.Brush.Window" Color="#090C10"/>
     <LinearGradientBrush x:Key="AtlasV2.Brush.WindowAmbient"

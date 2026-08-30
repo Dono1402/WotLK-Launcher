@@ -88,12 +88,15 @@
                         <Button Style="{StaticResource AtlasV2.Button.Nav}"
                                 Tag="Active"
                                 Content="Jeu"
+                                IsEnabled="{Binding ShellState.IsNavigationEnabled}"
                                 Focusable="False"/>
                         <Button Style="{StaticResource AtlasV2.Button.Nav}"
                                 Content="Addons"
+                                IsEnabled="{Binding ShellState.IsNavigationEnabled}"
                                 Focusable="False"/>
                         <Button Style="{StaticResource AtlasV2.Button.Nav}"
                                 Content="Actualités"
+                                IsEnabled="{Binding ShellState.IsNavigationEnabled}"
                                 Focusable="False"/>
                     </StackPanel>
 
@@ -109,15 +112,36 @@
                                 BorderThickness="1"
                                 CornerRadius="6">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Ellipse Width="7"
+                                <Ellipse x:Name="RealmStatusDot"
+                                         Width="7"
                                          Height="7"
-                                         Margin="0,0,7,0"
-                                         Fill="{StaticResource AtlasV2.Brush.Success}"/>
+                                         Margin="0,0,7,0">
+                                    <Ellipse.Style>
+                                        <Style TargetType="{x:Type Ellipse}">
+                                            <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Success}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShellState.IsRealmOnline}" Value="False">
+                                                    <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Danger}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
                                 <TextBlock x:Name="RealmStatusText"
                                            VerticalAlignment="Center"
-                                           Text="{Binding ShellState.RealmStatus}"
-                                           Style="{StaticResource AtlasV2.Text.Caption}"
-                                           Foreground="{StaticResource AtlasV2.Brush.Success}"/>
+                                           Text="{Binding ShellState.RealmStatus}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="{x:Type TextBlock}"
+                                               BasedOn="{StaticResource AtlasV2.Text.Caption}">
+                                            <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Success}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShellState.IsRealmOnline}" Value="False">
+                                                    <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Danger}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </StackPanel>
                         </Border>
 
@@ -127,6 +151,7 @@
                                 Padding="11,0"
                                 Style="{StaticResource AtlasV2.Button.Base}"
                                 ToolTip="Amis"
+                                IsEnabled="{Binding ShellState.IsNavigationEnabled}"
                                 AutomationProperties.Name="Ouvrir le panneau Amis"
                                 Click="FriendsButton_Click">
                             <StackPanel Orientation="Horizontal">
@@ -145,6 +170,7 @@
                         <Button Margin="0,0,3,0"
                                 Style="{StaticResource AtlasV2.Button.Icon}"
                                 ToolTip="Paramètres"
+                                IsEnabled="{Binding ShellState.IsNavigationEnabled}"
                                 Focusable="False"
                                 AutomationProperties.Name="Paramètres">
                             <Path Data="{StaticResource AtlasV2.Icon.Settings}"
@@ -157,6 +183,7 @@
                                 Padding="0"
                                 Style="{StaticResource AtlasV2.Button.Icon}"
                                 ToolTip="Profil Dono1402"
+                                IsEnabled="{Binding ShellState.IsNavigationEnabled}"
                                 Focusable="False"
                                 AutomationProperties.Name="Profil Dono1402">
                             <Border Width="34"

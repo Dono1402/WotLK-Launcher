@@ -18,7 +18,7 @@ namespace WotLK.Launcher;
 
 public partial class MainWindow : Window
 {
-    private enum GameAction
+    internal enum GameAction
     {
         Install,
         Update,
@@ -57,12 +57,14 @@ public partial class MainWindow : Window
         PropertyNameCaseInsensitive = true
     };
 
-    private readonly LauncherAuthService _auth;
+    private readonly LegacyMainWindowDependencies _dependencies;
+    private readonly ILegacyStartupObserver _startupObserver;
+    private readonly ILauncherAuthService _auth;
     private readonly HttpClient _http;
     private readonly LauncherSettings _settings;
-    private readonly DispatcherTimer _launcherUpdateTimer;
-    private readonly DispatcherTimer _friendRefreshTimer;
-    private readonly DispatcherTimer _toastTimer;
+    private readonly ILegacyDispatcherTimer _launcherUpdateTimer;
+    private readonly ILegacyDispatcherTimer _friendRefreshTimer;
+    private readonly ILegacyDispatcherTimer _toastTimer;
     private readonly ObservableCollection<AddonSelectionItem> _addonItems = [];
     private readonly ObservableCollection<LauncherNews> _newsItems = [];
     private readonly ObservableCollection<LauncherDeviceSession> _sessionItems = [];
@@ -91,13 +93,20 @@ public partial class MainWindow : Window
     private string? _announcedGameUpdateVersion;
 
     public MainWindow()
+        : this(LegacyMainWindowDependencies.CreateProduction())
     {
+    }
+
+    internal MainWindow(LegacyMainWindowDependencies dependencies)
+    {
+        _dependencies = dependencies ?? throw new ArgumentNullException(nameof(dependencies));
+        _startupObserver = dependencies.StartupObserver;
         InitializeComponent();
-        _auth = new LauncherAuthService();
-        _http = new HttpClient(new AtlasAuthorizationHandler(() => _auth.AccessToken))
-        {
-            Timeout = TimeSpan.FromMinutes(30)
-        };
+        _startupObserver.Record(LegacyStartupEvent.ComponentsInitialized);
+        _auth = dependencies.CreateAuthentication();
+        _startupObserver.Record(LegacyStartupEvent.AuthenticationCreated);
+        _http = dependencies.CreateAuthorizedHttpClient(() => _auth.AccessToken);
+        _startupObserver.Record(LegacyStartupEvent.AuthorizedHttpClientCreated);
         AddonItemsControl.ItemsSource = _addonItems;
         NewsItemsControl.ItemsSource = _newsItems;
         SessionsItemsControl.ItemsSource = _sessionItems;
@@ -112,9 +121,12 @@ public partial class MainWindow : Window
         VersionText.Text = GetLauncherVersionText();
         ChromeVersionText.Text = GetLauncherVersionText();
 
-        _settings = LauncherSettings.Load();
-        _settings.Save();
-        GameDirectoryAccess.PrepareElevatedSession(_settings.InstallPath);
+        _settings = dependencies.LoadSettings();
+        _startupObserver.Record(LegacyStartupEvent.SettingsLoaded);
+        dependencies.SaveSettings(_settings);
+        _startupObserver.Record(LegacyStartupEvent.SettingsSaved);
+        dependencies.PrepareGameDirectory(_settings.InstallPath);
+        _startupObserver.Record(LegacyStartupEvent.GameDirectoryPrepared);
         InstallPathBox.Text = _settings.InstallPath;
         SettingsInstallPathBox.Text = _settings.InstallPath;
         UpdateAddonInstallPathText();
@@ -124,40 +136,51 @@ public partial class MainWindow : Window
         CloseOnGameStartCheckBox.IsChecked = _settings.CloseLauncherOnGameStart;
         _isInitializingUi = false;
 
-        _launcherUpdateTimer = new DispatcherTimer(DispatcherPriority.Background)
-        {
-            Interval = LauncherUpdateCheckInterval
-        };
+        _launcherUpdateTimer = dependencies.CreateTimer(
+            LauncherUpdateCheckInterval,
+            DispatcherPriority.Background);
+        _startupObserver.Record(LegacyStartupEvent.LauncherUpdateTimerCreated);
         _launcherUpdateTimer.Tick += LauncherUpdateTimer_Tick;
-        _friendRefreshTimer = new DispatcherTimer(DispatcherPriority.Background)
-        {
-            Interval = TimeSpan.FromSeconds(15)
-        };
+        _friendRefreshTimer = dependencies.CreateTimer(
+            TimeSpan.FromSeconds(15),
+            DispatcherPriority.Background);
+        _startupObserver.Record(LegacyStartupEvent.FriendRefreshTimerCreated);
         _friendRefreshTimer.Tick += FriendRefreshTimer_Tick;
-        _toastTimer = new DispatcherTimer(DispatcherPriority.Normal)
-        {
-            Interval = TimeSpan.FromSeconds(8)
-        };
+        _toastTimer = dependencies.CreateTimer(
+            TimeSpan.FromSeconds(8),
+            DispatcherPriority.Normal);
+        _startupObserver.Record(LegacyStartupEvent.ToastTimerCreated);
         _toastTimer.Tick += ToastTimer_Tick;
 
         AppendLog("Launcher prêt.");
         SetInitialGameActionFromDisk();
+        _startupObserver.Record(LegacyStartupEvent.InitialGameActionSet);
         NavigateTo(LauncherPage.Game);
+        _startupObserver.Record(LegacyStartupEvent.GamePageSelected);
         if (_settings.AutomaticLauncherUpdates)
         {
+            _startupObserver.Record(LegacyStartupEvent.LauncherUpdateCheckScheduled);
             _ = CheckLauncherUpdateAsync();
         }
         Loaded += MainWindow_Loaded;
+        _startupObserver.Record(LegacyStartupEvent.LoadedSubscribed);
         if (_settings.AutomaticLauncherUpdates)
         {
             _launcherUpdateTimer.Start();
+            _startupObserver.Record(LegacyStartupEvent.LauncherUpdateTimerStarted);
         }
         _friendRefreshTimer.Start();
+        _startupObserver.Record(LegacyStartupEvent.FriendRefreshTimerStarted);
     }
 
     protected override void OnClosed(EventArgs e)
     {
-        _downloadCancellation?.Cancel();
+        _startupObserver.Record(LegacyStartupEvent.WindowClosing);
+        if (_downloadCancellation is not null)
+        {
+            _downloadCancellation.Cancel();
+            _startupObserver.Record(LegacyStartupEvent.OperationCancellationRequested);
+        }
         _launcherUpdateTimer.Stop();
         _launcherUpdateTimer.Tick -= LauncherUpdateTimer_Tick;
         _friendRefreshTimer.Stop();
@@ -167,18 +190,43 @@ public partial class MainWindow : Window
         Loaded -= MainWindow_Loaded;
         _http.Dispose();
         _auth.Dispose();
+        _startupObserver.Record(LegacyStartupEvent.WindowDisposed);
         base.OnClosed(e);
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        await RestoreSessionAndAnalyzeAsync();
+    }
+
+    private async Task RestoreSessionAndAnalyzeAsync()
+    {
         try
         {
-            if (await _auth.RestoreAsync())
+            bool sessionRestored;
+            _startupObserver.Record(LegacyStartupEvent.SessionRestoreStarted);
+            try
+            {
+                sessionRestored = await _auth.RestoreAsync();
+            }
+            finally
+            {
+                _startupObserver.Record(LegacyStartupEvent.SessionRestoreCompleted);
+            }
+
+            if (sessionRestored)
             {
                 CompleteAuthentication();
                 AppendLog($"Session restaurée pour {_auth.Session!.Profile.Username}.");
-                await RefreshGameActionAsync();
+                _startupObserver.Record(LegacyStartupEvent.InitialRemoteAnalysisStarted);
+                try
+                {
+                    await RefreshGameActionAsync();
+                }
+                finally
+                {
+                    _startupObserver.Record(LegacyStartupEvent.InitialRemoteAnalysisCompleted);
+                }
                 return;
             }
         }
@@ -321,7 +369,7 @@ public partial class MainWindow : Window
 
         _settings.InstallPath = LauncherSettings.NormalizeInstallPath(dialog.FolderName);
         _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
-        _settings.Save();
+        _dependencies.SaveSettings(_settings);
         InstallPathBox.Text = _settings.InstallPath;
         SettingsInstallPathBox.Text = _settings.InstallPath;
         UpdateAddonInstallPathText();
@@ -404,6 +452,7 @@ public partial class MainWindow : Window
 
     private async void FriendRefreshTimer_Tick(object? sender, EventArgs e)
     {
+        _startupObserver.Record(LegacyStartupEvent.FriendRefreshTimerTick);
         if ((_currentPage == LauncherPage.Friends || _currentPage == LauncherPage.Game)
             && _auth.Session is not null)
         {
@@ -1724,6 +1773,7 @@ public partial class MainWindow : Window
 
     private async void LauncherUpdateTimer_Tick(object? sender, EventArgs e)
     {
+        _startupObserver.Record(LegacyStartupEvent.LauncherUpdateTimerTick);
         if (!_settings.AutomaticLauncherUpdates)
         {
             return;
@@ -1872,7 +1922,7 @@ public partial class MainWindow : Window
         _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
         InstallPathBox.Text = _settings.InstallPath;
 
-        var hasClient = GameInstallServices.HasPlayableClient(_settings.InstallPath);
+        var hasClient = _dependencies.HasPlayableClient(_settings.InstallPath);
         SetGameAction(hasClient ? GameAction.Play : GameAction.Install);
         MainProgress.Value = hasClient ? 100 : 0;
         ProgressText.Text = hasClient ? "Client à jour" : string.Empty;
@@ -2628,7 +2678,7 @@ public partial class MainWindow : Window
         _settings.GameLocale = GetSelectedGameLocale();
         _settings.AutomaticLauncherUpdates = AutomaticUpdatesCheckBox.IsChecked == true;
         _settings.CloseLauncherOnGameStart = CloseOnGameStartCheckBox.IsChecked == true;
-        _settings.Save();
+        _dependencies.SaveSettings(_settings);
         InstallPathBox.Text = _settings.InstallPath;
         SettingsInstallPathBox.Text = _settings.InstallPath;
     }
@@ -2861,13 +2911,62 @@ public partial class MainWindow : Window
 
         try
         {
-            Directory.CreateDirectory(LauncherSettings.SettingsDirectory);
-            File.AppendAllText(GetLauncherLogPath(), line, new UTF8Encoding(false));
+            _dependencies.PersistLogLine(line);
         }
         catch
         {
             // Logging must never interrupt launcher operations.
         }
+    }
+
+    internal Task RestoreSessionAndAnalyzeForCharacterizationAsync()
+    {
+        return RestoreSessionAndAnalyzeAsync();
+    }
+
+    internal Task RefreshGameActionForCharacterizationAsync(bool silentWhenUpToDate = false)
+    {
+        return RefreshGameActionAsync(silentWhenUpToDate);
+    }
+
+    internal void SetGameActionForCharacterization(GameAction action)
+    {
+        SetGameAction(action);
+    }
+
+    internal void SetBusyForCharacterization(bool busy)
+    {
+        SetBusy(busy);
+    }
+
+    internal CancellationToken AttachActiveOperationForCharacterization()
+    {
+        if (_downloadCancellation is not null)
+        {
+            throw new InvalidOperationException("Une opération legacy est déjà active.");
+        }
+
+        _downloadCancellation = new CancellationTokenSource();
+        SetBusy(true);
+        return _downloadCancellation.Token;
+    }
+
+    internal LegacyMainWindowSnapshot CaptureCharacterizationSnapshot()
+    {
+        return new LegacyMainWindowSnapshot(
+            _gameAction,
+            UpdateButton.Content?.ToString() ?? string.Empty,
+            UpdateButton.IsEnabled,
+            HomePlayButton.Content?.ToString() ?? string.Empty,
+            HomePlayButton.IsEnabled,
+            HomeClientStatusText.Text,
+            VerifyClientButton.IsEnabled,
+            AddonsTabButton.IsEnabled,
+            LauncherSelfUpdateButton.IsEnabled,
+            MainProgress.Value,
+            ProgressText.Text,
+            _downloadCancellation is not null,
+            _isRefreshingGameAction);
     }
 
     private static string GetLauncherLogPath()

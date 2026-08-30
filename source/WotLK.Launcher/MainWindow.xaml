@@ -1450,7 +1450,8 @@
                                     </Border>
 
                                     <UniformGrid Grid.Column="2" Rows="2" Columns="2">
-                                        <Button Margin="0,0,7,7"
+                                        <Button x:Name="VerifyClientButton"
+                                                Margin="0,0,7,7"
                                                 Style="{StaticResource QuickToolButton}"
                                                 ToolTip="Vérifier les fichiers du client"
                                                 Click="VerifyClientButton_Click">

@@ -7,6 +7,12 @@ using WotLK.Launcher;
 using WotLK.Launcher.Server;
 
 if (args.Length == 1
+    && string.Equals(args[0], "--legacy-characterization", StringComparison.OrdinalIgnoreCase))
+{
+    return await LegacyMainWindowCharacterizationTests.RunAsync();
+}
+
+if (args.Length == 1
     && string.Equals(args[0], "--ticket-format", StringComparison.OrdinalIgnoreCase))
 {
     string first = TokenService.CreateGameTicket();

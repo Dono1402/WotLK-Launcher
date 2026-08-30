@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace WotLK.Launcher;
 
-internal sealed class LauncherAuthService : IDisposable
+internal sealed class LauncherAuthService : ILauncherAuthService
 {
     private static readonly Uri ApiBaseUri = new("https://animeclub.fr/wotlk/api/v1/");
     private static readonly JsonSerializerOptions JsonOptions = new()

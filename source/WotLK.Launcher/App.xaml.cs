@@ -5,16 +5,23 @@ using WotLK.Launcher.UI.V2.Validation;
 
 namespace WotLK.Launcher;
 
+internal enum LauncherStartupMode
+{
+    Legacy,
+    UiV2Preview,
+    GrantGameDirectoryAccess,
+    UninstallGame
+}
+
 public partial class App : Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
-        bool useUiV2Preview = e.Args.Any(argument =>
-            string.Equals(argument, "--ui-v2", StringComparison.OrdinalIgnoreCase));
+        LauncherStartupMode startupMode = ResolveStartupMode(e.Args);
 
         base.OnStartup(e);
 
-        if (useUiV2Preview)
+        if (startupMode == LauncherStartupMode.UiV2Preview)
         {
             var previewScenario = LauncherV2PreviewData.ResolveScenario(e.Args);
             try
@@ -40,13 +47,13 @@ public partial class App : Application
             return;
         }
 
-        if (GameDirectoryAccess.IsGrantAccessMode(e.Args))
+        if (startupMode == LauncherStartupMode.GrantGameDirectoryAccess)
         {
             Shutdown(GameDirectoryAccess.RunGrantAccess(e.Args));
             return;
         }
 
-        if (GameInstallServices.IsGameUninstallMode(e.Args))
+        if (startupMode == LauncherStartupMode.UninstallGame)
         {
             Shutdown(GameInstallServices.RunGameUninstall(e.Args));
             return;
@@ -55,6 +62,25 @@ public partial class App : Application
         var window = new MainWindow();
         MainWindow = window;
         window.Show();
+    }
+
+    internal static LauncherStartupMode ResolveStartupMode(IEnumerable<string> arguments)
+    {
+        string[] args = arguments as string[] ?? arguments.ToArray();
+        if (args.Any(argument =>
+                string.Equals(argument, "--ui-v2", StringComparison.OrdinalIgnoreCase)))
+        {
+            return LauncherStartupMode.UiV2Preview;
+        }
+
+        if (GameDirectoryAccess.IsGrantAccessMode(args))
+        {
+            return LauncherStartupMode.GrantGameDirectoryAccess;
+        }
+
+        return GameInstallServices.IsGameUninstallMode(args)
+            ? LauncherStartupMode.UninstallGame
+            : LauncherStartupMode.Legacy;
     }
 
     private void LoadV2PreviewResources()

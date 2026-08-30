@@ -1,4 +1,6 @@
+using System.IO;
 using System.Reflection;
+using System.Text;
 using WotLK.Launcher.Game;
 
 namespace WotLK.Launcher.Runtime;
@@ -13,6 +15,8 @@ internal sealed class LauncherRuntimeDependencies
 
     internal required Func<string> GetLauncherVersion { get; init; }
 
+    internal Action<string> WriteRuntimeLog { get; init; } = static _ => { };
+
     internal static LauncherRuntimeDependencies CreateProduction()
     {
         return new LauncherRuntimeDependencies
@@ -20,6 +24,7 @@ internal sealed class LauncherRuntimeDependencies
             LoadSettings = LauncherSettings.Load,
             CreateAuthentication = static () => new LauncherAuthService(),
             GameClientStateReader = new GameClientStateReader(),
+            WriteRuntimeLog = WriteProductionLog,
             GetLauncherVersion = static () =>
             {
                 Version? version = Assembly.GetExecutingAssembly().GetName().Version;
@@ -27,10 +32,28 @@ internal sealed class LauncherRuntimeDependencies
             }
         };
     }
+
+    private static void WriteProductionLog(string message)
+    {
+        try
+        {
+            Directory.CreateDirectory(LauncherSettings.SettingsDirectory);
+            string line = $"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}";
+            File.AppendAllText(
+                Path.Combine(LauncherSettings.SettingsDirectory, "launcher.log"),
+                line,
+                new UTF8Encoding(false));
+        }
+        catch
+        {
+            // Runtime diagnostics must never interrupt launcher startup or shutdown.
+        }
+    }
 }
 
 internal sealed class LauncherRuntime : IDisposable
 {
+    private readonly object _lifecycleSync = new();
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly ILauncherAuthService _authentication;
     private readonly LauncherSessionCoordinator _sessionCoordinator;
@@ -46,7 +69,8 @@ internal sealed class LauncherRuntime : IDisposable
         LauncherVersion = dependencies.GetLauncherVersion();
         _sessionCoordinator = new LauncherSessionCoordinator(
             _authentication,
-            _lifetimeCancellation.Token);
+            _lifetimeCancellation.Token,
+            dependencies.WriteRuntimeLog);
     }
 
     internal LauncherSettings Settings { get; }
@@ -64,25 +88,32 @@ internal sealed class LauncherRuntime : IDisposable
 
     internal Task<LauncherSessionRestoreResult> InitializeAsync()
     {
-        if (IsDisposed)
+        lock (_lifecycleSync)
         {
-            return Task.FromResult(new LauncherSessionRestoreResult(
-                LauncherSessionRestoreStatus.Cancelled,
-                null));
-        }
+            if (IsDisposed)
+            {
+                return Task.FromResult(new LauncherSessionRestoreResult(
+                    LauncherSessionRestoreStatus.Cancelled,
+                    null));
+            }
 
-        return _sessionCoordinator.RestoreOnceAsync();
+            return _sessionCoordinator.RestoreOnceAsync();
+        }
     }
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposeState, 1) != 0)
+        lock (_lifecycleSync)
         {
-            return;
-        }
+            if (_disposeState != 0)
+            {
+                return;
+            }
 
-        _lifetimeCancellation.Cancel();
-        _authentication.Dispose();
-        _lifetimeCancellation.Dispose();
+            Volatile.Write(ref _disposeState, 1);
+            _lifetimeCancellation.Cancel();
+            _authentication.Dispose();
+            _lifetimeCancellation.Dispose();
+        }
     }
 }

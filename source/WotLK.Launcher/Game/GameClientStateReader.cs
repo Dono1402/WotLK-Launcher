@@ -23,7 +23,6 @@ internal sealed class GameClientStateReader
             LauncherSettings.NormalizeGameLocale(settings.GameLocale),
             isPlayable,
             ReadInstalledVersion(installPath),
-            isPlayable ? GameAction.Play : GameAction.Install,
             GameUpdateKnowledge.Unknown);
     }
 
@@ -43,8 +42,7 @@ internal sealed class GameClientStateReader
                 return null;
             }
 
-            string? version = versionElement.GetString()?.Trim();
-            return string.IsNullOrWhiteSpace(version) ? null : version;
+            return versionElement.GetString();
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
         {

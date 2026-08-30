@@ -20,5 +20,7 @@ internal sealed record GameClientLocalState(
     string GameLocale,
     bool IsPlayable,
     string? InstalledVersion,
-    GameAction Action,
-    GameUpdateKnowledge UpdateKnowledge);
+    GameUpdateKnowledge UpdateKnowledge)
+{
+    internal GameAction Action => IsPlayable ? GameAction.Play : GameAction.Install;
+}

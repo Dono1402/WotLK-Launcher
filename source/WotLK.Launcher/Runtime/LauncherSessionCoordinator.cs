@@ -1,7 +1,3 @@
-using System.IO;
-using System.Net.Http;
-using System.Security.Cryptography;
-
 namespace WotLK.Launcher.Runtime;
 
 internal enum LauncherSessionRestoreStatus
@@ -21,14 +17,17 @@ internal sealed class LauncherSessionCoordinator
     private readonly object _sync = new();
     private readonly ILauncherAuthService _authentication;
     private readonly CancellationToken _lifetimeToken;
+    private readonly Action<string> _writeLog;
     private Task<LauncherSessionRestoreResult>? _restoreTask;
 
     internal LauncherSessionCoordinator(
         ILauncherAuthService authentication,
-        CancellationToken lifetimeToken)
+        CancellationToken lifetimeToken,
+        Action<string> writeLog)
     {
         _authentication = authentication;
         _lifetimeToken = lifetimeToken;
+        _writeLog = writeLog;
     }
 
     internal Task<LauncherSessionRestoreResult> RestoreOnceAsync()
@@ -43,7 +42,14 @@ internal sealed class LauncherSessionCoordinator
     {
         try
         {
-            bool restored = await _authentication.RestoreAsync(_lifetimeToken);
+            bool restored = await _authentication
+                .RestoreAsync(_lifetimeToken)
+                .ConfigureAwait(false);
+            if (_lifetimeToken.IsCancellationRequested)
+            {
+                return Cancelled();
+            }
+
             if (!restored)
             {
                 return new LauncherSessionRestoreResult(
@@ -52,29 +58,42 @@ internal sealed class LauncherSessionCoordinator
             }
 
             LauncherAuthSession? session = _authentication.Session;
+            if (_lifetimeToken.IsCancellationRequested)
+            {
+                return Cancelled();
+            }
+
             return session is null
                 ? new LauncherSessionRestoreResult(LauncherSessionRestoreStatus.Unavailable, null)
                 : new LauncherSessionRestoreResult(LauncherSessionRestoreStatus.Restored, session);
         }
         catch (OperationCanceledException) when (_lifetimeToken.IsCancellationRequested)
         {
-            return new LauncherSessionRestoreResult(LauncherSessionRestoreStatus.Cancelled, null);
+            return Cancelled();
         }
-        catch (ObjectDisposedException) when (_lifetimeToken.IsCancellationRequested)
+        catch (Exception ex)
         {
-            return new LauncherSessionRestoreResult(LauncherSessionRestoreStatus.Cancelled, null);
+            WriteFailureSafely(ex);
+            return _lifetimeToken.IsCancellationRequested
+                ? Cancelled()
+                : new LauncherSessionRestoreResult(LauncherSessionRestoreStatus.Unavailable, null);
         }
-        catch (OperationCanceledException)
+    }
+
+    private static LauncherSessionRestoreResult Cancelled()
+    {
+        return new LauncherSessionRestoreResult(LauncherSessionRestoreStatus.Cancelled, null);
+    }
+
+    private void WriteFailureSafely(Exception exception)
+    {
+        try
         {
-            return new LauncherSessionRestoreResult(LauncherSessionRestoreStatus.Unavailable, null);
+            _writeLog($"Restauration de session V2 indisponible ({exception.GetType().Name}).");
         }
-        catch (Exception ex) when (ex is HttpRequestException or LauncherAuthException)
+        catch
         {
-            return new LauncherSessionRestoreResult(LauncherSessionRestoreStatus.Unavailable, null);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException)
-        {
-            return new LauncherSessionRestoreResult(LauncherSessionRestoreStatus.Unavailable, null);
+            // A logging failure must not fault the observed restoration task.
         }
     }
 }

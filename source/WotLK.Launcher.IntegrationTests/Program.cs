@@ -19,6 +19,12 @@ if (args.Length == 1
 }
 
 if (args.Length == 1
+    && string.Equals(args[0], "--runtime-hardening", StringComparison.OrdinalIgnoreCase))
+{
+    return await LauncherRuntimeHardeningTests.RunAsync();
+}
+
+if (args.Length == 1
     && string.Equals(args[0], "--ticket-format", StringComparison.OrdinalIgnoreCase))
 {
     string first = TokenService.CreateGameTicket();

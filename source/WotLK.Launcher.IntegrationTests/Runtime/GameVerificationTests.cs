@@ -167,8 +167,8 @@ internal static class GameVerificationTests
     {
         using VerificationEnvironment environment = new();
         BlockingVerificationService service = new();
-        using CancellationTokenSource lifetime = new();
-        GameVerificationCoordinator coordinator = environment.CreateCoordinator(service, lifetime.Token);
+        using LauncherOperationCoordinator operations = new();
+        GameVerificationCoordinator coordinator = environment.CreateCoordinator(service, operations);
 
         Equal(GameVerificationStartStatus.Started, coordinator.TryStartVerification(), "La première vérification doit démarrer.");
         await service.Started.Task;
@@ -187,11 +187,11 @@ internal static class GameVerificationTests
         using VerificationEnvironment environment = new();
         ThrowingVerificationService service = new(
             new HttpRequestException(@"network failure C:\Users\Dono\secret-token"));
-        using CancellationTokenSource lifetime = new();
+        using LauncherOperationCoordinator operations = new();
         List<string> logs = [];
         GameVerificationCoordinator coordinator = environment.CreateCoordinator(
             service,
-            lifetime.Token,
+            operations,
             logs.Add);
 
         Equal(GameVerificationStartStatus.Started, coordinator.TryStartVerification(), "La vérification témoin doit démarrer.");
@@ -216,11 +216,11 @@ internal static class GameVerificationTests
     {
         using VerificationEnvironment environment = new();
         ImmediateProgressVerificationService service = new();
-        using CancellationTokenSource lifetime = new();
+        using LauncherOperationCoordinator operations = new();
         ManualTimeProvider clock = new();
         GameVerificationCoordinator coordinator = environment.CreateCoordinator(
             service,
-            lifetime.Token,
+            operations,
             timeProvider: clock);
         List<int> publishedCounts = [];
         coordinator.SnapshotChanged += (_, args) =>
@@ -242,8 +242,8 @@ internal static class GameVerificationTests
     {
         using VerificationEnvironment environment = new();
         CancellationAwareVerificationService service = new();
-        using CancellationTokenSource lifetime = new();
-        GameVerificationCoordinator coordinator = environment.CreateCoordinator(service, lifetime.Token);
+        using LauncherOperationCoordinator operations = new();
+        GameVerificationCoordinator coordinator = environment.CreateCoordinator(service, operations);
         List<GameRuntimeSnapshot> snapshots = [];
         coordinator.SnapshotChanged += (_, args) => snapshots.Add(args.Snapshot);
 
@@ -251,7 +251,6 @@ internal static class GameVerificationTests
         await service.Started.Task;
         int beforeShutdown = snapshots.Count;
         coordinator.BeginShutdown();
-        lifetime.Cancel();
         await coordinator.WaitForIdleAsync();
 
         True(service.ObservedCancellation, "Le token de cycle de vie doit interrompre la vérification.");
@@ -346,9 +345,9 @@ internal static class GameVerificationTests
                 application = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
                 LoadV2Resources(application);
                 using VerificationEnvironment environment = new();
-                using CancellationTokenSource lifetime = new();
+                using LauncherOperationCoordinator operations = new();
                 BlockingVerificationService service = new();
-                GameVerificationCoordinator coordinator = environment.CreateCoordinator(service, lifetime.Token);
+                GameVerificationCoordinator coordinator = environment.CreateCoordinator(service, operations);
                 GameUiState gameState = LauncherV2RuntimePresentation.CreateGame(environment.LocalState);
                 LauncherLocalActionCoordinator localActions = new(
                     environment.Settings,
@@ -578,16 +577,16 @@ internal sealed class VerificationEnvironment : IDisposable
 
     internal GameVerificationCoordinator CreateCoordinator(
         IGameClientVerificationService service,
-        CancellationToken lifetimeToken,
+        LauncherOperationCoordinator operations,
         Action<string>? writeLog = null,
         TimeProvider? timeProvider = null)
     {
         GameVerificationCoordinator coordinator = new(
             service,
+            operations,
             Settings,
             LocalState,
             () => true,
-            lifetimeToken,
             writeLog ?? (_ => { }),
             _ => true,
             timeProvider ?? new ManualTimeProvider());

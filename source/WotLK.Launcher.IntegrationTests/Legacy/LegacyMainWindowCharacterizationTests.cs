@@ -54,7 +54,7 @@ internal static class LegacyMainWindowCharacterizationTests
         await CharacterizeRestoreBeforeInitialAnalysisAsync();
         await CharacterizeTimerResponsibilitiesAsync();
         await CharacterizeLegacyCompatibilityMatrixAsync();
-        CharacterizeCloseDuringOperation();
+        await CharacterizeCloseDuringOperationAsync();
     }
 
     private static void CharacterizeLocalShellPaths()
@@ -301,7 +301,7 @@ internal static class LegacyMainWindowCharacterizationTests
         window.Close();
     }
 
-    private static void CharacterizeCloseDuringOperation()
+    private static async Task CharacterizeCloseDuringOperationAsync()
     {
         using LegacyTestEnvironment environment = new(initialPlayableClient: false);
         MainWindow window = new(environment.CreateDependencies());
@@ -311,6 +311,11 @@ internal static class LegacyMainWindowCharacterizationTests
         window.Close();
 
         True(operationToken.IsCancellationRequested, "La fermeture doit annuler l'opération globale legacy.");
+        Equal(0, environment.Authentication.DisposeCalls, "La fermeture doit attendre la confirmation de fin du bail.");
+        window.CompleteActiveOperationForCharacterization();
+        await WaitUntilAsync(
+            () => environment.Authentication.DisposeCalls == 1,
+            "La fermeture différée n'a pas libéré l'authentification.");
         Equal(
             1,
             environment.Observer.Count(LegacyStartupEvent.OperationCancellationRequested),

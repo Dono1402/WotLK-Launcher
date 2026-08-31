@@ -1,4 +1,6 @@
+using System.ComponentModel;
 using System.Windows;
+using System.Windows.Threading;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2;
 using WotLK.Launcher.UI.V2.Commands;
@@ -129,13 +131,31 @@ public partial class App : Application
             gameState,
             runtime.Verification,
             window.Dispatcher);
+        bool allowClose = false;
+        bool shutdownStarted = false;
+        int presentationDisposed = 0;
+
+        void DisposePresentation()
+        {
+            if (Interlocked.Exchange(ref presentationDisposed, 1) != 0)
+            {
+                return;
+            }
+
+            verificationCommand.Dispose();
+            gameStateAdapter.Dispose();
+            gameCommands.Dispose();
+            gameState.ClearNotification();
+        }
 
         RoutedEventHandler? loadedHandler = null;
         loadedHandler = async (_, _) =>
         {
             window.Loaded -= loadedHandler;
             LauncherSessionRestoreResult result = await runtime.InitializeAsync();
-            if (!runtime.IsDisposed && window.IsVisible)
+            if (!runtime.IsDisposed
+                && !runtime.Operations.IsShuttingDown
+                && window.IsVisible)
             {
                 LauncherV2RuntimePresentation.ApplySession(shellState, result);
                 if (result.Status == LauncherSessionRestoreStatus.Restored)
@@ -145,13 +165,33 @@ public partial class App : Application
             }
         };
         window.Loaded += loadedHandler;
+        CancelEventHandler? closingHandler = null;
+        closingHandler = async (_, args) =>
+        {
+            if (allowClose)
+            {
+                return;
+            }
+
+            args.Cancel = true;
+            if (shutdownStarted)
+            {
+                return;
+            }
+
+            shutdownStarted = true;
+            runtime.BeginShutdown();
+            await runtime.WaitForShutdownAsync(TimeSpan.FromSeconds(3));
+            DisposePresentation();
+            allowClose = true;
+            await window.Dispatcher.InvokeAsync(window.Close, DispatcherPriority.Send);
+        };
+        window.Closing += closingHandler;
         window.Closed += (_, _) =>
         {
             window.Loaded -= loadedHandler;
-            verificationCommand.Dispose();
-            gameStateAdapter.Dispose();
-            gameCommands.Dispose();
-            gameState.ClearNotification();
+            window.Closing -= closingHandler;
+            DisposePresentation();
             runtime.Dispose();
         };
 

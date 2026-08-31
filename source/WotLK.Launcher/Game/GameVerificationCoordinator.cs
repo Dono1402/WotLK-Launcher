@@ -1,3 +1,5 @@
+using WotLK.Launcher.Runtime;
+
 namespace WotLK.Launcher.Game;
 
 internal interface IGameVerificationRuntime
@@ -13,43 +15,42 @@ internal interface IGameVerificationRuntime
     GameVerificationStartStatus TryStartVerification();
 }
 
-internal sealed class GameVerificationCoordinator : IGameVerificationRuntime
+internal sealed class GameVerificationCoordinator : IGameVerificationRuntime, IDisposable
 {
     private static readonly TimeSpan ProgressPublishInterval = TimeSpan.FromMilliseconds(100);
 
     private readonly object _sync = new();
     private readonly IGameClientVerificationService _verificationService;
+    private readonly LauncherOperationCoordinator _operations;
     private readonly LauncherSettings _settings;
     private readonly Func<bool> _isAuthenticated;
     private readonly Func<string, bool> _hasPlayableClient;
-    private readonly CancellationToken _lifetimeToken;
     private readonly Action<string> _writeLog;
     private readonly TimeProvider _timeProvider;
     private readonly string? _installedVersion;
     private GameRuntimeSnapshot _currentSnapshot;
     private Task _activeVerification = Task.CompletedTask;
-    private bool _isRunning;
-    private bool _isShuttingDown;
+    private LauncherOperationLease? _activeLease;
     private long _nextSequence;
-    private long _nextOperationId;
     private long _lastProgressTimestamp;
+    private int _disposeState;
 
     internal GameVerificationCoordinator(
         IGameClientVerificationService verificationService,
+        LauncherOperationCoordinator operations,
         LauncherSettings settings,
         GameClientLocalState localState,
         Func<bool> isAuthenticated,
-        CancellationToken lifetimeToken,
         Action<string> writeLog,
         Func<string, bool>? hasPlayableClient = null,
         TimeProvider? timeProvider = null)
     {
         _verificationService = verificationService
             ?? throw new ArgumentNullException(nameof(verificationService));
+        _operations = operations ?? throw new ArgumentNullException(nameof(operations));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         ArgumentNullException.ThrowIfNull(localState);
         _isAuthenticated = isAuthenticated ?? throw new ArgumentNullException(nameof(isAuthenticated));
-        _lifetimeToken = lifetimeToken;
         _writeLog = writeLog ?? throw new ArgumentNullException(nameof(writeLog));
         _hasPlayableClient = hasPlayableClient ?? GameInstallServices.HasPlayableClient;
         _timeProvider = timeProvider ?? TimeProvider.System;
@@ -69,6 +70,7 @@ internal sealed class GameVerificationCoordinator : IGameVerificationRuntime
             ProcessedFileCount: null,
             TotalFileCount: null,
             FailureCategory: null);
+        _operations.StateChanged += Operations_StateChanged;
     }
 
     public event EventHandler? AvailabilityChanged;
@@ -99,20 +101,12 @@ internal sealed class GameVerificationCoordinator : IGameVerificationRuntime
 
     public GameVerificationStartStatus TryStartVerification()
     {
-        long operationId;
-        GameRuntimeSnapshot checkingSnapshot;
-        TaskCompletionSource completion = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
+        bool isPlayable;
         lock (_sync)
         {
-            if (_isShuttingDown || _lifetimeToken.IsCancellationRequested)
+            if (Volatile.Read(ref _disposeState) != 0 || _operations.IsShuttingDown)
             {
                 return GameVerificationStartStatus.ShuttingDown;
-            }
-
-            if (_isRunning)
-            {
-                return GameVerificationStartStatus.Busy;
             }
 
             if (!_isAuthenticated())
@@ -120,11 +114,35 @@ internal sealed class GameVerificationCoordinator : IGameVerificationRuntime
                 return GameVerificationStartStatus.Unauthenticated;
             }
 
-            _isRunning = true;
-            operationId = ++_nextOperationId;
+            isPlayable = _currentSnapshot.IsPlayable;
+        }
+
+        LauncherOperationStartResult start = _operations.TryBegin(
+            LauncherOperationKind.Verify,
+            canUserCancel: false,
+            clientIsPlayable: isPlayable);
+        if (!start.IsStarted)
+        {
+            return start.Status switch
+            {
+                LauncherOperationStartStatus.ShuttingDown =>
+                    GameVerificationStartStatus.ShuttingDown,
+                LauncherOperationStartStatus.RejectedByCompatibility =>
+                    GameVerificationStartStatus.RejectedByCompatibility,
+                _ => GameVerificationStartStatus.Busy
+            };
+        }
+
+        LauncherOperationLease lease = start.Lease!;
+        GameRuntimeSnapshot checkingSnapshot;
+        TaskCompletionSource completion = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_sync)
+        {
+            _activeLease = lease;
             _lastProgressTimestamp = long.MinValue;
             checkingSnapshot = CreateSnapshotUnsafe(
-                operationId,
+                lease.OperationId,
                 _currentSnapshot.Action,
                 GameUpdateKnowledge.Checking,
                 GameVerificationPhase.CheckingLocalClient,
@@ -139,7 +157,7 @@ internal sealed class GameVerificationCoordinator : IGameVerificationRuntime
         }
 
         Publish(checkingSnapshot, availabilityChanged: true);
-        _ = RunVerificationAsync(operationId, completion);
+        _ = RunVerificationAsync(lease, completion);
         return GameVerificationStartStatus.Started;
     }
 
@@ -168,17 +186,7 @@ internal sealed class GameVerificationCoordinator : IGameVerificationRuntime
 
     internal void BeginShutdown()
     {
-        bool changed;
-        lock (_sync)
-        {
-            changed = !_isShuttingDown;
-            _isShuttingDown = true;
-        }
-
-        if (changed)
-        {
-            RaiseAvailabilityChanged();
-        }
+        _operations.CancelForShutdown();
     }
 
     internal Task WaitForIdleAsync()
@@ -190,7 +198,7 @@ internal sealed class GameVerificationCoordinator : IGameVerificationRuntime
     }
 
     private async Task RunVerificationAsync(
-        long operationId,
+        LauncherOperationLease lease,
         TaskCompletionSource completion)
     {
         try
@@ -198,31 +206,41 @@ internal sealed class GameVerificationCoordinator : IGameVerificationRuntime
             GameClientVerificationResult result = await _verificationService.VerifyAsync(
                 _settings,
                 reportFileProgress: true,
-                progress => ReportProgress(operationId, progress),
-                _lifetimeToken);
-            CompleteWithResult(operationId, result);
+                progress => ReportProgress(lease, progress),
+                lease.CancellationToken);
+            CompleteWithResult(lease, result);
         }
-        catch (OperationCanceledException) when (_lifetimeToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (lease.CancellationToken.IsCancellationRequested)
         {
-            CompleteAfterShutdown(operationId);
         }
         catch (Exception ex)
         {
             WriteFailureSafely(ex);
-            CompleteWithFailure(operationId, ex);
+            CompleteWithFailure(lease, ex);
         }
         finally
         {
+            lock (_sync)
+            {
+                if (ReferenceEquals(_activeLease, lease))
+                {
+                    _activeLease = null;
+                }
+            }
+
+            lease.Complete();
             completion.TrySetResult();
         }
     }
 
-    private void ReportProgress(long operationId, GameVerificationProgress progress)
+    private void ReportProgress(
+        LauncherOperationLease lease,
+        GameVerificationProgress progress)
     {
         GameRuntimeSnapshot? snapshot = null;
         lock (_sync)
         {
-            if (!IsCurrentOperationUnsafe(operationId))
+            if (!IsCurrentOperationUnsafe(lease))
             {
                 return;
             }
@@ -234,7 +252,7 @@ internal sealed class GameVerificationCoordinator : IGameVerificationRuntime
             }
 
             snapshot = CreateSnapshotUnsafe(
-                operationId,
+                lease.OperationId,
                 _currentSnapshot.Action,
                 GameUpdateKnowledge.Checking,
                 progress.Phase,
@@ -277,21 +295,20 @@ internal sealed class GameVerificationCoordinator : IGameVerificationRuntime
     }
 
     private void CompleteWithResult(
-        long operationId,
+        LauncherOperationLease lease,
         GameClientVerificationResult result)
     {
         GameRuntimeSnapshot? snapshot = null;
         lock (_sync)
         {
-            if (!IsCurrentOperationUnsafe(operationId))
+            if (!IsCurrentOperationUnsafe(lease))
             {
                 return;
             }
 
-            _isRunning = false;
             bool isPlayable = result.Action != GameAction.Install;
             snapshot = CreateSnapshotUnsafe(
-                operationId,
+                lease.OperationId,
                 result.Action,
                 result.UpdateKnowledge,
                 GameVerificationPhase.Stable,
@@ -309,12 +326,14 @@ internal sealed class GameVerificationCoordinator : IGameVerificationRuntime
         Publish(snapshot, availabilityChanged: true);
     }
 
-    private void CompleteWithFailure(long operationId, Exception exception)
+    private void CompleteWithFailure(
+        LauncherOperationLease lease,
+        Exception exception)
     {
         GameRuntimeSnapshot? snapshot = null;
         lock (_sync)
         {
-            if (!IsCurrentOperationUnsafe(operationId))
+            if (!IsCurrentOperationUnsafe(lease))
             {
                 return;
             }
@@ -329,9 +348,8 @@ internal sealed class GameVerificationCoordinator : IGameVerificationRuntime
                 isPlayable = _currentSnapshot.IsPlayable;
             }
 
-            _isRunning = false;
             snapshot = CreateSnapshotUnsafe(
-                operationId,
+                lease.OperationId,
                 isPlayable ? GameAction.Play : GameAction.Install,
                 GameUpdateKnowledge.Unavailable,
                 GameVerificationPhase.Stable,
@@ -345,17 +363,6 @@ internal sealed class GameVerificationCoordinator : IGameVerificationRuntime
         }
 
         Publish(snapshot, availabilityChanged: true);
-    }
-
-    private void CompleteAfterShutdown(long operationId)
-    {
-        lock (_sync)
-        {
-            if (_isRunning && _currentSnapshot.OperationId == operationId)
-            {
-                _isRunning = false;
-            }
-        }
     }
 
     private GameRuntimeSnapshot CreateSnapshotUnsafe(
@@ -377,7 +384,7 @@ internal sealed class GameVerificationCoordinator : IGameVerificationRuntime
             UpdateKnowledge: knowledge,
             Phase: phase,
             IsVerifying: isVerifying,
-            CanVerify: !isVerifying && CanVerifyUnsafe(ignoreRunning: true),
+            CanVerify: !isVerifying && CanVerifyUnsafe(),
             IsPlayable: isPlayable,
             InstallPath: _settings.InstallPath,
             InstalledVersion: _installedVersion,
@@ -387,19 +394,20 @@ internal sealed class GameVerificationCoordinator : IGameVerificationRuntime
             FailureCategory: failureCategory);
     }
 
-    private bool CanVerifyUnsafe(bool ignoreRunning = false)
+    private bool CanVerifyUnsafe()
     {
-        return !_isShuttingDown
-            && !_lifetimeToken.IsCancellationRequested
-            && (ignoreRunning || !_isRunning)
-            && _isAuthenticated();
+        return Volatile.Read(ref _disposeState) == 0
+            && _isAuthenticated()
+            && _operations.CanBegin(
+                LauncherOperationKind.Verify,
+                _currentSnapshot.IsPlayable);
     }
 
-    private bool IsCurrentOperationUnsafe(long operationId)
+    private bool IsCurrentOperationUnsafe(LauncherOperationLease lease)
     {
-        return !_isShuttingDown
-            && _isRunning
-            && _currentSnapshot.OperationId == operationId;
+        return ReferenceEquals(_activeLease, lease)
+            && _currentSnapshot.OperationId == lease.OperationId
+            && lease.IsCurrent;
     }
 
     private long NextSequence()
@@ -434,6 +442,24 @@ internal sealed class GameVerificationCoordinator : IGameVerificationRuntime
         {
             // Command subscribers are isolated from the verification lifecycle.
         }
+    }
+
+    private void Operations_StateChanged(object? sender, EventArgs e)
+    {
+        if (Volatile.Read(ref _disposeState) == 0)
+        {
+            RefreshAuthenticationAvailability();
+        }
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0)
+        {
+            return;
+        }
+
+        _operations.StateChanged -= Operations_StateChanged;
     }
 
     private void WriteFailureSafely(Exception exception)

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -14,6 +15,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using WotLK.Launcher.Game;
+using WotLK.Launcher.Runtime;
 
 namespace WotLK.Launcher;
 
@@ -43,6 +45,7 @@ public partial class MainWindow : Window
     private const string LauncherUpdateRequestHeader = "X-WotLK-Launcher-Update";
     private const string LauncherUpdateRequestMarker = "1";
     private static readonly TimeSpan LauncherUpdateCheckInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan OperationShutdownTimeout = TimeSpan.FromSeconds(3);
     private static readonly StringComparer AddonNameComparer =
         StringComparer.Create(CultureInfo.GetCultureInfo("fr-FR"), ignoreCase: true);
 
@@ -58,6 +61,7 @@ public partial class MainWindow : Window
     private readonly InstalledManifestStore _installedManifestStore;
     private readonly GameFileVerifier _gameFileVerifier;
     private readonly GameClientVerificationService _gameVerificationService;
+    private readonly LauncherOperationCoordinator _operations;
     private readonly ILauncherAuthService _auth;
     private readonly HttpClient _http;
     private readonly LauncherSettings _settings;
@@ -71,12 +75,9 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<LauncherFriend> _incomingFriendItems = [];
     private readonly ObservableCollection<LauncherFriend> _outgoingFriendItems = [];
     private readonly List<AddonSelectionItem> _allAddonItems = [];
-    private CancellationTokenSource? _downloadCancellation;
     private LauncherUpdateManifest? _launcherUpdate;
     private AddonCatalog? _addonCatalog;
     private GameAction _gameAction = GameAction.Install;
-    private bool _isRefreshingGameAction;
-    private bool _isCheckingLauncherUpdate;
     private bool _isLoadingAddonCatalog;
     private bool _isAddonTabActive;
     private bool _isApplyingAddons;
@@ -90,6 +91,11 @@ public partial class MainWindow : Window
     private LauncherPage _currentPage = LauncherPage.Game;
     private string? _announcedLauncherUpdateHash;
     private string? _announcedGameUpdateVersion;
+    private bool _shutdownStarted;
+    private bool _allowClose;
+    private bool _isClosed;
+    private Task? _shutdownTask;
+    private LauncherOperationLease? _characterizationOperation;
 
     public MainWindow()
         : this(LegacyMainWindowDependencies.CreateProduction())
@@ -100,6 +106,7 @@ public partial class MainWindow : Window
     {
         _dependencies = dependencies ?? throw new ArgumentNullException(nameof(dependencies));
         _startupObserver = dependencies.StartupObserver;
+        _operations = dependencies.OperationCoordinator;
         _gameClientStateReader = new GameClientStateReader(dependencies.HasPlayableClient);
         InitializeComponent();
         _startupObserver.Record(LegacyStartupEvent.ComponentsInitialized);
@@ -182,25 +189,70 @@ public partial class MainWindow : Window
         _startupObserver.Record(LegacyStartupEvent.FriendRefreshTimerStarted);
     }
 
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        if (_allowClose)
+        {
+            base.OnClosing(e);
+            return;
+        }
+
+        BeginLegacyShutdown();
+        if (_operations.IsIdle)
+        {
+            _allowClose = true;
+            base.OnClosing(e);
+            return;
+        }
+
+        e.Cancel = true;
+        _shutdownTask ??= FinishLegacyShutdownAsync();
+        base.OnClosing(e);
+    }
+
     protected override void OnClosed(EventArgs e)
     {
-        _startupObserver.Record(LegacyStartupEvent.WindowClosing);
-        if (_downloadCancellation is not null)
-        {
-            _downloadCancellation.Cancel();
-            _startupObserver.Record(LegacyStartupEvent.OperationCancellationRequested);
-        }
-        _launcherUpdateTimer.Stop();
+        _isClosed = true;
         _launcherUpdateTimer.Tick -= LauncherUpdateTimer_Tick;
-        _friendRefreshTimer.Stop();
         _friendRefreshTimer.Tick -= FriendRefreshTimer_Tick;
-        _toastTimer.Stop();
         _toastTimer.Tick -= ToastTimer_Tick;
         Loaded -= MainWindow_Loaded;
         _http.Dispose();
         _auth.Dispose();
+        _operations.Dispose();
         _startupObserver.Record(LegacyStartupEvent.WindowDisposed);
         base.OnClosed(e);
+    }
+
+    private void BeginLegacyShutdown()
+    {
+        if (_shutdownStarted)
+        {
+            return;
+        }
+
+        _shutdownStarted = true;
+        _startupObserver.Record(LegacyStartupEvent.WindowClosing);
+        _launcherUpdateTimer.Stop();
+        _friendRefreshTimer.Stop();
+        _toastTimer.Stop();
+        DisableControlsForShutdown();
+        if (_operations.CancelForShutdown())
+        {
+            _startupObserver.Record(LegacyStartupEvent.OperationCancellationRequested);
+        }
+    }
+
+    private async Task FinishLegacyShutdownAsync()
+    {
+        await _operations.WaitForIdleAsync(OperationShutdownTimeout);
+        if (_isClosed)
+        {
+            return;
+        }
+
+        _allowClose = true;
+        await Dispatcher.InvokeAsync(Close, DispatcherPriority.Send);
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -255,29 +307,43 @@ public partial class MainWindow : Window
 
     private async void LauncherSelfUpdateButton_Click(object sender, RoutedEventArgs e)
     {
-        _downloadCancellation = new CancellationTokenSource();
+        LauncherOperationStartResult start = _operations.TryBegin(
+            LauncherOperationKind.LauncherAutoUpdate,
+            canUserCancel: true);
+        if (!start.IsStarted)
+        {
+            return;
+        }
+
+        using LauncherOperationLease operation = start.Lease!;
         SetBusy(true);
 
         try
         {
-            var manifest = _launcherUpdate ?? await LoadLauncherUpdateManifestAsync(_downloadCancellation.Token);
-            await UpdateLauncherAsync(manifest, _downloadCancellation.Token);
+            var manifest = _launcherUpdate
+                ?? await LoadLauncherUpdateManifestAsync(operation.CancellationToken);
+            await UpdateLauncherAsync(manifest, operation);
         }
         catch (OperationCanceledException)
         {
-            SetStatus("Annulé.");
-            AppendLog("Mise à jour du launcher annulée.");
+            operation.TryInvoke(() =>
+            {
+                SetStatus("Annulé.");
+                AppendLog("Mise à jour du launcher annulée.");
+            });
         }
         catch (Exception ex)
         {
-            SetStatus("Erreur.");
-            AppendLog("Erreur mise à jour launcher: " + ex.Message);
-            ShowToast("Mise à jour du launcher", ex.Message, ToastKind.Error);
+            operation.TryInvoke(() =>
+            {
+                SetStatus("Erreur.");
+                AppendLog("Erreur mise à jour launcher: " + ex.Message);
+                ShowToast("Mise à jour du launcher", ex.Message, ToastKind.Error);
+            });
         }
         finally
         {
-            _downloadCancellation?.Dispose();
-            _downloadCancellation = null;
+            operation.Complete();
             SetBusy(false);
         }
     }
@@ -289,9 +355,8 @@ public partial class MainWindow : Window
 
     private async Task ExecuteGameActionAsync()
     {
-        if (_downloadCancellation is not null)
+        if (_operations.CancelFromUser())
         {
-            _downloadCancellation.Cancel();
             return;
         }
 
@@ -308,39 +373,81 @@ public partial class MainWindow : Window
 
         if (_gameAction == GameAction.Play)
         {
-            await PlayGameAsync();
+            bool isPlayable = GameInstallServices.HasPlayableClient(_settings.InstallPath);
+            if (!isPlayable)
+            {
+                ShowToast("Client introuvable", "Le client Classic ou le lanceur Atlas est introuvable. Installe ou mets à jour le client d'abord.", ToastKind.Warning);
+                SetGameAction(GameAction.Install);
+                return;
+            }
+
+            LauncherOperationStartResult playStart = _operations.TryBeginPlay(isPlayable);
+            if (!playStart.IsStarted)
+            {
+                return;
+            }
+
+            using LauncherOperationLease playOperation = playStart.Lease!;
+            try
+            {
+                await PlayGameAsync(playOperation);
+            }
+            finally
+            {
+                playOperation.Complete();
+            }
             return;
         }
 
-        _downloadCancellation = new CancellationTokenSource();
+        LauncherOperationStartResult start = _operations.TryBegin(
+            _gameAction == GameAction.Update
+                ? LauncherOperationKind.GameUpdate
+                : LauncherOperationKind.GameInstall,
+            canUserCancel: true);
+        if (!start.IsStarted)
+        {
+            return;
+        }
+
+        using LauncherOperationLease operation = start.Lease!;
         SetBusy(true);
 
         try
         {
             if (!await _auth.EnsureFreshAsync())
             {
-                ShowLogin();
+                operation.TryInvoke(ShowLogin);
                 return;
             }
 
-            await InstallOrUpdateAsync(_downloadCancellation.Token);
+            if (!operation.IsCurrent)
+            {
+                return;
+            }
+
+            await InstallOrUpdateAsync(operation);
             await RefreshGameActionAsync();
         }
         catch (OperationCanceledException)
         {
-            SetStatus("Annule.");
-            AppendLog("Operation annulee.");
+            operation.TryInvoke(() =>
+            {
+                SetStatus("Annule.");
+                AppendLog("Operation annulee.");
+            });
         }
         catch (Exception ex)
         {
-            SetStatus("Erreur.");
-            AppendLog("Erreur: " + ex.Message);
-            ShowToast("Erreur du launcher", ex.Message, ToastKind.Error);
+            operation.TryInvoke(() =>
+            {
+                SetStatus("Erreur.");
+                AppendLog("Erreur: " + ex.Message);
+                ShowToast("Erreur du launcher", ex.Message, ToastKind.Error);
+            });
         }
         finally
         {
-            _downloadCancellation?.Dispose();
-            _downloadCancellation = null;
+            operation.Complete();
             SetBusy(false);
         }
     }
@@ -357,7 +464,7 @@ public partial class MainWindow : Window
 
     private async Task BrowseInstallPathAsync()
     {
-        if (_downloadCancellation is not null)
+        if (_operations.HasActiveUserCancellableOperation)
         {
             return;
         }
@@ -426,7 +533,7 @@ public partial class MainWindow : Window
 
     private void ClientTabButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_downloadCancellation is null)
+        if (!_operations.HasActiveUserCancellableOperation)
         {
             NavigateTo(LauncherPage.Game);
         }
@@ -434,7 +541,7 @@ public partial class MainWindow : Window
 
     private async void AddonsTabButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_downloadCancellation is not null)
+        if (_operations.HasActiveUserCancellableOperation)
         {
             return;
         }
@@ -520,7 +627,10 @@ public partial class MainWindow : Window
 
     private async void VerifyClientButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_downloadCancellation is not null || !EnsureAuthenticated())
+        if (!EnsureAuthenticated()
+            || !_operations.CanBegin(
+                LauncherOperationKind.Verify,
+                GameInstallServices.HasPlayableClient(_settings.InstallPath)))
         {
             return;
         }
@@ -543,9 +653,8 @@ public partial class MainWindow : Window
 
     private async void AddonApplyButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_downloadCancellation is not null)
+        if (_operations.CancelFromUser())
         {
-            _downloadCancellation.Cancel();
             return;
         }
 
@@ -575,7 +684,15 @@ public partial class MainWindow : Window
             }
         }
 
-        _downloadCancellation = new CancellationTokenSource();
+        LauncherOperationStartResult start = _operations.TryBegin(
+            LauncherOperationKind.Addons,
+            canUserCancel: true);
+        if (!start.IsStarted)
+        {
+            return;
+        }
+
+        using LauncherOperationLease operation = start.Lease!;
         _isApplyingAddons = true;
         SetBusy(true);
         AddonProgress.Value = 0;
@@ -585,7 +702,12 @@ public partial class MainWindow : Window
         {
             if (!await _auth.EnsureFreshAsync())
             {
-                ShowLogin();
+                operation.TryInvoke(ShowLogin);
+                return;
+            }
+
+            if (!operation.IsCurrent)
+            {
                 return;
             }
 
@@ -595,23 +717,26 @@ public partial class MainWindow : Window
             long previousTransferBytes = 0;
             var progress = new Progress<AddonTransferProgress>(value =>
             {
-                if (!string.Equals(currentTransferAddon, value.AddonName, StringComparison.Ordinal)
-                    || value.BytesReceived < previousTransferBytes)
+                operation.TryInvoke(operation.OperationId, () =>
                 {
-                    currentTransferAddon = value.AddonName;
-                    previousTransferBytes = 0;
-                    addonTransferStopwatch.Restart();
-                }
+                    if (!string.Equals(currentTransferAddon, value.AddonName, StringComparison.Ordinal)
+                        || value.BytesReceived < previousTransferBytes)
+                    {
+                        currentTransferAddon = value.AddonName;
+                        previousTransferBytes = 0;
+                        addonTransferStopwatch.Restart();
+                    }
 
-                previousTransferBytes = value.BytesReceived;
-                AddonStatusText.Text = "Téléchargement de " + value.AddonName;
-                AddonProgress.Value = value.TotalBytes > 0
-                    ? Math.Clamp((double)value.BytesReceived / value.TotalBytes * 100, 0, 100)
-                    : 0;
-                AddonProgressText.Text = FormatTransferProgress(
-                    value.BytesReceived,
-                    value.TotalBytes > 0 ? value.TotalBytes : null,
-                    addonTransferStopwatch.Elapsed);
+                    previousTransferBytes = value.BytesReceived;
+                    AddonStatusText.Text = "Téléchargement de " + value.AddonName;
+                    AddonProgress.Value = value.TotalBytes > 0
+                        ? Math.Clamp((double)value.BytesReceived / value.TotalBytes * 100, 0, 100)
+                        : 0;
+                    AddonProgressText.Text = FormatTransferProgress(
+                        value.BytesReceived,
+                        value.TotalBytes > 0 ? value.TotalBytes : null,
+                        addonTransferStopwatch.Elapsed);
+                });
             });
 
             await AddonInstallServices.ApplySelectionAsync(
@@ -620,41 +745,51 @@ public partial class MainWindow : Window
                 _settings.InstallPath,
                 selection,
                 progress,
-                AppendLog,
-                _downloadCancellation.Token);
+                message => operation.TryInvoke(
+                    operation.OperationId,
+                    () => AppendLog(message)),
+                operation.CancellationToken);
 
-            PopulateAddonItemsFromState();
-            AddonProgress.Value = 100;
-            AddonProgressText.Text = "Terminé";
-            var gameIsRunning = GameInstallServices.IsGameRunning(_settings.InstallPath);
-            AddonStatusText.Text = gameIsRunning
-                ? "Addons prêts - /reload en jeu"
-                : "Sélection appliquée";
-            AppendLog(gameIsRunning
-                ? "Configuration des addons terminée. Utilise /reload dans le jeu."
-                : "Configuration des addons terminée.");
-            ShowToast(
-                "Addons appliqués",
-                gameIsRunning ? "Les changements sont prêts. Utilise /reload dans le jeu." : "Ta sélection d'addons est à jour.",
-                ToastKind.Success);
+            operation.TryInvoke(() =>
+            {
+                PopulateAddonItemsFromState();
+                AddonProgress.Value = 100;
+                AddonProgressText.Text = "Terminé";
+                var gameIsRunning = GameInstallServices.IsGameRunning(_settings.InstallPath);
+                AddonStatusText.Text = gameIsRunning
+                    ? "Addons prêts - /reload en jeu"
+                    : "Sélection appliquée";
+                AppendLog(gameIsRunning
+                    ? "Configuration des addons terminée. Utilise /reload dans le jeu."
+                    : "Configuration des addons terminée.");
+                ShowToast(
+                    "Addons appliqués",
+                    gameIsRunning ? "Les changements sont prêts. Utilise /reload dans le jeu." : "Ta sélection d'addons est à jour.",
+                    ToastKind.Success);
+            });
         }
         catch (OperationCanceledException)
         {
-            AddonStatusText.Text = "Opération annulée";
-            AddonProgressText.Text = string.Empty;
-            AppendLog("Configuration des addons annulée.");
+            operation.TryInvoke(() =>
+            {
+                AddonStatusText.Text = "Opération annulée";
+                AddonProgressText.Text = string.Empty;
+                AppendLog("Configuration des addons annulée.");
+            });
         }
         catch (Exception ex)
         {
-            AddonStatusText.Text = "Erreur lors de la configuration";
-            AddonProgressText.Text = string.Empty;
-            AppendLog("Erreur addons: " + ex.Message);
-            ShowToast("Erreur addons", ex.Message, ToastKind.Error);
+            operation.TryInvoke(() =>
+            {
+                AddonStatusText.Text = "Erreur lors de la configuration";
+                AddonProgressText.Text = string.Empty;
+                AppendLog("Erreur addons: " + ex.Message);
+                ShowToast("Erreur addons", ex.Message, ToastKind.Error);
+            });
         }
         finally
         {
-            _downloadCancellation?.Dispose();
-            _downloadCancellation = null;
+            operation.Complete();
             _isApplyingAddons = false;
             SetBusy(false);
         }
@@ -744,7 +879,7 @@ public partial class MainWindow : Window
 
     private async Task RefreshAddonCatalogAsync(bool reloadCatalog)
     {
-        if (_isLoadingAddonCatalog || _downloadCancellation is not null)
+        if (_isLoadingAddonCatalog || _operations.HasActiveUserCancellableOperation)
         {
             return;
         }
@@ -781,7 +916,9 @@ public partial class MainWindow : Window
         finally
         {
             _isLoadingAddonCatalog = false;
-            AddonApplyButton.IsEnabled = _downloadCancellation is null && _addonCatalog is not null && _addonItems.Count > 0;
+            AddonApplyButton.IsEnabled = !_operations.HasActiveUserCancellableOperation
+                && _addonCatalog is not null
+                && _addonItems.Count > 0;
         }
     }
 
@@ -1706,7 +1843,7 @@ public partial class MainWindow : Window
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
     }
 
-    private async Task PlayGameAsync()
+    private async Task PlayGameAsync(LauncherOperationLease operation)
     {
         var wowPath = GameInstallServices.GetGameExecutablePath(_settings.InstallPath);
         var gameLauncherPath = GameInstallServices.GetGameLauncherPath(_settings.InstallPath);
@@ -1732,52 +1869,68 @@ public partial class MainWindow : Window
             SetStatus("Préparation de la connexion...");
             if (!await _auth.EnsureFreshAsync())
             {
-                ShowLogin();
+                operation.TryInvoke(ShowLogin);
                 return;
             }
+
+            if (!operation.IsCurrent)
+            {
+                return;
+            }
+
             ticket = await _auth.CreateGameTicketAsync();
-            GameSingleSignOn.Write(ticket, _settings.GameLocale);
+            if (!operation.IsCurrent)
+            {
+                return;
+            }
         }
         catch (Exception ex) when (
             ex is HttpRequestException
                 or LauncherAuthException
                 or CryptographicException)
         {
-            AppendLog("Connexion automatique impossible: " + ex.Message);
-            SetStatus("Connexion requise.");
-            ShowToast("Connexion automatique", ex.Message, ToastKind.Error);
-            if (ex is LauncherAuthException)
+            operation.TryInvoke(() =>
             {
-                ShowLogin();
-            }
+                AppendLog("Connexion automatique impossible: " + ex.Message);
+                SetStatus("Connexion requise.");
+                ShowToast("Connexion automatique", ex.Message, ToastKind.Error);
+                if (ex is LauncherAuthException)
+                {
+                    ShowLogin();
+                }
+            });
             return;
         }
 
-        var startInfo = new ProcessStartInfo
+        operation.TryInvoke(() =>
         {
-            FileName = gameLauncherPath,
-            WorkingDirectory = _settings.InstallPath,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WindowStyle = ProcessWindowStyle.Hidden
-        };
-        startInfo.ArgumentList.Add("--version");
-        startInfo.ArgumentList.Add("Classic");
-        startInfo.ArgumentList.Add("--path");
-        startInfo.ArgumentList.Add(GameInstallServices.GetClassicDirectoryPath(_settings.InstallPath));
-        startInfo.ArgumentList.Add("--portal");
-        startInfo.ArgumentList.Add(GameInstallServices.PortalAddress);
-        startInfo.ArgumentList.Add("--skipcertcheck");
-        startInfo.ArgumentList.Add("-launcherlogin");
-        startInfo.ArgumentList.Add("-uid");
-        startInfo.ArgumentList.Add("wow_classic");
-        Process.Start(startInfo);
+            GameSingleSignOn.Write(ticket, _settings.GameLocale);
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = gameLauncherPath,
+                WorkingDirectory = _settings.InstallPath,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+            startInfo.ArgumentList.Add("--version");
+            startInfo.ArgumentList.Add("Classic");
+            startInfo.ArgumentList.Add("--path");
+            startInfo.ArgumentList.Add(GameInstallServices.GetClassicDirectoryPath(_settings.InstallPath));
+            startInfo.ArgumentList.Add("--portal");
+            startInfo.ArgumentList.Add(GameInstallServices.PortalAddress);
+            startInfo.ArgumentList.Add("--skipcertcheck");
+            startInfo.ArgumentList.Add("-launcherlogin");
+            startInfo.ArgumentList.Add("-uid");
+            startInfo.ArgumentList.Add("wow_classic");
+            Process.Start(startInfo);
 
-        AppendLog($"Jeu lancé sur Atlas avec connexion automatique pour {ticket.Username}: {wowPath}");
-        if (_settings.CloseLauncherOnGameStart)
-        {
-            Close();
-        }
+            AppendLog($"Jeu lancé sur Atlas avec connexion automatique pour {ticket.Username}: {wowPath}");
+            if (_settings.CloseLauncherOnGameStart)
+            {
+                Close();
+            }
+        });
     }
 
     private async void LauncherUpdateTimer_Tick(object? sender, EventArgs e)
@@ -1797,62 +1950,83 @@ public partial class MainWindow : Window
 
     private async Task CheckLauncherUpdateAsync()
     {
-        if (_isCheckingLauncherUpdate)
+        LauncherOperationStartResult start = _operations.TryBegin(
+            LauncherOperationKind.LauncherAutoUpdate,
+            canUserCancel: false);
+        if (!start.IsStarted)
         {
             return;
         }
 
-        _isCheckingLauncherUpdate = true;
+        using LauncherOperationLease operation = start.Lease!;
         try
         {
-            var manifest = await LoadLauncherUpdateManifestAsync(CancellationToken.None);
+            var manifest = await LoadLauncherUpdateManifestAsync(operation.CancellationToken);
             var currentExe = Environment.ProcessPath;
             if (string.IsNullOrWhiteSpace(currentExe) || !File.Exists(currentExe))
             {
                 return;
             }
 
-            var currentHash = await ComputeSha256Async(currentExe, CancellationToken.None);
-            if (!string.IsNullOrWhiteSpace(manifest.Sha256) &&
-                !string.Equals(currentHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase) &&
-                IsLauncherManifestVersionEligible(manifest.Version))
-            {
-                _launcherUpdate = manifest;
-                LauncherSelfUpdateButton.Visibility = Visibility.Visible;
-                LauncherSelfUpdateButton.ToolTip = string.IsNullOrWhiteSpace(manifest.Version)
-                    ? "Une mise a jour du launcher est disponible."
-                    : "Mise a jour launcher disponible: " + manifest.Version;
-
-                if (!string.Equals(_announcedLauncherUpdateHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase))
-                {
-                    _announcedLauncherUpdateHash = manifest.Sha256;
-                    AppendLog(string.IsNullOrWhiteSpace(manifest.Version)
-                        ? "Mise a jour launcher disponible."
-                        : "Mise a jour launcher disponible: " + manifest.Version);
-                }
-            }
-            else
-            {
-                LauncherSelfUpdateButton.Visibility = Visibility.Collapsed;
-                _launcherUpdate = null;
-                _announcedLauncherUpdateHash = null;
-            }
+            var currentHash = await ComputeSha256Async(
+                currentExe,
+                operation.CancellationToken);
+            operation.TryInvoke(() => ApplyLauncherUpdateCheck(manifest, currentHash));
+        }
+        catch (OperationCanceledException) when (operation.CancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
-            if (_launcherUpdate is null)
+            operation.TryInvoke(() =>
             {
-                LauncherSelfUpdateButton.Visibility = Visibility.Collapsed;
-            }
+                if (_launcherUpdate is null)
+                {
+                    LauncherSelfUpdateButton.Visibility = Visibility.Collapsed;
+                }
 
-            if (string.IsNullOrWhiteSpace(_announcedLauncherUpdateHash))
-            {
-                AppendLog("Verification launcher ignoree: " + ex.Message);
-            }
+                if (string.IsNullOrWhiteSpace(_announcedLauncherUpdateHash))
+                {
+                    AppendLog("Verification launcher ignoree: " + ex.Message);
+                }
+            });
         }
         finally
         {
-            _isCheckingLauncherUpdate = false;
+            operation.Complete();
+        }
+    }
+
+    private void ApplyLauncherUpdateCheck(
+        LauncherUpdateManifest manifest,
+        string currentHash)
+    {
+        if (!string.IsNullOrWhiteSpace(manifest.Sha256)
+            && !string.Equals(currentHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase)
+            && IsLauncherManifestVersionEligible(manifest.Version))
+        {
+            _launcherUpdate = manifest;
+            LauncherSelfUpdateButton.Visibility = Visibility.Visible;
+            LauncherSelfUpdateButton.ToolTip = string.IsNullOrWhiteSpace(manifest.Version)
+                ? "Une mise a jour du launcher est disponible."
+                : "Mise a jour launcher disponible: " + manifest.Version;
+
+            if (!string.Equals(
+                    _announcedLauncherUpdateHash,
+                    manifest.Sha256,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                _announcedLauncherUpdateHash = manifest.Sha256;
+                AppendLog(string.IsNullOrWhiteSpace(manifest.Version)
+                    ? "Mise a jour launcher disponible."
+                    : "Mise a jour launcher disponible: " + manifest.Version);
+            }
+        }
+        else
+        {
+            LauncherSelfUpdateButton.Visibility = Visibility.Collapsed;
+            _launcherUpdate = null;
+            _announcedLauncherUpdateHash = null;
         }
     }
 
@@ -1876,8 +2050,11 @@ public partial class MainWindow : Window
             Math.Max(version.Revision, 0));
     }
 
-    private async Task UpdateLauncherAsync(LauncherUpdateManifest manifest, CancellationToken cancellationToken)
+    private async Task UpdateLauncherAsync(
+        LauncherUpdateManifest manifest,
+        LauncherOperationLease operation)
     {
+        CancellationToken cancellationToken = operation.CancellationToken;
         var currentExe = Environment.ProcessPath;
         if (string.IsNullOrWhiteSpace(currentExe) || !File.Exists(currentExe))
         {
@@ -1901,7 +2078,12 @@ public partial class MainWindow : Window
         SetStatus("Mise à jour du launcher...");
         AppendLog("Téléchargement de la mise à jour launcher...");
 
-        await DownloadLauncherBinaryAsync(updateUri, downloadedExe, manifest.Size, cancellationToken);
+        await DownloadLauncherBinaryAsync(
+            updateUri,
+            downloadedExe,
+            manifest.Size,
+            operation);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (manifest.Size > 0 && new FileInfo(downloadedExe).Length != manifest.Size)
         {
@@ -1912,6 +2094,7 @@ public partial class MainWindow : Window
         if (!string.IsNullOrWhiteSpace(manifest.Sha256))
         {
             var downloadedHash = await ComputeSha256Async(downloadedExe, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             if (!string.Equals(downloadedHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase))
             {
                 File.Delete(downloadedExe);
@@ -1919,11 +2102,18 @@ public partial class MainWindow : Window
             }
         }
 
-        WriteLauncherUpdateScript(scriptPath, currentExe, downloadedExe, Process.GetCurrentProcess().Id);
-        AppendLog("Application de la mise à jour. Une validation administrateur peut être demandée.");
-
-        StartElevatedScript(scriptPath);
-        System.Windows.Application.Current.Shutdown();
+        cancellationToken.ThrowIfCancellationRequested();
+        operation.TryInvoke(() =>
+        {
+            WriteLauncherUpdateScript(
+                scriptPath,
+                currentExe,
+                downloadedExe,
+                Process.GetCurrentProcess().Id);
+            AppendLog("Application de la mise à jour. Une validation administrateur peut être demandée.");
+            StartElevatedScript(scriptPath);
+            System.Windows.Application.Current.Shutdown();
+        });
     }
 
     private void SetInitialGameActionFromDisk()
@@ -1939,12 +2129,17 @@ public partial class MainWindow : Window
 
     private async Task RefreshGameActionAsync(bool silentWhenUpToDate = false)
     {
-        if (_downloadCancellation is not null || _isRefreshingGameAction)
+        bool isPlayable = GameInstallServices.HasPlayableClient(_settings.InstallPath);
+        LauncherOperationStartResult start = _operations.TryBegin(
+            LauncherOperationKind.Verify,
+            canUserCancel: false,
+            clientIsPlayable: isPlayable);
+        if (!start.IsStarted)
         {
             return;
         }
 
-        _isRefreshingGameAction = true;
+        using LauncherOperationLease operation = start.Lease!;
         try
         {
             _settings.ManifestUrl = LauncherSettings.GetDefaultManifestUrl();
@@ -1952,23 +2147,33 @@ public partial class MainWindow : Window
             GameClientVerificationResult result = await _gameVerificationService.VerifyAsync(
                 _settings,
                 reportFileProgress: false,
-                progress => ApplyLegacyVerificationProgress(progress, silentWhenUpToDate),
-                CancellationToken.None);
-            ApplyLegacyVerificationResult(result, silentWhenUpToDate);
+                progress => operation.TryInvoke(operation.OperationId, () =>
+                    ApplyLegacyVerificationProgress(progress, silentWhenUpToDate)),
+                operation.CancellationToken);
+            operation.TryInvoke(() =>
+                ApplyLegacyVerificationResult(result, silentWhenUpToDate));
+        }
+        catch (OperationCanceledException) when (operation.CancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
-            SetGameAction(GameInstallServices.HasPlayableClient(_settings.InstallPath) ? GameAction.Play : GameAction.Install);
-            if (!silentWhenUpToDate)
+            operation.TryInvoke(() =>
             {
-                SetStatus("Pret.");
-                ProgressText.Text = string.Empty;
-                AppendLog("Analyse client ignoree: " + ex.Message);
-            }
+                SetGameAction(GameInstallServices.HasPlayableClient(_settings.InstallPath)
+                    ? GameAction.Play
+                    : GameAction.Install);
+                if (!silentWhenUpToDate)
+                {
+                    SetStatus("Pret.");
+                    ProgressText.Text = string.Empty;
+                    AppendLog("Analyse client ignoree: " + ex.Message);
+                }
+            });
         }
         finally
         {
-            _isRefreshingGameAction = false;
+            operation.Complete();
         }
     }
 
@@ -2062,22 +2267,29 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task<List<LauncherFile>> FindMissingOrChangedFilesForManifestAsync(LauncherManifest manifest, bool updateProgress, CancellationToken cancellationToken)
+    private async Task<List<LauncherFile>> FindMissingOrChangedFilesForManifestAsync(
+        LauncherManifest manifest,
+        bool updateProgress,
+        LauncherOperationLease operation)
     {
         GameFileComparisonResult comparison = await _gameFileVerifier
             .FindMissingOrChangedFilesAsync(
                 _settings.InstallPath,
                 manifest,
                 updateProgress
-                    ? progress => ProgressText.Text = $"{progress.ProcessedFileCount}/{progress.TotalFileCount}"
+                    ? progress => operation.TryInvoke(operation.OperationId, () =>
+                        ProgressText.Text = $"{progress.ProcessedFileCount}/{progress.TotalFileCount}")
                     : null,
-                cancellationToken);
-        if (updateProgress && comparison.Source != GameFileComparisonSource.FileSystem)
+                operation.CancellationToken);
+        operation.TryInvoke(() =>
         {
-            ProgressText.Text = comparison.MissingOrChangedFiles.Count == 0
-                ? "Historique OK"
-                : comparison.MissingOrChangedFiles.Count + " fichier(s)";
-        }
+            if (updateProgress && comparison.Source != GameFileComparisonSource.FileSystem)
+            {
+                ProgressText.Text = comparison.MissingOrChangedFiles.Count == 0
+                    ? "Historique OK"
+                    : comparison.MissingOrChangedFiles.Count + " fichier(s)";
+            }
+        });
 
         return comparison.MissingOrChangedFiles.ToList();
     }
@@ -2169,8 +2381,9 @@ public partial class MainWindow : Window
         _installedManifestStore.Save(_settings.InstallPath, manifest);
     }
 
-    private async Task InstallOrUpdateAsync(CancellationToken cancellationToken)
+    private async Task InstallOrUpdateAsync(LauncherOperationLease operation)
     {
+        CancellationToken cancellationToken = operation.CancellationToken;
         _settings.InstallPath = LauncherSettings.NormalizeInstallPath(InstallPathBox.Text);
         InstallPathBox.Text = _settings.InstallPath;
         Directory.CreateDirectory(_settings.InstallPath);
@@ -2178,6 +2391,7 @@ public partial class MainWindow : Window
         SetStatus("Chargement du manifeste...");
         AppendLog("Vérification des fichiers du client...");
         var manifest = await LoadManifestAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (!string.IsNullOrWhiteSpace(manifest.Version))
         {
@@ -2193,7 +2407,11 @@ public partial class MainWindow : Window
         AppendLog("Processus WoW ferme si necessaire avant verification.");
 
         SetStatus("Comparaison du manifeste...");
-        var missingOrChanged = await FindMissingOrChangedFilesForManifestAsync(manifest, updateProgress: true, cancellationToken);
+        var missingOrChanged = await FindMissingOrChangedFilesForManifestAsync(
+            manifest,
+            updateProgress: true,
+            operation);
+        cancellationToken.ThrowIfCancellationRequested();
         var removedFiles = FindRemovedFilesForManifest(manifest);
 
         if (missingOrChanged.Count == 0 && removedFiles.Count == 0)
@@ -2256,10 +2474,14 @@ public partial class MainWindow : Window
             AppendLog("Téléchargement: " + file.Path);
             await DownloadFileAsync(uri, target, file.Size, file.Sha256, progressBytes =>
             {
-                var current = downloadedBytes + progressBytes;
-                MainProgress.Value = totalBytes == 0 ? 0 : Math.Clamp((double)current / totalBytes * 100, 0, 100);
-                ProgressText.Text = FormatTransferProgress(current, totalBytes, downloadStopwatch.Elapsed);
+                operation.TryInvoke(operation.OperationId, () =>
+                {
+                    var current = downloadedBytes + progressBytes;
+                    MainProgress.Value = totalBytes == 0 ? 0 : Math.Clamp((double)current / totalBytes * 100, 0, 100);
+                    ProgressText.Text = FormatTransferProgress(current, totalBytes, downloadStopwatch.Elapsed);
+                });
             }, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
 
             downloadedBytes += Math.Max(file.Size, 0);
         }
@@ -2408,8 +2630,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task DownloadLauncherBinaryAsync(Uri uri, string targetPath, long expectedSize, CancellationToken cancellationToken)
+    private async Task DownloadLauncherBinaryAsync(
+        Uri uri,
+        string targetPath,
+        long expectedSize,
+        LauncherOperationLease operation)
     {
+        CancellationToken cancellationToken = operation.CancellationToken;
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.TryAddWithoutValidation(LauncherUpdateRequestHeader, LauncherUpdateRequestMarker);
 
@@ -2436,21 +2663,28 @@ public partial class MainWindow : Window
             await local.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
             written += read;
 
-            if (totalSize is > 0)
+            operation.TryInvoke(() =>
             {
-                MainProgress.Value = Math.Clamp((double)written / totalSize.Value * 100, 0, 100);
-                ProgressText.Text = FormatTransferProgress(written, totalSize.Value, downloadStopwatch.Elapsed);
-            }
-            else
-            {
-                ProgressText.Text = FormatTransferProgress(written, null, downloadStopwatch.Elapsed);
-            }
+                if (totalSize is > 0)
+                {
+                    MainProgress.Value = Math.Clamp((double)written / totalSize.Value * 100, 0, 100);
+                    ProgressText.Text = FormatTransferProgress(written, totalSize.Value, downloadStopwatch.Elapsed);
+                }
+                else
+                {
+                    ProgressText.Text = FormatTransferProgress(written, null, downloadStopwatch.Elapsed);
+                }
+            });
         }
 
-        MainProgress.Value = 100;
-        ProgressText.Text = totalSize is > 0
-            ? $"{FormatBytes(written)} / {FormatBytes(totalSize.Value)}"
-            : FormatBytes(written);
+        cancellationToken.ThrowIfCancellationRequested();
+        operation.TryInvoke(() =>
+        {
+            MainProgress.Value = 100;
+            ProgressText.Text = totalSize is > 0
+                ? $"{FormatBytes(written)} / {FormatBytes(totalSize.Value)}"
+                : FormatBytes(written);
+        });
     }
 
     private static async Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken)
@@ -2650,7 +2884,7 @@ public partial class MainWindow : Window
     private void SetGameAction(GameAction action)
     {
         _gameAction = action;
-        if (_downloadCancellation is null)
+        if (!_operations.HasActiveUserCancellableOperation)
         {
             UpdateButton.Content = GetGameActionLabel(action);
             HomePlayButton.Content = GetGameActionLabel(action);
@@ -2676,6 +2910,12 @@ public partial class MainWindow : Window
 
     private void SetBusy(bool busy)
     {
+        if (_shutdownStarted)
+        {
+            DisableControlsForShutdown();
+            return;
+        }
+
         LauncherSelfUpdateButton.IsEnabled = !busy;
         HeaderServerStatusButton.IsEnabled = !busy;
         HeaderSettingsButton.IsEnabled = !busy;
@@ -2696,6 +2936,28 @@ public partial class MainWindow : Window
         UpdateButton.Content = busy ? "ANNULER" : GetGameActionLabel(_gameAction);
         HomePlayButton.IsEnabled = !busy;
         HomePlayButton.Content = busy ? "ANNULER" : GetGameActionLabel(_gameAction);
+    }
+
+    private void DisableControlsForShutdown()
+    {
+        LauncherSelfUpdateButton.IsEnabled = false;
+        HeaderServerStatusButton.IsEnabled = false;
+        HeaderSettingsButton.IsEnabled = false;
+        ProfileButton.IsEnabled = false;
+        BrowseInstallPathButton.IsEnabled = false;
+        GameLanguageComboBox.IsEnabled = false;
+        ClientTabButton.IsEnabled = false;
+        AddonsTabButton.IsEnabled = false;
+        FriendsTabButton.IsEnabled = false;
+        NewsTabButton.IsEnabled = false;
+        ServerTabButton.IsEnabled = false;
+        AccountTabButton.IsEnabled = false;
+        SettingsTabButton.IsEnabled = false;
+        AddonItemsControl.IsEnabled = false;
+        AddonApplyButton.IsEnabled = false;
+        VerifyClientButton.IsEnabled = false;
+        UpdateButton.IsEnabled = false;
+        HomePlayButton.IsEnabled = false;
     }
 
     private void SetStatus(string status)
@@ -2766,14 +3028,23 @@ public partial class MainWindow : Window
 
     internal CancellationToken AttachActiveOperationForCharacterization()
     {
-        if (_downloadCancellation is not null)
+        LauncherOperationStartResult start = _operations.TryBegin(
+            LauncherOperationKind.GameInstall,
+            canUserCancel: true);
+        if (!start.IsStarted)
         {
             throw new InvalidOperationException("Une opération legacy est déjà active.");
         }
 
-        _downloadCancellation = new CancellationTokenSource();
+        _characterizationOperation = start.Lease!;
         SetBusy(true);
-        return _downloadCancellation.Token;
+        return _characterizationOperation.CancellationToken;
+    }
+
+    internal void CompleteActiveOperationForCharacterization()
+    {
+        _characterizationOperation?.Complete();
+        _characterizationOperation = null;
     }
 
     internal LegacyMainWindowSnapshot CaptureCharacterizationSnapshot()
@@ -2790,8 +3061,8 @@ public partial class MainWindow : Window
             LauncherSelfUpdateButton.IsEnabled,
             MainProgress.Value,
             ProgressText.Text,
-            _downloadCancellation is not null,
-            _isRefreshingGameAction);
+            _operations.HasActiveUserCancellableOperation,
+            _operations.ActiveMaintenanceKind == LauncherOperationKind.Verify);
     }
 
     internal LegacyLocalPathSnapshot CaptureLocalPathCharacterization()

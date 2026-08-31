@@ -96,7 +96,6 @@ internal sealed class LauncherRuntimeDependencies
 internal sealed class LauncherRuntime : IDisposable
 {
     private readonly object _lifecycleSync = new();
-    private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly ILauncherAuthService _authentication;
     private readonly HttpClient _verificationHttpClient;
     private readonly LauncherSessionCoordinator _sessionCoordinator;
@@ -110,6 +109,7 @@ internal sealed class LauncherRuntime : IDisposable
         _authentication = dependencies.CreateAuthentication();
         LocalClient = dependencies.GameClientStateReader.Read(Settings);
         LauncherVersion = dependencies.GetLauncherVersion();
+        Operations = new LauncherOperationCoordinator();
         _verificationHttpClient = dependencies.CreateAuthorizedHttpClient(
             () => _authentication.AccessToken);
         IGameClientVerificationService verificationService =
@@ -118,10 +118,10 @@ internal sealed class LauncherRuntime : IDisposable
                 dependencies.GameClientStateReader);
         Verification = new GameVerificationCoordinator(
             verificationService,
+            Operations,
             Settings,
             LocalClient,
             () => _authentication.IsAuthenticated,
-            _lifetimeCancellation.Token,
             dependencies.WriteRuntimeLog,
             dependencies.HasPlayableClient,
             dependencies.VerificationTimeProvider);
@@ -133,7 +133,7 @@ internal sealed class LauncherRuntime : IDisposable
             dependencies.LocalActionTimeProvider);
         _sessionCoordinator = new LauncherSessionCoordinator(
             _authentication,
-            _lifetimeCancellation.Token,
+            Operations.ShutdownToken,
             dependencies.WriteRuntimeLog);
     }
 
@@ -144,6 +144,8 @@ internal sealed class LauncherRuntime : IDisposable
     internal string LauncherVersion { get; }
 
     internal ILauncherLocalActions LocalActions { get; }
+
+    internal LauncherOperationCoordinator Operations { get; }
 
     internal GameVerificationCoordinator Verification { get; }
 
@@ -178,6 +180,26 @@ internal sealed class LauncherRuntime : IDisposable
         return result;
     }
 
+    internal void BeginShutdown()
+    {
+        lock (_lifecycleSync)
+        {
+            if (IsDisposed)
+            {
+                return;
+            }
+
+            LocalActions.BeginShutdown();
+            Operations.CancelForShutdown();
+        }
+    }
+
+    internal Task<bool> WaitForShutdownAsync(TimeSpan timeout)
+    {
+        BeginShutdown();
+        return Operations.WaitForIdleAsync(timeout);
+    }
+
     public void Dispose()
     {
         lock (_lifecycleSync)
@@ -189,11 +211,11 @@ internal sealed class LauncherRuntime : IDisposable
 
             Volatile.Write(ref _disposeState, 1);
             LocalActions.BeginShutdown();
-            Verification.BeginShutdown();
-            _lifetimeCancellation.Cancel();
+            Operations.CancelForShutdown();
+            Verification.Dispose();
             _verificationHttpClient.Dispose();
             _authentication.Dispose();
-            _lifetimeCancellation.Dispose();
+            Operations.Dispose();
         }
     }
 }

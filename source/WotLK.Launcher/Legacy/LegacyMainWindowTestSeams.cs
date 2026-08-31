@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Text;
 using System.Windows.Threading;
 using WotLK.Launcher.Game;
+using WotLK.Launcher.Runtime;
 
 namespace WotLK.Launcher;
 
@@ -109,6 +110,8 @@ internal sealed class LegacyMainWindowDependencies
     internal required Func<TimeSpan, DispatcherPriority, ILegacyDispatcherTimer> CreateTimer { get; init; }
 
     internal required Action<string> PersistLogLine { get; init; }
+
+    internal LauncherOperationCoordinator OperationCoordinator { get; init; } = new();
 
     internal ILegacyStartupObserver StartupObserver { get; init; } = NullLegacyStartupObserver.Instance;
 

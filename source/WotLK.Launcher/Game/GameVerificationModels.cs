@@ -23,7 +23,8 @@ internal enum GameVerificationStartStatus
     Started,
     Busy,
     Unauthenticated,
-    ShuttingDown
+    ShuttingDown,
+    RejectedByCompatibility
 }
 
 internal enum GameFileComparisonSource

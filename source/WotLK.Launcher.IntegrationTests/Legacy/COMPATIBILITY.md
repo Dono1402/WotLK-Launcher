@@ -5,11 +5,11 @@ It is a characterization baseline, not the target coordinator design.
 
 | Interaction | v1.1.0 baseline characterized in 02A.0 | Target checkpoint |
 | --- | --- | --- |
-| Play / Play | No dedicated single-flight guard. A second click can enter `PlayGameAsync` before the first launch finishes. | 02F.3 adds the independent Play single-flight lock. |
+| Play / Play | No dedicated single-flight guard. A second click can enter `PlayGameAsync` before the first launch finishes. | 02D.0 introduces and applies the independent Play single-flight lock without reconnecting V2 Play. |
 | Play / Verify | Allowed while the local client is playable. Verify does not put the window in global busy mode. | Preserved, with immutable snapshots. |
 | Play / Install or Update | The home Play button is disabled while the shared download cancellation source is active. The main button becomes Cancel. | 02D.0 makes refusal immediate and explicit. |
 | Play / Addons | Addon work uses the same global cancellation source and disables Play through `SetBusy`. | 02D.0 plus the Play lock formalize the rule. |
-| Play / launcher auto-update | A manual launcher update disables Play through `SetBusy`; the periodic check itself is read-only. | 02H.2 shares the global coordinator for mutation. |
+| Play / launcher auto-update | A manual launcher update disables Play through `SetBusy`; the periodic check itself is read-only. | 02D.0 routes both check and application through the shared coordinator. |
 | Verify / Install or Update | The verify handler refuses while the global cancellation source exists. A verification already in flight does not yet reserve a maintenance lease. | 02C and 02D.0 forbid mutation while Verify is active. |
 | Verify / Addons | Addons navigation remains enabled during an in-flight verification in v1.1.0. | 02D.0 closes this known legacy race. |
 | Verify / launcher auto-update | No explicit compatibility contract exists beyond current control state. | 02D.0 defines immediate `Busy` refusal. |
@@ -47,11 +47,28 @@ not implemented in 02A.0. Their clarified contracts apply to the later checkpoin
 - The fast cache deliberately still compares remote metadata with cached
   metadata without proving that each local file exists. The installed-version
   shortcut also remains. Exhaustive manual rehashing belongs to 02C.1.
-- `GameVerificationCoordinator` is only a non-queuing, single-flight guard for
-  verification. It has no user cancellation API and uses only the runtime
-  lifetime token. Its compatibility role is replaced by the global operation
-  lease introduced atomically in 02D.0; it must not be expanded to addons,
-  downloads or launcher auto-update.
+- `GameVerificationCoordinator` remains the verification orchestrator. Since
+  02D.0 it acquires a `Verify` lease from the global coordinator and no longer
+  owns an independent concurrency or cancellation authority.
+
+## Global operation migration (02D.0)
+
+| Historical owner or check | 02D.0 replacement |
+| --- | --- |
+| `_downloadCancellation` in client install/update | `GameInstall` or `GameUpdate` lease with `CanUserCancel=true` |
+| `_downloadCancellation` in addon application | `Addons` lease with `CanUserCancel=true` |
+| `_downloadCancellation` in manual launcher update | `LauncherAutoUpdate` lease with `CanUserCancel=true` |
+| `_isCheckingLauncherUpdate` in periodic/startup checks | `LauncherAutoUpdate` lease with `CanUserCancel=false` |
+| `_isRefreshingGameAction` in legacy verification | `Verify` lease with `CanUserCancel=false` |
+| V2 verification lifetime token and local running flag | The same runtime-owned `Verify` lease |
+| Button-level cancellation | `LauncherOperationCoordinator.CancelFromUser`, which respects `CanUserCancel` |
+| `OnClosed` cancellation | `CancelForShutdown`, bounded `WaitForIdleAsync`, then service disposal |
+| `_downloadCancellation is null` UI checks | `HasActiveUserCancellableOperation`, preserving legacy navigation behavior |
+| Unidentified progress lambdas | The active lease and its monotone `OperationId`; stale callbacks use `TryInvoke` and are dropped |
+
+The install, update, addon and launcher-update implementations remain in their
+legacy methods. No download, hash, cleanup, file replacement, registration,
+manifest, cache or settings format moved in 02D.0.
 
 ## Locked contracts for later checkpoints
 

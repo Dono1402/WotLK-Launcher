@@ -202,7 +202,7 @@ internal static class LauncherOperationCoordinatorTests
         using VerificationEnvironment environment = new();
         using LauncherOperationCoordinator operations = new();
         BlockingVerificationService service = new();
-        using GameVerificationCoordinator verification = environment.CreateCoordinator(
+        using GameRuntimeCoordinator verification = environment.CreateCoordinator(
             service,
             operations);
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows.Threading;
 using WotLK.Launcher.Game;
 
@@ -9,16 +10,24 @@ internal sealed record GameViewState(
     string ClientStatus,
     string PrimaryActionLabel,
     bool IsPrimaryActionEnabled,
+    bool IsOptionsEnabled,
     bool IsVerifyEnabled,
+    bool IsRetryEnabled,
     string InstallBadgeText,
+    string ClientVersion,
     string AvailableClientVersion,
+    string InstallPath,
+    string Language,
     bool IsClientReady,
     double Progress,
     bool IsProgressIndeterminate,
     string ProgressTitle,
     string ProgressPercentText,
     string ProgressPrimaryDetail,
-    string ProgressSecondaryDetail);
+    string ProgressSecondaryDetail,
+    string ErrorTitle,
+    string ErrorSummary,
+    string PrimaryActionUnavailableReason);
 
 internal sealed class GameStateAdapter : IDisposable
 {
@@ -51,74 +60,163 @@ internal sealed class GameStateAdapter : IDisposable
 
     internal static GameViewState Project(GameRuntimeSnapshot snapshot)
     {
-        if (snapshot.IsVerifying)
+        return snapshot.ViewMode switch
         {
-            bool hasCount = snapshot.Phase == GameVerificationPhase.ScanningFiles
-                && snapshot.ProcessedFileCount is > 0
-                && snapshot.TotalFileCount is > 0;
-            double progress = hasCount
+            GameViewMode.Verifying => ProjectVerifying(snapshot),
+            GameViewMode.Downloading or GameViewMode.Installing => ProjectMaintenance(snapshot),
+            GameViewMode.Error => ProjectError(snapshot),
+            GameViewMode.NotInstalled => Stable(
+                GamePreviewScenario.NotInstalled,
+                GameSemanticTone.Warning,
+                "Client non installé",
+                "Installer",
+                "Non installé",
+                snapshot,
+                isClientReady: false),
+            GameViewMode.UpdateAvailable => Stable(
+                GamePreviewScenario.UpdateAvailable,
+                GameSemanticTone.Warning,
+                "Mise à jour disponible",
+                "Mettre à jour",
+                "Mise à jour",
+                snapshot,
+                isClientReady: true),
+            _ => ProjectReady(snapshot)
+        };
+    }
+
+    private static GameViewState ProjectVerifying(GameRuntimeSnapshot snapshot)
+    {
+        bool hasCount = snapshot.Phase == GameVerificationPhase.ScanningFiles
+            && snapshot.ProcessedFileCount is >= 0
+            && snapshot.TotalFileCount is > 0;
+        double progress = hasCount
+            ? Math.Clamp(
+                snapshot.ProcessedFileCount!.Value * 100d
+                    / snapshot.TotalFileCount!.Value,
+                0,
+                100)
+            : 0;
+        string primaryDetail = snapshot.Phase switch
+        {
+            GameVerificationPhase.LoadingManifest => "Chargement du manifeste",
+            GameVerificationPhase.ComparingManifest => "Comparaison avec le cache local",
+            GameVerificationPhase.ScanningFiles => "Analyse des fichiers locaux",
+            _ => "Analyse du client"
+        };
+
+        return Create(
+            GamePreviewScenario.Verifying,
+            GameSemanticTone.Accent,
+            "Vérification en cours",
+            "Vérification…",
+            isPrimaryActionEnabled: false,
+            snapshot,
+            "Analyse",
+            progress,
+            isProgressIndeterminate: !hasCount,
+            "Vérification des fichiers",
+            hasCount ? $"{Math.Round(progress):0} %" : string.Empty,
+            primaryDetail,
+            hasCount
+                ? $"{snapshot.ProcessedFileCount}/{snapshot.TotalFileCount} fichiers parcourus"
+                : "Progression indéterminée");
+    }
+
+    private static GameViewState ProjectMaintenance(GameRuntimeSnapshot snapshot)
+    {
+        bool finalizing = snapshot.IsFinalizing;
+        bool downloading = snapshot.ViewMode == GameViewMode.Downloading;
+        bool hasByteProgress = downloading
+            && snapshot.DownloadedBytes is >= 0
+            && snapshot.TotalBytes is > 0;
+        bool hasFileProgress = !finalizing
+            && !hasByteProgress
+            && snapshot.ProcessedFileCount is >= 0
+            && snapshot.TotalFileCount is > 0;
+        double progress = hasByteProgress
+            ? Math.Clamp(
+                snapshot.DownloadedBytes!.Value * 100d / snapshot.TotalBytes!.Value,
+                0,
+                100)
+            : hasFileProgress
                 ? Math.Clamp(
                     snapshot.ProcessedFileCount!.Value * 100d
                         / snapshot.TotalFileCount!.Value,
                     0,
                     100)
                 : 0;
-            string primaryDetail = snapshot.Phase switch
-            {
-                GameVerificationPhase.LoadingManifest => "Chargement du manifeste",
-                GameVerificationPhase.ComparingManifest => "Comparaison avec le cache local",
-                GameVerificationPhase.ScanningFiles => "Analyse des fichiers locaux",
-                _ => "Analyse du client"
-            };
-
-            return new GameViewState(
-                GamePreviewScenario.Verifying,
-                GameSemanticTone.Accent,
-                "Vérification en cours",
-                "Vérification…",
-                IsPrimaryActionEnabled: false,
-                IsVerifyEnabled: false,
-                "Analyse",
-                snapshot.AvailableVersion ?? string.Empty,
-                snapshot.IsPlayable,
-                progress,
-                IsProgressIndeterminate: !hasCount,
-                "Vérification des fichiers",
-                hasCount
-                    ? $"{snapshot.ProcessedFileCount}/{snapshot.TotalFileCount}"
-                    : string.Empty,
-                primaryDetail,
-                hasCount
-                    ? "Comptage des fichiers effectivement parcourus"
-                    : "Progression indéterminée");
-        }
-
-        if (snapshot.Action == GameAction.Install)
+        string status = finalizing
+            ? "Finalisation…"
+            : downloading
+                ? IsDownloadTransfer(snapshot.MaintenancePhase)
+                    ? "Téléchargement en cours"
+                    : "Préparation…"
+                : "Installation en cours";
+        string primaryLabel = snapshot.CanUserCancel ? "Annuler" : status;
+        string title = finalizing
+            ? "Finalisation du client"
+            : downloading
+                ? IsDownloadTransfer(snapshot.MaintenancePhase)
+                    ? "Téléchargement du client"
+                    : "Préparation du client"
+                : snapshot.Action == GameAction.Update
+                    ? "Application de la mise à jour"
+                    : "Installation du client";
+        string primaryDetail = hasByteProgress
+            ? $"{FormatBytes(snapshot.DownloadedBytes!.Value)} / {FormatBytes(snapshot.TotalBytes!.Value)}"
+            : hasFileProgress
+                ? $"{snapshot.ProcessedFileCount}/{snapshot.TotalFileCount} fichiers"
+                : GetMaintenanceDetail(snapshot.MaintenancePhase);
+        string secondaryDetail = BuildTransferDetail(snapshot);
+        if (string.IsNullOrWhiteSpace(secondaryDetail))
         {
-            return Stable(
-                GamePreviewScenario.NotInstalled,
-                GameSemanticTone.Warning,
-                "Client non installé",
-                "Installer",
-                snapshot.CanVerify,
-                "Non installé",
-                snapshot,
-                isClientReady: false);
+            secondaryDetail = finalizing
+                ? "Enregistrement de l’installation"
+                : downloading
+                    ? snapshot.CurrentFile ?? "Analyse des fichiers nécessaires"
+                    : "Écriture des fichiers du client";
         }
 
-        if (snapshot.Action == GameAction.Update)
-        {
-            return Stable(
-                GamePreviewScenario.UpdateAvailable,
-                GameSemanticTone.Warning,
-                "Mise à jour disponible",
-                "Mettre à jour",
-                snapshot.CanVerify,
-                "Mise à jour",
-                snapshot,
-                isClientReady: true);
-        }
+        return Create(
+            downloading ? GamePreviewScenario.Downloading : GamePreviewScenario.Installing,
+            GameSemanticTone.Accent,
+            status,
+            primaryLabel,
+            snapshot.CanPrimaryAction,
+            snapshot,
+            hasByteProgress || hasFileProgress ? $"{Math.Round(progress):0} %" : "En cours",
+            progress,
+            isProgressIndeterminate: !hasByteProgress && !hasFileProgress,
+            title,
+            hasByteProgress || hasFileProgress ? $"{Math.Round(progress):0} %" : string.Empty,
+            primaryDetail,
+            secondaryDetail);
+    }
 
+    private static GameViewState ProjectError(GameRuntimeSnapshot snapshot)
+    {
+        return Create(
+            GamePreviewScenario.Error,
+            GameSemanticTone.Error,
+            "Une erreur est survenue",
+            "Réessayer",
+            snapshot.CanPrimaryAction,
+            snapshot,
+            "Erreur",
+            progress: 0,
+            isProgressIndeterminate: false,
+            progressTitle: string.Empty,
+            progressPercentText: string.Empty,
+            progressPrimaryDetail: string.Empty,
+            progressSecondaryDetail: string.Empty,
+            errorTitle: snapshot.ErrorTitle ?? "Opération interrompue",
+            errorSummary: snapshot.ErrorSummary
+                ?? "L’opération n’a pas pu être terminée. Consulte le diagnostic.");
+    }
+
+    private static GameViewState ProjectReady(GameRuntimeSnapshot snapshot)
+    {
         string badge = snapshot.UpdateKnowledge switch
         {
             GameUpdateKnowledge.Known => "À jour",
@@ -133,7 +231,6 @@ internal sealed class GameStateAdapter : IDisposable
             tone,
             "Client prêt",
             "Jouer",
-            snapshot.CanVerify,
             badge,
             snapshot,
             isClientReady: true);
@@ -144,7 +241,6 @@ internal sealed class GameStateAdapter : IDisposable
         GameSemanticTone tone,
         string status,
         string primaryLabel,
-        bool canVerify,
         string badge,
         GameRuntimeSnapshot snapshot,
         bool isClientReady)
@@ -154,17 +250,143 @@ internal sealed class GameStateAdapter : IDisposable
             tone,
             status,
             primaryLabel,
-            IsPrimaryActionEnabled: false,
-            IsVerifyEnabled: canVerify,
+            snapshot.CanPrimaryAction,
+            IsOptionsEnabled: false,
+            snapshot.CanVerify,
+            IsRetryEnabled: false,
             badge,
+            FormatInstalledVersion(snapshot.InstalledVersion),
             snapshot.AvailableVersion ?? string.Empty,
+            snapshot.InstallPath,
+            FormatLanguage(snapshot.GameLocale),
             isClientReady,
             Progress: 0,
             IsProgressIndeterminate: false,
             ProgressTitle: string.Empty,
             ProgressPercentText: string.Empty,
             ProgressPrimaryDetail: string.Empty,
-            ProgressSecondaryDetail: string.Empty);
+            ProgressSecondaryDetail: string.Empty,
+            ErrorTitle: string.Empty,
+            ErrorSummary: string.Empty,
+            snapshot.PrimaryActionUnavailableReason ?? string.Empty);
+    }
+
+    private static GameViewState Create(
+        GamePreviewScenario scenario,
+        GameSemanticTone tone,
+        string status,
+        string primaryLabel,
+        bool isPrimaryActionEnabled,
+        GameRuntimeSnapshot snapshot,
+        string badge,
+        double progress,
+        bool isProgressIndeterminate,
+        string progressTitle,
+        string progressPercentText,
+        string progressPrimaryDetail,
+        string progressSecondaryDetail,
+        string errorTitle = "",
+        string errorSummary = "")
+    {
+        return new GameViewState(
+            scenario,
+            tone,
+            status,
+            primaryLabel,
+            isPrimaryActionEnabled,
+            IsOptionsEnabled: false,
+            snapshot.CanVerify,
+            IsRetryEnabled: scenario == GamePreviewScenario.Error && isPrimaryActionEnabled,
+            badge,
+            FormatInstalledVersion(snapshot.InstalledVersion),
+            snapshot.AvailableVersion ?? string.Empty,
+            snapshot.InstallPath,
+            FormatLanguage(snapshot.GameLocale),
+            snapshot.IsPlayable,
+            progress,
+            isProgressIndeterminate,
+            progressTitle,
+            progressPercentText,
+            progressPrimaryDetail,
+            progressSecondaryDetail,
+            errorTitle,
+            errorSummary,
+            snapshot.PrimaryActionUnavailableReason ?? string.Empty);
+    }
+
+    private static bool IsDownloadTransfer(GameClientMaintenancePhase? phase)
+    {
+        return phase is GameClientMaintenancePhase.DownloadingStarted
+            or GameClientMaintenancePhase.DownloadingFile
+            or GameClientMaintenancePhase.Downloading;
+    }
+
+    private static string GetMaintenanceDetail(GameClientMaintenancePhase? phase)
+    {
+        return phase switch
+        {
+            GameClientMaintenancePhase.LoadingManifest => "Chargement du manifeste",
+            GameClientMaintenancePhase.ManifestLoaded => "Manifeste reçu",
+            GameClientMaintenancePhase.GameProcessesStopped => "Préparation des fichiers",
+            GameClientMaintenancePhase.ComparingManifest => "Comparaison du client local",
+            GameClientMaintenancePhase.ScanningFiles => "Analyse des fichiers locaux",
+            GameClientMaintenancePhase.ComparisonCompleted => "Analyse terminée",
+            GameClientMaintenancePhase.Cleaning => "Nettoyage des anciens fichiers",
+            GameClientMaintenancePhase.CleanupCompleted => "Nettoyage terminé",
+            _ => "Préparation du client"
+        };
+    }
+
+    private static string BuildTransferDetail(GameRuntimeSnapshot snapshot)
+    {
+        List<string> parts = [];
+        if (snapshot.BytesPerSecond is > 0)
+        {
+            parts.Add($"{FormatBytes((long)snapshot.BytesPerSecond.Value)}/s");
+        }
+
+        if (snapshot.Remaining is TimeSpan remaining && remaining > TimeSpan.Zero)
+        {
+            parts.Add(remaining.TotalMinutes >= 1
+                ? $"{Math.Ceiling(remaining.TotalMinutes):0} min restantes"
+                : $"{Math.Max(1, Math.Ceiling(remaining.TotalSeconds)):0} s restantes");
+        }
+
+        if (!string.IsNullOrWhiteSpace(snapshot.CurrentFile))
+        {
+            parts.Add(snapshot.CurrentFile);
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["o", "Ko", "Mo", "Go"];
+        double value = Math.Max(0, bytes);
+        int unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+
+        string format = unit == 0 ? "0" : "0.00";
+        return value.ToString(format, CultureInfo.GetCultureInfo("fr-FR"))
+            + " "
+            + units[unit];
+    }
+
+    private static string FormatInstalledVersion(string? version)
+    {
+        return string.IsNullOrWhiteSpace(version) ? "Inconnue" : version;
+    }
+
+    private static string FormatLanguage(string locale)
+    {
+        return string.Equals(locale, "enUS", StringComparison.OrdinalIgnoreCase)
+            ? "English"
+            : "Français";
     }
 
     private void Runtime_SnapshotChanged(

@@ -47,6 +47,21 @@ internal sealed class LauncherRuntimeDependencies
                 manifestStore);
         };
 
+    internal Func<HttpClient, GameClientStateReader, IGameClientMaintenanceService>
+        CreateGameMaintenanceService { get; init; } =
+        static (httpClient, stateReader) =>
+        {
+            InstalledManifestStore manifestStore = new();
+            GameFileVerifier verifier = new(manifestStore, stateReader);
+            return new GameClientMaintenanceService(
+                new GameManifestClient(httpClient),
+                verifier,
+                manifestStore,
+                new GameFileTransferService(httpClient),
+                new GameFileCleanupService(verifier),
+                new GameInstallPlatformAdapter());
+        };
+
     internal Func<string, bool> HasPlayableClient { get; init; } =
         GameInstallServices.HasPlayableClient;
 
@@ -97,7 +112,7 @@ internal sealed class LauncherRuntime : IDisposable
 {
     private readonly object _lifecycleSync = new();
     private readonly ILauncherAuthService _authentication;
-    private readonly HttpClient _verificationHttpClient;
+    private readonly HttpClient _clientHttpClient;
     private readonly LauncherSessionCoordinator _sessionCoordinator;
     private int _disposeState;
 
@@ -110,13 +125,17 @@ internal sealed class LauncherRuntime : IDisposable
         LocalClient = dependencies.GameClientStateReader.Read(Settings);
         LauncherVersion = dependencies.GetLauncherVersion();
         Operations = new LauncherOperationCoordinator();
-        _verificationHttpClient = dependencies.CreateAuthorizedHttpClient(
+        _clientHttpClient = dependencies.CreateAuthorizedHttpClient(
             () => _authentication.AccessToken);
         IGameClientVerificationService verificationService =
             dependencies.CreateGameVerificationService(
-                _verificationHttpClient,
+                _clientHttpClient,
                 dependencies.GameClientStateReader);
-        Verification = new GameVerificationCoordinator(
+        IGameClientMaintenanceService maintenanceService =
+            dependencies.CreateGameMaintenanceService(
+                _clientHttpClient,
+                dependencies.GameClientStateReader);
+        Game = new GameRuntimeCoordinator(
             verificationService,
             Operations,
             Settings,
@@ -124,7 +143,9 @@ internal sealed class LauncherRuntime : IDisposable
             () => _authentication.IsAuthenticated,
             dependencies.WriteRuntimeLog,
             dependencies.HasPlayableClient,
-            dependencies.VerificationTimeProvider);
+            dependencies.VerificationTimeProvider,
+            maintenanceService,
+            () => dependencies.GameClientStateReader.Read(Settings));
         LocalActions = new LauncherLocalActionCoordinator(
             Settings,
             dependencies.GetLauncherLogPath(),
@@ -147,7 +168,7 @@ internal sealed class LauncherRuntime : IDisposable
 
     internal LauncherOperationCoordinator Operations { get; }
 
-    internal GameVerificationCoordinator Verification { get; }
+    internal GameRuntimeCoordinator Game { get; }
 
     internal bool IsDisposed => Volatile.Read(ref _disposeState) != 0;
 
@@ -174,7 +195,7 @@ internal sealed class LauncherRuntime : IDisposable
         LauncherSessionRestoreResult result = await restoreTask.ConfigureAwait(false);
         if (!IsDisposed)
         {
-            Verification.RefreshAuthenticationAvailability();
+            Game.RefreshAuthenticationAvailability();
         }
 
         return result;
@@ -212,8 +233,8 @@ internal sealed class LauncherRuntime : IDisposable
             Volatile.Write(ref _disposeState, 1);
             LocalActions.BeginShutdown();
             Operations.CancelForShutdown();
-            Verification.Dispose();
-            _verificationHttpClient.Dispose();
+            Game.Dispose();
+            _clientHttpClient.Dispose();
             _authentication.Dispose();
             Operations.Dispose();
         }

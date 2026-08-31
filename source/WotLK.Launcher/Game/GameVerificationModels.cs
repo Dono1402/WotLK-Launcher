@@ -1,3 +1,5 @@
+using WotLK.Launcher.Runtime;
+
 namespace WotLK.Launcher.Game;
 
 internal enum GameVerificationPhase
@@ -25,6 +27,39 @@ internal enum GameVerificationStartStatus
     Unauthenticated,
     ShuttingDown,
     RejectedByCompatibility
+}
+
+internal enum GamePrimaryActionStatus
+{
+    Started,
+    CancelRequested,
+    Busy,
+    Unauthenticated,
+    ShuttingDown,
+    Unsupported
+}
+
+internal enum GameRuntimeErrorCategory
+{
+    Network,
+    Unauthorized,
+    Disk,
+    Permission,
+    LockedFile,
+    Integrity,
+    Platform,
+    Unknown
+}
+
+internal enum GameViewMode
+{
+    NotInstalled,
+    UpdateAvailable,
+    Ready,
+    Verifying,
+    Downloading,
+    Installing,
+    Error
 }
 
 internal enum GameFileComparisonSource
@@ -66,7 +101,70 @@ internal sealed record GameRuntimeSnapshot(
     string? AvailableVersion,
     int? ProcessedFileCount,
     int? TotalFileCount,
-    string? FailureCategory);
+    string? FailureCategory,
+    string GameLocale = "frFR",
+    LauncherOperationKind? OperationKind = null,
+    GameClientMaintenancePhase? MaintenancePhase = null,
+    bool CanPrimaryAction = false,
+    bool CanUserCancel = false,
+    long? DownloadedBytes = null,
+    long? TotalBytes = null,
+    double? BytesPerSecond = null,
+    TimeSpan? Remaining = null,
+    string? CurrentFile = null,
+    GameRuntimeErrorCategory? ErrorCategory = null,
+    string? ErrorTitle = null,
+    string? ErrorSummary = null,
+    GameAction? RetryAction = null,
+    string? PrimaryActionUnavailableReason = null)
+{
+    internal GameViewMode ViewMode
+    {
+        get
+        {
+            if (ErrorCategory is not null)
+            {
+                return GameViewMode.Error;
+            }
+
+            if (IsVerifying || OperationKind == LauncherOperationKind.Verify)
+            {
+                return GameViewMode.Verifying;
+            }
+
+            if (OperationKind is LauncherOperationKind.GameInstall
+                or LauncherOperationKind.GameUpdate)
+            {
+                return MaintenancePhase switch
+                {
+                    GameClientMaintenancePhase.Cleaning
+                        or GameClientMaintenancePhase.CleanupCompleted
+                        or GameClientMaintenancePhase.CacheSaved
+                        or GameClientMaintenancePhase.Registering
+                        or GameClientMaintenancePhase.RegistrationCompleted
+                        or GameClientMaintenancePhase.Completed => GameViewMode.Installing,
+                    _ => GameViewMode.Downloading
+                };
+            }
+
+            return Action switch
+            {
+                GameAction.Install => GameViewMode.NotInstalled,
+                GameAction.Update => GameViewMode.UpdateAvailable,
+                _ => GameViewMode.Ready
+            };
+        }
+    }
+
+    internal bool IsMaintenanceActive => OperationKind is LauncherOperationKind.GameInstall
+        or LauncherOperationKind.GameUpdate;
+
+    internal bool IsFinalizing => IsMaintenanceActive
+        && MaintenancePhase is GameClientMaintenancePhase.CacheSaved
+            or GameClientMaintenancePhase.Registering
+            or GameClientMaintenancePhase.RegistrationCompleted
+            or GameClientMaintenancePhase.Completed;
+}
 
 internal sealed class GameRuntimeSnapshotEventArgs(GameRuntimeSnapshot snapshot) : EventArgs
 {

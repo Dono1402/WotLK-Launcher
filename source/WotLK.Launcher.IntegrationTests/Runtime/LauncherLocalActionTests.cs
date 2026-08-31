@@ -393,7 +393,11 @@ internal static class LauncherLocalActionTests
                     "Sans coordinateur 02C, Vérifier doit conserver sa commande désactivée.");
                 Button primary = FindButtons(buttons, "Jouer").Single();
                 Button options = FindButtons(buttons, "Options").Single();
-                True(!primary.IsEnabled && primary.Command is null, "Jouer doit rester désactivé et non reconnecté.");
+                True(
+                    !primary.IsEnabled
+                    && ReferenceEquals(primary.Command, gameState.PrimaryActionCommand)
+                    && !gameState.PrimaryActionCommand.CanExecute(null),
+                    "Jouer doit rester désactivé tant qu'aucun runtime de jeu n'est raccordé.");
                 True(!options.IsEnabled && options.Command is null, "Options doit rester désactivé et non reconnecté.");
                 True(!application.Windows.OfType<MainWindow>().Any(), "La V2 locale ne doit pas instancier MainWindow legacy.");
 

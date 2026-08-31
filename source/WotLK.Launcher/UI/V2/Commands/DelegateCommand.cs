@@ -63,3 +63,24 @@ internal sealed class DisabledCommand : ICommand
     {
     }
 }
+
+internal sealed class PreviewCommand : ICommand
+{
+    internal static PreviewCommand Instance { get; } = new();
+
+    private PreviewCommand()
+    {
+    }
+
+    public event EventHandler? CanExecuteChanged
+    {
+        add { }
+        remove { }
+    }
+
+    public bool CanExecute(object? parameter) => true;
+
+    public void Execute(object? parameter)
+    {
+    }
+}

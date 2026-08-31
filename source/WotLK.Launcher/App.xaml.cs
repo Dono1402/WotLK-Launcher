@@ -125,11 +125,13 @@ public partial class App : Application
             shellState,
             gameState,
             LauncherV2RuntimePresentation.CreateFriends());
-        GameVerificationCommand verificationCommand = new(runtime.Verification);
+        PrimaryActionCommand primaryActionCommand = new(runtime.Game);
+        gameState.AttachPrimaryActionCommand(primaryActionCommand.Command);
+        GameVerificationCommand verificationCommand = new(runtime.Game);
         gameState.AttachVerifyCommand(verificationCommand.Command);
         GameStateAdapter gameStateAdapter = new(
             gameState,
-            runtime.Verification,
+            runtime.Game,
             window.Dispatcher);
         bool allowClose = false;
         bool shutdownStarted = false;
@@ -142,8 +144,9 @@ public partial class App : Application
                 return;
             }
 
-            verificationCommand.Dispose();
             gameStateAdapter.Dispose();
+            primaryActionCommand.Dispose();
+            verificationCommand.Dispose();
             gameCommands.Dispose();
             gameState.ClearNotification();
         }
@@ -160,7 +163,7 @@ public partial class App : Application
                 LauncherV2RuntimePresentation.ApplySession(shellState, result);
                 if (result.Status == LauncherSessionRestoreStatus.Restored)
                 {
-                    _ = runtime.Verification.TryStartVerification();
+                    _ = runtime.Game.TryStartVerification();
                 }
             }
         };

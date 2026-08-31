@@ -141,6 +141,9 @@
                                             Style="{StaticResource AtlasV2.Button.Primary}"
                                             Margin="0,0,10,0"
                                             IsEnabled="{Binding IsPrimaryActionEnabled}"
+                                            Command="{Binding PrimaryActionCommand}"
+                                            ToolTip="{Binding PrimaryActionUnavailableReason}"
+                                            ToolTipService.ShowOnDisabled="True"
                                             AutomationProperties.Name="{Binding PrimaryActionLabel}">
                                         <StackPanel Orientation="Horizontal">
                                             <Path Width="16" Height="16"
@@ -571,7 +574,11 @@
                                             <ColumnDefinition Width="6"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0" Style="{StaticResource AtlasV2.Button.GhostCompact}" IsEnabled="{Binding IsRetryEnabled}" AutomationProperties.Name="Voir les détails de l'erreur">
+                                        <Button Grid.Column="0"
+                                                Style="{StaticResource AtlasV2.Button.GhostCompact}"
+                                                IsEnabled="{Binding IsRetryEnabled}"
+                                                Command="{Binding PrimaryActionCommand}"
+                                                AutomationProperties.Name="Réessayer l'opération">
                                                 <TextBlock Text="Réessayer"/>
                                         </Button>
                                         <Button Grid.Column="2" Style="{StaticResource AtlasV2.Button.GhostCompact}" Command="{Binding OpenDiagnosticCommand}" ToolTip="Afficher le journal du launcher" AutomationProperties.Name="Ouvrir le diagnostic">

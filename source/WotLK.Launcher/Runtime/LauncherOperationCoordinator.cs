@@ -439,6 +439,8 @@ internal sealed class LauncherOperationLease : IDisposable
         TaskCreationOptions.RunContinuationsAsynchronously);
     private int _completionState;
     private int _cancellationState;
+    private int _userCancellationDisabled;
+    private readonly bool _initiallyUserCancellable;
 
     internal LauncherOperationLease(
         LauncherOperationCoordinator owner,
@@ -451,7 +453,7 @@ internal sealed class LauncherOperationLease : IDisposable
         _owner = owner;
         OperationId = operationId;
         Kind = kind;
-        CanUserCancel = canUserCancel;
+        _initiallyUserCancellable = canUserCancel;
         IsPlayLease = isPlayLease;
         _cancellation = cancellation;
     }
@@ -460,7 +462,8 @@ internal sealed class LauncherOperationLease : IDisposable
 
     internal LauncherOperationKind Kind { get; }
 
-    internal bool CanUserCancel { get; }
+    internal bool CanUserCancel => _initiallyUserCancellable
+        && Volatile.Read(ref _userCancellationDisabled) == 0;
 
     internal CancellationToken CancellationToken => _cancellation.Token;
 
@@ -481,6 +484,13 @@ internal sealed class LauncherOperationLease : IDisposable
     {
         return Volatile.Read(ref _completionState) == 0
             && _owner.CancelLeaseForShutdown(this);
+    }
+
+    internal bool DisableUserCancellation()
+    {
+        return _initiallyUserCancellable
+            && Volatile.Read(ref _completionState) == 0
+            && Interlocked.Exchange(ref _userCancellationDisabled, 1) == 0;
     }
 
     internal bool TryInvoke(Action callback)

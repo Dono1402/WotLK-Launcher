@@ -31,9 +31,14 @@ public sealed class GameUiState : BindableUiState
     private string _clientStatus = "Client prêt";
     private string _primaryActionLabel = "Jouer";
     private bool _isPrimaryActionEnabled = true;
+    private bool _isOptionsEnabled = true;
     private bool _isVerifyEnabled = true;
+    private bool _isRetryEnabled = true;
     private string _installBadgeText = "À jour";
+    private string _clientVersion = "3.4.3.54261";
     private string _availableClientVersion = string.Empty;
+    private string _installPath = @"C:\Program Files (x86)\WotLK";
+    private string _language = "Français";
     private bool _isClientReady = true;
     private double _progress = 100;
     private bool _isProgressIndeterminate;
@@ -41,6 +46,9 @@ public sealed class GameUiState : BindableUiState
     private string _progressPercentText = string.Empty;
     private string _progressPrimaryDetail = string.Empty;
     private string _progressSecondaryDetail = string.Empty;
+    private string _errorTitle = string.Empty;
+    private string _errorSummary = string.Empty;
+    private string _primaryActionUnavailableReason = string.Empty;
     private string _notificationMessage = string.Empty;
     private GameSemanticTone _notificationTone = GameSemanticTone.Neutral;
     private bool _showsNotification;
@@ -83,7 +91,11 @@ public sealed class GameUiState : BindableUiState
         init => _isPrimaryActionEnabled = value;
     }
 
-    public bool IsOptionsEnabled { get; init; } = true;
+    public bool IsOptionsEnabled
+    {
+        get => _isOptionsEnabled;
+        init => _isOptionsEnabled = value;
+    }
 
     public bool IsVerifyEnabled
     {
@@ -91,7 +103,13 @@ public sealed class GameUiState : BindableUiState
         init => _isVerifyEnabled = value;
     }
 
-    public bool IsRetryEnabled { get; init; } = true;
+    public bool IsRetryEnabled
+    {
+        get => _isRetryEnabled;
+        init => _isRetryEnabled = value;
+    }
+
+    public ICommand PrimaryActionCommand { get; private set; } = DisabledCommand.Instance;
 
     public ICommand OpenGameFolderCommand { get; private set; } = DisabledCommand.Instance;
 
@@ -105,7 +123,11 @@ public sealed class GameUiState : BindableUiState
         init => _installBadgeText = value;
     }
 
-    public string ClientVersion { get; init; } = "3.4.3.54261";
+    public string ClientVersion
+    {
+        get => _clientVersion;
+        init => _clientVersion = value;
+    }
 
     public string AvailableClientVersion
     {
@@ -113,9 +135,17 @@ public sealed class GameUiState : BindableUiState
         init => _availableClientVersion = value;
     }
 
-    public string InstallPath { get; init; } = @"C:\Program Files (x86)\WotLK";
+    public string InstallPath
+    {
+        get => _installPath;
+        init => _installPath = value;
+    }
 
-    public string Language { get; init; } = "Français";
+    public string Language
+    {
+        get => _language;
+        init => _language = value;
+    }
 
     public bool IsClientReady
     {
@@ -159,9 +189,23 @@ public sealed class GameUiState : BindableUiState
         init => _progressSecondaryDetail = value;
     }
 
-    public string ErrorTitle { get; init; } = string.Empty;
+    public string ErrorTitle
+    {
+        get => _errorTitle;
+        init => _errorTitle = value;
+    }
 
-    public string ErrorSummary { get; init; } = string.Empty;
+    public string ErrorSummary
+    {
+        get => _errorSummary;
+        init => _errorSummary = value;
+    }
+
+    public string PrimaryActionUnavailableReason
+    {
+        get => _primaryActionUnavailableReason;
+        init => _primaryActionUnavailableReason = value;
+    }
 
     public string NotificationMessage => _notificationMessage;
 
@@ -206,6 +250,13 @@ public sealed class GameUiState : BindableUiState
         RaisePropertyChanged(nameof(VerifyCommand));
     }
 
+    internal void AttachPrimaryActionCommand(ICommand primaryActionCommand)
+    {
+        PrimaryActionCommand = primaryActionCommand
+            ?? throw new ArgumentNullException(nameof(primaryActionCommand));
+        RaisePropertyChanged(nameof(PrimaryActionCommand));
+    }
+
     internal void ApplyRuntimeView(GameViewState viewState)
     {
         ArgumentNullException.ThrowIfNull(viewState);
@@ -214,9 +265,14 @@ public sealed class GameUiState : BindableUiState
         _clientStatus = viewState.ClientStatus;
         _primaryActionLabel = viewState.PrimaryActionLabel;
         _isPrimaryActionEnabled = viewState.IsPrimaryActionEnabled;
+        _isOptionsEnabled = viewState.IsOptionsEnabled;
         _isVerifyEnabled = viewState.IsVerifyEnabled;
+        _isRetryEnabled = viewState.IsRetryEnabled;
         _installBadgeText = viewState.InstallBadgeText;
+        _clientVersion = viewState.ClientVersion;
         _availableClientVersion = viewState.AvailableClientVersion;
+        _installPath = viewState.InstallPath;
+        _language = viewState.Language;
         _isClientReady = viewState.IsClientReady;
         _progress = viewState.Progress;
         _isProgressIndeterminate = viewState.IsProgressIndeterminate;
@@ -224,6 +280,9 @@ public sealed class GameUiState : BindableUiState
         _progressPercentText = viewState.ProgressPercentText;
         _progressPrimaryDetail = viewState.ProgressPrimaryDetail;
         _progressSecondaryDetail = viewState.ProgressSecondaryDetail;
+        _errorTitle = viewState.ErrorTitle;
+        _errorSummary = viewState.ErrorSummary;
+        _primaryActionUnavailableReason = viewState.PrimaryActionUnavailableReason;
         RaisePropertyChanged(string.Empty);
     }
 

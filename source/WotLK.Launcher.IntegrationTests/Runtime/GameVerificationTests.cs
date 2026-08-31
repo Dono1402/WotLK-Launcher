@@ -168,7 +168,7 @@ internal static class GameVerificationTests
         using VerificationEnvironment environment = new();
         BlockingVerificationService service = new();
         using LauncherOperationCoordinator operations = new();
-        GameVerificationCoordinator coordinator = environment.CreateCoordinator(service, operations);
+        GameRuntimeCoordinator coordinator = environment.CreateCoordinator(service, operations);
 
         Equal(GameVerificationStartStatus.Started, coordinator.TryStartVerification(), "La première vérification doit démarrer.");
         await service.Started.Task;
@@ -189,7 +189,7 @@ internal static class GameVerificationTests
             new HttpRequestException(@"network failure C:\Users\Dono\secret-token"));
         using LauncherOperationCoordinator operations = new();
         List<string> logs = [];
-        GameVerificationCoordinator coordinator = environment.CreateCoordinator(
+        GameRuntimeCoordinator coordinator = environment.CreateCoordinator(
             service,
             operations,
             logs.Add);
@@ -218,7 +218,7 @@ internal static class GameVerificationTests
         ImmediateProgressVerificationService service = new();
         using LauncherOperationCoordinator operations = new();
         ManualTimeProvider clock = new();
-        GameVerificationCoordinator coordinator = environment.CreateCoordinator(
+        GameRuntimeCoordinator coordinator = environment.CreateCoordinator(
             service,
             operations,
             timeProvider: clock);
@@ -243,7 +243,7 @@ internal static class GameVerificationTests
         using VerificationEnvironment environment = new();
         CancellationAwareVerificationService service = new();
         using LauncherOperationCoordinator operations = new();
-        GameVerificationCoordinator coordinator = environment.CreateCoordinator(service, operations);
+        GameRuntimeCoordinator coordinator = environment.CreateCoordinator(service, operations);
         List<GameRuntimeSnapshot> snapshots = [];
         coordinator.SnapshotChanged += (_, args) => snapshots.Add(args.Snapshot);
 
@@ -286,11 +286,11 @@ internal static class GameVerificationTests
 
         try
         {
-            True(!runtime.Verification.CanVerify, "Vérifier doit attendre la restauration de session.");
+            True(!runtime.Game.CanVerify, "Vérifier doit attendre la restauration de session.");
             LauncherSessionRestoreResult restored = await runtime.InitializeAsync();
             Equal(LauncherSessionRestoreStatus.Restored, restored.Status, "La session témoin doit être restaurée.");
-            True(runtime.Verification.CanVerify, "Vérifier doit devenir disponible après restauration.");
-            Equal(GameVerificationStartStatus.Started, runtime.Verification.TryStartVerification(), "La commande réelle doit démarrer après auth.");
+            True(runtime.Game.CanVerify, "Vérifier doit devenir disponible après restauration.");
+            Equal(GameVerificationStartStatus.Started, runtime.Game.TryStartVerification(), "La commande réelle doit démarrer après auth.");
             await service.Started.Task;
         }
         finally
@@ -298,7 +298,7 @@ internal static class GameVerificationTests
             runtime.Dispose();
         }
 
-        await runtime.Verification.WaitForIdleAsync();
+        await runtime.Game.WaitForIdleAsync();
         True(service.ObservedCancellation, "La fermeture du runtime doit annuler l'analyse non annulable par l'utilisateur.");
     }
 
@@ -347,7 +347,7 @@ internal static class GameVerificationTests
                 using VerificationEnvironment environment = new();
                 using LauncherOperationCoordinator operations = new();
                 BlockingVerificationService service = new();
-                GameVerificationCoordinator coordinator = environment.CreateCoordinator(service, operations);
+                GameRuntimeCoordinator coordinator = environment.CreateCoordinator(service, operations);
                 GameUiState gameState = LauncherV2RuntimePresentation.CreateGame(environment.LocalState);
                 LauncherLocalActionCoordinator localActions = new(
                     environment.Settings,
@@ -575,13 +575,13 @@ internal sealed class VerificationEnvironment : IDisposable
             _ => false);
     }
 
-    internal GameVerificationCoordinator CreateCoordinator(
+    internal GameRuntimeCoordinator CreateCoordinator(
         IGameClientVerificationService service,
         LauncherOperationCoordinator operations,
         Action<string>? writeLog = null,
         TimeProvider? timeProvider = null)
     {
-        GameVerificationCoordinator coordinator = new(
+        GameRuntimeCoordinator coordinator = new(
             service,
             operations,
             Settings,

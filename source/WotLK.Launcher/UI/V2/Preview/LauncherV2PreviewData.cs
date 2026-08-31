@@ -1,4 +1,5 @@
 using WotLK.Launcher.UI.V2.Presentation;
+using WotLK.Launcher.UI.V2.Commands;
 
 namespace WotLK.Launcher.UI.V2.Preview;
 
@@ -47,7 +48,7 @@ public static class LauncherV2PreviewData
 
     public static GameUiState CreateGame(GamePreviewScenario scenario)
     {
-        return scenario switch
+        GameUiState state = scenario switch
         {
             GamePreviewScenario.NotInstalled => new GameUiState
             {
@@ -139,6 +140,8 @@ public static class LauncherV2PreviewData
                 SemanticTone = GameSemanticTone.Success
             }
         };
+        state.AttachPrimaryActionCommand(PreviewCommand.Instance);
+        return state;
     }
 
     public static FriendsUiState CreateFriends()

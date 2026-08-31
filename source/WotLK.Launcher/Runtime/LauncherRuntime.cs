@@ -2,6 +2,7 @@ using System.IO;
 using System.Net.Http;
 using System.Reflection;
 using System.Text;
+using WotLK.Launcher.Dashboard;
 using WotLK.Launcher.Game;
 
 namespace WotLK.Launcher.Runtime;
@@ -66,6 +67,8 @@ internal sealed class LauncherRuntimeDependencies
         GameInstallServices.HasPlayableClient;
 
     internal TimeProvider VerificationTimeProvider { get; init; } = TimeProvider.System;
+
+    internal TimeProvider DashboardTimeProvider { get; init; } = TimeProvider.System;
 
     internal static LauncherRuntimeDependencies CreateProduction()
     {
@@ -156,6 +159,11 @@ internal sealed class LauncherRuntime : IDisposable
             _authentication,
             Operations.ShutdownToken,
             dependencies.WriteRuntimeLog);
+        Dashboard = new LauncherDashboardCoordinator(
+            _authentication,
+            Operations.ShutdownToken,
+            dependencies.WriteRuntimeLog,
+            dependencies.DashboardTimeProvider);
     }
 
     internal LauncherSettings Settings { get; }
@@ -169,6 +177,8 @@ internal sealed class LauncherRuntime : IDisposable
     internal LauncherOperationCoordinator Operations { get; }
 
     internal GameRuntimeCoordinator Game { get; }
+
+    internal LauncherDashboardCoordinator Dashboard { get; }
 
     internal bool IsDisposed => Volatile.Read(ref _disposeState) != 0;
 
@@ -196,6 +206,7 @@ internal sealed class LauncherRuntime : IDisposable
         if (!IsDisposed)
         {
             Game.RefreshAuthenticationAvailability();
+            await Dashboard.InitializeAfterSessionRestoreAsync(result).ConfigureAwait(false);
         }
 
         return result;
@@ -211,14 +222,18 @@ internal sealed class LauncherRuntime : IDisposable
             }
 
             LocalActions.BeginShutdown();
+            Dashboard.BeginShutdown();
             Operations.CancelForShutdown();
         }
     }
 
-    internal Task<bool> WaitForShutdownAsync(TimeSpan timeout)
+    internal async Task<bool> WaitForShutdownAsync(TimeSpan timeout)
     {
         BeginShutdown();
-        return Operations.WaitForIdleAsync(timeout);
+        Task<bool> operations = Operations.WaitForIdleAsync(timeout);
+        Task<bool> dashboard = Dashboard.WaitForIdleAsync(timeout);
+        bool[] results = await Task.WhenAll(operations, dashboard).ConfigureAwait(false);
+        return results.All(result => result);
     }
 
     public void Dispose()
@@ -232,7 +247,9 @@ internal sealed class LauncherRuntime : IDisposable
 
             Volatile.Write(ref _disposeState, 1);
             LocalActions.BeginShutdown();
+            Dashboard.BeginShutdown();
             Operations.CancelForShutdown();
+            Dashboard.Dispose();
             Game.Dispose();
             _clientHttpClient.Dispose();
             _authentication.Dispose();

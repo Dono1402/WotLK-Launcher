@@ -858,6 +858,12 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
 
     internal Func<CancellationToken, Task<bool>>? RestoreHandler { get; set; }
 
+    internal Func<CancellationToken, Task<bool>>? EnsureFreshHandler { get; set; }
+
+    internal Func<CancellationToken, Task<LauncherServerStatus>>? StatusHandler { get; set; }
+
+    internal Func<CancellationToken, Task<IReadOnlyList<LauncherNews>>>? NewsHandler { get; set; }
+
     public LauncherAuthSession? Session { get; set; }
 
     public string? AccessToken => Session?.AccessToken;
@@ -870,6 +876,10 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
 
     internal int GetFriendsCalls { get; private set; }
 
+    internal int GetStatusCalls { get; private set; }
+
+    internal int GetNewsCalls { get; private set; }
+
     internal int DisposeCalls { get; private set; }
 
     public Task<bool> RestoreAsync(CancellationToken cancellationToken = default)
@@ -881,7 +891,8 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
     public Task<bool> EnsureFreshAsync(CancellationToken cancellationToken = default)
     {
         EnsureFreshCalls++;
-        return Task.FromResult(Session is not null);
+        return EnsureFreshHandler?.Invoke(cancellationToken)
+            ?? Task.FromResult(Session is not null);
     }
 
     public Task LoginAsync(string username, string password, CancellationToken cancellationToken = default)
@@ -974,7 +985,8 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
 
     public Task<LauncherServerStatus> GetStatusAsync(CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(new LauncherServerStatus(
+        GetStatusCalls++;
+        return StatusHandler?.Invoke(cancellationToken) ?? Task.FromResult(new LauncherServerStatus(
             "Arthas",
             true,
             true,
@@ -986,7 +998,9 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
 
     public Task<IReadOnlyList<LauncherNews>> GetNewsAsync(CancellationToken cancellationToken = default)
     {
-        return Task.FromResult<IReadOnlyList<LauncherNews>>([]);
+        GetNewsCalls++;
+        return NewsHandler?.Invoke(cancellationToken)
+            ?? Task.FromResult<IReadOnlyList<LauncherNews>>([]);
     }
 
     public Task<string> ResendVerificationAsync(CancellationToken cancellationToken = default)
@@ -1009,6 +1023,8 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
     {
         EnsureFreshCalls = 0;
         GetFriendsCalls = 0;
+        GetStatusCalls = 0;
+        GetNewsCalls = 0;
     }
 
     internal static LauncherAuthSession CreateSession()

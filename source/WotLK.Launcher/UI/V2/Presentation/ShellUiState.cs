@@ -1,13 +1,5 @@
 namespace WotLK.Launcher.UI.V2.Presentation;
 
-public enum RealmServiceState
-{
-    Unknown,
-    Online,
-    Degraded,
-    Offline
-}
-
 public sealed class ShellUiState : BindableUiState
 {
     private AdaptiveLayoutMode _layoutMode = AdaptiveLayoutMode.Wide;
@@ -37,10 +29,6 @@ public sealed class ShellUiState : BindableUiState
         : Username[..1].ToUpperInvariant();
 
     public string ProfileToolTip => IsAuthenticated ? $"Profil {Username}" : "Compte Atlas";
-
-    public string RealmStatus { get; init; } = "En ligne";
-
-    public RealmServiceState RealmState { get; init; } = RealmServiceState.Online;
 
     public bool IsGameNavigationEnabled { get; init; } = true;
 

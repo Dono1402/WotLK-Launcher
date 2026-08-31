@@ -1,5 +1,6 @@
 using System.Text.Json;
 using WotLK.Launcher;
+using WotLK.Launcher.Dashboard;
 using WotLK.Launcher.Game;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2.Presentation;
@@ -135,9 +136,13 @@ internal static class LauncherRuntimeCompositionTests
 
             ShellUiState shell = LauncherV2RuntimePresentation.CreateShell(runtime);
             GameUiState game = LauncherV2RuntimePresentation.CreateGame(runtime.LocalClient);
+            DashboardUiState dashboard = LauncherV2RuntimePresentation.CreateDashboard();
             FriendsUiState friends = LauncherV2RuntimePresentation.CreateFriends();
-            Equal(RealmServiceState.Unknown, shell.RealmState, "Le royaume doit rester neutre sans requête.");
-            Equal("Non vérifié", shell.RealmStatus, "Le royaume ne doit pas être déclaré en ligne sans preuve.");
+            Equal(
+                DashboardRealmState.Unknown,
+                runtime.Dashboard.CurrentSnapshot.RealmState,
+                "Le royaume doit rester neutre avant la restauration.");
+            Equal("Non vérifié", dashboard.Current.RealmStatusLabel, "La présentation ne doit inventer aucun statut.");
             True(shell.IsGameNavigationEnabled, "La page Jeu locale doit rester visible.");
             True(!shell.IsNavigationEnabled, "Les destinations non migrées doivent rester désactivées.");
             Equal("Compte", shell.Username, "Aucune identité ne doit être inventée avant la restauration.");
@@ -145,8 +150,10 @@ internal static class LauncherRuntimeCompositionTests
             True(!game.IsPrimaryActionEnabled, "Aucune commande mutante ne doit être active en 02A.");
 
             GameUiState previewGame = LauncherV2PreviewData.CreateGame(GamePreviewScenario.Ready);
+            DashboardUiState previewDashboard = LauncherV2PreviewData.CreateDashboard(GamePreviewScenario.Ready);
             FriendsUiState previewFriends = LauncherV2PreviewData.CreateFriends();
             True(previewGame.IsPrimaryActionEnabled, "Le preview doit conserver son comportement visuel fictif.");
+            Equal("Atlas Launcher 1.1", previewDashboard.Current.LatestPatchNoteTitle, "La note fictive doit rester confinée au preview.");
             True(previewFriends.Friends.Count > 0, "Les amis fictifs doivent rester confinés au preview.");
 
             Task<LauncherSessionRestoreResult> first = runtime.InitializeAsync();

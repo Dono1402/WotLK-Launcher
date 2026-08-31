@@ -118,12 +118,14 @@ public partial class App : Application
 
         ShellUiState shellState = LauncherV2RuntimePresentation.CreateShell(runtime);
         GameUiState gameState = LauncherV2RuntimePresentation.CreateGame(runtime.LocalClient);
+        DashboardUiState dashboardState = LauncherV2RuntimePresentation.CreateDashboard();
         GameCommands gameCommands = LauncherV2RuntimePresentation.ConnectLocalActions(
             gameState,
             runtime.LocalActions);
         LauncherShellV2 window = new(
             shellState,
             gameState,
+            dashboardState,
             LauncherV2RuntimePresentation.CreateFriends());
         PrimaryActionCommand primaryActionCommand = new(runtime.Game);
         gameState.AttachPrimaryActionCommand(primaryActionCommand.Command);
@@ -132,6 +134,12 @@ public partial class App : Application
         GameStateAdapter gameStateAdapter = new(
             gameState,
             runtime.Game,
+            window.Dispatcher);
+        RefreshDashboardCommand refreshDashboardCommand = new(runtime.Dashboard);
+        dashboardState.AttachRefreshCommand(refreshDashboardCommand.Command);
+        DashboardStateAdapter dashboardStateAdapter = new(
+            dashboardState,
+            runtime.Dashboard,
             window.Dispatcher);
         bool allowClose = false;
         bool shutdownStarted = false;
@@ -145,8 +153,10 @@ public partial class App : Application
             }
 
             gameStateAdapter.Dispose();
+            dashboardStateAdapter.Dispose();
             primaryActionCommand.Dispose();
             verificationCommand.Dispose();
+            refreshDashboardCommand.Dispose();
             gameCommands.Dispose();
             gameState.ClearNotification();
         }

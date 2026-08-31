@@ -413,11 +413,12 @@ internal sealed class LauncherAuthService : ILauncherAuthService
                 JsonOptions,
                 cancellationToken);
             throw new LauncherAuthException(
-                string.IsNullOrWhiteSpace(error?.Error) ? fallback : error.Error);
+                string.IsNullOrWhiteSpace(error?.Error) ? fallback : error.Error,
+                response.StatusCode);
         }
         catch (JsonException)
         {
-            throw new LauncherAuthException(fallback);
+            throw new LauncherAuthException(fallback, response.StatusCode);
         }
     }
 
@@ -538,7 +539,10 @@ internal sealed record LauncherNews(
 
 internal sealed class LauncherAuthException : Exception
 {
-    public LauncherAuthException(string message) : base(message)
+    public LauncherAuthException(string message, HttpStatusCode? statusCode = null) : base(message)
     {
+        StatusCode = statusCode;
     }
+
+    internal HttpStatusCode? StatusCode { get; }
 }

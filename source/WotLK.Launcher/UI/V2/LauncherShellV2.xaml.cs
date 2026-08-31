@@ -13,6 +13,7 @@ public partial class LauncherShellV2 : Window
         : this(
             LauncherV2PreviewData.CreateShell(scenario),
             LauncherV2PreviewData.CreateGame(scenario),
+            LauncherV2PreviewData.CreateDashboard(scenario),
             LauncherV2PreviewData.CreateFriends(),
             isPreviewMode: true)
     {
@@ -21,19 +22,22 @@ public partial class LauncherShellV2 : Window
     internal LauncherShellV2(
         ShellUiState shellState,
         GameUiState gameState,
+        DashboardUiState dashboardState,
         FriendsUiState friendsState)
-        : this(shellState, gameState, friendsState, isPreviewMode: false)
+        : this(shellState, gameState, dashboardState, friendsState, isPreviewMode: false)
     {
     }
 
     private LauncherShellV2(
         ShellUiState shellState,
         GameUiState gameState,
+        DashboardUiState dashboardState,
         FriendsUiState friendsState,
         bool isPreviewMode)
     {
         ShellState = shellState ?? throw new ArgumentNullException(nameof(shellState));
         GameState = gameState ?? throw new ArgumentNullException(nameof(gameState));
+        DashboardState = dashboardState ?? throw new ArgumentNullException(nameof(dashboardState));
         FriendsState = friendsState ?? throw new ArgumentNullException(nameof(friendsState));
         IsPreviewMode = isPreviewMode;
 
@@ -51,6 +55,8 @@ public partial class LauncherShellV2 : Window
     public ShellUiState ShellState { get; }
 
     public GameUiState GameState { get; }
+
+    public DashboardUiState DashboardState { get; }
 
     public FriendsUiState FriendsState { get; }
 
@@ -91,9 +97,7 @@ public partial class LauncherShellV2 : Window
         ProductDivider.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
         FriendsButtonText.Visibility = stacked ? Visibility.Collapsed : Visibility.Visible;
         VersionText.Visibility = stacked ? Visibility.Collapsed : Visibility.Visible;
-        RealmStatusText.SetCurrentValue(
-            TextBlock.TextProperty,
-            wide ? $"Arthas {ShellState.RealmStatus.ToLowerInvariant()}" : ShellState.RealmStatus);
+        DashboardState.SetWideRealmLabel(wide);
         TopNavigation.Margin = mode == AdaptiveLayoutMode.Wide
             ? new Thickness(8, 0, 0, 0)
             : new Thickness(0);

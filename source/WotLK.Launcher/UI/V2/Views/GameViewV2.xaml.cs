@@ -18,6 +18,12 @@ public partial class GameViewV2 : UserControl
         typeof(GameViewV2),
         new PropertyMetadata(AdaptiveLayoutMode.Wide, LayoutModeChanged));
 
+    public static readonly DependencyProperty DashboardStateProperty = DependencyProperty.Register(
+        nameof(DashboardState),
+        typeof(DashboardUiState),
+        typeof(GameViewV2),
+        new PropertyMetadata(null));
+
     public GameViewV2()
     {
         InitializeComponent();
@@ -34,6 +40,12 @@ public partial class GameViewV2 : UserControl
     {
         get => (AdaptiveLayoutMode)GetValue(LayoutModeProperty);
         set => SetValue(LayoutModeProperty, value);
+    }
+
+    public DashboardUiState? DashboardState
+    {
+        get => (DashboardUiState?)GetValue(DashboardStateProperty);
+        set => SetValue(DashboardStateProperty, value);
     }
 
     private static void LayoutModeChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)

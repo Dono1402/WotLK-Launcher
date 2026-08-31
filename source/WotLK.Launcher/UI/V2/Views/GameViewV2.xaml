@@ -233,29 +233,39 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <Grid Grid.Row="0" Margin="0,0,0,9">
-                                <TextBlock Text="{Binding NewsCategory}"
+                                <TextBlock Text="DERNIÈRE NOTE DE MISE À JOUR"
                                            Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
-                                <TextBlock Text="{Binding NewsVersion}"
+                                <TextBlock x:Name="LatestPatchNoteVersionText"
+                                           Text="{Binding DashboardState.Current.LatestPatchNoteVersion, ElementName=Root}"
                                            HorizontalAlignment="Right"
                                            Style="{StaticResource AtlasV2.Text.Caption}"
                                            Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
                             </Grid>
-                            <TextBlock Grid.Row="1"
-                                       Text="{Binding NewsTitle}"
+                            <TextBlock x:Name="LatestPatchNoteTitleText"
+                                       Grid.Row="1"
+                                       Text="{Binding DashboardState.Current.LatestPatchNoteTitle, ElementName=Root}"
                                        Style="{StaticResource AtlasV2.Text.SectionTitle}"
                                        Margin="0,0,0,6"/>
-                            <TextBlock Grid.Row="2"
-                                       Text="{Binding NewsSummary}"
+                            <TextBlock x:Name="LatestPatchNoteSummaryText"
+                                       Grid.Row="2"
+                                       Text="{Binding DashboardState.Current.LatestPatchNoteSummary, ElementName=Root}"
                                        Style="{StaticResource AtlasV2.Text.Body}"
                                        FontSize="13"
                                        LineHeight="19"
                                        MaxWidth="760"
                                        HorizontalAlignment="Left"/>
                             <Grid Grid.Row="3" Margin="0,12,0,0">
-                                <TextBlock Text="{Binding NewsDate}"
+                                <TextBlock x:Name="LatestPatchNoteMetaText"
+                                           Text="{Binding DashboardState.Current.LatestPatchNoteMetaText, ElementName=Root}"
                                            VerticalAlignment="Center"
                                            Style="{StaticResource AtlasV2.Text.Caption}"/>
-                                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                <StackPanel x:Name="LatestPatchNoteAction"
+                                            HorizontalAlignment="Right"
+                                            Orientation="Horizontal"
+                                            Opacity="0.52"
+                                            IsHitTestVisible="False"
+                                            Focusable="False"
+                                            ToolTip="La lecture complète sera disponible avec l’onglet Actualités">
                                     <TextBlock Text="Lire la note de mise à jour"
                                                VerticalAlignment="Center"
                                                Style="{StaticResource AtlasV2.Text.Body}"

@@ -71,8 +71,6 @@ public sealed class GameUiState : BindableUiState
 
     public string Subtitle { get; init; } = "Votre aventure vous attend";
 
-    public string RealmStatus { get; init; } = "Royaume en ligne";
-
     public string ClientStatus
     {
         get => _clientStatus;
@@ -212,17 +210,6 @@ public sealed class GameUiState : BindableUiState
     public GameSemanticTone NotificationTone => _notificationTone;
 
     public bool ShowsNotification => _showsNotification;
-
-    public string NewsCategory { get; init; } = "DERNIÈRE NOTE DE MISE À JOUR";
-
-    public string NewsVersion { get; init; } = "v1.1.0";
-
-    public string NewsTitle { get; init; } = "Atlas Launcher 1.1";
-
-    public string NewsSummary { get; init; } =
-        "Une nouvelle expérience de lancement, plus claire et plus directe, pensée pour Arthas.";
-
-    public string NewsDate { get; init; } = "30 août 2026";
 
     public bool ShowsReadyInstallation => Scenario is GamePreviewScenario.Ready or GamePreviewScenario.RealmOffline;
 

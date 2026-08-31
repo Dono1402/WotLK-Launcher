@@ -1,3 +1,4 @@
+using WotLK.Launcher.Dashboard;
 using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Commands;
 
@@ -38,13 +39,34 @@ public static class LauncherV2PreviewData
 
     public static ShellUiState CreateShell(GamePreviewScenario scenario) => new()
     {
-        RealmStatus = scenario == GamePreviewScenario.RealmOffline ? "Hors ligne" : "En ligne",
-        RealmState = scenario == GamePreviewScenario.RealmOffline
-            ? RealmServiceState.Offline
-            : RealmServiceState.Online,
         IsNavigationEnabled = scenario is not GamePreviewScenario.Downloading
             and not GamePreviewScenario.Installing
     };
+
+    internal static DashboardUiState CreateDashboard(GamePreviewScenario scenario)
+    {
+        DashboardRealmState realmState = scenario == GamePreviewScenario.RealmOffline
+            ? DashboardRealmState.Offline
+            : DashboardRealmState.Online;
+        string realmLabel = realmState == DashboardRealmState.Offline ? "Hors ligne" : "En ligne";
+        DashboardUiState state = new();
+        state.ApplyView(new DashboardViewState(
+            realmState,
+            realmLabel,
+            realmState == DashboardRealmState.Online ? "Arthas en ligne" : realmLabel,
+            "Données fictives du mode de prévisualisation.",
+            IsLoading: false,
+            LatestPatchNoteVersion: "v1.1.0",
+            LatestPatchNoteTitle: "Atlas Launcher 1.1",
+            LatestPatchNoteSummary:
+                "Une nouvelle expérience de lancement, plus claire et plus directe, pensée pour Arthas.",
+            LatestPatchNoteMetaText: "30 août 2026",
+            HasPatchNote: true,
+            IsStale: false,
+            CanOpenLatestPatchNote: false));
+        state.AttachRefreshCommand(PreviewCommand.Instance);
+        return state;
+    }
 
     public static GameUiState CreateGame(GamePreviewScenario scenario)
     {

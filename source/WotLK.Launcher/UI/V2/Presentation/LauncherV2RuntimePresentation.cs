@@ -13,11 +13,14 @@ internal static class LauncherV2RuntimePresentation
             LauncherVersion = runtime.LauncherVersion,
             Username = "Compte",
             IsAuthenticated = false,
-            RealmStatus = "Non vérifié",
-            RealmState = RealmServiceState.Unknown,
             IsGameNavigationEnabled = true,
             IsNavigationEnabled = false
         };
+    }
+
+    internal static DashboardUiState CreateDashboard()
+    {
+        return new DashboardUiState();
     }
 
     internal static GameUiState CreateGame(GameClientLocalState localClient)
@@ -33,7 +36,6 @@ internal static class LauncherV2RuntimePresentation
             {
                 Scenario = GamePreviewScenario.NotInstalled,
                 SemanticTone = GameSemanticTone.Warning,
-                RealmStatus = "Royaume non vérifié",
                 ClientStatus = "Client non installé",
                 PrimaryActionLabel = "Installer",
                 IsPrimaryActionEnabled = false,
@@ -53,7 +55,6 @@ internal static class LauncherV2RuntimePresentation
         {
             Scenario = GamePreviewScenario.Ready,
             SemanticTone = GameSemanticTone.Neutral,
-            RealmStatus = "Royaume non vérifié",
             ClientStatus = "Client prêt",
             PrimaryActionLabel = "Jouer",
             IsPrimaryActionEnabled = false,

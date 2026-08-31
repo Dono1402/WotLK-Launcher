@@ -3,6 +3,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:dashboard="clr-namespace:WotLK.Launcher.Dashboard"
         xmlns:presentation="clr-namespace:WotLK.Launcher.UI.V2.Presentation"
         xmlns:views="clr-namespace:WotLK.Launcher.UI.V2.Views"
         Title="Atlas Launcher · Prévisualisation V2"
@@ -106,12 +107,13 @@
                                 VerticalAlignment="Center">
                         <Border x:Name="RealmStatusChip"
                                 Height="36"
-                                Margin="0,0,8,0"
+                                Margin="0,0,2,0"
                                 Padding="11,0"
                                 Background="{StaticResource AtlasV2.Brush.Surface}"
                                 BorderBrush="{StaticResource AtlasV2.Brush.Border}"
                                 BorderThickness="1"
-                                CornerRadius="6">
+                                CornerRadius="6"
+                                ToolTip="{Binding DashboardState.Current.RealmToolTip}">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <Ellipse x:Name="RealmStatusDot"
                                          Width="7"
@@ -121,13 +123,13 @@
                                         <Style TargetType="{x:Type Ellipse}">
                                             <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding ShellState.RealmState}" Value="{x:Static presentation:RealmServiceState.Online}">
+                                                <DataTrigger Binding="{Binding DashboardState.Current.RealmState}" Value="{x:Static dashboard:DashboardRealmState.Online}">
                                                     <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Success}"/>
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding ShellState.RealmState}" Value="{x:Static presentation:RealmServiceState.Degraded}">
+                                                <DataTrigger Binding="{Binding DashboardState.Current.RealmState}" Value="{x:Static dashboard:DashboardRealmState.Degraded}">
                                                     <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Gold}"/>
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding ShellState.RealmState}" Value="{x:Static presentation:RealmServiceState.Offline}">
+                                                <DataTrigger Binding="{Binding DashboardState.Current.RealmState}" Value="{x:Static dashboard:DashboardRealmState.Offline}">
                                                     <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Danger}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -136,19 +138,19 @@
                                 </Ellipse>
                                 <TextBlock x:Name="RealmStatusText"
                                            VerticalAlignment="Center"
-                                           Text="{Binding ShellState.RealmStatus}">
+                                           Text="{Binding DashboardState.DisplayRealmStatus}">
                                     <TextBlock.Style>
                                         <Style TargetType="{x:Type TextBlock}"
                                                BasedOn="{StaticResource AtlasV2.Text.Caption}">
                                             <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding ShellState.RealmState}" Value="{x:Static presentation:RealmServiceState.Online}">
+                                                <DataTrigger Binding="{Binding DashboardState.Current.RealmState}" Value="{x:Static dashboard:DashboardRealmState.Online}">
                                                     <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Success}"/>
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding ShellState.RealmState}" Value="{x:Static presentation:RealmServiceState.Degraded}">
+                                                <DataTrigger Binding="{Binding DashboardState.Current.RealmState}" Value="{x:Static dashboard:DashboardRealmState.Degraded}">
                                                     <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Gold}"/>
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding ShellState.RealmState}" Value="{x:Static presentation:RealmServiceState.Offline}">
+                                                <DataTrigger Binding="{Binding DashboardState.Current.RealmState}" Value="{x:Static dashboard:DashboardRealmState.Offline}">
                                                     <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Danger}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -157,6 +159,18 @@
                                 </TextBlock>
                             </StackPanel>
                         </Border>
+
+                        <Button x:Name="RefreshDashboardButton"
+                                Margin="0,0,5,0"
+                                Style="{StaticResource AtlasV2.Button.Icon}"
+                                Command="{Binding DashboardState.RefreshCommand}"
+                                ToolTip="Actualiser le statut et la note de mise à jour"
+                                AutomationProperties.Name="Actualiser le tableau de bord">
+                            <Path Width="17"
+                                  Height="17"
+                                  Data="{StaticResource AtlasV2.Icon.Refresh}"
+                                  Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                        </Button>
 
                         <Button x:Name="FriendsButton"
                                 Height="40"
@@ -251,7 +265,9 @@
             </Border>
 
             <Grid Grid.Row="1">
-                <views:GameViewV2 State="{Binding GameState}"
+                <views:GameViewV2 x:Name="GameView"
+                                  State="{Binding GameState}"
+                                  DashboardState="{Binding DashboardState}"
                                   LayoutMode="{Binding ShellState.LayoutMode}"/>
                 <views:FriendsDrawerV2 x:Name="FriendsDrawer"
                                        Panel.ZIndex="50"

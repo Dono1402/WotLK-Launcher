@@ -16,6 +16,7 @@ internal enum LauncherStartupMode
     UiV2,
     UiV2Preview,
     UiV2AuthPreview,
+    UiV2ProfilePreview,
     InvalidArguments,
     GrantGameDirectoryAccess,
     UninstallGame
@@ -32,7 +33,7 @@ public partial class App : Application
         if (startupMode == LauncherStartupMode.InvalidArguments)
         {
             MessageBox.Show(
-                "L’argument --preview-auth nécessite également --ui-v2.",
+                "Les modes de prévisualisation nécessitent --ui-v2 et ne peuvent pas être combinés.",
                 "Prévisualisation Atlas Launcher",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
@@ -42,7 +43,8 @@ public partial class App : Application
 
         if (startupMode is LauncherStartupMode.UiV2
             or LauncherStartupMode.UiV2Preview
-            or LauncherStartupMode.UiV2AuthPreview)
+            or LauncherStartupMode.UiV2AuthPreview
+            or LauncherStartupMode.UiV2ProfilePreview)
         {
             try
             {
@@ -60,14 +62,21 @@ public partial class App : Application
                 return;
             }
 
-            if (startupMode is LauncherStartupMode.UiV2Preview or LauncherStartupMode.UiV2AuthPreview)
+            if (startupMode is LauncherStartupMode.UiV2Preview
+                or LauncherStartupMode.UiV2AuthPreview
+                or LauncherStartupMode.UiV2ProfilePreview)
             {
                 GamePreviewScenario previewScenario = LauncherV2PreviewData.ResolveScenario(e.Args);
-                LauncherShellV2 previewWindow = startupMode == LauncherStartupMode.UiV2AuthPreview
-                    ? new LauncherShellV2(
+                LauncherShellV2 previewWindow = startupMode switch
+                {
+                    LauncherStartupMode.UiV2AuthPreview => new LauncherShellV2(
                         previewScenario,
-                        AuthPreviewArguments.ResolveScenario(e.Args))
-                    : new LauncherShellV2(previewScenario);
+                        AuthPreviewArguments.ResolveScenario(e.Args)),
+                    LauncherStartupMode.UiV2ProfilePreview => new LauncherShellV2(
+                        previewScenario,
+                        ProfilePreviewArguments.ResolveScenario(e.Args)),
+                    _ => new LauncherShellV2(previewScenario)
+                };
                 ApplyV2PreviewOptions(previewWindow, e.Args);
                 MainWindow = previewWindow;
                 previewWindow.Show();
@@ -101,7 +110,9 @@ public partial class App : Application
         bool useUiV2 = args.Any(argument =>
             string.Equals(argument, "--ui-v2", StringComparison.OrdinalIgnoreCase));
         bool useAuthPreview = AuthPreviewArguments.IsRequested(args);
-        if (useAuthPreview && !useUiV2)
+        bool useProfilePreview = ProfilePreviewArguments.IsRequested(args);
+        if (((useAuthPreview || useProfilePreview) && !useUiV2)
+            || (useAuthPreview && useProfilePreview))
         {
             return LauncherStartupMode.InvalidArguments;
         }
@@ -111,6 +122,11 @@ public partial class App : Application
             if (useAuthPreview)
             {
                 return LauncherStartupMode.UiV2AuthPreview;
+            }
+
+            if (useProfilePreview)
+            {
+                return LauncherStartupMode.UiV2ProfilePreview;
             }
 
             bool usePreview = args.Any(argument =>
@@ -149,6 +165,7 @@ public partial class App : Application
         ShellUiState shellState = LauncherV2RuntimePresentation.CreateShell(runtime);
         GameUiState gameState = LauncherV2RuntimePresentation.CreateGame(runtime.LocalClient);
         DashboardUiState dashboardState = LauncherV2RuntimePresentation.CreateDashboard();
+        ProfileUiState profileState = new();
         GameCommands gameCommands = LauncherV2RuntimePresentation.ConnectLocalActions(
             gameState,
             runtime.LocalActions);
@@ -156,7 +173,8 @@ public partial class App : Application
             shellState,
             gameState,
             dashboardState,
-            LauncherV2RuntimePresentation.CreateFriends());
+            LauncherV2RuntimePresentation.CreateFriends(),
+            profileState);
         AuthCommands authCommands = new(runtime);
         window.AttachAuthentication(authCommands);
         AuthStateAdapter authStateAdapter = new(
@@ -164,6 +182,13 @@ public partial class App : Application
             shellState,
             gameState,
             runtime.Session,
+            window.Dispatcher);
+        LogoutCommand logoutCommand = new(runtime.Profile);
+        profileState.AttachLogoutCommand(logoutCommand.Command);
+        ProfileStateAdapter profileStateAdapter = new(
+            profileState,
+            gameState,
+            runtime.Profile,
             window.Dispatcher);
         PrimaryActionCommand primaryActionCommand = new(
             runtime.Game,
@@ -215,7 +240,9 @@ public partial class App : Application
             gameStateAdapter.Dispose();
             dashboardStateAdapter.Dispose();
             authStateAdapter.Dispose();
+            profileStateAdapter.Dispose();
             authCommands.Dispose();
+            logoutCommand.Dispose();
             primaryActionCommand.Dispose();
             verificationCommand.Dispose();
             refreshDashboardCommand.Dispose();

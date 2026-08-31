@@ -287,6 +287,17 @@
                                          CloseRequested="AuthOverlay_CloseRequested"
                                          Closed="AuthOverlay_Closed"/>
             </Grid>
+
+            <views:ProfileMenuV2 x:Name="ProfileMenu"
+                                 Grid.RowSpan="2"
+                                 Margin="0,58,140,0"
+                                 HorizontalAlignment="Right"
+                                 VerticalAlignment="Top"
+                                 Panel.ZIndex="150"
+                                 State="{Binding ProfileState}"
+                                 IsOpen="{Binding ProfileState.IsOpen, Mode=TwoWay}"
+                                 CloseRequested="ProfileMenu_CloseRequested"
+                                 Closed="ProfileMenu_Closed"/>
         </Grid>
     </Border>
 </Window>

@@ -59,6 +59,33 @@ public static class LauncherV2PreviewData
         return state;
     }
 
+    internal static ProfileUiState CreateProfile(
+        ProfilePreviewScenario scenario = ProfilePreviewScenario.SignedIn)
+    {
+        bool verified = scenario != ProfilePreviewScenario.EmailUnverified;
+        bool loggingOut = scenario == ProfilePreviewScenario.LoggingOut;
+        ProfileUiState state = new();
+        state.ApplyView(new ProfileViewState(
+            IsAuthenticated: true,
+            IsLoggingOut: loggingOut,
+            Username: "Dono1402",
+            Initial: "D",
+            IsEmailVerified: verified,
+            EmailStatusText: verified
+                ? "Adresse e-mail vérifiée"
+                : "Adresse e-mail non vérifiée",
+            CanLogout: !loggingOut,
+            LogoutLabel: loggingOut ? "Déconnexion…" : "Déconnexion",
+            LogoutToolTip: loggingOut ? "Déconnexion en cours." : string.Empty,
+            ErrorMessage: scenario == ProfilePreviewScenario.LogoutError
+                ? "Atlas est indisponible. Ta session reste active."
+                : string.Empty));
+        state.AttachLogoutCommand(loggingOut
+            ? DisabledCommand.Instance
+            : PreviewCommand.Instance);
+        return state;
+    }
+
     internal static DashboardUiState CreateDashboard(GamePreviewScenario scenario)
     {
         DashboardRealmState realmState = scenario == GamePreviewScenario.RealmOffline

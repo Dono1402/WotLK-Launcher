@@ -6,6 +6,7 @@ internal enum LauncherSessionState
     SignedOut,
     Authenticating,
     Registering,
+    LoggingOut,
     Authenticated,
     Unavailable
 }
@@ -23,6 +24,8 @@ internal enum LauncherSessionFailureCategory
     Network,
     Timeout,
     ServiceUnavailable,
+    ServerRejected,
+    SecureStorage,
     AccountCreatedSignInRequired,
     Unknown
 }
@@ -31,7 +34,8 @@ internal enum LauncherSessionOperationKind
 {
     Restore,
     Login,
-    Register
+    Register,
+    Logout
 }
 
 internal enum LauncherSessionStartStatus
@@ -40,7 +44,8 @@ internal enum LauncherSessionStartStatus
     Busy,
     ShuttingDown,
     RejectedByValidation,
-    AlreadyAuthenticated
+    AlreadyAuthenticated,
+    NotAuthenticated
 }
 
 internal enum LauncherSessionCompletionStatus
@@ -88,6 +93,8 @@ internal sealed record AuthSessionSnapshot(
 
     internal bool IsSubmitting => State is LauncherSessionState.Authenticating
         or LauncherSessionState.Registering;
+
+    internal bool IsLoggingOut => State == LauncherSessionState.LoggingOut;
 
     internal string DisplayInitial => string.IsNullOrWhiteSpace(Username)
         ? "?"

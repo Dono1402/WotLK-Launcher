@@ -16,6 +16,8 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
     private Task? _activeRefreshTask;
     private Task? _initializationTask;
     private long _sequence;
+    private long _requestGeneration;
+    private bool _authenticatedRequestsEnabled;
     private bool _isShuttingDown;
     private int _disposeState;
 
@@ -29,6 +31,7 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
         _lifetimeToken = lifetimeToken;
         _writeLog = writeLog ?? throw new ArgumentNullException(nameof(writeLog));
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _authenticatedRequestsEnabled = authentication.Session is not null;
     }
 
     public event EventHandler? AvailabilityChanged;
@@ -84,12 +87,47 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
 
     internal Task RefreshAfterAuthenticationAsync()
     {
+        ResumeAuthenticatedRequests();
         return RefreshFromSessionSignalAsync();
+    }
+
+    internal void SuspendAuthenticatedRequests()
+    {
+        lock (_sync)
+        {
+            _authenticatedRequestsEnabled = false;
+            _requestGeneration++;
+        }
+
+        RaiseAvailabilityChanged();
+    }
+
+    internal void ResumeAuthenticatedRequests()
+    {
+        lock (_sync)
+        {
+            if (_isShuttingDown || Volatile.Read(ref _disposeState) != 0)
+            {
+                return;
+            }
+
+            _authenticatedRequestsEnabled = _authentication.Session is not null;
+            _requestGeneration++;
+        }
+
+        RaiseAvailabilityChanged();
+    }
+
+    internal void ApplySignedOutSession()
+    {
+        SuspendAuthenticatedRequests();
+        PublishUnavailable(DashboardFailureCategory.NoSession);
     }
 
     public DashboardRefreshStartStatus TryRefresh()
     {
         TaskCompletionSource completion;
+        long requestGeneration;
         lock (_sync)
         {
             if (_isShuttingDown
@@ -99,7 +137,7 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
                 return DashboardRefreshStartStatus.ShuttingDown;
             }
 
-            if (_authentication.Session is null)
+            if (!_authenticatedRequestsEnabled || _authentication.Session is null)
             {
                 return DashboardRefreshStartStatus.NoSession;
             }
@@ -111,11 +149,12 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
 
             completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             _activeRefreshTask = completion.Task;
+            requestGeneration = _requestGeneration;
         }
 
         PublishLoading();
         RaiseAvailabilityChanged();
-        _ = ExecuteRefreshAsync(completion);
+        _ = ExecuteRefreshAsync(completion, requestGeneration);
         return DashboardRefreshStartStatus.Started;
     }
 
@@ -221,6 +260,7 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
             return;
         }
 
+        ResumeAuthenticatedRequests();
         await RefreshFromSessionSignalAsync().ConfigureAwait(false);
     }
 
@@ -248,11 +288,13 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
         }
     }
 
-    private async Task ExecuteRefreshAsync(TaskCompletionSource completion)
+    private async Task ExecuteRefreshAsync(
+        TaskCompletionSource completion,
+        long requestGeneration)
     {
         try
         {
-            await RefreshCoreAsync().ConfigureAwait(false);
+            await RefreshCoreAsync(requestGeneration).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (
             _lifetimeToken.IsCancellationRequested || IsStopping())
@@ -267,7 +309,8 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
                 DashboardFetchResult<LauncherServerStatus>.Failure(
                     category),
                 DashboardFetchResult<IReadOnlyList<LauncherNews>>.Failure(
-                    category));
+                    category),
+                requestGeneration);
         }
         finally
         {
@@ -284,11 +327,11 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
         }
     }
 
-    private async Task RefreshCoreAsync()
+    private async Task RefreshCoreAsync(long requestGeneration)
     {
         if (_authentication.Session is null)
         {
-            PublishUnavailable(DashboardFailureCategory.NoSession);
+            PublishUnavailable(DashboardFailureCategory.NoSession, requestGeneration);
             return;
         }
 
@@ -299,7 +342,7 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
                 .ConfigureAwait(false);
             if (!fresh || _authentication.Session is null)
             {
-                PublishUnavailable(DashboardFailureCategory.Unauthorized);
+                PublishUnavailable(DashboardFailureCategory.Unauthorized, requestGeneration);
                 return;
             }
         }
@@ -313,7 +356,13 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
             WriteFailureSafely(category, ex);
             PublishRefreshResult(
                 DashboardFetchResult<LauncherServerStatus>.Failure(category),
-                DashboardFetchResult<IReadOnlyList<LauncherNews>>.Failure(category));
+                DashboardFetchResult<IReadOnlyList<LauncherNews>>.Failure(category),
+                requestGeneration);
+            return;
+        }
+
+        if (!CanUseRequestGeneration(requestGeneration))
+        {
             return;
         }
 
@@ -324,7 +373,7 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
             _authentication.GetNewsAsync,
             "notes de mise à jour");
         await Task.WhenAll(statusTask, notesTask).ConfigureAwait(false);
-        PublishRefreshResult(await statusTask, await notesTask);
+        PublishRefreshResult(await statusTask, await notesTask, requestGeneration);
     }
 
     private async Task<DashboardFetchResult<T>> FetchAsync<T>(
@@ -362,7 +411,9 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
         });
     }
 
-    private void PublishUnavailable(DashboardFailureCategory category)
+    private void PublishUnavailable(
+        DashboardFailureCategory category,
+        long? requestGeneration = null)
     {
         Publish(previous => previous with
         {
@@ -374,12 +425,13 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
             IsStale = previous.HasPatchNote || previous.LastKnownRealmState is not null,
             HasRetainedDataAfterFailure = previous.HasPatchNote
                 || previous.LastKnownRealmState is not null
-        });
+        }, requestGeneration);
     }
 
     private void PublishRefreshResult(
         DashboardFetchResult<LauncherServerStatus> statusResult,
-        DashboardFetchResult<IReadOnlyList<LauncherNews>> notesResult)
+        DashboardFetchResult<IReadOnlyList<LauncherNews>> notesResult,
+        long requestGeneration)
     {
         if (IsStopping())
         {
@@ -443,14 +495,22 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
                 LastKnownRealmState = statusSucceeded ? realmState : previous.LastKnownRealmState,
                 LastKnownRealmStatusLabel = statusSucceeded ? realmLabel : previous.LastKnownRealmStatusLabel
             };
-        });
+        }, requestGeneration);
     }
 
-    private void Publish(Func<DashboardSnapshot, DashboardSnapshot> update)
+    private void Publish(
+        Func<DashboardSnapshot, DashboardSnapshot> update,
+        long? requestGeneration = null)
     {
         lock (_sync)
         {
             if (_isShuttingDown || Volatile.Read(ref _disposeState) != 0)
+            {
+                return;
+            }
+
+            if (requestGeneration is long expected
+                && (!_authenticatedRequestsEnabled || expected != _requestGeneration))
             {
                 return;
             }
@@ -465,6 +525,7 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
         return !_isShuttingDown
             && Volatile.Read(ref _disposeState) == 0
             && !_lifetimeToken.IsCancellationRequested
+            && _authenticatedRequestsEnabled
             && _authentication.Session is not null
             && _activeRefreshTask is null;
     }
@@ -476,6 +537,18 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
             return _isShuttingDown
                 || Volatile.Read(ref _disposeState) != 0
                 || _lifetimeToken.IsCancellationRequested;
+        }
+    }
+
+    private bool CanUseRequestGeneration(long requestGeneration)
+    {
+        lock (_sync)
+        {
+            return !_isShuttingDown
+                && Volatile.Read(ref _disposeState) == 0
+                && _authenticatedRequestsEnabled
+                && _authentication.Session is not null
+                && requestGeneration == _requestGeneration;
         }
     }
 

@@ -8,6 +8,7 @@ internal enum LauncherOperationKind
     GameUpdate,
     Addons,
     LauncherAutoUpdate,
+    Logout,
     Play
 }
 

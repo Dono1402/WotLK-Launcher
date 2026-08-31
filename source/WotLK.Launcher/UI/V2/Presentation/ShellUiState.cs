@@ -8,6 +8,7 @@ public sealed class ShellUiState : BindableUiState
     private string _username = "Dono1402";
     private bool _isAuthenticated = true;
     private bool _isSessionRestoring;
+    private bool _isSessionLoggingOut;
 
     public string ProductName { get; init; } = "Atlas Launcher";
 
@@ -29,7 +30,7 @@ public sealed class ShellUiState : BindableUiState
 
     public bool IsSessionRestoring => _isSessionRestoring;
 
-    public bool IsProfileActionEnabled => !_isSessionRestoring;
+    public bool IsProfileActionEnabled => !_isSessionRestoring && !_isSessionLoggingOut;
 
     public string ProfileInitial => string.IsNullOrWhiteSpace(Username)
         ? "?"
@@ -38,7 +39,7 @@ public sealed class ShellUiState : BindableUiState
     public string ProfileToolTip => IsSessionRestoring
         ? "Restauration de la session…"
         : IsAuthenticated
-            ? $"Profil {Username}"
+            ? Username
             : "Se connecter";
 
     public bool IsGameNavigationEnabled { get; init; } = true;
@@ -67,8 +68,10 @@ public sealed class ShellUiState : BindableUiState
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         _isSessionRestoring = snapshot.IsRestoring;
-        _isAuthenticated = snapshot.IsAuthenticated;
-        _username = snapshot.IsAuthenticated && !string.IsNullOrWhiteSpace(snapshot.Username)
+        _isSessionLoggingOut = snapshot.IsLoggingOut;
+        bool hasAuthenticatedIdentity = snapshot.IsAuthenticated || snapshot.IsLoggingOut;
+        _isAuthenticated = hasAuthenticatedIdentity;
+        _username = hasAuthenticatedIdentity && !string.IsNullOrWhiteSpace(snapshot.Username)
             ? snapshot.Username.Trim()
             : "Compte";
         RaisePropertyChanged(string.Empty);

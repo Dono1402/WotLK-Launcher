@@ -175,6 +175,11 @@ internal sealed class LauncherRuntime : IDisposable
             Operations.ShutdownToken,
             dependencies.WriteRuntimeLog,
             dependencies.DashboardTimeProvider);
+        Profile = new LauncherProfileCoordinator(
+            _sessionCoordinator,
+            Operations,
+            Game,
+            Dashboard);
     }
 
     internal LauncherSettings Settings { get; }
@@ -190,6 +195,8 @@ internal sealed class LauncherRuntime : IDisposable
     internal GameRuntimeCoordinator Game { get; }
 
     internal LauncherDashboardCoordinator Dashboard { get; }
+
+    internal LauncherProfileCoordinator Profile { get; }
 
     internal LauncherSessionCoordinator Session => _sessionCoordinator;
 
@@ -278,7 +285,8 @@ internal sealed class LauncherRuntime : IDisposable
         Task<bool> operations = Operations.WaitForIdleAsync(timeout);
         Task<bool> dashboard = Dashboard.WaitForIdleAsync(timeout);
         Task<bool> session = _sessionCoordinator.WaitForIdleAsync(timeout);
-        bool[] results = await Task.WhenAll(operations, dashboard, session).ConfigureAwait(false);
+        Task<bool> profile = Profile.WaitForIdleAsync(timeout);
+        bool[] results = await Task.WhenAll(operations, dashboard, session, profile).ConfigureAwait(false);
         return results.All(result => result);
     }
 
@@ -296,6 +304,7 @@ internal sealed class LauncherRuntime : IDisposable
             Dashboard.BeginShutdown();
             _sessionCoordinator.BeginShutdown();
             Game.BeginShutdown();
+            Profile.Dispose();
             Dashboard.Dispose();
             Game.Dispose();
             _sessionCoordinator.Dispose();

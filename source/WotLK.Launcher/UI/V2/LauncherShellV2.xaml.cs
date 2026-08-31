@@ -14,6 +14,7 @@ public partial class LauncherShellV2 : Window
 {
     private readonly ShellOverlayCoordinator _overlayCoordinator;
     private readonly AuthPreviewScenario? _initialAuthPreviewScenario;
+    private readonly ProfilePreviewScenario? _initialProfilePreviewScenario;
     private IInputElement? _authFocusReturnTarget;
     private AuthCommands? _authCommands;
 
@@ -24,7 +25,9 @@ public partial class LauncherShellV2 : Window
             LauncherV2PreviewData.CreateDashboard(scenario),
             LauncherV2PreviewData.CreateFriends(),
             LauncherV2PreviewData.CreateAuth(),
+            LauncherV2PreviewData.CreateProfile(),
             authPreviewScenario: null,
+            profilePreviewScenario: null,
             isPreviewMode: true)
     {
     }
@@ -36,7 +39,23 @@ public partial class LauncherShellV2 : Window
             LauncherV2PreviewData.CreateDashboard(scenario),
             LauncherV2PreviewData.CreateFriends(),
             LauncherV2PreviewData.CreateAuth(authScenario),
+            new ProfileUiState(),
             authScenario,
+            profilePreviewScenario: null,
+            isPreviewMode: true)
+    {
+    }
+
+    public LauncherShellV2(GamePreviewScenario scenario, ProfilePreviewScenario profileScenario)
+        : this(
+            LauncherV2PreviewData.CreateShell(scenario, isAuthenticated: true),
+            LauncherV2PreviewData.CreateGame(scenario),
+            LauncherV2PreviewData.CreateDashboard(scenario),
+            LauncherV2PreviewData.CreateFriends(),
+            LauncherV2PreviewData.CreateAuth(),
+            LauncherV2PreviewData.CreateProfile(profileScenario),
+            authPreviewScenario: null,
+            profilePreviewScenario: profileScenario,
             isPreviewMode: true)
     {
     }
@@ -51,8 +70,25 @@ public partial class LauncherShellV2 : Window
             gameState,
             dashboardState,
             friendsState,
+            new ProfileUiState())
+    {
+    }
+
+    internal LauncherShellV2(
+        ShellUiState shellState,
+        GameUiState gameState,
+        DashboardUiState dashboardState,
+        FriendsUiState friendsState,
+        ProfileUiState profileState)
+        : this(
+            shellState,
+            gameState,
+            dashboardState,
+            friendsState,
             new AuthUiState(),
+            profileState,
             authPreviewScenario: null,
+            profilePreviewScenario: null,
             isPreviewMode: false)
     {
     }
@@ -63,7 +99,9 @@ public partial class LauncherShellV2 : Window
         DashboardUiState dashboardState,
         FriendsUiState friendsState,
         AuthUiState authState,
+        ProfileUiState profileState,
         AuthPreviewScenario? authPreviewScenario,
+        ProfilePreviewScenario? profilePreviewScenario,
         bool isPreviewMode)
     {
         ShellState = shellState ?? throw new ArgumentNullException(nameof(shellState));
@@ -71,8 +109,10 @@ public partial class LauncherShellV2 : Window
         DashboardState = dashboardState ?? throw new ArgumentNullException(nameof(dashboardState));
         FriendsState = friendsState ?? throw new ArgumentNullException(nameof(friendsState));
         AuthState = authState ?? throw new ArgumentNullException(nameof(authState));
-        _overlayCoordinator = new ShellOverlayCoordinator(FriendsState, AuthState);
+        ProfileState = profileState ?? throw new ArgumentNullException(nameof(profileState));
+        _overlayCoordinator = new ShellOverlayCoordinator(FriendsState, AuthState, ProfileState);
         _initialAuthPreviewScenario = authPreviewScenario;
+        _initialProfilePreviewScenario = profilePreviewScenario;
         IsPreviewMode = isPreviewMode;
 
         InitializeComponent();
@@ -82,6 +122,7 @@ public partial class LauncherShellV2 : Window
         SizeChanged += LauncherShellV2_SizeChanged;
         StateChanged += LauncherShellV2_StateChanged;
         PreviewKeyDown += LauncherShellV2_PreviewKeyDown;
+        PreviewMouseDown += LauncherShellV2_PreviewMouseDown;
         PreviewGotKeyboardFocus += LauncherShellV2_PreviewGotKeyboardFocus;
         Loaded += LauncherShellV2_Loaded;
         Closed += LauncherShellV2_Closed;
@@ -97,6 +138,8 @@ public partial class LauncherShellV2 : Window
 
     public AuthUiState AuthState { get; }
 
+    public ProfileUiState ProfileState { get; }
+
     internal bool IsPreviewMode { get; }
 
     internal bool HasRealAuthenticationAttached => _authCommands is not null;
@@ -106,6 +149,8 @@ public partial class LauncherShellV2 : Window
     internal AuthOverlayViewV2 AuthenticationOverlay => AuthOverlay;
 
     internal FriendsDrawerV2 FriendsOverlay => FriendsDrawer;
+
+    internal ProfileMenuV2 ProfileOverlay => ProfileMenu;
 
     internal void AttachAuthentication(AuthCommands commands)
     {
@@ -155,6 +200,18 @@ public partial class LauncherShellV2 : Window
         FriendsButton.Focusable = false;
     }
 
+    internal void OpenProfileForPreview(ProfilePreviewScenario scenario)
+    {
+        if (!IsPreviewMode)
+        {
+            return;
+        }
+
+        _overlayCoordinator.OpenProfilePreview();
+        ProfileButton.Focusable = false;
+        ProfileMenu.FocusFirstControl();
+    }
+
     internal void SetFriendsDrawerOpenForPreview()
     {
         if (!IsLoaded)
@@ -188,6 +245,10 @@ public partial class LauncherShellV2 : Window
         {
             OpenAuthenticationForPreview(scenario);
         }
+        else if (_initialProfilePreviewScenario is ProfilePreviewScenario profileScenario)
+        {
+            OpenProfileForPreview(profileScenario);
+        }
     }
 
     private void LauncherShellV2_Closed(object? sender, EventArgs e)
@@ -196,12 +257,16 @@ public partial class LauncherShellV2 : Window
         SizeChanged -= LauncherShellV2_SizeChanged;
         StateChanged -= LauncherShellV2_StateChanged;
         PreviewKeyDown -= LauncherShellV2_PreviewKeyDown;
+        PreviewMouseDown -= LauncherShellV2_PreviewMouseDown;
         PreviewGotKeyboardFocus -= LauncherShellV2_PreviewGotKeyboardFocus;
         AuthOverlay.SubmissionRequested -= AuthOverlay_SubmissionRequested;
         _authCommands = null;
         AuthOverlay.DetachFromShell();
         AuthOverlay.State = null;
         AuthOverlay.IsOpen = false;
+        ProfileMenu.DetachFromShell();
+        ProfileMenu.State = null;
+        ProfileMenu.IsOpen = false;
         DataContext = null;
         AuthState.Dispose();
     }
@@ -277,13 +342,27 @@ public partial class LauncherShellV2 : Window
 
     private void ProfileButton_Click(object sender, RoutedEventArgs e)
     {
+        if (ShellState.IsAuthenticated)
+        {
+            if (_overlayCoordinator.TryToggleProfile())
+            {
+                ProfileButton.Focusable = !ProfileState.IsOpen;
+                if (ProfileState.IsOpen)
+                {
+                    ProfileMenu.FocusFirstControl();
+                }
+            }
+
+            return;
+        }
+
         if (IsPreviewMode)
         {
             OpenAuthenticationForPreview(AuthPreviewScenario.Login);
             return;
         }
 
-        if (ShellState.IsAuthenticated || ShellState.IsSessionRestoring || AuthState.IsOpen)
+        if (ShellState.IsSessionRestoring || AuthState.IsOpen || ProfileState.Current.IsLoggingOut)
         {
             return;
         }
@@ -292,6 +371,11 @@ public partial class LauncherShellV2 : Window
         AuthState.PrepareForOpen();
         _overlayCoordinator.OpenAuthentication();
         FriendsButton.Focusable = false;
+    }
+
+    private void ProfileMenu_CloseRequested(object? sender, EventArgs e)
+    {
+        _overlayCoordinator.CloseProfile();
     }
 
     private void AuthOverlay_CloseRequested(object? sender, EventArgs e)
@@ -310,6 +394,12 @@ public partial class LauncherShellV2 : Window
     private void AuthOverlay_Closed(object? sender, EventArgs e)
     {
         FriendsButton.Focusable = true;
+        if (_overlayCoordinator.Current != ShellOverlayKind.None)
+        {
+            _authFocusReturnTarget = null;
+            return;
+        }
+
         if (_authFocusReturnTarget is not null)
         {
             FocusManager.SetFocusedElement(this, _authFocusReturnTarget);
@@ -321,13 +411,24 @@ public partial class LauncherShellV2 : Window
 
     private void FriendsDrawer_Closed(object? sender, EventArgs e)
     {
-        if (FriendsState.IsOpen)
+        FriendsButton.Focusable = true;
+        if (FriendsState.IsOpen || _overlayCoordinator.Current != ShellOverlayKind.None)
         {
             return;
         }
 
-        FriendsButton.Focusable = true;
         Keyboard.Focus(FriendsButton);
+    }
+
+    private void ProfileMenu_Closed(object? sender, EventArgs e)
+    {
+        ProfileButton.Focusable = true;
+        if (ProfileState.IsOpen || _overlayCoordinator.Current != ShellOverlayKind.None)
+        {
+            return;
+        }
+
+        Keyboard.Focus(ProfileButton);
     }
 
     private void LauncherShellV2_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -343,7 +444,31 @@ public partial class LauncherShellV2 : Window
         {
             FriendsState.IsOpen = false;
             e.Handled = true;
+            return;
         }
+
+        if (e.Key == Key.Escape && ProfileState.IsOpen)
+        {
+            _overlayCoordinator.CloseProfile();
+            e.Handled = true;
+        }
+    }
+
+    private void LauncherShellV2_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!ProfileState.IsOpen)
+        {
+            return;
+        }
+
+        DependencyObject? source = e.OriginalSource as DependencyObject;
+        if (ProfileMenu.ContainsTarget(source)
+            || FindAncestor<Button>(source) is Button button && ReferenceEquals(button, ProfileButton))
+        {
+            return;
+        }
+
+        _overlayCoordinator.CloseProfile();
     }
 
     private void LauncherShellV2_PreviewGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)

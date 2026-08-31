@@ -1013,6 +1013,8 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
 
     internal Func<CancellationToken, Task<IReadOnlyList<LauncherNews>>>? NewsHandler { get; set; }
 
+    internal Func<CancellationToken, Task>? LogoutHandler { get; set; }
+
     public LauncherAuthSession? Session { get; set; }
 
     public string? AccessToken => Session?.AccessToken;
@@ -1036,6 +1038,10 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
     internal int GetNewsCalls { get; private set; }
 
     internal int CreateGameTicketCalls { get; private set; }
+
+    internal int LogoutCalls { get; private set; }
+
+    internal int InvalidateLocalSessionCalls { get; private set; }
 
     internal int DisposeCalls { get; private set; }
 
@@ -1131,6 +1137,7 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
 
     public void InvalidateLocalSession()
     {
+        InvalidateLocalSessionCalls++;
         Session = null;
     }
 
@@ -1240,10 +1247,16 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
         return Task.FromResult("OK");
     }
 
-    public Task LogoutAsync(CancellationToken cancellationToken = default)
+    public async Task LogoutAsync(CancellationToken cancellationToken = default)
     {
+        LogoutCalls++;
+        if (LogoutHandler is not null)
+        {
+            await LogoutHandler(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         Session = null;
-        return Task.CompletedTask;
     }
 
     public void Dispose()

@@ -1,5 +1,7 @@
+using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
 using WotLK.Launcher.Game;
 
 namespace WotLK.Launcher.Runtime;
@@ -177,6 +179,73 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
         TryCancel(cancellation);
         RaiseSnapshotChanged(snapshot);
         return true;
+    }
+
+    internal LauncherSessionStartResult TryLogout(CancellationToken operationToken)
+    {
+        TaskCompletionSource<LauncherSessionCompletion> completion;
+        CancellationTokenSource cancellation;
+        AuthSessionSnapshot snapshot;
+        string username;
+        bool isEmailVerified;
+        long attemptId;
+
+        lock (_sync)
+        {
+            if (IsStoppingUnsafe())
+            {
+                return LauncherSessionStartResult.Rejected(
+                    LauncherSessionStartStatus.ShuttingDown,
+                    _currentSnapshot);
+            }
+
+            if (_activeAttemptId is not null)
+            {
+                return LauncherSessionStartResult.Rejected(
+                    LauncherSessionStartStatus.Busy,
+                    _currentSnapshot);
+            }
+
+            if (!_currentSnapshot.IsAuthenticated)
+            {
+                return LauncherSessionStartResult.Rejected(
+                    LauncherSessionStartStatus.NotAuthenticated,
+                    _currentSnapshot);
+            }
+
+            attemptId = ++_nextAttemptId;
+            username = _currentSnapshot.Username;
+            isEmailVerified = _currentSnapshot.IsEmailVerified;
+            cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                _lifetimeToken,
+                operationToken);
+            completion = new TaskCompletionSource<LauncherSessionCompletion>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            _inFlightTasks.Add(completion.Task);
+            _attemptCancellations.Add(attemptId, cancellation);
+            _activeAttemptId = attemptId;
+            _activeOperationKind = LauncherSessionOperationKind.Logout;
+            snapshot = SetSnapshotUnsafe(
+                attemptId,
+                LauncherSessionState.LoggingOut,
+                LauncherSessionOperationKind.Logout,
+                username,
+                isEmailVerified,
+                LauncherSessionFailureCategory.None);
+        }
+
+        WriteLogoutStartSafely(attemptId);
+        RaiseSnapshotChanged(snapshot);
+        _ = RunLogoutAsync(
+            attemptId,
+            username,
+            isEmailVerified,
+            cancellation,
+            completion);
+        return new LauncherSessionStartResult(
+            LauncherSessionStartStatus.Started,
+            attemptId,
+            completion.Task);
     }
 
     public async Task<GameTicketAcquisitionResult> AcquireGameTicketAsync(
@@ -490,6 +559,125 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
         FinishAttempt(attemptId, cancellation, completion.Task);
     }
 
+    private async Task RunLogoutAsync(
+        long attemptId,
+        string username,
+        bool isEmailVerified,
+        CancellationTokenSource cancellation,
+        TaskCompletionSource<LauncherSessionCompletion> completion)
+    {
+        LauncherSessionCompletion result;
+        try
+        {
+            await _authentication.LogoutAsync(cancellation.Token).ConfigureAwait(false);
+            if (IsCancelledOrSuperseded(attemptId, cancellation.Token))
+            {
+                result = new LauncherSessionCompletion(
+                    LauncherSessionCompletionStatus.Superseded,
+                    CurrentSnapshot);
+            }
+            else if (_authentication.Session is null)
+            {
+                result = CompleteLogoutSuccess(attemptId);
+            }
+            else
+            {
+                result = CompleteLogoutFailure(
+                    attemptId,
+                    username,
+                    isEmailVerified,
+                    LauncherSessionFailureCategory.Unknown);
+            }
+        }
+        catch (OperationCanceledException) when (
+            cancellation.IsCancellationRequested || _lifetimeToken.IsCancellationRequested)
+        {
+            result = new LauncherSessionCompletion(
+                IsCurrentAttempt(attemptId)
+                    ? LauncherSessionCompletionStatus.Cancelled
+                    : LauncherSessionCompletionStatus.Superseded,
+                CurrentSnapshot);
+        }
+        catch (Exception exception)
+        {
+            LauncherSessionFailureCategory category = ClassifyFailure(
+                exception,
+                LauncherSessionOperationKind.Logout);
+            WriteFailureSafely(LauncherSessionOperationKind.Logout, category, exception);
+            result = CompleteLogoutFailure(
+                attemptId,
+                username,
+                isEmailVerified,
+                category);
+        }
+
+        completion.TrySetResult(result);
+        FinishAttempt(attemptId, cancellation, completion.Task);
+    }
+
+    private LauncherSessionCompletion CompleteLogoutSuccess(long attemptId)
+    {
+        AuthSessionSnapshot? snapshot = null;
+        lock (_sync)
+        {
+            if (!IsCurrentAttemptUnsafe(attemptId))
+            {
+                return new LauncherSessionCompletion(
+                    LauncherSessionCompletionStatus.Superseded,
+                    _currentSnapshot);
+            }
+
+            snapshot = SetSnapshotUnsafe(
+                attemptId,
+                LauncherSessionState.SignedOut,
+                LauncherSessionOperationKind.Logout,
+                string.Empty,
+                isEmailVerified: true,
+                LauncherSessionFailureCategory.None);
+            ClearActiveAttemptUnsafe(attemptId);
+        }
+
+        RaiseSnapshotChanged(snapshot);
+        return new LauncherSessionCompletion(
+            LauncherSessionCompletionStatus.Succeeded,
+            snapshot);
+    }
+
+    private LauncherSessionCompletion CompleteLogoutFailure(
+        long attemptId,
+        string username,
+        bool isEmailVerified,
+        LauncherSessionFailureCategory category)
+    {
+        AuthSessionSnapshot? snapshot = null;
+        lock (_sync)
+        {
+            if (!IsCurrentAttemptUnsafe(attemptId))
+            {
+                return new LauncherSessionCompletion(
+                    LauncherSessionCompletionStatus.Superseded,
+                    _currentSnapshot);
+            }
+
+            bool locallySignedOut = _authentication.Session is null;
+            snapshot = SetSnapshotUnsafe(
+                attemptId,
+                locallySignedOut
+                    ? LauncherSessionState.SignedOut
+                    : LauncherSessionState.Authenticated,
+                LauncherSessionOperationKind.Logout,
+                locallySignedOut ? string.Empty : username,
+                locallySignedOut || isEmailVerified,
+                category);
+            ClearActiveAttemptUnsafe(attemptId);
+        }
+
+        RaiseSnapshotChanged(snapshot);
+        return new LauncherSessionCompletion(
+            LauncherSessionCompletionStatus.Failed,
+            snapshot);
+    }
+
     private LauncherSessionRestoreResult CompleteRestoreSuccess(
         long attemptId,
         LauncherAuthSession session)
@@ -766,6 +954,18 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
         }
     }
 
+    private void WriteLogoutStartSafely(long attemptId)
+    {
+        try
+        {
+            _writeLog($"Déconnexion V2 demandée: generation={attemptId}.");
+        }
+        catch
+        {
+            // Logging cannot prevent local session cleanup.
+        }
+    }
+
     private void InvalidateSessionAfterGameTicketFailure(
         LauncherSessionFailureCategory category)
     {
@@ -821,6 +1021,14 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
             return LauncherSessionFailureCategory.Timeout;
         }
 
+        if (operationKind == LauncherSessionOperationKind.Logout
+            && exception is IOException
+                or UnauthorizedAccessException
+                or CryptographicException)
+        {
+            return LauncherSessionFailureCategory.SecureStorage;
+        }
+
         if (exception is HttpRequestException httpException)
         {
             return httpException.StatusCode is HttpStatusCode.RequestTimeout
@@ -835,6 +1043,11 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
         {
             if (authException.StatusCode == HttpStatusCode.Unauthorized)
             {
+                if (operationKind == LauncherSessionOperationKind.Logout)
+                {
+                    return LauncherSessionFailureCategory.ServerRejected;
+                }
+
                 return operationKind == LauncherSessionOperationKind.Login
                     ? LauncherSessionFailureCategory.InvalidCredentials
                     : LauncherSessionFailureCategory.Unauthorized;
@@ -865,6 +1078,11 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
                 or HttpStatusCode.GatewayTimeout)
             {
                 return LauncherSessionFailureCategory.Timeout;
+            }
+
+            if (operationKind == LauncherSessionOperationKind.Logout)
+            {
+                return LauncherSessionFailureCategory.ServerRejected;
             }
 
             return authException.StatusCode is >= HttpStatusCode.InternalServerError

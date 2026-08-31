@@ -26,4 +26,19 @@ WotLK.Launcher.exe --ui-v2 --preview-state=Ready --ui-v2-size=1080x680 --ui-v2-f
 
 Dans le mode preview uniquement, les statuts, l'actualité, l'installation et la liste d'amis sont fictifs. Seules les commandes de fenêtre et l'ouverture/fermeture du panneau Amis sont interactives.
 
+Prévisualiser l'overlay d'authentification fictif :
+
+```powershell
+WotLK.Launcher.exe --ui-v2 --preview-auth=login
+WotLK.Launcher.exe --ui-v2 --preview-auth=register
+WotLK.Launcher.exe --ui-v2 --preview-auth=loading
+WotLK.Launcher.exe --ui-v2 --preview-auth=login-error
+WotLK.Launcher.exe --ui-v2 --preview-auth=register-error
+WotLK.Launcher.exe --ui-v2 --preview-auth=register-validation
+WotLK.Launcher.exe --ui-v2 --preview-auth=email-warning
+WotLK.Launcher.exe --ui-v2 --preview-auth=service-unavailable
+```
+
+`--preview-auth` sans valeur ouvre la connexion. Cet argument sans `--ui-v2` est refusé avant toute composition de service. Le preview d'authentification ne crée ni authentification réelle, ni client HTTP, ni session, ni accès au client WotLK, ni timer, ni processus enfant.
+
 Le manifeste v1.1.0 ne déclare pas explicitement de mode DPI. Le processus observé sous Windows est `PROCESS_SYSTEM_DPI_AWARE`. Ce checkpoint conserve volontairement ce comportement ; le passage à PerMonitorV2 est hors périmètre.

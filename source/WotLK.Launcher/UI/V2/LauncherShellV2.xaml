@@ -204,15 +204,17 @@
                                   Style="{StaticResource AtlasV2.Icon.Stroke}"/>
                         </Button>
 
-                        <Button Width="40"
+                        <Button x:Name="ProfileButton"
+                                Width="40"
                                 Height="40"
                                 Margin="0,0,8,0"
                                 Padding="0"
                                 Style="{StaticResource AtlasV2.Button.Icon}"
                                 ToolTip="{Binding ShellState.ProfileToolTip}"
                                 IsEnabled="{Binding ShellState.IsNavigationEnabled}"
-                                Focusable="False"
-                                AutomationProperties.Name="{Binding ShellState.ProfileToolTip}">
+                                Focusable="True"
+                                AutomationProperties.Name="{Binding ShellState.ProfileToolTip}"
+                                Click="ProfileButton_Click">
                             <Border Width="34"
                                     Height="34"
                                     Background="{StaticResource AtlasV2.Brush.Gold}"
@@ -232,14 +234,16 @@
                                    Text="{Binding ShellState.LauncherVersion}"
                                    Style="{StaticResource AtlasV2.Text.Caption}"/>
 
-                        <Button Style="{StaticResource AtlasV2.Button.Window}"
+                        <Button x:Name="MinimizeWindowButton"
+                                Style="{StaticResource AtlasV2.Button.Window}"
                                 ToolTip="Réduire"
                                 AutomationProperties.Name="Réduire"
                                 Click="MinimizeButton_Click">
                             <Path Data="{StaticResource AtlasV2.Icon.Minus}"
                                   Style="{StaticResource AtlasV2.Icon.Stroke}"/>
                         </Button>
-                        <Button Style="{StaticResource AtlasV2.Button.Window}"
+                        <Button x:Name="MaximizeWindowButton"
+                                Style="{StaticResource AtlasV2.Button.Window}"
                                 ToolTip="Agrandir ou restaurer"
                                 AutomationProperties.Name="Agrandir ou restaurer"
                                 Click="MaximizeRestoreButton_Click">
@@ -253,7 +257,8 @@
                                       Visibility="Collapsed"/>
                             </Grid>
                         </Button>
-                        <Button Style="{StaticResource AtlasV2.Button.WindowClose}"
+                        <Button x:Name="CloseWindowButton"
+                                Style="{StaticResource AtlasV2.Button.WindowClose}"
                                 ToolTip="Fermer"
                                 AutomationProperties.Name="Fermer"
                                 Click="CloseWindowButton_Click">
@@ -275,6 +280,12 @@
                                        IsOpen="{Binding FriendsState.IsOpen, Mode=TwoWay}"
                                        CloseRequested="FriendsDrawer_CloseRequested"
                                        Closed="FriendsDrawer_Closed"/>
+                <views:AuthOverlayViewV2 x:Name="AuthOverlay"
+                                         Panel.ZIndex="100"
+                                         State="{Binding AuthState}"
+                                         IsOpen="{Binding AuthState.IsOpen, Mode=TwoWay}"
+                                         CloseRequested="AuthOverlay_CloseRequested"
+                                         Closed="AuthOverlay_Closed"/>
             </Grid>
         </Grid>
     </Border>

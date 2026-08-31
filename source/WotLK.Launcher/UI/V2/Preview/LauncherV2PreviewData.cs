@@ -37,11 +37,26 @@ public static class LauncherV2PreviewData
         };
     }
 
-    public static ShellUiState CreateShell(GamePreviewScenario scenario) => new()
+    public static ShellUiState CreateShell(
+        GamePreviewScenario scenario,
+        bool isAuthenticated = true) => new()
     {
+        Username = isAuthenticated ? "Dono1402" : "Compte",
+        IsAuthenticated = isAuthenticated,
         IsNavigationEnabled = scenario is not GamePreviewScenario.Downloading
             and not GamePreviewScenario.Installing
     };
+
+    internal static AuthUiState CreateAuth(AuthPreviewScenario? scenario = null)
+    {
+        AuthUiState state = new();
+        if (scenario is AuthPreviewScenario previewScenario)
+        {
+            state.ApplyPreviewScenario(previewScenario);
+        }
+
+        return state;
+    }
 
     internal static DashboardUiState CreateDashboard(GamePreviewScenario scenario)
     {

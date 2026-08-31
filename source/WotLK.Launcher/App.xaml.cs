@@ -15,6 +15,8 @@ internal enum LauncherStartupMode
     Legacy,
     UiV2,
     UiV2Preview,
+    UiV2AuthPreview,
+    InvalidArguments,
     GrantGameDirectoryAccess,
     UninstallGame
 }
@@ -27,7 +29,20 @@ public partial class App : Application
 
         base.OnStartup(e);
 
-        if (startupMode is LauncherStartupMode.UiV2 or LauncherStartupMode.UiV2Preview)
+        if (startupMode == LauncherStartupMode.InvalidArguments)
+        {
+            MessageBox.Show(
+                "L’argument --preview-auth nécessite également --ui-v2.",
+                "Prévisualisation Atlas Launcher",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            Shutdown(2);
+            return;
+        }
+
+        if (startupMode is LauncherStartupMode.UiV2
+            or LauncherStartupMode.UiV2Preview
+            or LauncherStartupMode.UiV2AuthPreview)
         {
             try
             {
@@ -45,10 +60,14 @@ public partial class App : Application
                 return;
             }
 
-            if (startupMode == LauncherStartupMode.UiV2Preview)
+            if (startupMode is LauncherStartupMode.UiV2Preview or LauncherStartupMode.UiV2AuthPreview)
             {
                 GamePreviewScenario previewScenario = LauncherV2PreviewData.ResolveScenario(e.Args);
-                LauncherShellV2 previewWindow = new(previewScenario);
+                LauncherShellV2 previewWindow = startupMode == LauncherStartupMode.UiV2AuthPreview
+                    ? new LauncherShellV2(
+                        previewScenario,
+                        AuthPreviewArguments.ResolveScenario(e.Args))
+                    : new LauncherShellV2(previewScenario);
                 ApplyV2PreviewOptions(previewWindow, e.Args);
                 MainWindow = previewWindow;
                 previewWindow.Show();
@@ -81,8 +100,19 @@ public partial class App : Application
         string[] args = arguments as string[] ?? arguments.ToArray();
         bool useUiV2 = args.Any(argument =>
             string.Equals(argument, "--ui-v2", StringComparison.OrdinalIgnoreCase));
+        bool useAuthPreview = AuthPreviewArguments.IsRequested(args);
+        if (useAuthPreview && !useUiV2)
+        {
+            return LauncherStartupMode.InvalidArguments;
+        }
+
         if (useUiV2)
         {
+            if (useAuthPreview)
+            {
+                return LauncherStartupMode.UiV2AuthPreview;
+            }
+
             bool usePreview = args.Any(argument =>
                 argument.StartsWith("--preview-state=", StringComparison.OrdinalIgnoreCase));
             return usePreview ? LauncherStartupMode.UiV2Preview : LauncherStartupMode.UiV2;

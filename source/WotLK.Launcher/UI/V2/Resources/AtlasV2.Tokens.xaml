@@ -27,7 +27,13 @@
     <SolidColorBrush x:Key="AtlasV2.Brush.Cyan" Color="#61D5E8"/>
     <SolidColorBrush x:Key="AtlasV2.Brush.Success" Color="#51D7A2"/>
     <SolidColorBrush x:Key="AtlasV2.Brush.Danger" Color="#EE6571"/>
+    <SolidColorBrush x:Key="AtlasV2.Brush.GoldSurface" Color="#2C2516"/>
+    <SolidColorBrush x:Key="AtlasV2.Brush.GoldBorder" Color="#715B29"/>
+    <SolidColorBrush x:Key="AtlasV2.Brush.DangerSurface" Color="#2A171C"/>
+    <SolidColorBrush x:Key="AtlasV2.Brush.DangerBorder" Color="#71343D"/>
+    <SolidColorBrush x:Key="AtlasV2.Brush.Field" Color="#0D1217"/>
     <SolidColorBrush x:Key="AtlasV2.Brush.Scrim" Color="#9905080B"/>
+    <SolidColorBrush x:Key="AtlasV2.Brush.AuthScrim" Color="#D10A0E13"/>
 
     <Style x:Key="AtlasV2.Text.Body" TargetType="{x:Type TextBlock}">
         <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Manrope}"/>

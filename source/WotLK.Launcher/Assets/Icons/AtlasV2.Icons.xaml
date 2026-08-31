@@ -17,6 +17,9 @@
     <Geometry x:Key="AtlasV2.Icon.Refresh">M20,7 V3 L18,5 A9,9 0 1 0 21,12 M20,3 H16</Geometry>
     <Geometry x:Key="AtlasV2.Icon.ChevronDown">M6,9 L12,15 L18,9</Geometry>
     <Geometry x:Key="AtlasV2.Icon.ArrowRight">M5,12 H19 M13,6 L19,12 L13,18</Geometry>
+    <Geometry x:Key="AtlasV2.Icon.Lock">M5,11 H19 V21 H5 Z M8,11 V7 A4,4 0 0 1 16,7 V11 M12,15 V17</Geometry>
+    <Geometry x:Key="AtlasV2.Icon.Mail">M4,5 H20 V19 H4 Z M4,7 L12,13 L20,7</Geometry>
+    <Geometry x:Key="AtlasV2.Icon.Info">M12,22 A10,10 0 1 0 12,2 A10,10 0 1 0 12,22 M12,11 V16 M12,8 V8.1</Geometry>
 
     <Style x:Key="AtlasV2.Icon.Stroke" TargetType="{x:Type Path}">
         <Setter Property="Stroke" Value="#B6C0CC"/>

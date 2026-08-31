@@ -15,6 +15,19 @@
         </Setter>
     </Style>
 
+    <Style x:Key="AtlasV2.FocusVisual.Field">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border Margin="-12,-8"
+                            BorderBrush="{StaticResource AtlasV2.Brush.Cyan}"
+                            BorderThickness="2"
+                            CornerRadius="6"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="AtlasV2.Button.Base" TargetType="{x:Type Button}">
         <Setter Property="Height" Value="44"/>
         <Setter Property="Padding" Value="18,0"/>
@@ -186,6 +199,94 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <Style x:Key="AtlasV2.Button.Segment" TargetType="{x:Type Button}" BasedOn="{StaticResource AtlasV2.Button.Base}">
+        <Setter Property="Height" Value="38"/>
+        <Setter Property="Padding" Value="14,0"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfaceHover}"/>
+                <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="Active">
+                <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfaceRaised}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Border}"/>
+                <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="AtlasV2.Field.Container" TargetType="{x:Type Border}">
+        <Setter Property="Height" Value="46"/>
+        <Setter Property="Padding" Value="13,0"/>
+        <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.Field}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Border}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
+    </Style>
+
+    <Style x:Key="AtlasV2.TextBox.Field" TargetType="{x:Type TextBox}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
+        <Setter Property="CaretBrush" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
+        <Setter Property="SelectionBrush" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
+        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Manrope}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="FocusVisualStyle" Value="{StaticResource AtlasV2.FocusVisual.Field}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type TextBox}">
+                    <ScrollViewer x:Name="PART_ContentHost"
+                                  VerticalAlignment="Center"
+                                  Focusable="False"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AtlasV2.PasswordBox.Field" TargetType="{x:Type PasswordBox}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
+        <Setter Property="CaretBrush" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
+        <Setter Property="SelectionBrush" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
+        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Manrope}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="FocusVisualStyle" Value="{StaticResource AtlasV2.FocusVisual.Field}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type PasswordBox}">
+                    <ScrollViewer x:Name="PART_ContentHost"
+                                  VerticalAlignment="Center"
+                                  Focusable="False"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AtlasV2.Banner.Warning" TargetType="{x:Type Border}">
+        <Setter Property="Padding" Value="13,11"/>
+        <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.GoldSurface}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.GoldBorder}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
+    </Style>
+
+    <Style x:Key="AtlasV2.Banner.Error" TargetType="{x:Type Border}">
+        <Setter Property="Padding" Value="13,11"/>
+        <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.DangerSurface}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.DangerBorder}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
     </Style>
 
     <Style x:Key="AtlasV2.Progress.Compact" TargetType="{x:Type ProgressBar}">

@@ -7,12 +7,15 @@ internal enum GameClientMaintenancePhase
     GameProcessesStopped,
     ComparingManifest,
     ScanningFiles,
+    FullVerification,
     ComparisonCompleted,
     Cleaning,
     CleanupCompleted,
     DownloadingStarted,
     DownloadingFile,
     Downloading,
+    RepairDownloading,
+    RepairApplying,
     CacheSaved,
     Registering,
     RegistrationCompleted,
@@ -61,4 +64,12 @@ internal sealed record GameClientMaintenanceResult(
 internal sealed record GameFileTransferProgress(
     long OperationId,
     long DownloadedBytes,
-    long? TotalBytes);
+    long? TotalBytes,
+    GameFileTransferStage Stage = GameFileTransferStage.Downloading);
+
+internal enum GameFileTransferStage
+{
+    Downloading,
+    Applying,
+    Completed
+}

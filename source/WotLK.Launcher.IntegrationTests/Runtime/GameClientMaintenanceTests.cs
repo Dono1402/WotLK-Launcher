@@ -591,6 +591,7 @@ internal static class GameClientMaintenanceTests
         foreach (Type type in new[]
                  {
                      typeof(GameClientMaintenanceService),
+                     typeof(GameFullFileVerifier),
                      typeof(GameFileTransferService),
                      typeof(GameFileCleanupService)
                  })
@@ -768,7 +769,9 @@ internal sealed class MaintenanceEnvironment : IDisposable
     private readonly LauncherOperationCoordinator _operations = new();
     private readonly RecordingManifestClient _manifestClient;
 
-    internal MaintenanceEnvironment(IGameFileTransferService? transferOverride = null)
+    internal MaintenanceEnvironment(
+        IGameFileTransferService? transferOverride = null,
+        IGameFullFileVerifier? fullVerifierOverride = null)
     {
         Root = Path.Combine(
             Path.GetTempPath(),
@@ -796,7 +799,8 @@ internal sealed class MaintenanceEnvironment : IDisposable
             Store,
             transfer,
             cleanup,
-            Platform);
+            Platform,
+            fullVerifierOverride);
         Request = new GameClientMaintenanceRequest(
             Root,
             "https://atlas.test/manifest.json",
@@ -838,6 +842,31 @@ internal sealed class MaintenanceEnvironment : IDisposable
         try
         {
             return await Service.InstallOrUpdateAsync(Request, operation, progress);
+        }
+        finally
+        {
+            operation.Complete();
+        }
+    }
+
+    internal async Task<GameClientMaintenanceResult> RunRepairAsync(
+        Action<GameClientMaintenanceProgress>? progress = null,
+        Action<LauncherOperationLease>? leaseStarted = null)
+    {
+        LauncherOperationStartResult start = _operations.TryBegin(
+            LauncherOperationKind.GameRepair,
+            canUserCancel: true,
+            clientIsPlayable: true);
+        if (!start.IsStarted)
+        {
+            throw new InvalidOperationException("Impossible d'acquérir le bail GameRepair témoin.");
+        }
+
+        using LauncherOperationLease operation = start.Lease!;
+        leaseStarted?.Invoke(operation);
+        try
+        {
+            return await Service.VerifyAndRepairAsync(Request, operation, progress);
         }
         finally
         {
@@ -940,6 +969,8 @@ internal sealed class RecordingInstallPlatform(
     string root,
     List<string> events) : IGameInstallPlatform
 {
+    internal Exception? RegistrationFailure { get; set; }
+
     internal int StopCalls { get; private set; }
 
     internal int RegisterCalls { get; private set; }
@@ -957,6 +988,11 @@ internal sealed class RecordingInstallPlatform(
     {
         RegisterCalls++;
         events.Add("register-game");
+        if (RegistrationFailure is not null)
+        {
+            throw RegistrationFailure;
+        }
+
         string configPath = Path.Combine(root, "_classic_", "WTF", "Config.wtf");
         string uninstallerPath = Path.Combine(root, GameInstallServices.UninstallerFileName);
         Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);

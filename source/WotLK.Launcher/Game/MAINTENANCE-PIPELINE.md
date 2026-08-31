@@ -1,8 +1,31 @@
-# Pipeline de maintenance du client - checkpoint 02D.1
+# Pipeline de maintenance du client - checkpoints 02D.1 et 02C.1
 
 Ce document caractérise le pipeline v1.1.0 extrait de `MainWindow.xaml.cs`.
-La fenêtre legacy reste propriétaire du bail et de la présentation. La V2 ne
-consomme pas encore ce pipeline.
+La fenêtre legacy reste propriétaire de son bail et de sa présentation. La V2
+réutilise ce même pipeline pour l'installation, la mise à jour et la réparation
+ciblée, sans déplacer le comportement legacy.
+
+## Extension 02C.1 : vérification complète et réparation
+
+- L'analyse automatique conserve `GameClientVerificationService`, le bail
+  `Verify`, le cache rapide et ses limites historiques.
+- Le clic V2 sur Vérifier acquiert un bail unique `GameRepair`, charge le
+  manifeste une seule fois, puis `GameFullFileVerifier` valide chaque chemin,
+  taille et SHA-256 sans consulter le cache pour éviter un hash.
+- Seuls les résultats `Missing`, `SizeMismatch` et `HashMismatch` sont transmis
+  à `GameClientMaintenanceService`. Le téléchargement, le temporaire, les
+  validations et le remplacement restent ceux de `GameFileTransferService`.
+- Un chemin `InvalidPath` ou un `ReadError` bloque la réparation avant tout
+  téléchargement et avant toute écriture du cache.
+- Le nettoyage réutilise strictement `GameFileCleanupService` : il supprime les
+  fichiers absents du manifeste uniquement lorsqu'ils figuraient dans le cache
+  installé, ainsi que les anciens dossiers explicitement gérés. Aucun fichier
+  utilisateur non suivi n'est inventorié ou supprimé.
+- Pour `GameRepair`, l'enregistrement plateforme réussit avant l'écriture du
+  nouveau cache. Une annulation, une fermeture ou une erreur avant cette
+  dernière étape conserve donc l'ancien cache.
+- Le chemin legacy n'appelle jamais `VerifyAndRepairAsync`; son bouton et son
+  analyse continuent d'utiliser le comportement historique.
 
 ## Répartition des anciennes méthodes
 

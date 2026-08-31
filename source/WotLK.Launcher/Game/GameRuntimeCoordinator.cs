@@ -16,6 +16,8 @@ internal interface IGameVerificationRuntime
     GameRuntimeSnapshot CurrentSnapshot { get; }
 
     GameVerificationStartStatus TryStartVerification();
+
+    GameVerificationStartStatus TryStartFullRepair();
 }
 
 internal interface IGamePrimaryActionRuntime
@@ -53,6 +55,7 @@ internal sealed class GameRuntimeCoordinator :
     private Task _activeOperation = Task.CompletedTask;
     private LauncherOperationLease? _activeLease;
     private GameAction? _activeMaintenanceAction;
+    private bool _repairDetectedChanges;
     private long _nextSequence;
     private long _lastProgressTimestamp;
     private GameClientMaintenancePhase? _lastMaintenancePhase;
@@ -203,9 +206,92 @@ internal sealed class GameRuntimeCoordinator :
         return GameVerificationStartStatus.Started;
     }
 
+    public GameVerificationStartStatus TryStartFullRepair()
+    {
+        bool isPlayable;
+        lock (_sync)
+        {
+            if (Volatile.Read(ref _disposeState) != 0 || _operations.IsShuttingDown)
+            {
+                return GameVerificationStartStatus.ShuttingDown;
+            }
+
+            if (!_isAuthenticated())
+            {
+                return GameVerificationStartStatus.Unauthenticated;
+            }
+
+            if (_maintenanceService is null || !IsRepairPathValidUnsafe())
+            {
+                return GameVerificationStartStatus.RejectedByCompatibility;
+            }
+
+            isPlayable = _currentSnapshot.IsPlayable;
+        }
+
+        LauncherOperationStartResult start = _operations.TryBegin(
+            LauncherOperationKind.GameRepair,
+            canUserCancel: true,
+            clientIsPlayable: isPlayable);
+        if (!start.IsStarted)
+        {
+            return start.Status switch
+            {
+                LauncherOperationStartStatus.ShuttingDown =>
+                    GameVerificationStartStatus.ShuttingDown,
+                LauncherOperationStartStatus.RejectedByCompatibility =>
+                    GameVerificationStartStatus.RejectedByCompatibility,
+                _ => GameVerificationStartStatus.Busy
+            };
+        }
+
+        LauncherOperationLease lease = start.Lease!;
+        TaskCompletionSource completion = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        GameRuntimeSnapshot preparingSnapshot;
+        lock (_sync)
+        {
+            if (Volatile.Read(ref _disposeState) != 0 || _operations.IsShuttingDown)
+            {
+                lease.CancelForShutdown();
+                lease.Complete();
+                return GameVerificationStartStatus.ShuttingDown;
+            }
+
+            _activeLease = lease;
+            _activeMaintenanceAction = _currentSnapshot.Action;
+            _repairDetectedChanges = false;
+            _lastProgressTimestamp = long.MinValue;
+            _lastMaintenancePhase = null;
+            preparingSnapshot = CreateMaintenanceSnapshotUnsafe(
+                lease,
+                _currentSnapshot.Action,
+                GameClientMaintenancePhase.LoadingManifest,
+                availableVersion: _currentSnapshot.AvailableVersion,
+                currentFile: null,
+                processedFileCount: null,
+                totalFileCount: null,
+                downloadedBytes: null,
+                totalBytes: null,
+                bytesPerSecond: null,
+                remaining: null);
+            _currentSnapshot = preparingSnapshot;
+            _activeOperation = completion.Task;
+        }
+
+        Publish(preparingSnapshot, availabilityChanged: true);
+        _ = RunMaintenanceAsync(
+            lease,
+            preparingSnapshot.Action,
+            completion,
+            isRepair: true);
+        return GameVerificationStartStatus.Started;
+    }
+
     public GamePrimaryActionStatus TryExecutePrimaryAction()
     {
         GameAction action;
+        bool retryRepair;
         lock (_sync)
         {
             if (Volatile.Read(ref _disposeState) != 0 || _operations.IsShuttingDown)
@@ -225,7 +311,9 @@ internal sealed class GameRuntimeCoordinator :
             }
 
             action = _currentSnapshot.RetryAction ?? _currentSnapshot.Action;
-            if (action == GameAction.Play || _maintenanceService is null)
+            retryRepair = _currentSnapshot.RetryOperationKind
+                == LauncherOperationKind.GameRepair;
+            if ((!retryRepair && action == GameAction.Play) || _maintenanceService is null)
             {
                 return GamePrimaryActionStatus.Unsupported;
             }
@@ -234,6 +322,17 @@ internal sealed class GameRuntimeCoordinator :
             {
                 return GamePrimaryActionStatus.Unauthenticated;
             }
+        }
+
+        if (retryRepair)
+        {
+            return TryStartFullRepair() switch
+            {
+                GameVerificationStartStatus.Started => GamePrimaryActionStatus.Started,
+                GameVerificationStartStatus.Unauthenticated => GamePrimaryActionStatus.Unauthenticated,
+                GameVerificationStartStatus.ShuttingDown => GamePrimaryActionStatus.ShuttingDown,
+                _ => GamePrimaryActionStatus.Busy
+            };
         }
 
         LauncherOperationKind kind = action == GameAction.Install
@@ -287,27 +386,36 @@ internal sealed class GameRuntimeCoordinator :
         }
 
         Publish(preparingSnapshot, availabilityChanged: true);
-        _ = RunMaintenanceAsync(lease, action, completion);
+        _ = RunMaintenanceAsync(lease, action, completion, isRepair: false);
         return GamePrimaryActionStatus.Started;
     }
 
     private async Task RunMaintenanceAsync(
         LauncherOperationLease lease,
         GameAction action,
-        TaskCompletionSource completion)
+        TaskCompletionSource completion,
+        bool isRepair)
     {
         GameClientMaintenanceResult? result = null;
         Exception? failure = null;
         bool cancelled = false;
+        bool repairDetectedChanges = false;
+        GameAction terminalAction = action;
         try
         {
-            result = await _maintenanceService!.InstallOrUpdateAsync(
-                new GameClientMaintenanceRequest(
-                    _settings.InstallPath,
-                    _settings.ManifestUrl,
-                    _settings.GameLocale),
-                lease,
-                progress => ReportMaintenanceProgress(lease, progress));
+            GameClientMaintenanceRequest request = new(
+                _settings.InstallPath,
+                _settings.ManifestUrl,
+                _settings.GameLocale);
+            result = isRepair
+                ? await _maintenanceService!.VerifyAndRepairAsync(
+                    request,
+                    lease,
+                    progress => ReportMaintenanceProgress(lease, progress))
+                : await _maintenanceService!.InstallOrUpdateAsync(
+                    request,
+                    lease,
+                    progress => ReportMaintenanceProgress(lease, progress));
         }
         catch (OperationCanceledException) when (lease.CancellationToken.IsCancellationRequested)
         {
@@ -324,8 +432,11 @@ internal sealed class GameRuntimeCoordinator :
             {
                 if (ReferenceEquals(_activeLease, lease))
                 {
+                    terminalAction = _activeMaintenanceAction ?? action;
+                    repairDetectedChanges = _repairDetectedChanges;
                     _activeLease = null;
                     _activeMaintenanceAction = null;
+                    _repairDetectedChanges = false;
                 }
             }
 
@@ -353,11 +464,19 @@ internal sealed class GameRuntimeCoordinator :
             }
             else if (cancelled)
             {
-                CompleteMaintenanceCancellation(lease.OperationId, action);
+                CompleteMaintenanceCancellation(
+                    lease.OperationId,
+                    terminalAction,
+                    isRepair,
+                    repairDetectedChanges);
             }
             else if (failure is not null)
             {
-                CompleteMaintenanceFailure(lease.OperationId, action, failure);
+                CompleteMaintenanceFailure(
+                    lease.OperationId,
+                    terminalAction,
+                    failure,
+                    isRepair ? LauncherOperationKind.GameRepair : null);
             }
         }
         finally
@@ -390,6 +509,18 @@ internal sealed class GameRuntimeCoordinator :
                 || !ShouldPublishMaintenanceProgressUnsafe(progress))
             {
                 return;
+            }
+
+            if (lease.Kind == LauncherOperationKind.GameRepair
+                && progress.Phase == GameClientMaintenancePhase.ComparisonCompleted)
+            {
+                _repairDetectedChanges = progress.MissingOrChangedFileCount > 0
+                    || progress.RemovedFileCount > 0;
+                _activeMaintenanceAction = !_currentSnapshot.IsPlayable
+                    ? GameAction.Install
+                    : _repairDetectedChanges
+                        ? GameAction.Update
+                        : GameAction.Play;
             }
 
             GameAction action = _activeMaintenanceAction ?? _currentSnapshot.Action;
@@ -470,7 +601,10 @@ internal sealed class GameRuntimeCoordinator :
         }
 
         if (progress.Phase is not (GameClientMaintenancePhase.Downloading
-            or GameClientMaintenancePhase.ScanningFiles))
+            or GameClientMaintenancePhase.ScanningFiles
+            or GameClientMaintenancePhase.FullVerification
+            or GameClientMaintenancePhase.RepairDownloading
+            or GameClientMaintenancePhase.RepairApplying))
         {
             return true;
         }
@@ -710,7 +844,10 @@ internal sealed class GameRuntimeCoordinator :
             Sequence: NextSequence(),
             OperationId: lease.OperationId,
             Action: action,
-            UpdateKnowledge: _currentSnapshot.UpdateKnowledge,
+            UpdateKnowledge: lease.Kind == LauncherOperationKind.GameRepair
+                && phase == GameClientMaintenancePhase.ComparisonCompleted
+                    ? GameUpdateKnowledge.Known
+                    : _currentSnapshot.UpdateKnowledge,
             Phase: GameVerificationPhase.Stable,
             IsVerifying: false,
             CanVerify: false,
@@ -774,18 +911,31 @@ internal sealed class GameRuntimeCoordinator :
         Publish(snapshot, availabilityChanged: true);
     }
 
-    private void CompleteMaintenanceCancellation(long operationId, GameAction action)
+    private void CompleteMaintenanceCancellation(
+        long operationId,
+        GameAction action,
+        bool isRepair,
+        bool repairDetectedChanges)
     {
         GameClientLocalState local = ReadLocalStateSafely();
         GameRuntimeSnapshot snapshot;
         lock (_sync)
         {
             _installedVersion = local.InstalledVersion;
+            GameAction resolvedAction = isRepair
+                ? !local.IsPlayable
+                    ? GameAction.Install
+                    : repairDetectedChanges
+                        ? GameAction.Update
+                        : GameAction.Play
+                : action;
             snapshot = new GameRuntimeSnapshot(
                 Sequence: NextSequence(),
                 OperationId: operationId,
-                Action: action,
-                UpdateKnowledge: _currentSnapshot.UpdateKnowledge,
+                Action: resolvedAction,
+                UpdateKnowledge: isRepair && repairDetectedChanges
+                    ? GameUpdateKnowledge.Known
+                    : _currentSnapshot.UpdateKnowledge,
                 Phase: GameVerificationPhase.Stable,
                 IsVerifying: false,
                 CanVerify: false,
@@ -808,7 +958,8 @@ internal sealed class GameRuntimeCoordinator :
     private void CompleteMaintenanceFailure(
         long operationId,
         GameAction action,
-        Exception exception)
+        Exception exception,
+        LauncherOperationKind? retryOperationKind)
     {
         GameClientLocalState local = ReadLocalStateSafely();
         GameRuntimeErrorCategory category = ClassifyMaintenanceFailure(exception);
@@ -833,11 +984,14 @@ internal sealed class GameRuntimeCoordinator :
                 FailureCategory: exception.GetType().Name,
                 GameLocale: _settings.GameLocale,
                 ErrorCategory: category,
-                ErrorTitle: action == GameAction.Install
-                    ? "Installation interrompue"
-                    : "Mise à jour interrompue",
+                ErrorTitle: retryOperationKind == LauncherOperationKind.GameRepair
+                    ? "Réparation interrompue"
+                    : action == GameAction.Install
+                        ? "Installation interrompue"
+                        : "Mise à jour interrompue",
                 ErrorSummary: GetUserFacingFailureSummary(category),
-                RetryAction: action);
+                RetryAction: action,
+                RetryOperationKind: retryOperationKind);
             _currentSnapshot = snapshot;
             snapshot = RecalculateAvailabilityUnsafe(snapshot);
             _currentSnapshot = snapshot;
@@ -982,8 +1136,10 @@ internal sealed class GameRuntimeCoordinator :
     {
         return Volatile.Read(ref _disposeState) == 0
             && _isAuthenticated()
+            && _maintenanceService is not null
+            && IsRepairPathValidUnsafe()
             && _operations.CanBegin(
-                LauncherOperationKind.Verify,
+                LauncherOperationKind.GameRepair,
                 _currentSnapshot.IsPlayable);
     }
 
@@ -999,8 +1155,23 @@ internal sealed class GameRuntimeCoordinator :
             return _activeLease?.CanUserCancel == true;
         }
 
+        bool retryRepair = _currentSnapshot.RetryOperationKind
+            == LauncherOperationKind.GameRepair;
         GameAction action = _currentSnapshot.RetryAction ?? _currentSnapshot.Action;
-        if (action == GameAction.Play || _maintenanceService is null || !_isAuthenticated())
+        if (_maintenanceService is null || !_isAuthenticated())
+        {
+            return false;
+        }
+
+        if (retryRepair)
+        {
+            return IsRepairPathValidUnsafe()
+                && _operations.CanBegin(
+                    LauncherOperationKind.GameRepair,
+                    _currentSnapshot.IsPlayable);
+        }
+
+        if (action == GameAction.Play)
         {
             return false;
         }
@@ -1018,6 +1189,8 @@ internal sealed class GameRuntimeCoordinator :
         bool canUserCancel = snapshot.IsMaintenanceActive
             && _activeLease?.CanUserCancel == true;
         string? unavailableReason = null;
+        bool retryRepair = snapshot.RetryOperationKind
+            == LauncherOperationKind.GameRepair;
         GameAction action = snapshot.RetryAction ?? snapshot.Action;
 
         if (snapshot.IsFinalizing)
@@ -1028,7 +1201,11 @@ internal sealed class GameRuntimeCoordinator :
         {
             unavailableReason = "Vérification en cours";
         }
-        else if (action == GameAction.Play)
+        else if (retryRepair && !IsRepairPathValidUnsafe())
+        {
+            unavailableReason = "Client local indisponible";
+        }
+        else if (!retryRepair && action == GameAction.Play)
         {
             unavailableReason = "Le lancement sera reconnecté ultérieurement";
         }
@@ -1052,6 +1229,27 @@ internal sealed class GameRuntimeCoordinator :
             CanUserCancel = canUserCancel,
             PrimaryActionUnavailableReason = unavailableReason
         };
+    }
+
+    private bool IsRepairPathValidUnsafe()
+    {
+        if (!_currentSnapshot.IsPlayable
+            || string.IsNullOrWhiteSpace(_settings.InstallPath)
+            || !Path.IsPathFullyQualified(_settings.InstallPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            return Directory.Exists(Path.GetFullPath(_settings.InstallPath));
+        }
+        catch (Exception ex) when (ex is ArgumentException
+                                   or NotSupportedException
+                                   or PathTooLongException)
+        {
+            return false;
+        }
     }
 
     private bool IsCurrentOperationUnsafe(LauncherOperationLease lease)

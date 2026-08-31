@@ -141,6 +141,7 @@ internal static class GameRuntimeCoordinatorTests
         Equal(GameAction.Play, terminal.Action, "Un succès doit publier Play.");
         Equal(GameUpdateKnowledge.Known, terminal.UpdateKnowledge, "Le manifeste appliqué doit confirmer À jour.");
         Equal("client-v2", terminal.InstalledVersion, "La version locale doit être relue.");
+        Equal("client-v2", terminal.AvailableVersion, "La version disponible doit rester celle du manifeste appliqué.");
         GameViewState terminalView = GameStateAdapter.Project(terminal);
         Equal("À jour", terminalView.InstallBadgeText, "Le badge final doit être À jour.");
         Equal("Jouer", terminalView.PrimaryActionLabel, "Le succès doit afficher Jouer.");
@@ -783,7 +784,15 @@ internal sealed class RuntimeMaintenanceStub : IGameClientMaintenanceService
             null,
             null));
 
+    internal Func<
+        GameClientMaintenanceRequest,
+        LauncherOperationLease,
+        Action<GameClientMaintenanceProgress>?,
+        Task<GameClientMaintenanceResult>>? RepairHandler { get; set; }
+
     internal int Calls { get; private set; }
+
+    internal int RepairCalls { get; private set; }
 
     internal List<long> OperationIds { get; } = [];
 
@@ -795,5 +804,15 @@ internal sealed class RuntimeMaintenanceStub : IGameClientMaintenanceService
         Calls++;
         OperationIds.Add(operation.OperationId);
         return Handler(request, operation, reportProgress);
+    }
+
+    public Task<GameClientMaintenanceResult> VerifyAndRepairAsync(
+        GameClientMaintenanceRequest request,
+        LauncherOperationLease operation,
+        Action<GameClientMaintenanceProgress>? reportProgress)
+    {
+        RepairCalls++;
+        OperationIds.Add(operation.OperationId);
+        return (RepairHandler ?? Handler)(request, operation, reportProgress);
     }
 }

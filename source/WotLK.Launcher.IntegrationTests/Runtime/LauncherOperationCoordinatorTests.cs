@@ -237,6 +237,7 @@ internal static class LauncherOperationCoordinatorTests
     {
         LauncherOperationKind[] kinds =
         [
+            LauncherOperationKind.GameRepair,
             LauncherOperationKind.GameInstall,
             LauncherOperationKind.GameUpdate,
             LauncherOperationKind.Addons,
@@ -473,6 +474,11 @@ internal sealed class SnapshotVerificationRuntime(GameRuntimeSnapshot snapshot)
     public GameRuntimeSnapshot CurrentSnapshot { get; private set; } = snapshot;
 
     public GameVerificationStartStatus TryStartVerification()
+    {
+        return GameVerificationStartStatus.Busy;
+    }
+
+    public GameVerificationStartStatus TryStartFullRepair()
     {
         return GameVerificationStartStatus.Busy;
     }

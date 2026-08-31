@@ -33,7 +33,7 @@ internal sealed class GameVerificationCommand : IDisposable
 
     private void Execute()
     {
-        _ = _runtime.TryStartVerification();
+        _ = _runtime.TryStartFullRepair();
     }
 
     private void Runtime_AvailabilityChanged(object? sender, EventArgs e)

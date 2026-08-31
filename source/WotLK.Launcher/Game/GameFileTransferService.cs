@@ -124,7 +124,8 @@ internal sealed class GameFileTransferService : IGameFileTransferService
                     reportProgress?.Invoke(new GameFileTransferProgress(
                         operationId,
                         written,
-                        expectedSize >= 0 ? expectedSize : null));
+                        expectedSize >= 0 ? expectedSize : null,
+                        GameFileTransferStage.Downloading));
                 }
 
                 if (expectedSize >= 0 && written != expectedSize)
@@ -148,10 +149,20 @@ internal sealed class GameFileTransferService : IGameFileTransferService
                     "Hash invalide apres telechargement: " + Path.GetFileName(targetPath));
             }
 
+            reportProgress?.Invoke(new GameFileTransferProgress(
+                operationId,
+                expectedSize,
+                expectedSize >= 0 ? expectedSize : null,
+                GameFileTransferStage.Applying));
             await MoveDownloadedFileWithRetryAsync(
                 tempPath,
                 targetPath,
                 cancellationToken);
+            reportProgress?.Invoke(new GameFileTransferProgress(
+                operationId,
+                expectedSize,
+                expectedSize >= 0 ? expectedSize : null,
+                GameFileTransferStage.Completed));
         }
         catch
         {

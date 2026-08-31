@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows.Threading;
 using WotLK.Launcher.Game;
+using WotLK.Launcher.Runtime;
 
 namespace WotLK.Launcher.UI.V2.Presentation;
 
@@ -87,7 +88,9 @@ internal sealed class GameStateAdapter : IDisposable
 
     private static GameViewState ProjectVerifying(GameRuntimeSnapshot snapshot)
     {
-        bool hasCount = snapshot.Phase == GameVerificationPhase.ScanningFiles
+        bool fullRepair = snapshot.OperationKind == LauncherOperationKind.GameRepair;
+        bool hasCount = (snapshot.Phase == GameVerificationPhase.ScanningFiles
+                || snapshot.MaintenancePhase == GameClientMaintenancePhase.FullVerification)
             && snapshot.ProcessedFileCount is >= 0
             && snapshot.TotalFileCount is > 0;
         double progress = hasCount
@@ -97,7 +100,16 @@ internal sealed class GameStateAdapter : IDisposable
                 0,
                 100)
             : 0;
-        string primaryDetail = snapshot.Phase switch
+        string primaryDetail = fullRepair
+            ? snapshot.MaintenancePhase switch
+            {
+                GameClientMaintenancePhase.LoadingManifest => "Chargement du manifeste",
+                GameClientMaintenancePhase.ManifestLoaded => "Manifeste reçu",
+                GameClientMaintenancePhase.FullVerification => "Rehachage des fichiers gérés",
+                GameClientMaintenancePhase.ComparisonCompleted => "Plan de réparation prêt",
+                _ => "Analyse complète du client"
+            }
+            : snapshot.Phase switch
         {
             GameVerificationPhase.LoadingManifest => "Chargement du manifeste",
             GameVerificationPhase.ComparingManifest => "Comparaison avec le cache local",
@@ -108,14 +120,14 @@ internal sealed class GameStateAdapter : IDisposable
         return Create(
             GamePreviewScenario.Verifying,
             GameSemanticTone.Accent,
-            "Vérification en cours",
-            "Vérification…",
-            isPrimaryActionEnabled: false,
+            fullRepair ? "Vérification complète" : "Vérification en cours",
+            fullRepair && snapshot.CanUserCancel ? "Annuler" : "Vérification…",
+            isPrimaryActionEnabled: fullRepair && snapshot.CanPrimaryAction,
             snapshot,
             "Analyse",
             progress,
             isProgressIndeterminate: !hasCount,
-            "Vérification des fichiers",
+            fullRepair ? "Vérification complète" : "Vérification des fichiers",
             hasCount ? $"{Math.Round(progress):0} %" : string.Empty,
             primaryDetail,
             hasCount
@@ -125,6 +137,7 @@ internal sealed class GameStateAdapter : IDisposable
 
     private static GameViewState ProjectMaintenance(GameRuntimeSnapshot snapshot)
     {
+        bool repairing = snapshot.OperationKind == LauncherOperationKind.GameRepair;
         bool finalizing = snapshot.IsFinalizing;
         bool downloading = snapshot.ViewMode == GameViewMode.Downloading;
         bool hasByteProgress = downloading
@@ -148,21 +161,31 @@ internal sealed class GameStateAdapter : IDisposable
                 : 0;
         string status = finalizing
             ? "Finalisation…"
-            : downloading
-                ? IsDownloadTransfer(snapshot.MaintenancePhase)
-                    ? "Téléchargement en cours"
-                    : "Préparation…"
-                : "Installation en cours";
+            : repairing
+                ? "Réparation en cours"
+                : downloading
+                    ? IsDownloadTransfer(snapshot.MaintenancePhase)
+                        ? "Téléchargement en cours"
+                        : "Préparation…"
+                    : "Installation en cours";
         string primaryLabel = snapshot.CanUserCancel ? "Annuler" : status;
         string title = finalizing
             ? "Finalisation du client"
-            : downloading
-                ? IsDownloadTransfer(snapshot.MaintenancePhase)
-                    ? "Téléchargement du client"
-                    : "Préparation du client"
-                : snapshot.Action == GameAction.Update
-                    ? "Application de la mise à jour"
-                    : "Installation du client";
+            : repairing && snapshot.MaintenancePhase == GameClientMaintenancePhase.RepairApplying
+                ? "Application de la réparation"
+                : repairing && snapshot.MaintenancePhase is (
+                    GameClientMaintenancePhase.Cleaning
+                    or GameClientMaintenancePhase.CleanupCompleted)
+                    ? "Nettoyage des anciens fichiers"
+                    : repairing
+                        ? "Téléchargement des fichiers à réparer"
+                        : downloading
+                            ? IsDownloadTransfer(snapshot.MaintenancePhase)
+                                ? "Téléchargement du client"
+                                : "Préparation du client"
+                            : snapshot.Action == GameAction.Update
+                                ? "Application de la mise à jour"
+                                : "Installation du client";
         string primaryDetail = hasByteProgress
             ? $"{FormatBytes(snapshot.DownloadedBytes!.Value)} / {FormatBytes(snapshot.TotalBytes!.Value)}"
             : hasFileProgress
@@ -318,7 +341,8 @@ internal sealed class GameStateAdapter : IDisposable
     {
         return phase is GameClientMaintenancePhase.DownloadingStarted
             or GameClientMaintenancePhase.DownloadingFile
-            or GameClientMaintenancePhase.Downloading;
+            or GameClientMaintenancePhase.Downloading
+            or GameClientMaintenancePhase.RepairDownloading;
     }
 
     private static string GetMaintenanceDetail(GameClientMaintenancePhase? phase)
@@ -330,9 +354,12 @@ internal sealed class GameStateAdapter : IDisposable
             GameClientMaintenancePhase.GameProcessesStopped => "Préparation des fichiers",
             GameClientMaintenancePhase.ComparingManifest => "Comparaison du client local",
             GameClientMaintenancePhase.ScanningFiles => "Analyse des fichiers locaux",
+            GameClientMaintenancePhase.FullVerification => "Rehachage des fichiers gérés",
             GameClientMaintenancePhase.ComparisonCompleted => "Analyse terminée",
             GameClientMaintenancePhase.Cleaning => "Nettoyage des anciens fichiers",
             GameClientMaintenancePhase.CleanupCompleted => "Nettoyage terminé",
+            GameClientMaintenancePhase.RepairDownloading => "Téléchargement de la réparation",
+            GameClientMaintenancePhase.RepairApplying => "Application des fichiers réparés",
             _ => "Préparation du client"
         };
     }

@@ -179,7 +179,10 @@ internal static class GameVerificationTests
         service.Release(ResultUpToDate());
         await coordinator.WaitForIdleAsync();
         Equal(GameUpdateKnowledge.Known, coordinator.CurrentSnapshot.UpdateKnowledge, "Le résultat final doit être publié.");
-        True(coordinator.CanVerify, "Vérifier doit redevenir disponible après la fin.");
+        True(!coordinator.CanVerify, "Sans pipeline de maintenance injecté, la nouvelle commande manuelle doit rester indisponible.");
+        Equal(GameVerificationStartStatus.Started, coordinator.TryStartVerification(), "L’analyse automatique légère doit rester relançable indépendamment du bouton manuel.");
+        await coordinator.WaitForIdleAsync();
+        Equal(2, service.Calls, "La seconde analyse automatique doit s’exécuter immédiatement, sans file cachée.");
     }
 
     private static async Task ReturnToStableLocalStateAfterTechnicalFailureAsync()
@@ -375,7 +378,7 @@ internal static class GameVerificationTests
                 List<Button> verifyButtons = FindButtons(buttons, "Vérifier le client");
                 True(verifyButtons.Count == 2, "Ready et UpdateAvailable doivent partager Vérifier.");
                 True(verifyButtons.All(button => ReferenceEquals(button.Command, gameState.VerifyCommand)), "Chaque bouton doit utiliser l'ICommand 02C.");
-                True(verifyButtons.All(button => button.IsEnabled), "Vérifier doit être disponible avec une session restaurée.");
+                True(verifyButtons.All(button => !button.IsEnabled), "Sans pipeline de réparation injecté, le clic manuel doit rester désactivé.");
                 True(!FindButtons(buttons, "Jouer").Single().IsEnabled, "Jouer doit rester désactivé.");
                 True(!FindButtons(buttons, "Options").Single().IsEnabled, "Options doit rester désactivé.");
 
@@ -388,7 +391,7 @@ internal static class GameVerificationTests
                     }
                 };
 
-                gameState.VerifyCommand.Execute(null);
+                Equal(GameVerificationStartStatus.Started, coordinator.TryStartVerification(), "L’analyse automatique doit démarrer hors de la commande manuelle.");
                 await service.Started.Task;
                 view.UpdateLayout();
                 Equal(GamePreviewScenario.Verifying, gameState.Scenario, "La carte doit passer atomiquement à Verifying.");

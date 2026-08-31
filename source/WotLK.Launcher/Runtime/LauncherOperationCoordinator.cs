@@ -3,6 +3,7 @@ namespace WotLK.Launcher.Runtime;
 internal enum LauncherOperationKind
 {
     Verify,
+    GameRepair,
     GameInstall,
     GameUpdate,
     Addons,

@@ -686,6 +686,15 @@ internal sealed class RecordingLegacyMaintenanceService : IGameClientMaintenance
             Path.Combine(request.InstallPath, "_classic_", "WTF", "Config.wtf"),
             Path.Combine(request.InstallPath, GameInstallServices.UninstallerFileName)));
     }
+
+    public Task<GameClientMaintenanceResult> VerifyAndRepairAsync(
+        GameClientMaintenanceRequest request,
+        LauncherOperationLease operation,
+        Action<GameClientMaintenanceProgress>? reportProgress)
+    {
+        throw new InvalidOperationException(
+            "Le chemin legacy ne doit jamais lancer la réparation V2.");
+    }
 }
 
 internal sealed class RecordingStartupObserver : ILegacyStartupObserver

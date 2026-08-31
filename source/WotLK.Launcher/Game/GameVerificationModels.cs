@@ -116,6 +116,7 @@ internal sealed record GameRuntimeSnapshot(
     string? ErrorTitle = null,
     string? ErrorSummary = null,
     GameAction? RetryAction = null,
+    LauncherOperationKind? RetryOperationKind = null,
     string? PrimaryActionUnavailableReason = null)
 {
     internal GameViewMode ViewMode
@@ -130,6 +131,19 @@ internal sealed record GameRuntimeSnapshot(
             if (IsVerifying || OperationKind == LauncherOperationKind.Verify)
             {
                 return GameViewMode.Verifying;
+            }
+
+            if (OperationKind == LauncherOperationKind.GameRepair)
+            {
+                return MaintenancePhase switch
+                {
+                    GameClientMaintenancePhase.LoadingManifest
+                        or GameClientMaintenancePhase.ManifestLoaded
+                        or GameClientMaintenancePhase.FullVerification
+                        or GameClientMaintenancePhase.ComparisonCompleted => GameViewMode.Verifying,
+                    GameClientMaintenancePhase.RepairDownloading => GameViewMode.Downloading,
+                    _ => GameViewMode.Installing
+                };
             }
 
             if (OperationKind is LauncherOperationKind.GameInstall
@@ -157,7 +171,8 @@ internal sealed record GameRuntimeSnapshot(
     }
 
     internal bool IsMaintenanceActive => OperationKind is LauncherOperationKind.GameInstall
-        or LauncherOperationKind.GameUpdate;
+        or LauncherOperationKind.GameUpdate
+        or LauncherOperationKind.GameRepair;
 
     internal bool IsFinalizing => IsMaintenanceActive
         && MaintenancePhase is GameClientMaintenancePhase.CacheSaved

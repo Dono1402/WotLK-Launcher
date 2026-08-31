@@ -24,6 +24,8 @@ internal interface ILauncherAuthService : IDisposable
 
     void CommitSession(LauncherAuthSession session, bool clearGameSingleSignOn);
 
+    void InvalidateLocalSession();
+
     Task<bool> RestoreAsync(CancellationToken cancellationToken = default);
 
     Task<bool> EnsureFreshAsync(CancellationToken cancellationToken = default);

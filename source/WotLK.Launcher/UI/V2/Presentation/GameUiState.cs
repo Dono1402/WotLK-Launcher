@@ -12,6 +12,7 @@ public enum GamePreviewScenario
     Installing,
     Verifying,
     Error,
+    Launching,
     RealmOffline
 }
 
@@ -49,6 +50,7 @@ public sealed class GameUiState : BindableUiState
     private string _errorTitle = string.Empty;
     private string _errorSummary = string.Empty;
     private string _primaryActionUnavailableReason = string.Empty;
+    private bool _isLaunchInProgress;
     private string _notificationMessage = string.Empty;
     private GameSemanticTone _notificationTone = GameSemanticTone.Neutral;
     private bool _showsNotification;
@@ -205,6 +207,12 @@ public sealed class GameUiState : BindableUiState
         init => _primaryActionUnavailableReason = value;
     }
 
+    public bool IsLaunchInProgress
+    {
+        get => _isLaunchInProgress;
+        init => _isLaunchInProgress = value;
+    }
+
     public string NotificationMessage => _notificationMessage;
 
     public GameSemanticTone NotificationTone => _notificationTone;
@@ -270,6 +278,7 @@ public sealed class GameUiState : BindableUiState
         _errorTitle = viewState.ErrorTitle;
         _errorSummary = viewState.ErrorSummary;
         _primaryActionUnavailableReason = viewState.PrimaryActionUnavailableReason;
+        _isLaunchInProgress = viewState.IsLaunchInProgress;
         RaisePropertyChanged(string.Empty);
     }
 

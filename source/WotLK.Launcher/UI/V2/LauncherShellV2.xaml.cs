@@ -118,6 +118,29 @@ public partial class LauncherShellV2 : Window
         AuthOverlay.SubmissionRequested += AuthOverlay_SubmissionRequested;
     }
 
+    internal void OpenAuthenticationForPendingPlay()
+    {
+        if (IsPreviewMode)
+        {
+            return;
+        }
+
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(new Action(OpenAuthenticationForPendingPlay));
+            return;
+        }
+
+        _authFocusReturnTarget = GameView.PrimaryActionFocusTarget;
+        if (!AuthState.IsOpen)
+        {
+            AuthState.PrepareForOpen();
+        }
+
+        _overlayCoordinator.OpenAuthentication();
+        FriendsButton.Focusable = false;
+    }
+
     internal void OpenAuthenticationForPreview(AuthPreviewScenario scenario)
     {
         if (!IsPreviewMode)
@@ -273,8 +296,7 @@ public partial class LauncherShellV2 : Window
 
     private void AuthOverlay_CloseRequested(object? sender, EventArgs e)
     {
-        _authCommands?.CancelCurrent();
-        _overlayCoordinator.CloseAuthentication();
+        CloseAuthenticationFromUser();
     }
 
     private void AuthOverlay_SubmissionRequested(
@@ -312,7 +334,7 @@ public partial class LauncherShellV2 : Window
     {
         if (e.Key == Key.Escape && AuthState.IsOpen)
         {
-            _overlayCoordinator.CloseAuthentication();
+            CloseAuthenticationFromUser();
             e.Handled = true;
             return;
         }
@@ -344,6 +366,12 @@ public partial class LauncherShellV2 : Window
 
         e.Handled = true;
         FriendsDrawer.FocusFirstControl();
+    }
+
+    private void CloseAuthenticationFromUser()
+    {
+        _authCommands?.CancelCurrent();
+        _overlayCoordinator.CloseAuthentication();
     }
 
     private void MinimizeButton_Click(object sender, RoutedEventArgs e)

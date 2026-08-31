@@ -1,9 +1,10 @@
 using System.Net;
 using System.Net.Http;
+using WotLK.Launcher.Game;
 
 namespace WotLK.Launcher.Runtime;
 
-internal sealed class LauncherSessionCoordinator : IDisposable
+internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposable
 {
     private readonly object _sync = new();
     private readonly ILauncherAuthService _authentication;
@@ -176,6 +177,82 @@ internal sealed class LauncherSessionCoordinator : IDisposable
         TryCancel(cancellation);
         RaiseSnapshotChanged(snapshot);
         return true;
+    }
+
+    public async Task<GameTicketAcquisitionResult> AcquireGameTicketAsync(
+        CancellationToken cancellationToken)
+    {
+        AuthSessionSnapshot sessionSnapshot;
+        lock (_sync)
+        {
+            if (IsStoppingUnsafe())
+            {
+                return new GameTicketAcquisitionResult(
+                    GameTicketAcquisitionStatus.Cancelled);
+            }
+
+            sessionSnapshot = _currentSnapshot;
+            if (!_authentication.IsAuthenticated)
+            {
+                return new GameTicketAcquisitionResult(
+                    sessionSnapshot.State == LauncherSessionState.Unavailable
+                        ? GameTicketAcquisitionStatus.NetworkUnavailable
+                        : GameTicketAcquisitionStatus.AuthenticationRequired);
+            }
+        }
+
+        try
+        {
+            bool refreshed = await _authentication
+                .EnsureFreshAsync(cancellationToken)
+                .ConfigureAwait(false);
+            if (!refreshed)
+            {
+                InvalidateSessionAfterGameTicketFailure(
+                    LauncherSessionFailureCategory.SessionExpired);
+                return new GameTicketAcquisitionResult(
+                    GameTicketAcquisitionStatus.AuthenticationRequired);
+            }
+
+            GameTicket ticket = await _authentication
+                .CreateGameTicketAsync(cancellationToken)
+                .ConfigureAwait(false);
+            return GameTicketAcquisitionResult.Success(ticket);
+        }
+        catch (OperationCanceledException exception) when (
+            cancellationToken.IsCancellationRequested || _lifetimeToken.IsCancellationRequested)
+        {
+            return new GameTicketAcquisitionResult(
+                GameTicketAcquisitionStatus.Cancelled,
+                Failure: exception);
+        }
+        catch (Exception exception)
+        {
+            LauncherSessionFailureCategory category = ClassifyFailure(
+                exception,
+                LauncherSessionOperationKind.Restore);
+            WriteGameTicketFailureSafely(category, exception);
+            if (category == LauncherSessionFailureCategory.Unauthorized)
+            {
+                InvalidateSessionAfterGameTicketFailure(
+                    LauncherSessionFailureCategory.SessionExpired);
+                return new GameTicketAcquisitionResult(
+                    GameTicketAcquisitionStatus.AuthenticationRequired,
+                    Failure: exception);
+            }
+
+            return new GameTicketAcquisitionResult(
+                category switch
+                {
+                    LauncherSessionFailureCategory.Network
+                        or LauncherSessionFailureCategory.Timeout =>
+                            GameTicketAcquisitionStatus.NetworkUnavailable,
+                    LauncherSessionFailureCategory.ServiceUnavailable =>
+                        GameTicketAcquisitionStatus.ServiceUnavailable,
+                    _ => GameTicketAcquisitionStatus.TicketRejected
+                },
+                Failure: exception);
+        }
     }
 
     internal void BeginShutdown()
@@ -686,6 +763,52 @@ internal sealed class LauncherSessionCoordinator : IDisposable
         catch
         {
             // A logging failure must not fault an observed authentication task.
+        }
+    }
+
+    private void InvalidateSessionAfterGameTicketFailure(
+        LauncherSessionFailureCategory category)
+    {
+        AuthSessionSnapshot? snapshot = null;
+        try
+        {
+            _authentication.InvalidateLocalSession();
+        }
+        catch (Exception exception)
+        {
+            WriteGameTicketFailureSafely(category, exception);
+        }
+
+        lock (_sync)
+        {
+            if (!IsStoppingUnsafe())
+            {
+                snapshot = SetSnapshotUnsafe(
+                    attemptId: null,
+                    LauncherSessionState.SignedOut,
+                    operationKind: null,
+                    string.Empty,
+                    isEmailVerified: true,
+                    category);
+            }
+        }
+
+        RaiseSnapshotChanged(snapshot);
+    }
+
+    private void WriteGameTicketFailureSafely(
+        LauncherSessionFailureCategory category,
+        Exception exception)
+    {
+        try
+        {
+            _writeLog(
+                $"Ticket de jeu indisponible: category={category}; "
+                + $"exception={exception.GetType().Name}.");
+        }
+        catch
+        {
+            // Logging cannot replace the game-ticket result.
         }
     }
 

@@ -63,6 +63,12 @@ internal sealed class LauncherRuntimeDependencies
                 new GameInstallPlatformAdapter());
         };
 
+    internal Func<IGameLaunchSession, IGameLaunchService> CreateGameLaunchService { get; init; } =
+        static session => new GameLaunchService(
+            session,
+            new ProductionGameLaunchPlatform(),
+            new ProductionGameProcessStarter());
+
     internal Func<string, bool> HasPlayableClient { get; init; } =
         GameInstallServices.HasPlayableClient;
 
@@ -129,6 +135,10 @@ internal sealed class LauncherRuntime : IDisposable
         LocalClient = dependencies.GameClientStateReader.Read(Settings);
         LauncherVersion = dependencies.GetLauncherVersion();
         Operations = new LauncherOperationCoordinator();
+        _sessionCoordinator = new LauncherSessionCoordinator(
+            _authentication,
+            Operations.ShutdownToken,
+            dependencies.WriteRuntimeLog);
         _clientHttpClient = dependencies.CreateAuthorizedHttpClient(
             () => _authentication.AccessToken);
         IGameClientVerificationService verificationService =
@@ -139,6 +149,8 @@ internal sealed class LauncherRuntime : IDisposable
             dependencies.CreateGameMaintenanceService(
                 _clientHttpClient,
                 dependencies.GameClientStateReader);
+        IGameLaunchService launchService = dependencies.CreateGameLaunchService(
+            _sessionCoordinator);
         Game = new GameRuntimeCoordinator(
             verificationService,
             Operations,
@@ -149,17 +161,15 @@ internal sealed class LauncherRuntime : IDisposable
             dependencies.HasPlayableClient,
             dependencies.VerificationTimeProvider,
             maintenanceService,
-            () => dependencies.GameClientStateReader.Read(Settings));
+            () => dependencies.GameClientStateReader.Read(Settings),
+            launchService,
+            () => _sessionCoordinator.CurrentSnapshot.State);
         LocalActions = new LauncherLocalActionCoordinator(
             Settings,
             dependencies.GetLauncherLogPath(),
             dependencies.LocalShellService,
             dependencies.WriteLocalActionLog,
             dependencies.LocalActionTimeProvider);
-        _sessionCoordinator = new LauncherSessionCoordinator(
-            _authentication,
-            Operations.ShutdownToken,
-            dependencies.WriteRuntimeLog);
         Dashboard = new LauncherDashboardCoordinator(
             _authentication,
             Operations.ShutdownToken,
@@ -241,7 +251,9 @@ internal sealed class LauncherRuntime : IDisposable
 
     internal bool CancelInteractiveAuthentication()
     {
-        return _sessionCoordinator.CancelInteractiveAttempt();
+        bool authenticationCancelled = _sessionCoordinator.CancelInteractiveAttempt();
+        bool pendingPlayCancelled = Game.CancelPendingPlayAuthentication();
+        return authenticationCancelled || pendingPlayCancelled;
     }
 
     internal void BeginShutdown()
@@ -256,7 +268,7 @@ internal sealed class LauncherRuntime : IDisposable
             LocalActions.BeginShutdown();
             Dashboard.BeginShutdown();
             _sessionCoordinator.BeginShutdown();
-            Operations.CancelForShutdown();
+            Game.BeginShutdown();
         }
     }
 
@@ -283,7 +295,7 @@ internal sealed class LauncherRuntime : IDisposable
             LocalActions.BeginShutdown();
             Dashboard.BeginShutdown();
             _sessionCoordinator.BeginShutdown();
-            Operations.CancelForShutdown();
+            Game.BeginShutdown();
             Dashboard.Dispose();
             Game.Dispose();
             _sessionCoordinator.Dispose();
@@ -317,6 +329,7 @@ internal sealed class LauncherRuntime : IDisposable
         }
 
         Game.RefreshAuthenticationAvailability();
+        Game.ResumePendingPlayAfterAuthentication();
         await Dashboard.RefreshAfterAuthenticationAsync().ConfigureAwait(false);
         return result;
     }

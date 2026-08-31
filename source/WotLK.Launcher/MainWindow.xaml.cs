@@ -63,6 +63,7 @@ public partial class MainWindow : Window
     private readonly GameClientVerificationService _gameVerificationService;
     private readonly IGameInstallPlatform _gameInstallPlatform;
     private readonly IGameClientMaintenanceService _gameClientMaintenanceService;
+    private readonly IGameLaunchService _gameLaunchService;
     private readonly LauncherOperationCoordinator _operations;
     private readonly ILauncherAuthService _auth;
     private readonly HttpClient _http;
@@ -114,6 +115,15 @@ public partial class MainWindow : Window
         _startupObserver.Record(LegacyStartupEvent.ComponentsInitialized);
         _auth = dependencies.CreateAuthentication();
         _startupObserver.Record(LegacyStartupEvent.AuthenticationCreated);
+        _gameLaunchService = new GameLaunchService(
+            new LegacyGameLaunchSession(_auth),
+            new DelegateGameLaunchPlatform(
+                dependencies.HasPlayableClient,
+                dependencies.IsGameRunning,
+                File.Exists,
+                dependencies.EnsureDefaultClientConfig,
+                dependencies.WriteGameSingleSignOn),
+            new DelegateGameProcessStarter(dependencies.StartGameProcess));
         _http = dependencies.CreateAuthorizedHttpClient(() => _auth.AccessToken);
         _startupObserver.Record(LegacyStartupEvent.AuthorizedHttpClientCreated);
         AddonItemsControl.ItemsSource = _addonItems;
@@ -385,7 +395,7 @@ public partial class MainWindow : Window
 
         if (_gameAction == GameAction.Play)
         {
-            bool isPlayable = GameInstallServices.HasPlayableClient(_settings.InstallPath);
+            bool isPlayable = _dependencies.HasPlayableClient(_settings.InstallPath);
             if (!isPlayable)
             {
                 ShowToast("Client introuvable", "Le client Classic ou le lanceur Atlas est introuvable. Installe ou mets à jour le client d'abord.", ToastKind.Warning);
@@ -1857,92 +1867,86 @@ public partial class MainWindow : Window
 
     private async Task PlayGameAsync(LauncherOperationLease operation)
     {
-        var wowPath = GameInstallServices.GetGameExecutablePath(_settings.InstallPath);
-        var gameLauncherPath = GameInstallServices.GetGameLauncherPath(_settings.InstallPath);
-        if (!GameInstallServices.HasPlayableClient(_settings.InstallPath))
-        {
-            ShowToast("Client introuvable", "Le client Classic ou le lanceur Atlas est introuvable. Installe ou mets à jour le client d'abord.", ToastKind.Warning);
-            SetGameAction(GameAction.Install);
-            return;
-        }
-
-        if (GameInstallServices.IsGameRunning(_settings.InstallPath))
-        {
-            AppendLog("Le jeu est deja lance.");
-            SetStatus("Jeu en cours.");
-            return;
-        }
-
-        GameInstallServices.EnsureDefaultClientConfig(_settings.InstallPath, _settings.GameLocale);
-
-        GameTicket ticket;
-        try
-        {
-            SetStatus("Préparation de la connexion...");
-            if (!await _auth.EnsureFreshAsync())
+        GameLaunchResult result = await _gameLaunchService.LaunchAsync(
+            new GameLaunchRequest(
+                operation.OperationId,
+                _settings.InstallPath,
+                _settings.GameLocale),
+            progress => operation.TryInvoke(() => SetStatus(progress.Phase switch
             {
-                operation.TryInvoke(ShowLogin);
+                GameLaunchPhase.RequestingTicket => "Préparation de la connexion...",
+                GameLaunchPhase.PreparingSso => "Préparation du lancement...",
+                GameLaunchPhase.StartingProcess => "Lancement du jeu...",
+                _ => "Préparation..."
+            })),
+            operation.CancellationToken);
+
+        operation.TryInvoke(() => ApplyLegacyGameLaunchResult(result));
+    }
+
+    private void ApplyLegacyGameLaunchResult(GameLaunchResult result)
+    {
+        switch (result.Outcome)
+        {
+            case GameLaunchOutcome.Started:
+                AppendLog("Jeu lancé sur Atlas avec connexion automatique.");
+                if (_settings.CloseLauncherOnGameStart)
+                {
+                    Close();
+                }
                 return;
-            }
 
-            if (!operation.IsCurrent)
-            {
+            case GameLaunchOutcome.AlreadyRunning:
+                AppendLog("Le jeu est deja lance.");
+                SetStatus("Jeu en cours.");
                 return;
-            }
 
-            ticket = await _auth.CreateGameTicketAsync();
-            if (!operation.IsCurrent)
-            {
+            case GameLaunchOutcome.ExecutableMissing:
+                ShowToast(
+                    "Client introuvable",
+                    "Le client Classic ou le lanceur Atlas est introuvable. Installe ou mets à jour le client d'abord.",
+                    ToastKind.Warning);
+                SetGameAction(GameAction.Install);
                 return;
-            }
-        }
-        catch (Exception ex) when (
-            ex is HttpRequestException
-                or LauncherAuthException
-                or CryptographicException)
-        {
-            operation.TryInvoke(() =>
-            {
-                AppendLog("Connexion automatique impossible: " + ex.Message);
+
+            case GameLaunchOutcome.AuthenticationRequired:
                 SetStatus("Connexion requise.");
-                ShowToast("Connexion automatique", ex.Message, ToastKind.Error);
-                if (ex is LauncherAuthException)
+                ShowToast(
+                    "Connexion automatique",
+                    "Ta session Atlas doit être renouvelée.",
+                    ToastKind.Error);
+                ShowLogin();
+                return;
+
+            case GameLaunchOutcome.NetworkUnavailable:
+            case GameLaunchOutcome.ServiceUnavailable:
+            case GameLaunchOutcome.TicketFailed:
+                AppendLog($"Connexion automatique impossible: category={result.FailureCategory}.");
+                SetStatus("Connexion requise.");
+                ShowToast(
+                    "Connexion automatique",
+                    result.Outcome == GameLaunchOutcome.NetworkUnavailable
+                        ? "Le service Atlas est momentanément inaccessible."
+                        : "Le ticket de jeu n’a pas pu être obtenu.",
+                    ToastKind.Error);
+                if (result.Outcome == GameLaunchOutcome.TicketFailed)
                 {
                     ShowLogin();
                 }
-            });
-            return;
+                return;
+
+            case GameLaunchOutcome.Cancelled:
+                return;
+
+            default:
+                AppendLog($"Lancement du jeu impossible: category={result.FailureCategory}.");
+                SetStatus("Erreur.");
+                ShowToast(
+                    "Lancement impossible",
+                    "Le jeu n’a pas pu être démarré. Consulte le diagnostic.",
+                    ToastKind.Error);
+                return;
         }
-
-        operation.TryInvoke(() =>
-        {
-            GameSingleSignOn.Write(ticket, _settings.GameLocale);
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = gameLauncherPath,
-                WorkingDirectory = _settings.InstallPath,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden
-            };
-            startInfo.ArgumentList.Add("--version");
-            startInfo.ArgumentList.Add("Classic");
-            startInfo.ArgumentList.Add("--path");
-            startInfo.ArgumentList.Add(GameInstallServices.GetClassicDirectoryPath(_settings.InstallPath));
-            startInfo.ArgumentList.Add("--portal");
-            startInfo.ArgumentList.Add(GameInstallServices.PortalAddress);
-            startInfo.ArgumentList.Add("--skipcertcheck");
-            startInfo.ArgumentList.Add("-launcherlogin");
-            startInfo.ArgumentList.Add("-uid");
-            startInfo.ArgumentList.Add("wow_classic");
-            Process.Start(startInfo);
-
-            AppendLog($"Jeu lancé sur Atlas avec connexion automatique pour {ticket.Username}: {wowPath}");
-            if (_settings.CloseLauncherOnGameStart)
-            {
-                Close();
-            }
-        });
     }
 
     private async void LauncherUpdateTimer_Tick(object? sender, EventArgs e)

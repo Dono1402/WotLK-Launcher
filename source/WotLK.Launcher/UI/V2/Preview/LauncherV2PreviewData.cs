@@ -32,6 +32,7 @@ public static class LauncherV2PreviewData
             "installing" => GamePreviewScenario.Installing,
             "verifying" => GamePreviewScenario.Verifying,
             "error" => GamePreviewScenario.Error,
+            "launching" => GamePreviewScenario.Launching,
             "realmoffline" => GamePreviewScenario.RealmOffline,
             _ => GamePreviewScenario.Ready
         };
@@ -165,6 +166,20 @@ public static class LauncherV2PreviewData
                 Progress = 0,
                 ErrorTitle = "Mise à jour interrompue",
                 ErrorSummary = "Le téléchargement n’a pas pu être terminé. Tu peux réessayer ou ouvrir le diagnostic."
+            },
+            GamePreviewScenario.Launching => new GameUiState
+            {
+                Scenario = GamePreviewScenario.Ready,
+                SemanticTone = GameSemanticTone.Accent,
+                ClientStatus = "Démarrage d’Arctium",
+                PrimaryActionLabel = "Lancement…",
+                IsPrimaryActionEnabled = false,
+                IsOptionsEnabled = false,
+                InstallBadgeText = "À jour",
+                IsClientReady = true,
+                Progress = 0,
+                IsLaunchInProgress = true,
+                PrimaryActionUnavailableReason = "Lancement du jeu en cours"
             },
             GamePreviewScenario.RealmOffline => new GameUiState
             {

@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using WotLK.Launcher.UI.V2.Presentation;
 
 namespace WotLK.Launcher.UI.V2.Views;
@@ -46,6 +47,13 @@ public partial class GameViewV2 : UserControl
     {
         get => (DashboardUiState?)GetValue(DashboardStateProperty);
         set => SetValue(DashboardStateProperty, value);
+    }
+
+    internal IInputElement PrimaryActionFocusTarget => PrimaryActionButton;
+
+    internal bool FocusPrimaryAction()
+    {
+        return PrimaryActionButton.Focus();
     }
 
     private static void LayoutModeChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)

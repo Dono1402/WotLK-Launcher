@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Text;
@@ -107,6 +108,14 @@ internal sealed class LegacyMainWindowDependencies
 
     internal required Func<string, bool> HasPlayableClient { get; init; }
 
+    internal required Func<string, bool> IsGameRunning { get; init; }
+
+    internal required Func<string, string, string> EnsureDefaultClientConfig { get; init; }
+
+    internal required Action<GameTicket, string> WriteGameSingleSignOn { get; init; }
+
+    internal required Func<ProcessStartInfo, Process?> StartGameProcess { get; init; }
+
     internal required Func<TimeSpan, DispatcherPriority, ILegacyDispatcherTimer> CreateTimer { get; init; }
 
     internal required Action<string> PersistLogLine { get; init; }
@@ -133,6 +142,10 @@ internal sealed class LegacyMainWindowDependencies
             SaveSettings = static settings => settings.Save(),
             PrepareGameDirectory = GameDirectoryAccess.PrepareElevatedSession,
             HasPlayableClient = GameInstallServices.HasPlayableClient,
+            IsGameRunning = GameInstallServices.IsGameRunning,
+            EnsureDefaultClientConfig = GameInstallServices.EnsureDefaultClientConfig,
+            WriteGameSingleSignOn = GameSingleSignOn.Write,
+            StartGameProcess = Process.Start,
             CreateTimer = static (interval, priority) => new LegacyDispatcherTimer(interval, priority),
             PersistLogLine = static line =>
             {

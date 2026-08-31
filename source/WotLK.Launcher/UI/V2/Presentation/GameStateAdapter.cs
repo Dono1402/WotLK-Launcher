@@ -28,7 +28,8 @@ internal sealed record GameViewState(
     string ProgressSecondaryDetail,
     string ErrorTitle,
     string ErrorSummary,
-    string PrimaryActionUnavailableReason);
+    string PrimaryActionUnavailableReason,
+    bool IsLaunchInProgress = false);
 
 internal sealed class GameStateAdapter : IDisposable
 {
@@ -37,6 +38,7 @@ internal sealed class GameStateAdapter : IDisposable
     private readonly Dispatcher _dispatcher;
     private long _latestSequence;
     private long _latestOperationId;
+    private long _latestPlayAttemptId;
     private int _disposeState;
 
     internal GameStateAdapter(
@@ -61,6 +63,11 @@ internal sealed class GameStateAdapter : IDisposable
 
     internal static GameViewState Project(GameRuntimeSnapshot snapshot)
     {
+        if (snapshot.PlayLaunchPhase != GameLaunchPhase.Idle)
+        {
+            return ProjectLaunch(snapshot);
+        }
+
         return snapshot.ViewMode switch
         {
             GameViewMode.Verifying => ProjectVerifying(snapshot),
@@ -117,12 +124,22 @@ internal sealed class GameStateAdapter : IDisposable
             _ => "Analyse du client"
         };
 
+        bool canPlayDuringAutomaticVerification = !fullRepair
+            && snapshot.Action == GameAction.Play
+            && snapshot.IsPlayable
+            && snapshot.CanPrimaryAction;
         return Create(
             GamePreviewScenario.Verifying,
             GameSemanticTone.Accent,
             fullRepair ? "Vérification complète" : "Vérification en cours",
-            fullRepair && snapshot.CanUserCancel ? "Annuler" : "Vérification…",
-            isPrimaryActionEnabled: fullRepair && snapshot.CanPrimaryAction,
+            fullRepair && snapshot.CanUserCancel
+                ? "Annuler"
+                : canPlayDuringAutomaticVerification
+                    ? "Jouer"
+                    : "Vérification…",
+            isPrimaryActionEnabled: fullRepair
+                ? snapshot.CanPrimaryAction
+                : canPlayDuringAutomaticVerification,
             snapshot,
             "Analyse",
             progress,
@@ -133,6 +150,86 @@ internal sealed class GameStateAdapter : IDisposable
             hasCount
                 ? $"{snapshot.ProcessedFileCount}/{snapshot.TotalFileCount} fichiers parcourus"
                 : "Progression indéterminée");
+    }
+
+    private static GameViewState ProjectLaunch(GameRuntimeSnapshot snapshot)
+    {
+        string badge = snapshot.UpdateKnowledge switch
+        {
+            GameUpdateKnowledge.Known => "À jour",
+            GameUpdateKnowledge.Unavailable => "Vérification indisponible",
+            _ => "Non vérifié"
+        };
+        if (snapshot.PlayLaunchPhase == GameLaunchPhase.WaitingForAuthentication)
+        {
+            return Stable(
+                GamePreviewScenario.Ready,
+                GameSemanticTone.Neutral,
+                "Connexion requise",
+                "Jouer",
+                badge,
+                snapshot,
+                isClientReady: true);
+        }
+
+        if (snapshot.PlayLaunchPhase is GameLaunchPhase.RequestingTicket
+            or GameLaunchPhase.PreparingSso
+            or GameLaunchPhase.StartingProcess)
+        {
+            string status = snapshot.PlayLaunchPhase switch
+            {
+                GameLaunchPhase.RequestingTicket => "Connexion au jeu",
+                GameLaunchPhase.PreparingSso => "Préparation du lancement",
+                _ => "Démarrage d’Arctium"
+            };
+            return Stable(
+                    GamePreviewScenario.Ready,
+                    GameSemanticTone.Accent,
+                    status,
+                    "Lancement…",
+                    badge,
+                    snapshot,
+                    isClientReady: true)
+                with
+                {
+                    IsPrimaryActionEnabled = false,
+                    IsLaunchInProgress = true
+                };
+        }
+
+        if (snapshot.PlayLaunchPhase == GameLaunchPhase.Started)
+        {
+            return Stable(
+                GamePreviewScenario.Ready,
+                GameSemanticTone.Success,
+                snapshot.LastPlayOutcome == GameLaunchOutcome.AlreadyRunning
+                    ? "Jeu déjà lancé"
+                    : "Jeu lancé",
+                "Jouer",
+                badge,
+                snapshot,
+                isClientReady: true);
+        }
+
+        string failureStatus = snapshot.LastPlayOutcome switch
+        {
+            GameLaunchOutcome.NetworkUnavailable
+                or GameLaunchOutcome.ServiceUnavailable => "Service Atlas indisponible",
+            GameLaunchOutcome.AuthenticationRequired
+                or GameLaunchOutcome.TicketFailed => "Connexion requise",
+            GameLaunchOutcome.ExecutableMissing => "Lanceur Arctium introuvable",
+            GameLaunchOutcome.AccessDenied => "Accès au lancement refusé",
+            GameLaunchOutcome.SsoFailed => "Connexion locale impossible",
+            _ => "Lancement impossible"
+        };
+        return Stable(
+            GamePreviewScenario.Ready,
+            GameSemanticTone.Error,
+            failureStatus,
+            "Jouer",
+            badge,
+            snapshot,
+            isClientReady: true);
     }
 
     private static GameViewState ProjectMaintenance(GameRuntimeSnapshot snapshot)
@@ -446,7 +543,9 @@ internal sealed class GameStateAdapter : IDisposable
         if (Volatile.Read(ref _disposeState) != 0
             || snapshot.Sequence <= _latestSequence
             || snapshot.OperationId is long operationId
-                && operationId < _latestOperationId)
+                && operationId < _latestOperationId
+            || snapshot.PlayAttemptId is long playAttemptId
+                && playAttemptId < _latestPlayAttemptId)
         {
             return;
         }
@@ -454,6 +553,12 @@ internal sealed class GameStateAdapter : IDisposable
         if (snapshot.OperationId is long currentOperationId)
         {
             _latestOperationId = Math.Max(_latestOperationId, currentOperationId);
+        }
+
+
+        if (snapshot.PlayAttemptId is long currentPlayAttemptId)
+        {
+            _latestPlayAttemptId = Math.Max(_latestPlayAttemptId, currentPlayAttemptId);
         }
 
         GameViewState viewState = Project(snapshot);

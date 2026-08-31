@@ -499,7 +499,7 @@ internal sealed class LauncherAuthService : ILauncherAuthService
             ?? throw new LauncherAuthException("La réponse d'authentification est invalide.");
     }
 
-    private void InvalidateLocalSession()
+    public void InvalidateLocalSession()
     {
         Session = null;
         SecureSessionStore.Clear();

@@ -35,6 +35,7 @@ internal enum GamePrimaryActionStatus
     CancelRequested,
     Busy,
     Unauthenticated,
+    AuthenticationUnavailable,
     ShuttingDown,
     Unsupported
 }
@@ -117,7 +118,12 @@ internal sealed record GameRuntimeSnapshot(
     string? ErrorSummary = null,
     GameAction? RetryAction = null,
     LauncherOperationKind? RetryOperationKind = null,
-    string? PrimaryActionUnavailableReason = null)
+    string? PrimaryActionUnavailableReason = null,
+    long? PlayAttemptId = null,
+    GameLaunchPhase PlayLaunchPhase = GameLaunchPhase.Idle,
+    bool IsPlayPendingAuthentication = false,
+    GameLaunchFailureCategory? PlayFailureCategory = null,
+    GameLaunchOutcome? LastPlayOutcome = null)
 {
     internal GameViewMode ViewMode
     {
@@ -179,6 +185,16 @@ internal sealed record GameRuntimeSnapshot(
             or GameClientMaintenancePhase.Registering
             or GameClientMaintenancePhase.RegistrationCompleted
             or GameClientMaintenancePhase.Completed;
+
+    internal bool IsPlayActive => PlayLaunchPhase is
+        GameLaunchPhase.WaitingForAuthentication
+        or GameLaunchPhase.RequestingTicket
+        or GameLaunchPhase.PreparingSso
+        or GameLaunchPhase.StartingProcess;
+
+    internal bool CanPlay => Action == GameAction.Play
+        && IsPlayable
+        && CanPrimaryAction;
 }
 
 internal sealed class GameRuntimeSnapshotEventArgs(GameRuntimeSnapshot snapshot) : EventArgs

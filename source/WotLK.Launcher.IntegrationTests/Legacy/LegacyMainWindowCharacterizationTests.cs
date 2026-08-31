@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -56,6 +57,7 @@ internal static class LegacyMainWindowCharacterizationTests
         await CharacterizeRestoreBeforeInitialAnalysisAsync();
         await CharacterizeTimerResponsibilitiesAsync();
         await CharacterizeLegacyCompatibilityMatrixAsync();
+        await CharacterizeLegacyPlayFlowAsync();
         await CharacterizeSharedMaintenanceDelegationAsync();
         await CharacterizeSharedMaintenanceFailurePresentationAsync();
         await CharacterizeCloseDuringOperationAsync();
@@ -430,6 +432,111 @@ internal static class LegacyMainWindowCharacterizationTests
         }
     }
 
+    private static async Task CharacterizeLegacyPlayFlowAsync()
+    {
+        await CharacterizeLegacyPlaySuccessAsync(closeAfterLaunch: false);
+        await CharacterizeLegacyPlaySuccessAsync(closeAfterLaunch: true);
+        await CharacterizeLegacyAlreadyRunningAsync();
+        await CharacterizeLegacyTicketRejectionAsync();
+    }
+
+    private static async Task CharacterizeLegacyPlaySuccessAsync(bool closeAfterLaunch)
+    {
+        using LegacyTestEnvironment environment = new(initialPlayableClient: true);
+        environment.CreatePlayableClientFiles();
+        environment.Settings.CloseLauncherOnGameStart = closeAfterLaunch;
+        environment.Authentication.Session = FakeLauncherAuthService.CreateSession();
+        MainWindow window = new(environment.CreateDependencies());
+
+        await window.ExecuteGameActionForCharacterizationAsync();
+
+        Equal(1, environment.Authentication.EnsureFreshCalls, "Play doit vérifier la fraîcheur de session une fois.");
+        Equal(1, environment.Authentication.CreateGameTicketCalls, "Play doit demander exactement un ticket.");
+        Equal(1, environment.ConfigurationWrites, "La configuration locale doit être préparée une fois.");
+        Equal(1, environment.SsoWrites, "Le SSO doit être écrit exactement une fois.");
+        Equal(1, environment.ProcessStarts, "Arctium doit être lancé exactement une fois.");
+        Equal(
+            "config>refresh>ticket>sso>process",
+            string.Join('>', environment.PlayEvents),
+            "L'ordre historique du lancement doit rester stable.");
+
+        ProcessStartInfo start = environment.LastStartInfo
+            ?? throw new InvalidOperationException("Le ProcessStartInfo Arctium témoin est absent.");
+        Equal(
+            Path.Combine(environment.Settings.InstallPath, GameInstallServices.GameLauncherFileName),
+            start.FileName,
+            "Le lanceur Arctium historique doit être résolu dans l'installation.");
+        Equal(environment.Settings.InstallPath, start.WorkingDirectory, "Le dossier de travail Arctium doit rester la racine du client.");
+        True(!start.UseShellExecute && start.CreateNoWindow, "Le lancement doit rester caché et sans shell Windows.");
+        Equal(ProcessWindowStyle.Hidden, start.WindowStyle, "La fenêtre Arctium doit rester cachée.");
+        Equal(
+            string.Join('|',
+                "--version",
+                "Classic",
+                "--path",
+                GameInstallServices.GetClassicDirectoryPath(environment.Settings.InstallPath),
+                "--portal",
+                GameInstallServices.PortalAddress,
+                "--skipcertcheck",
+                "-launcherlogin",
+                "-uid",
+                "wow_classic"),
+            string.Join('|', start.ArgumentList),
+            "Les arguments Arctium historiques ne doivent pas changer.");
+
+        if (closeAfterLaunch)
+        {
+            await WaitUntilAsync(
+                () => environment.Authentication.DisposeCalls == 1,
+                "Le launcher doit se fermer après succès lorsque l'option est active.");
+        }
+        else
+        {
+            Equal(0, environment.Authentication.DisposeCalls, "Le launcher doit rester ouvert lorsque l'option est désactivée.");
+            window.Close();
+        }
+    }
+
+    private static async Task CharacterizeLegacyAlreadyRunningAsync()
+    {
+        using LegacyTestEnvironment environment = new(initialPlayableClient: true)
+        {
+            IsGameRunningResult = true
+        };
+        environment.CreatePlayableClientFiles();
+        environment.Authentication.Session = FakeLauncherAuthService.CreateSession();
+        MainWindow window = new(environment.CreateDependencies());
+
+        await window.ExecuteGameActionForCharacterizationAsync();
+
+        Equal(0, environment.Authentication.EnsureFreshCalls, "Un jeu déjà lancé ne doit pas renouveler la session.");
+        Equal(0, environment.Authentication.CreateGameTicketCalls, "Un jeu déjà lancé ne doit pas consommer de ticket.");
+        Equal(0, environment.SsoWrites, "Un jeu déjà lancé ne doit pas réécrire le SSO.");
+        Equal(0, environment.ProcessStarts, "Un jeu déjà lancé ne doit pas créer un second processus.");
+        Equal("Jeu en cours", window.CaptureCharacterizationSnapshot().StatusText, "Le statut historique du jeu déjà lancé doit être conservé.");
+        window.Close();
+    }
+
+    private static async Task CharacterizeLegacyTicketRejectionAsync()
+    {
+        using LegacyTestEnvironment environment = new(initialPlayableClient: true);
+        environment.CreatePlayableClientFiles();
+        environment.Authentication.Session = FakeLauncherAuthService.CreateSession();
+        environment.Authentication.GameTicketHandler = _ =>
+            Task.FromException<GameTicket>(new LauncherAuthException("ticket refusé", HttpStatusCode.Unauthorized));
+        MainWindow window = new(environment.CreateDependencies());
+
+        await window.ExecuteGameActionForCharacterizationAsync();
+
+        LegacyMainWindowSnapshot snapshot = window.CaptureCharacterizationSnapshot();
+        Equal(1, environment.Authentication.CreateGameTicketCalls, "Le rejet doit suivre une unique demande de ticket.");
+        Equal(0, environment.SsoWrites, "Un ticket refusé ne doit jamais être écrit dans le SSO.");
+        Equal(0, environment.ProcessStarts, "Un ticket refusé ne doit jamais lancer Arctium.");
+        Equal("Connexion requise", snapshot.StatusText, "Le rejet du ticket doit conserver le statut legacy.");
+        True(snapshot.IsToastVisible, "Le rejet du ticket doit conserver une erreur visible.");
+        window.Close();
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition, string failureMessage)
     {
         DateTime deadline = DateTime.UtcNow.AddSeconds(3);
@@ -510,6 +617,7 @@ internal sealed class LegacyTestEnvironment : IDisposable
             CloseLauncherOnGameStart = false
         };
         Authentication = new FakeLauncherAuthService();
+        Authentication.PlayEventSink = PlayEvents.Add;
         Observer = new RecordingStartupObserver();
         Http = new RecordingHttpHandler(Observer);
     }
@@ -536,6 +644,18 @@ internal sealed class LegacyTestEnvironment : IDisposable
 
     internal IGameClientMaintenanceService? GameClientMaintenanceService { get; set; }
 
+    internal bool IsGameRunningResult { get; set; }
+
+    internal int ConfigurationWrites { get; private set; }
+
+    internal int SsoWrites { get; private set; }
+
+    internal int ProcessStarts { get; private set; }
+
+    internal ProcessStartInfo? LastStartInfo { get; private set; }
+
+    internal List<string> PlayEvents { get; } = [];
+
     internal LegacyMainWindowDependencies CreateDependencies()
     {
         return new LegacyMainWindowDependencies
@@ -561,6 +681,25 @@ internal sealed class LegacyTestEnvironment : IDisposable
             SaveSettings = _ => SettingsSaveCalls++,
             PrepareGameDirectory = _ => PrepareDirectoryCalls++,
             HasPlayableClient = _ => _initialPlayableClient,
+            IsGameRunning = _ => IsGameRunningResult,
+            EnsureDefaultClientConfig = (_, _) =>
+            {
+                ConfigurationWrites++;
+                PlayEvents.Add("config");
+                return Path.Combine(_root, "_classic_", "WTF", "Config.wtf");
+            },
+            WriteGameSingleSignOn = (_, _) =>
+            {
+                SsoWrites++;
+                PlayEvents.Add("sso");
+            },
+            StartGameProcess = startInfo =>
+            {
+                ProcessStarts++;
+                LastStartInfo = startInfo;
+                PlayEvents.Add("process");
+                return new Process();
+            },
             CreateTimer = (interval, priority) =>
             {
                 FakeLegacyTimer timer = new(interval, priority);
@@ -866,6 +1005,10 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
 
     internal Func<CancellationToken, Task<bool>>? EnsureFreshHandler { get; set; }
 
+    internal Func<CancellationToken, Task<GameTicket>>? GameTicketHandler { get; set; }
+
+    internal Action<string>? PlayEventSink { get; set; }
+
     internal Func<CancellationToken, Task<LauncherServerStatus>>? StatusHandler { get; set; }
 
     internal Func<CancellationToken, Task<IReadOnlyList<LauncherNews>>>? NewsHandler { get; set; }
@@ -928,6 +1071,7 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
     public Task<bool> EnsureFreshAsync(CancellationToken cancellationToken = default)
     {
         EnsureFreshCalls++;
+        PlayEventSink?.Invoke("refresh");
         return EnsureFreshHandler?.Invoke(cancellationToken)
             ?? Task.FromResult(Session is not null);
     }
@@ -985,9 +1129,20 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
         Session = session;
     }
 
+    public void InvalidateLocalSession()
+    {
+        Session = null;
+    }
+
     public Task<GameTicket> CreateGameTicketAsync(CancellationToken cancellationToken = default)
     {
         CreateGameTicketCalls++;
+        PlayEventSink?.Invoke("ticket");
+        if (GameTicketHandler is not null)
+        {
+            return GameTicketHandler(cancellationToken);
+        }
+
         return Task.FromResult(new GameTicket(
             "HP-0000000000000000000000000000000000000000",
             DateTimeOffset.UtcNow.AddMinutes(1),

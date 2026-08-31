@@ -499,7 +499,7 @@ internal static class LauncherAuthenticationTests
         await RuntimeInitializationIsSingleFlightAsync();
         await RuntimeEnablesInstallAndRefreshesDashboardOnceAsync();
         await RuntimeEnablesUpdateAfterVerificationAsync();
-        await RuntimeKeepsPlayDisabledAsync();
+        await RuntimeEnablesPlayWithoutLaunchingAsync();
     }
 
     private static async Task RuntimeInitializationIsSingleFlightAsync()
@@ -577,7 +577,7 @@ internal static class LauncherAuthenticationTests
         Equal(0, authentication.CreateGameTicketCalls, "Aucun ticket ne doit être créé.");
     }
 
-    private static async Task RuntimeKeepsPlayDisabledAsync()
+    private static async Task RuntimeEnablesPlayWithoutLaunchingAsync()
     {
         using TemporaryClient client = new();
         client.CreatePlayableFiles();
@@ -591,9 +591,9 @@ internal static class LauncherAuthenticationTests
         await RequiredCompletion(runtime.TryLogin("Player", "transient-password"));
 
         Equal(GameAction.Play, runtime.Game.CurrentSnapshot.Action, "Le client jouable doit rester Play.");
-        True(!runtime.Game.CurrentSnapshot.CanPrimaryAction, "Jouer doit rester désactivé jusqu'à 02F.3.");
-        Equal("Le lancement sera reconnecté ultérieurement", runtime.Game.CurrentSnapshot.PrimaryActionUnavailableReason, "La raison de blocage Play est incorrecte.");
-        Equal(0, authentication.CreateGameTicketCalls, "02F.2 ne doit jamais créer de ticket.");
+        True(runtime.Game.CurrentSnapshot.CanPrimaryAction, "Jouer doit être actif après authentification en 02F.3.");
+        True(string.IsNullOrWhiteSpace(runtime.Game.CurrentSnapshot.PrimaryActionUnavailableReason), "Jouer actif ne doit pas conserver une ancienne raison de blocage.");
+        Equal(0, authentication.CreateGameTicketCalls, "Aucun ticket ne doit être créé avant le clic Jouer.");
     }
 
     private static FakeLauncherAuthService AuthForRuntime(string username)

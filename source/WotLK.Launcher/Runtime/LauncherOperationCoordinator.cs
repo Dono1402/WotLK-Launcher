@@ -128,26 +128,9 @@ internal sealed class LauncherOperationCoordinator : IDisposable
         LauncherOperationStartStatus status;
         lock (_sync)
         {
-            if (_isShuttingDown || Volatile.Read(ref _disposeState) != 0)
+            status = GetPlayStartStatusUnsafe(clientIsPlayable);
+            if (status == LauncherOperationStartStatus.Started)
             {
-                status = LauncherOperationStartStatus.ShuttingDown;
-            }
-            else if (!clientIsPlayable)
-            {
-                status = LauncherOperationStartStatus.RejectedByCompatibility;
-            }
-            else if (_playLease is not null)
-            {
-                status = LauncherOperationStartStatus.Busy;
-            }
-            else if (_maintenanceLease is not null
-                     && _maintenanceLease.Kind != LauncherOperationKind.Verify)
-            {
-                status = LauncherOperationStartStatus.RejectedByCompatibility;
-            }
-            else
-            {
-                status = LauncherOperationStartStatus.Started;
                 lease = CreateLeaseUnsafe(
                     LauncherOperationKind.Play,
                     canUserCancel: false,
@@ -162,6 +145,15 @@ internal sealed class LauncherOperationCoordinator : IDisposable
         }
 
         return new LauncherOperationStartResult(status, lease);
+    }
+
+    internal bool CanBeginPlay(bool clientIsPlayable)
+    {
+        lock (_sync)
+        {
+            return GetPlayStartStatusUnsafe(clientIsPlayable)
+                == LauncherOperationStartStatus.Started;
+        }
     }
 
     internal bool CancelFromUser()
@@ -366,6 +358,29 @@ internal sealed class LauncherOperationCoordinator : IDisposable
         }
 
         return LauncherOperationStartStatus.Started;
+    }
+
+    private LauncherOperationStartStatus GetPlayStartStatusUnsafe(bool clientIsPlayable)
+    {
+        if (_isShuttingDown || Volatile.Read(ref _disposeState) != 0)
+        {
+            return LauncherOperationStartStatus.ShuttingDown;
+        }
+
+        if (!clientIsPlayable)
+        {
+            return LauncherOperationStartStatus.RejectedByCompatibility;
+        }
+
+        if (_playLease is not null)
+        {
+            return LauncherOperationStartStatus.Busy;
+        }
+
+        return _maintenanceLease is not null
+               && _maintenanceLease.Kind != LauncherOperationKind.Verify
+            ? LauncherOperationStartStatus.RejectedByCompatibility
+            : LauncherOperationStartStatus.Started;
     }
 
     private LauncherOperationLease CreateLeaseUnsafe(

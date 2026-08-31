@@ -137,7 +137,8 @@
                                     </TextBlock>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal">
-                                    <Button Width="170"
+                                    <Button x:Name="PrimaryActionButton"
+                                            Width="170"
                                             Style="{StaticResource AtlasV2.Button.Primary}"
                                             Margin="0,0,10,0"
                                             IsEnabled="{Binding IsPrimaryActionEnabled}"
@@ -183,6 +184,25 @@
                                                                 <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Refresh}"/>
                                                                 <Setter Property="Fill" Value="Transparent"/>
                                                                 <Setter Property="Stroke" Value="#111318"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsLaunchInProgress}" Value="True">
+                                                                <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Refresh}"/>
+                                                                <Setter Property="Fill" Value="Transparent"/>
+                                                                <Setter Property="Stroke" Value="#111318"/>
+                                                                <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+                                                                <Setter Property="RenderTransform">
+                                                                    <Setter.Value>
+                                                                        <RotateTransform/>
+                                                                    </Setter.Value>
+                                                                </Setter>
+                                                                <DataTrigger.EnterActions>
+                                                                    <BeginStoryboard>
+                                                                        <Storyboard RepeatBehavior="Forever">
+                                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                                             From="0" To="360" Duration="0:0:0.9"/>
+                                                                        </Storyboard>
+                                                                    </BeginStoryboard>
+                                                                </DataTrigger.EnterActions>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>

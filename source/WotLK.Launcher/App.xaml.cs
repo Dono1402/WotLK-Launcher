@@ -165,7 +165,9 @@ public partial class App : Application
             gameState,
             runtime.Session,
             window.Dispatcher);
-        PrimaryActionCommand primaryActionCommand = new(runtime.Game);
+        PrimaryActionCommand primaryActionCommand = new(
+            runtime.Game,
+            window.OpenAuthenticationForPendingPlay);
         gameState.AttachPrimaryActionCommand(primaryActionCommand.Command);
         GameVerificationCommand verificationCommand = new(runtime.Game);
         gameState.AttachVerifyCommand(verificationCommand.Command);
@@ -182,6 +184,26 @@ public partial class App : Application
         bool allowClose = false;
         bool shutdownStarted = false;
         int presentationDisposed = 0;
+        EventHandler playStartedHandler = (_, _) =>
+        {
+            if (!runtime.Settings.CloseLauncherOnGameStart
+                || runtime.IsDisposed
+                || shutdownStarted)
+            {
+                return;
+            }
+
+            _ = window.Dispatcher.BeginInvoke(
+                DispatcherPriority.Send,
+                new Action(() =>
+                {
+                    if (!shutdownStarted && window.IsVisible)
+                    {
+                        window.Close();
+                    }
+                }));
+        };
+        runtime.Game.PlayStarted += playStartedHandler;
 
         void DisposePresentation()
         {
@@ -198,6 +220,7 @@ public partial class App : Application
             verificationCommand.Dispose();
             refreshDashboardCommand.Dispose();
             gameCommands.Dispose();
+            runtime.Game.PlayStarted -= playStartedHandler;
             gameState.ClearNotification();
         }
 

@@ -61,6 +61,8 @@ public partial class MainWindow : Window
     private readonly InstalledManifestStore _installedManifestStore;
     private readonly GameFileVerifier _gameFileVerifier;
     private readonly GameClientVerificationService _gameVerificationService;
+    private readonly IGameInstallPlatform _gameInstallPlatform;
+    private readonly IGameClientMaintenanceService _gameClientMaintenanceService;
     private readonly LauncherOperationCoordinator _operations;
     private readonly ILauncherAuthService _auth;
     private readonly HttpClient _http;
@@ -139,6 +141,16 @@ public partial class MainWindow : Window
             _gameManifestClient,
             _gameFileVerifier,
             _installedManifestStore);
+        _gameInstallPlatform = dependencies.GameInstallPlatform
+            ?? new GameInstallPlatformAdapter();
+        _gameClientMaintenanceService = dependencies.GameClientMaintenanceService
+            ?? new GameClientMaintenanceService(
+                _gameManifestClient,
+                _gameFileVerifier,
+                _installedManifestStore,
+                new GameFileTransferService(_http),
+                new GameFileCleanupService(_gameFileVerifier),
+                _gameInstallPlatform);
         dependencies.SaveSettings(_settings);
         _startupObserver.Record(LegacyStartupEvent.SettingsSaved);
         dependencies.PrepareGameDirectory(_settings.InstallPath);
@@ -2267,254 +2279,175 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task<List<LauncherFile>> FindMissingOrChangedFilesForManifestAsync(
-        LauncherManifest manifest,
-        bool updateProgress,
-        LauncherOperationLease operation)
-    {
-        GameFileComparisonResult comparison = await _gameFileVerifier
-            .FindMissingOrChangedFilesAsync(
-                _settings.InstallPath,
-                manifest,
-                updateProgress
-                    ? progress => operation.TryInvoke(operation.OperationId, () =>
-                        ProgressText.Text = $"{progress.ProcessedFileCount}/{progress.TotalFileCount}")
-                    : null,
-                operation.CancellationToken);
-        operation.TryInvoke(() =>
-        {
-            if (updateProgress && comparison.Source != GameFileComparisonSource.FileSystem)
-            {
-                ProgressText.Text = comparison.MissingOrChangedFiles.Count == 0
-                    ? "Historique OK"
-                    : comparison.MissingOrChangedFiles.Count + " fichier(s)";
-            }
-        });
-
-        return comparison.MissingOrChangedFiles.ToList();
-    }
-
-    private List<string> FindRemovedFilesForManifest(LauncherManifest manifest)
-    {
-        return _gameFileVerifier.FindRemovedFiles(_settings.InstallPath, manifest).ToList();
-    }
-
-    private int DeleteRemovedClientFiles(List<string> relativePaths, CancellationToken cancellationToken)
-    {
-        var deletedCount = 0;
-        var directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var root = Path.GetFullPath(_settings.InstallPath).TrimEnd(Path.DirectorySeparatorChar);
-
-        foreach (var relativePath in relativePaths.Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var target = GetSafeTargetPath(_settings.InstallPath, relativePath);
-            if (!File.Exists(target))
-            {
-                continue;
-            }
-
-            DeleteFileWithRetry(target, cancellationToken);
-            deletedCount++;
-
-            var currentDirectory = Path.GetDirectoryName(target);
-            while (!string.IsNullOrWhiteSpace(currentDirectory))
-            {
-                var normalizedDirectory = Path.GetFullPath(currentDirectory).TrimEnd(Path.DirectorySeparatorChar);
-                if (string.Equals(normalizedDirectory, root, StringComparison.OrdinalIgnoreCase))
-                {
-                    break;
-                }
-
-                directories.Add(normalizedDirectory);
-                currentDirectory = Path.GetDirectoryName(normalizedDirectory);
-            }
-        }
-
-        foreach (var directory in directories.OrderByDescending(path => path.Length))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            TryDeleteDirectoryIfEmpty(directory);
-        }
-
-        return deletedCount;
-    }
-
-    private static void DeleteFileWithRetry(string path, CancellationToken cancellationToken)
-    {
-        Exception? lastError = null;
-        for (var attempt = 0; attempt < 12; attempt++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                File.SetAttributes(path, FileAttributes.Normal);
-                File.Delete(path);
-                return;
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                lastError = ex;
-                Thread.Sleep(250);
-            }
-        }
-
-        throw new IOException("Impossible de supprimer le fichier obsolete: " + path, lastError);
-    }
-
-    private static void TryDeleteDirectoryIfEmpty(string directory)
-    {
-        try
-        {
-            if (Directory.Exists(directory) && !Directory.EnumerateFileSystemEntries(directory).Any())
-            {
-                Directory.Delete(directory);
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-        }
-    }
-
-    private void SaveInstalledManifestHistory(LauncherManifest manifest)
-    {
-        _installedManifestStore.Save(_settings.InstallPath, manifest);
-    }
-
     private async Task InstallOrUpdateAsync(LauncherOperationLease operation)
     {
-        CancellationToken cancellationToken = operation.CancellationToken;
-        _settings.InstallPath = LauncherSettings.NormalizeInstallPath(InstallPathBox.Text);
-        InstallPathBox.Text = _settings.InstallPath;
-        Directory.CreateDirectory(_settings.InstallPath);
+        GameClientMaintenanceResult result = await _gameClientMaintenanceService
+            .InstallOrUpdateAsync(
+                new GameClientMaintenanceRequest(
+                    _settings.InstallPath,
+                    _settings.ManifestUrl,
+                    _settings.GameLocale),
+                operation,
+                progress => ApplyLegacyMaintenanceProgress(operation, progress));
+        operation.TryInvoke(
+            result.OperationId,
+            () => ApplyLegacyMaintenanceResult(result));
+    }
 
-        SetStatus("Chargement du manifeste...");
-        AppendLog("Vérification des fichiers du client...");
-        var manifest = await LoadManifestAsync(cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        if (!string.IsNullOrWhiteSpace(manifest.Version))
+    private void ApplyLegacyMaintenanceProgress(
+        LauncherOperationLease operation,
+        GameClientMaintenanceProgress progress)
+    {
+        void Apply()
         {
-            AppendLog("Version client: " + manifest.Version);
-        }
-
-        if (manifest.Files.Count == 0)
-        {
-            throw new InvalidOperationException("Le manifeste ne contient aucun fichier.");
-        }
-
-        GameInstallServices.StopRunningGameProcesses(_settings.InstallPath);
-        AppendLog("Processus WoW ferme si necessaire avant verification.");
-
-        SetStatus("Comparaison du manifeste...");
-        var missingOrChanged = await FindMissingOrChangedFilesForManifestAsync(
-            manifest,
-            updateProgress: true,
-            operation);
-        cancellationToken.ThrowIfCancellationRequested();
-        var removedFiles = FindRemovedFilesForManifest(manifest);
-
-        if (missingOrChanged.Count == 0 && removedFiles.Count == 0)
-        {
-            SaveInstalledManifestHistory(manifest);
-            _announcedGameUpdateVersion = null;
-            SetGameAction(GameAction.Play);
-            RegisterGameApplication(manifest.Version);
-            MainProgress.Value = 100;
-            ProgressText.Text = "À jour";
-            SetStatus("Client à jour.");
-            AppendLog("Aucun fichier à télécharger.");
-            return;
-        }
-
-        var totalBytes = missingOrChanged.Sum(file => Math.Max(file.Size, 0));
-        long downloadedBytes = 0;
-
-        if (missingOrChanged.Count > 0)
-        {
-            AppendLog($"{missingOrChanged.Count} fichier(s) a telecharger, {FormatBytes(totalBytes)}.");
-        }
-        if (removedFiles.Count > 0)
-        {
-            AppendLog($"{removedFiles.Count} fichier(s) obsolete(s) a supprimer.");
-        }
-
-        if (removedFiles.Count > 0)
-        {
-            SetStatus("Nettoyage...");
-            var deletedCount = DeleteRemovedClientFiles(removedFiles, cancellationToken);
-            AppendLog($"Nettoyage: {deletedCount} fichier(s) supprime(s).");
-        }
-
-        if (missingOrChanged.Count == 0)
-        {
-            SaveInstalledManifestHistory(manifest);
-            _announcedGameUpdateVersion = null;
-            SetGameAction(GameAction.Play);
-            RegisterGameApplication(manifest.Version);
-            MainProgress.Value = 100;
-            ProgressText.Text = "A jour";
-            SetStatus("Client a jour.");
-            AppendLog("Aucun fichier a telecharger.");
-            return;
-        }
-
-        SetStatus("Telechargement...");
-        var downloadStopwatch = Stopwatch.StartNew();
-        var fileIndex = 0;
-
-        foreach (var file in missingOrChanged)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            fileIndex++;
-            var target = GetSafeTargetPath(_settings.InstallPath, file.Path);
-            var uri = BuildFileUri(manifest, file);
-
-            SetStatus($"Téléchargement {fileIndex}/{missingOrChanged.Count}...");
-            AppendLog("Téléchargement: " + file.Path);
-            await DownloadFileAsync(uri, target, file.Size, file.Sha256, progressBytes =>
+            operation.TryInvoke(progress.OperationId, () =>
             {
-                operation.TryInvoke(operation.OperationId, () =>
+                switch (progress.Phase)
                 {
-                    var current = downloadedBytes + progressBytes;
-                    MainProgress.Value = totalBytes == 0 ? 0 : Math.Clamp((double)current / totalBytes * 100, 0, 100);
-                    ProgressText.Text = FormatTransferProgress(current, totalBytes, downloadStopwatch.Elapsed);
-                });
-            }, cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
+                    case GameClientMaintenancePhase.LoadingManifest:
+                        SetStatus("Chargement du manifeste...");
+                        AppendLog("Vérification des fichiers du client...");
+                        break;
 
-            downloadedBytes += Math.Max(file.Size, 0);
+                    case GameClientMaintenancePhase.ManifestLoaded:
+                        if (!string.IsNullOrWhiteSpace(progress.AvailableVersion))
+                        {
+                            AppendLog("Version client: " + progress.AvailableVersion);
+                        }
+                        break;
+
+                    case GameClientMaintenancePhase.GameProcessesStopped:
+                        AppendLog("Processus WoW ferme si necessaire avant verification.");
+                        break;
+
+                    case GameClientMaintenancePhase.ComparingManifest:
+                        SetStatus("Comparaison du manifeste...");
+                        break;
+
+                    case GameClientMaintenancePhase.ScanningFiles:
+                        ProgressText.Text = $"{progress.ProcessedFileCount}/{progress.TotalFileCount}";
+                        break;
+
+                    case GameClientMaintenancePhase.ComparisonCompleted:
+                        ApplyLegacyComparisonProgress(progress);
+                        break;
+
+                    case GameClientMaintenancePhase.Cleaning:
+                        SetStatus("Nettoyage...");
+                        break;
+
+                    case GameClientMaintenancePhase.CleanupCompleted:
+                        AppendLog($"Nettoyage: {progress.DeletedFileCount ?? 0} fichier(s) supprime(s).");
+                        break;
+
+                    case GameClientMaintenancePhase.DownloadingStarted:
+                        SetStatus("Telechargement...");
+                        break;
+
+                    case GameClientMaintenancePhase.DownloadingFile:
+                        SetStatus($"Téléchargement {progress.ProcessedFileCount}/{progress.TotalFileCount}...");
+                        AppendLog("Téléchargement: " + progress.CurrentFile);
+                        break;
+
+                    case GameClientMaintenancePhase.Downloading:
+                        long received = progress.DownloadedBytes ?? 0;
+                        long total = progress.TotalBytes ?? 0;
+                        MainProgress.Value = total == 0
+                            ? 0
+                            : Math.Clamp((double)received / total * 100, 0, 100);
+                        ProgressText.Text = FormatTransferProgress(progress);
+                        break;
+
+                    case GameClientMaintenancePhase.CacheSaved:
+                        _announcedGameUpdateVersion = null;
+                        SetGameAction(GameAction.Play);
+                        break;
+
+                    case GameClientMaintenancePhase.RegistrationCompleted:
+                        if (!string.IsNullOrWhiteSpace(progress.ConfigPath))
+                        {
+                            AppendLog("Configuration video/langue WotLK ajustee: " + progress.ConfigPath);
+                        }
+                        if (!string.IsNullOrWhiteSpace(progress.UninstallerPath))
+                        {
+                            AppendLog("Application Windows WotLK Client enregistree: " + progress.UninstallerPath);
+                        }
+                        break;
+                }
+            });
         }
 
-        SaveInstalledManifestHistory(manifest);
-        _announcedGameUpdateVersion = null;
-        SetGameAction(GameAction.Play);
-        RegisterGameApplication(manifest.Version);
+        if (Dispatcher.CheckAccess())
+        {
+            Apply();
+        }
+        else
+        {
+            Dispatcher.Invoke(Apply);
+        }
+    }
+
+    private void ApplyLegacyComparisonProgress(GameClientMaintenanceProgress progress)
+    {
+        int missingOrChanged = progress.MissingOrChangedFileCount ?? 0;
+        int removed = progress.RemovedFileCount ?? 0;
+        if (progress.ComparisonSource != GameFileComparisonSource.FileSystem)
+        {
+            ProgressText.Text = missingOrChanged == 0
+                ? "Historique OK"
+                : missingOrChanged + " fichier(s)";
+        }
+
+        if (missingOrChanged > 0)
+        {
+            AppendLog($"{missingOrChanged} fichier(s) a telecharger, {FormatBytes(progress.TotalBytes ?? 0)}.");
+        }
+        if (removed > 0)
+        {
+            AppendLog($"{removed} fichier(s) obsolete(s) a supprimer.");
+        }
+    }
+
+    private void ApplyLegacyMaintenanceResult(GameClientMaintenanceResult result)
+    {
+        if (result.Outcome == GameClientMaintenanceOutcome.Downloaded)
+        {
+            MainProgress.Value = 100;
+            ProgressText.Text = "Terminé";
+            SetStatus("Installation terminée.");
+            AppendLog("Client prêt: " + _settings.InstallPath);
+            ShowToast(
+                "Client prêt",
+                "L'installation du client WotLK est terminée.",
+                ToastKind.Success);
+            return;
+        }
+
         MainProgress.Value = 100;
-        ProgressText.Text = "Terminé";
-        SetStatus("Installation terminée.");
-        AppendLog("Client prêt: " + _settings.InstallPath);
-        ShowToast("Client prêt", "L'installation du client WotLK est terminée.", ToastKind.Success);
+        ProgressText.Text = result.Outcome == GameClientMaintenanceOutcome.AlreadyCurrent
+            ? "À jour"
+            : "A jour";
+        SetStatus(result.Outcome == GameClientMaintenanceOutcome.AlreadyCurrent
+            ? "Client à jour."
+            : "Client a jour.");
+        AppendLog(result.Outcome == GameClientMaintenanceOutcome.AlreadyCurrent
+            ? "Aucun fichier à télécharger."
+            : "Aucun fichier a telecharger.");
     }
 
     private void RegisterGameApplication(string clientVersion)
     {
-        if (!GameDirectoryAccess.CanWrite(_settings.InstallPath))
+        GameApplicationRegistration? registration = _gameInstallPlatform.RegisterGameApplication(
+            _settings.InstallPath,
+            clientVersion,
+            _settings.GameLocale);
+        if (registration is null)
         {
             return;
         }
 
-        var configPath = GameInstallServices.EnsureDefaultClientConfig(_settings.InstallPath, _settings.GameLocale);
-        var uninstallerPath = GameInstallServices.RegisterInstalledGame(_settings.InstallPath, clientVersion);
-        AppendLog("Configuration video/langue WotLK ajustee: " + configPath);
-        AppendLog("Application Windows WotLK Client enregistree: " + uninstallerPath);
-    }
-
-    private async Task<LauncherManifest> LoadManifestAsync(CancellationToken cancellationToken)
-    {
-        return await _gameManifestClient.LoadAsync(
-            _settings.ManifestUrl,
-            cancellationToken);
+        AppendLog("Configuration video/langue WotLK ajustee: " + registration.ConfigPath);
+        AppendLog("Application Windows WotLK Client enregistree: " + registration.UninstallerPath);
     }
 
     private async Task<LauncherUpdateManifest> LoadLauncherUpdateManifestAsync(CancellationToken cancellationToken)
@@ -2525,109 +2458,6 @@ public partial class MainWindow : Window
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         return await JsonSerializer.DeserializeAsync<LauncherUpdateManifest>(stream, JsonOptions, cancellationToken)
             ?? throw new InvalidOperationException("Impossible de lire le manifeste de mise à jour launcher.");
-    }
-
-    private async Task DownloadFileAsync(Uri uri, string targetPath, long expectedSize, string expectedSha256, Action<long> progress, CancellationToken cancellationToken)
-    {
-        using var response = await _http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        var targetDirectory = Path.GetDirectoryName(targetPath) ?? throw new InvalidOperationException("Chemin cible invalide.");
-        Directory.CreateDirectory(targetDirectory);
-        var tempPath = Path.Combine(targetDirectory, "." + Path.GetFileName(targetPath) + "." + Guid.NewGuid().ToString("N") + ".download");
-
-        try
-        {
-            await using (var remote = await response.Content.ReadAsStreamAsync(cancellationToken))
-            await using (var local = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.Read, 1024 * 128, useAsync: true))
-            {
-                var buffer = new byte[1024 * 128];
-                long written = 0;
-
-                while (true)
-                {
-                    var read = await remote.ReadAsync(buffer, cancellationToken);
-                    if (read == 0)
-                    {
-                        break;
-                    }
-
-                    await local.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-                    written += read;
-                    progress(written);
-                }
-
-                if (expectedSize >= 0 && written != expectedSize)
-                {
-                    throw new InvalidOperationException($"Taille invalide pour {Path.GetFileName(targetPath)}: {FormatBytes(written)} recu, {FormatBytes(expectedSize)} attendu.");
-                }
-            }
-
-            var downloadedHash = await ComputeSha256Async(tempPath, cancellationToken);
-            if (!string.Equals(downloadedHash, expectedSha256, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException("Hash invalide apres telechargement: " + Path.GetFileName(targetPath));
-            }
-
-            await MoveDownloadedFileWithRetryAsync(tempPath, targetPath, cancellationToken);
-        }
-        catch
-        {
-            DeleteFileIfExists(tempPath);
-            throw;
-        }
-    }
-
-    private static async Task MoveDownloadedFileWithRetryAsync(string tempPath, string targetPath, CancellationToken cancellationToken)
-    {
-        Exception? lastError = null;
-        for (var attempt = 0; attempt < 60; attempt++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                if (File.Exists(targetPath))
-                {
-                    TrySetNormalAttributes(targetPath);
-                }
-
-                File.Move(tempPath, targetPath, overwrite: true);
-                return;
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                lastError = ex;
-                await Task.Delay(1000, cancellationToken);
-            }
-        }
-
-        throw new IOException("Impossible de remplacer " + Path.GetFileName(targetPath) + ". Ferme le jeu ou tout programme qui utilise le dossier WotLK, puis relance l'installation.", lastError);
-    }
-
-    private static void DeleteFileIfExists(string path)
-    {
-        try
-        {
-            if (File.Exists(path))
-            {
-                TrySetNormalAttributes(path);
-                File.Delete(path);
-            }
-        }
-        catch
-        {
-        }
-    }
-
-    private static void TrySetNormalAttributes(string path)
-    {
-        try
-        {
-            File.SetAttributes(path, FileAttributes.Normal);
-        }
-        catch
-        {
-        }
     }
 
     private async Task DownloadLauncherBinaryAsync(
@@ -2692,29 +2522,6 @@ public partial class MainWindow : Window
         return await GameFileVerifier.ComputeSha256Async(path, cancellationToken);
     }
 
-    private static string GetSafeTargetPath(string installRoot, string relativePath)
-    {
-        return GamePathPolicy.GetSafeTargetPath(installRoot, relativePath);
-    }
-
-    private static Uri BuildFileUri(LauncherManifest manifest, LauncherFile file)
-    {
-        if (Uri.TryCreate(file.Url, UriKind.Absolute, out var absoluteUri))
-        {
-            return absoluteUri;
-        }
-
-        var baseUrl = string.IsNullOrWhiteSpace(manifest.BaseUrl)
-            ? throw new InvalidOperationException("baseUrl manquant dans le manifeste.")
-            : manifest.BaseUrl.TrimEnd('/') + "/";
-
-        var relativeUrl = string.IsNullOrWhiteSpace(file.Url)
-            ? "files/" + EscapeRelativeUrl(file.Path)
-            : file.Url.TrimStart('/');
-
-        return new Uri(new Uri(baseUrl), relativeUrl);
-    }
-
     private static Uri BuildLauncherUpdateUri(string url)
     {
         if (Uri.TryCreate(url, UriKind.Absolute, out var absoluteUri))
@@ -2723,11 +2530,6 @@ public partial class MainWindow : Window
         }
 
         return new Uri(new Uri(LauncherUpdateManifestUrl), url);
-    }
-
-    private static string EscapeRelativeUrl(string path)
-    {
-        return string.Join("/", path.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries).Select(Uri.EscapeDataString));
     }
 
     private void SaveSettingsFromUi()
@@ -3016,6 +2818,48 @@ public partial class MainWindow : Window
         return RefreshGameActionAsync(silentWhenUpToDate);
     }
 
+    internal Task ExecuteGameActionForCharacterizationAsync()
+    {
+        return ExecuteGameActionAsync();
+    }
+
+    internal static string FormatTransferProgressForCharacterization(
+        long received,
+        long? total,
+        TimeSpan elapsed)
+    {
+        return FormatTransferProgress(received, total, elapsed);
+    }
+
+    internal static string FormatRemainingTimeForCharacterization(TimeSpan remaining)
+    {
+        return FormatRemainingTime(remaining);
+    }
+
+    internal async Task InstallOrUpdateForCharacterizationAsync(
+        LauncherOperationKind kind)
+    {
+        LauncherOperationStartResult start = _operations.TryBegin(
+            kind,
+            canUserCancel: true);
+        if (!start.IsStarted)
+        {
+            throw new InvalidOperationException("Impossible de démarrer la maintenance legacy témoin.");
+        }
+
+        using LauncherOperationLease operation = start.Lease!;
+        SetBusy(true);
+        try
+        {
+            await InstallOrUpdateAsync(operation);
+        }
+        finally
+        {
+            operation.Complete();
+            SetBusy(false);
+        }
+    }
+
     internal void SetGameActionForCharacterization(GameAction action)
     {
         SetGameAction(action);
@@ -3062,7 +2906,12 @@ public partial class MainWindow : Window
             MainProgress.Value,
             ProgressText.Text,
             _operations.HasActiveUserCancellableOperation,
-            _operations.ActiveMaintenanceKind == LauncherOperationKind.Verify);
+            _operations.ActiveMaintenanceKind == LauncherOperationKind.Verify,
+            StatusText.Text,
+            LogBox.Text,
+            ToastTitleText.Text,
+            ToastMessageText.Text,
+            ToastBorder.Visibility == Visibility.Visible);
     }
 
     internal LegacyLocalPathSnapshot CaptureLocalPathCharacterization()
@@ -3129,17 +2978,32 @@ public partial class MainWindow : Window
 
     private static string FormatBytes(long bytes)
     {
-        string[] units = ["o", "Ko", "Mo", "Go", "To"];
-        var value = (double)Math.Max(bytes, 0);
-        var unit = 0;
+        return GameTransferFormatting.FormatBytes(bytes);
+    }
 
-        while (value >= 1024 && unit < units.Length - 1)
+    private static string FormatTransferProgress(GameClientMaintenanceProgress progress)
+    {
+        long received = progress.DownloadedBytes ?? 0;
+        long? total = progress.TotalBytes;
+        var parts = new List<string>
         {
-            value /= 1024;
-            unit++;
+            total is > 0
+                ? $"{FormatBytes(received)} / {FormatBytes(total.Value)}"
+                : FormatBytes(received)
+        };
+
+        if (progress.BytesPerSecond is not > 0)
+        {
+            return string.Join(" · ", parts);
         }
 
-        return string.Format(CultureInfo.InvariantCulture, "{0:0.##} {1}", value, units[unit]);
+        parts.Add(FormatBytes((long)progress.BytesPerSecond.Value) + "/s");
+        if (progress.Remaining is not null)
+        {
+            parts.Add(FormatRemainingTime(progress.Remaining.Value));
+        }
+
+        return string.Join(" · ", parts);
     }
 
     private static string FormatTransferProgress(long received, long? total, TimeSpan elapsed)

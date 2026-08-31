@@ -3,7 +3,20 @@ using System.Security.Cryptography;
 
 namespace WotLK.Launcher.Game;
 
-internal sealed class GameFileVerifier
+internal interface IGameFileVerifier
+{
+    Task<GameFileComparisonResult> FindMissingOrChangedFilesAsync(
+        string installRoot,
+        LauncherManifest manifest,
+        Action<GameVerificationProgress>? reportProgress,
+        CancellationToken cancellationToken);
+
+    IReadOnlyList<string> FindRemovedFiles(
+        string installRoot,
+        LauncherManifest manifest);
+}
+
+internal sealed class GameFileVerifier : IGameFileVerifier
 {
     private static readonly string[] RetiredAddonDirectories =
     [
@@ -11,12 +24,12 @@ internal sealed class GameFileVerifier
         "Interface/AddOns/MultiBot"
     ];
 
-    private readonly InstalledManifestStore _manifestStore;
+    private readonly IInstalledManifestStore _manifestStore;
     private readonly GameClientStateReader _clientStateReader;
     private readonly Func<string, bool> _hasPlayableClient;
 
     internal GameFileVerifier(
-        InstalledManifestStore manifestStore,
+        IInstalledManifestStore manifestStore,
         GameClientStateReader clientStateReader,
         Func<string, bool>? hasPlayableClient = null)
     {
@@ -25,7 +38,7 @@ internal sealed class GameFileVerifier
         _hasPlayableClient = hasPlayableClient ?? GameInstallServices.HasPlayableClient;
     }
 
-    internal async Task<GameFileComparisonResult> FindMissingOrChangedFilesAsync(
+    public async Task<GameFileComparisonResult> FindMissingOrChangedFilesAsync(
         string installRoot,
         LauncherManifest manifest,
         Action<GameVerificationProgress>? reportProgress,
@@ -93,7 +106,7 @@ internal sealed class GameFileVerifier
             manifest.Files.Count);
     }
 
-    internal IReadOnlyList<string> FindRemovedFiles(
+    public IReadOnlyList<string> FindRemovedFiles(
         string installRoot,
         LauncherManifest manifest)
     {

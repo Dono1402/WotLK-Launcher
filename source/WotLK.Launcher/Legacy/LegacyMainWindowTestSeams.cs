@@ -111,6 +111,10 @@ internal sealed class LegacyMainWindowDependencies
 
     internal required Action<string> PersistLogLine { get; init; }
 
+    internal IGameInstallPlatform? GameInstallPlatform { get; init; }
+
+    internal IGameClientMaintenanceService? GameClientMaintenanceService { get; init; }
+
     internal LauncherOperationCoordinator OperationCoordinator { get; init; } = new();
 
     internal ILegacyStartupObserver StartupObserver { get; init; } = NullLegacyStartupObserver.Instance;
@@ -155,7 +159,12 @@ internal sealed record LegacyMainWindowSnapshot(
     double Progress,
     string ProgressText,
     bool HasActiveOperation,
-    bool IsRefreshingGameAction);
+    bool IsRefreshingGameAction,
+    string StatusText,
+    string LogText,
+    string ToastTitle,
+    string ToastMessage,
+    bool IsToastVisible);
 
 internal sealed record LegacyLocalPathSnapshot(
     string InstallPath,

@@ -4,7 +4,16 @@ using System.Text.Json;
 
 namespace WotLK.Launcher.Game;
 
-internal sealed class InstalledManifestStore
+internal interface IInstalledManifestStore
+{
+    string GetPath(string installRoot);
+
+    LauncherManifest? Load(string installRoot);
+
+    void Save(string installRoot, LauncherManifest manifest);
+}
+
+internal sealed class InstalledManifestStore : IInstalledManifestStore
 {
     internal const string CacheFileName = "client-manifest-cache.json";
 
@@ -20,12 +29,12 @@ internal sealed class InstalledManifestStore
         _canWrite = canWrite ?? GameDirectoryAccess.CanWrite;
     }
 
-    internal string GetPath(string installRoot)
+    public string GetPath(string installRoot)
     {
         return Path.Combine(installRoot, CacheFileName);
     }
 
-    internal LauncherManifest? Load(string installRoot)
+    public LauncherManifest? Load(string installRoot)
     {
         string historyPath = GetPath(installRoot);
         if (!File.Exists(historyPath))
@@ -44,7 +53,7 @@ internal sealed class InstalledManifestStore
         }
     }
 
-    internal void Save(string installRoot, LauncherManifest manifest)
+    public void Save(string installRoot, LauncherManifest manifest)
     {
         if (!_canWrite(installRoot))
         {

@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Windows.Threading;
 using WotLK.Launcher;
 using WotLK.Launcher.Game;
+using WotLK.Launcher.Runtime;
 
 internal static class LegacyMainWindowCharacterizationTests
 {
@@ -51,9 +52,12 @@ internal static class LegacyMainWindowCharacterizationTests
         CharacterizeConstructorOrderAndSingleInitialization();
         CharacterizeLocalShellPaths();
         CharacterizeLocalGameActionsAndPrimaryButtons();
+        CharacterizeTransferFormatting();
         await CharacterizeRestoreBeforeInitialAnalysisAsync();
         await CharacterizeTimerResponsibilitiesAsync();
         await CharacterizeLegacyCompatibilityMatrixAsync();
+        await CharacterizeSharedMaintenanceDelegationAsync();
+        await CharacterizeSharedMaintenanceFailurePresentationAsync();
         await CharacterizeCloseDuringOperationAsync();
     }
 
@@ -203,6 +207,32 @@ internal static class LegacyMainWindowCharacterizationTests
         window.Close();
     }
 
+    private static void CharacterizeTransferFormatting()
+    {
+        Equal(
+            "512 o / 1 Ko",
+            MainWindow.FormatTransferProgressForCharacterization(
+                512,
+                1024,
+                TimeSpan.FromMilliseconds(250)),
+            "Avant 500 ms, le legacy ne doit afficher ni débit ni temps restant.");
+        Equal(
+            "512 o / 1 Ko · 512 o/s · 1 s restantes",
+            MainWindow.FormatTransferProgressForCharacterization(
+                512,
+                1024,
+                TimeSpan.FromSeconds(1)),
+            "Le format débit/ETA legacy doit rester identique.");
+        Equal(
+            "2 min restantes",
+            MainWindow.FormatRemainingTimeForCharacterization(TimeSpan.FromSeconds(61)),
+            "Le legacy arrondit les minutes restantes au supérieur.");
+        Equal(
+            "1 h 01 restantes",
+            MainWindow.FormatRemainingTimeForCharacterization(TimeSpan.FromMinutes(61)),
+            "Le format horaire legacy doit rester identique.");
+    }
+
     private static async Task CharacterizeRestoreBeforeInitialAnalysisAsync()
     {
         using LegacyTestEnvironment environment = new(initialPlayableClient: true);
@@ -325,6 +355,81 @@ internal static class LegacyMainWindowCharacterizationTests
         True(environment.Timers.All(timer => timer.SubscriptionRemoves == 1), "Tous les handlers timer doivent être retirés.");
     }
 
+    private static async Task CharacterizeSharedMaintenanceDelegationAsync()
+    {
+        using LegacyTestEnvironment environment = new(initialPlayableClient: false);
+        RecordingLegacyMaintenanceService maintenance = new();
+        environment.GameClientMaintenanceService = maintenance;
+        MainWindow window = new(environment.CreateDependencies());
+        window.SetGameActionForCharacterization(GameAction.Update);
+
+        await window.InstallOrUpdateForCharacterizationAsync(
+            LauncherOperationKind.GameUpdate);
+
+        LegacyMainWindowSnapshot snapshot = window.CaptureCharacterizationSnapshot();
+        Equal(1, maintenance.Calls, "Le handler legacy doit déléguer exactement une fois au pipeline partagé.");
+        Equal(LauncherOperationKind.GameUpdate, maintenance.ObservedKind, "Le bail GameUpdate doit être transmis sans remplacement.");
+        True(maintenance.ObservedOperationId > 0, "Le service partagé doit recevoir l'OperationId du bail legacy.");
+        Equal(GameAction.Play, snapshot.GameAction, "CacheSaved doit conserver la transition legacy vers Play.");
+        Equal("JOUER", snapshot.UpdateButtonLabel, "La sortie de maintenance doit restaurer le libellé Play.");
+        True(snapshot.UpdateButtonEnabled, "Le bouton principal doit être réactivé après succès.");
+        Equal(100d, snapshot.Progress, "Le succès legacy doit terminer la progression à 100 %.");
+        Equal("Terminé", snapshot.ProgressText, "Le texte final legacy doit rester Terminé.");
+        Equal("Installation terminée", snapshot.StatusText, "Le badge final doit conserver son libellé historique.");
+        True(snapshot.LogText.Contains("Vérification des fichiers du client", StringComparison.Ordinal), "Le log de chargement du manifeste doit rester présent.");
+        True(snapshot.LogText.Contains("Téléchargement: Data/client.bin", StringComparison.Ordinal), "Le fichier courant doit rester journalisé.");
+        True(snapshot.LogText.Contains("Configuration video/langue WotLK ajustee", StringComparison.Ordinal), "La configuration doit rester journalisée après finalisation.");
+        True(snapshot.LogText.Contains("Client prêt:", StringComparison.Ordinal), "Le chemin prêt doit rester journalisé.");
+        Equal("Client prêt", snapshot.ToastTitle, "La notification de succès doit conserver son titre.");
+        True(snapshot.IsToastVisible, "La notification de succès doit rester visible.");
+        True(!snapshot.HasActiveOperation, "Le bail doit être libéré après adaptation de la présentation.");
+        window.Close();
+    }
+
+    private static async Task CharacterizeSharedMaintenanceFailurePresentationAsync()
+    {
+        using (LegacyTestEnvironment environment = new(initialPlayableClient: false))
+        {
+            environment.Authentication.Session = FakeLauncherAuthService.CreateSession();
+            environment.GameClientMaintenanceService = new RecordingLegacyMaintenanceService
+            {
+                Failure = new OperationCanceledException("cancelled-test")
+            };
+            MainWindow window = new(environment.CreateDependencies());
+
+            await window.ExecuteGameActionForCharacterizationAsync();
+
+            LegacyMainWindowSnapshot snapshot = window.CaptureCharacterizationSnapshot();
+            Equal(GameAction.Install, snapshot.GameAction, "Une annulation doit conserver l'action Install historique.");
+            Equal("INSTALLER", snapshot.UpdateButtonLabel, "Une annulation doit restaurer le bouton Installer.");
+            Equal("Annule", snapshot.StatusText, "Une annulation ne doit pas devenir une erreur générique.");
+            True(snapshot.LogText.Contains("Operation annulee", StringComparison.Ordinal), "L'annulation doit conserver son log legacy.");
+            True(!snapshot.IsToastVisible, "L'annulation legacy ne doit pas afficher une notification d'erreur.");
+            window.Close();
+        }
+
+        using (LegacyTestEnvironment environment = new(initialPlayableClient: false))
+        {
+            environment.Authentication.Session = FakeLauncherAuthService.CreateSession();
+            environment.GameClientMaintenanceService = new RecordingLegacyMaintenanceService
+            {
+                Failure = new IOException("disk-test")
+            };
+            MainWindow window = new(environment.CreateDependencies());
+
+            await window.ExecuteGameActionForCharacterizationAsync();
+
+            LegacyMainWindowSnapshot snapshot = window.CaptureCharacterizationSnapshot();
+            Equal(GameAction.Install, snapshot.GameAction, "Une erreur doit conserver l'action fonctionnelle historique.");
+            Equal("INSTALLER", snapshot.UpdateButtonLabel, "Une erreur doit restaurer le bouton Installer.");
+            Equal("Erreur", snapshot.StatusText, "Une erreur technique doit conserver le badge legacy.");
+            Equal("Erreur du launcher", snapshot.ToastTitle, "La notification d'erreur doit conserver son titre.");
+            Equal("disk-test", snapshot.ToastMessage, "Le message legacy doit rester transmis à la notification.");
+            True(snapshot.IsToastVisible, "Une erreur legacy doit afficher sa notification.");
+            window.Close();
+        }
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition, string failureMessage)
     {
         DateTime deadline = DateTime.UtcNow.AddSeconds(3);
@@ -429,6 +534,8 @@ internal sealed class LegacyTestEnvironment : IDisposable
 
     internal int PrepareDirectoryCalls { get; private set; }
 
+    internal IGameClientMaintenanceService? GameClientMaintenanceService { get; set; }
+
     internal LegacyMainWindowDependencies CreateDependencies()
     {
         return new LegacyMainWindowDependencies
@@ -461,6 +568,7 @@ internal sealed class LegacyTestEnvironment : IDisposable
                 return timer;
             },
             PersistLogLine = _ => { },
+            GameClientMaintenanceService = GameClientMaintenanceService,
             StartupObserver = Observer
         };
     }
@@ -490,6 +598,93 @@ internal sealed class LegacyTestEnvironment : IDisposable
         {
             Directory.Delete(_root, recursive: true);
         }
+    }
+}
+
+internal sealed class RecordingLegacyMaintenanceService : IGameClientMaintenanceService
+{
+    internal Exception? Failure { get; init; }
+
+    internal int Calls { get; private set; }
+
+    internal long ObservedOperationId { get; private set; }
+
+    internal LauncherOperationKind? ObservedKind { get; private set; }
+
+    public Task<GameClientMaintenanceResult> InstallOrUpdateAsync(
+        GameClientMaintenanceRequest request,
+        LauncherOperationLease operation,
+        Action<GameClientMaintenanceProgress>? reportProgress)
+    {
+        Calls++;
+        ObservedOperationId = operation.OperationId;
+        ObservedKind = operation.Kind;
+        if (Failure is not null)
+        {
+            return Task.FromException<GameClientMaintenanceResult>(Failure);
+        }
+
+        const long total = 20;
+        reportProgress?.Invoke(new GameClientMaintenanceProgress(
+            operation.OperationId,
+            GameClientMaintenancePhase.LoadingManifest));
+        reportProgress?.Invoke(new GameClientMaintenanceProgress(
+            operation.OperationId,
+            GameClientMaintenancePhase.ManifestLoaded,
+            AvailableVersion: "legacy-shared-v1"));
+        reportProgress?.Invoke(new GameClientMaintenanceProgress(
+            operation.OperationId,
+            GameClientMaintenancePhase.GameProcessesStopped));
+        reportProgress?.Invoke(new GameClientMaintenanceProgress(
+            operation.OperationId,
+            GameClientMaintenancePhase.ComparingManifest));
+        reportProgress?.Invoke(new GameClientMaintenanceProgress(
+            operation.OperationId,
+            GameClientMaintenancePhase.ComparisonCompleted,
+            MissingOrChangedFileCount: 1,
+            RemovedFileCount: 0,
+            ComparisonSource: GameFileComparisonSource.FileSystem,
+            TotalBytes: total));
+        reportProgress?.Invoke(new GameClientMaintenanceProgress(
+            operation.OperationId,
+            GameClientMaintenancePhase.DownloadingStarted));
+        reportProgress?.Invoke(new GameClientMaintenanceProgress(
+            operation.OperationId,
+            GameClientMaintenancePhase.DownloadingFile,
+            CurrentFile: "Data/client.bin",
+            ProcessedFileCount: 1,
+            TotalFileCount: 1,
+            TotalBytes: total));
+        reportProgress?.Invoke(new GameClientMaintenanceProgress(
+            operation.OperationId,
+            GameClientMaintenancePhase.Downloading,
+            CurrentFile: "Data/client.bin",
+            ProcessedFileCount: 1,
+            TotalFileCount: 1,
+            DownloadedBytes: total,
+            TotalBytes: total));
+        reportProgress?.Invoke(new GameClientMaintenanceProgress(
+            operation.OperationId,
+            GameClientMaintenancePhase.CacheSaved,
+            AvailableVersion: "legacy-shared-v1"));
+        reportProgress?.Invoke(new GameClientMaintenanceProgress(
+            operation.OperationId,
+            GameClientMaintenancePhase.RegistrationCompleted,
+            AvailableVersion: "legacy-shared-v1",
+            ConfigPath: Path.Combine(request.InstallPath, "_classic_", "WTF", "Config.wtf"),
+            UninstallerPath: Path.Combine(request.InstallPath, GameInstallServices.UninstallerFileName)));
+        reportProgress?.Invoke(new GameClientMaintenanceProgress(
+            operation.OperationId,
+            GameClientMaintenancePhase.Completed,
+            AvailableVersion: "legacy-shared-v1"));
+        return Task.FromResult(new GameClientMaintenanceResult(
+            operation.OperationId,
+            GameClientMaintenanceOutcome.Downloaded,
+            "legacy-shared-v1",
+            1,
+            0,
+            Path.Combine(request.InstallPath, "_classic_", "WTF", "Config.wtf"),
+            Path.Combine(request.InstallPath, GameInstallServices.UninstallerFileName)));
     }
 }
 

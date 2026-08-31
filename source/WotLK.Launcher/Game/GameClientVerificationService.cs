@@ -12,15 +12,15 @@ internal interface IGameClientVerificationService
 internal sealed class GameClientVerificationService : IGameClientVerificationService
 {
     private readonly IGameManifestClient _manifestClient;
-    private readonly GameFileVerifier _fileVerifier;
-    private readonly InstalledManifestStore _manifestStore;
+    private readonly IGameFileVerifier _fileVerifier;
+    private readonly IInstalledManifestStore _manifestStore;
     private readonly Func<string, bool> _hasPlayableClient;
     private readonly Func<string, bool> _isGameRunning;
 
     internal GameClientVerificationService(
         IGameManifestClient manifestClient,
-        GameFileVerifier fileVerifier,
-        InstalledManifestStore manifestStore,
+        IGameFileVerifier fileVerifier,
+        IInstalledManifestStore manifestStore,
         Func<string, bool>? hasPlayableClient = null,
         Func<string, bool>? isGameRunning = null)
     {

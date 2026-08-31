@@ -211,7 +211,7 @@
                                 Padding="0"
                                 Style="{StaticResource AtlasV2.Button.Icon}"
                                 ToolTip="{Binding ShellState.ProfileToolTip}"
-                                IsEnabled="{Binding ShellState.IsNavigationEnabled}"
+                                IsEnabled="{Binding ShellState.IsProfileActionEnabled}"
                                 Focusable="True"
                                 AutomationProperties.Name="{Binding ShellState.ProfileToolTip}"
                                 Click="ProfileButton_Click">

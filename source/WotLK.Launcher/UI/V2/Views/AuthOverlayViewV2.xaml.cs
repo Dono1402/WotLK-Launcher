@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Preview;
 
@@ -40,6 +41,8 @@ public partial class AuthOverlayViewV2 : UserControl
     public event EventHandler? CloseRequested;
 
     public event EventHandler? Closed;
+
+    internal event EventHandler<AuthSubmissionRequestedEventArgs>? SubmissionRequested;
 
     public AuthUiState? State
     {
@@ -183,6 +186,7 @@ public partial class AuthOverlayViewV2 : UserControl
             return;
         }
 
+        ClearPasswordFields();
         ValidateForPreview(showErrors: false);
         FocusFirstControl();
     }
@@ -241,10 +245,7 @@ public partial class AuthOverlayViewV2 : UserControl
         }
 
         ValidateForPreview(showErrors: true);
-        if (State.SubmitCommand.CanExecute(null))
-        {
-            State.SubmitCommand.Execute(null);
-        }
+        SubmitValidatedForm();
 
         e.Handled = true;
     }
@@ -252,6 +253,44 @@ public partial class AuthOverlayViewV2 : UserControl
     private void ModeButton_Click(object sender, RoutedEventArgs e)
     {
         FocusFirstControl();
+    }
+
+    private void PrimaryAuthButton_Click(object sender, RoutedEventArgs e)
+    {
+        ValidateForPreview(showErrors: true);
+        SubmitValidatedForm();
+    }
+
+    private void SubmitValidatedForm()
+    {
+        AuthUiState? state = State;
+        if (state is null || !state.SubmitCommand.CanExecute(null))
+        {
+            return;
+        }
+
+        if (SubmissionRequested is null)
+        {
+            state.SubmitCommand.Execute(null);
+            return;
+        }
+
+        AuthSubmissionRequest request = state.Mode == AuthMode.Login
+            ? AuthSubmissionRequest.Login(
+                state.LoginUsername,
+                LoginPasswordBox.Password)
+            : AuthSubmissionRequest.Register(
+                state.RegisterUsername,
+                state.RegisterEmail,
+                RegisterPasswordBox.Password,
+                RegisterPasswordConfirmBox.Password);
+        AuthSubmissionRequestedEventArgs args = new(request);
+        SubmissionRequested.Invoke(this, args);
+        if (args.StartStatus == LauncherSessionStartStatus.Started)
+        {
+            ClearPasswordFields();
+            ValidateForPreview(showErrors: false);
+        }
     }
 
     private void ApplyOpenState(bool isOpen, bool animate)
@@ -401,6 +440,13 @@ public partial class AuthOverlayViewV2 : UserControl
         RegisterPasswordConfirmBox.Clear();
     }
 
+    private void ClearPasswordFields()
+    {
+        LoginPasswordBox.Clear();
+        RegisterPasswordBox.Clear();
+        RegisterPasswordConfirmBox.Clear();
+    }
+
     private static bool IsDescendantOf(DependencyObject child, DependencyObject ancestor)
     {
         DependencyObject? current = child;
@@ -439,4 +485,49 @@ public partial class AuthOverlayViewV2 : UserControl
     {
         RequestClose();
     }
+}
+
+internal sealed record AuthSubmissionRequest(
+    AuthMode Mode,
+    string Username,
+    string Email,
+    string Password,
+    string PasswordConfirmation)
+{
+    internal static AuthSubmissionRequest Login(string username, string password)
+    {
+        return new AuthSubmissionRequest(
+            AuthMode.Login,
+            username,
+            string.Empty,
+            password,
+            string.Empty);
+    }
+
+    internal static AuthSubmissionRequest Register(
+        string username,
+        string email,
+        string password,
+        string passwordConfirmation)
+    {
+        return new AuthSubmissionRequest(
+            AuthMode.Register,
+            username,
+            email,
+            password,
+            passwordConfirmation);
+    }
+}
+
+internal sealed class AuthSubmissionRequestedEventArgs : EventArgs
+{
+    internal AuthSubmissionRequestedEventArgs(AuthSubmissionRequest request)
+    {
+        Request = request ?? throw new ArgumentNullException(nameof(request));
+    }
+
+    internal AuthSubmissionRequest Request { get; }
+
+    internal LauncherSessionStartStatus StartStatus { get; set; } =
+        LauncherSessionStartStatus.RejectedByValidation;
 }

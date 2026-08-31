@@ -8,6 +8,22 @@ internal interface ILauncherAuthService : IDisposable
 
     bool IsAuthenticated { get; }
 
+    Task<LauncherAuthRestoreAttempt> PrepareRestoreAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<LauncherAuthSession> PrepareLoginAsync(
+        string username,
+        string password,
+        CancellationToken cancellationToken = default);
+
+    Task<LauncherAuthSession> PrepareRegistrationAsync(
+        string username,
+        string email,
+        string password,
+        CancellationToken cancellationToken = default);
+
+    void CommitSession(LauncherAuthSession session, bool clearGameSingleSignOn);
+
     Task<bool> RestoreAsync(CancellationToken cancellationToken = default);
 
     Task<bool> EnsureFreshAsync(CancellationToken cancellationToken = default);
@@ -51,3 +67,14 @@ internal interface ILauncherAuthService : IDisposable
 
     Task LogoutAsync(CancellationToken cancellationToken = default);
 }
+
+internal enum LauncherAuthRestoreOutcome
+{
+    Restored,
+    NoSession,
+    Rejected
+}
+
+internal sealed record LauncherAuthRestoreAttempt(
+    LauncherAuthRestoreOutcome Outcome,
+    LauncherAuthSession? Session);

@@ -371,10 +371,11 @@
                             <Button x:Name="PrimaryAuthButton"
                                     Height="46"
                                     Style="{StaticResource AtlasV2.Button.Primary}"
-                                    Command="{Binding State.SubmitCommand, ElementName=Root}"
+                                    IsEnabled="{Binding State.CanSubmit, ElementName=Root}"
                                     IsDefault="True"
                                     KeyboardNavigation.TabIndex="6"
-                                    AutomationProperties.Name="{Binding State.PrimaryActionLabel, ElementName=Root}">
+                                    AutomationProperties.Name="{Binding State.PrimaryActionLabel, ElementName=Root}"
+                                    Click="PrimaryAuthButton_Click">
                                 <TextBlock Text="{Binding State.PrimaryActionLabel, ElementName=Root}"
                                            FontWeight="Bold"/>
                             </Button>

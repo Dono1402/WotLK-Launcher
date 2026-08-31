@@ -1,10 +1,13 @@
 namespace WotLK.Launcher.UI.V2.Presentation;
 
+using WotLK.Launcher.Runtime;
+
 public sealed class ShellUiState : BindableUiState
 {
     private AdaptiveLayoutMode _layoutMode = AdaptiveLayoutMode.Wide;
     private string _username = "Dono1402";
     private bool _isAuthenticated = true;
+    private bool _isSessionRestoring;
 
     public string ProductName { get; init; } = "Atlas Launcher";
 
@@ -24,11 +27,19 @@ public sealed class ShellUiState : BindableUiState
         init => _isAuthenticated = value;
     }
 
+    public bool IsSessionRestoring => _isSessionRestoring;
+
+    public bool IsProfileActionEnabled => !_isSessionRestoring;
+
     public string ProfileInitial => string.IsNullOrWhiteSpace(Username)
         ? "?"
         : Username[..1].ToUpperInvariant();
 
-    public string ProfileToolTip => IsAuthenticated ? $"Profil {Username}" : "Compte Atlas";
+    public string ProfileToolTip => IsSessionRestoring
+        ? "Restauration de la session…"
+        : IsAuthenticated
+            ? $"Profil {Username}"
+            : "Se connecter";
 
     public bool IsGameNavigationEnabled { get; init; } = true;
 
@@ -50,5 +61,16 @@ public sealed class ShellUiState : BindableUiState
             RaisePropertyChanged(nameof(ProfileInitial));
             RaisePropertyChanged(nameof(ProfileToolTip));
         }
+    }
+
+    internal void ApplySessionSnapshot(AuthSessionSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        _isSessionRestoring = snapshot.IsRestoring;
+        _isAuthenticated = snapshot.IsAuthenticated;
+        _username = snapshot.IsAuthenticated && !string.IsNullOrWhiteSpace(snapshot.Username)
+            ? snapshot.Username.Trim()
+            : "Compte";
+        RaisePropertyChanged(string.Empty);
     }
 }

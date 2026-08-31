@@ -78,6 +78,12 @@ if (args.Length >= 1
 }
 
 if (args.Length == 1
+    && string.Equals(args[0], "--auth-runtime", StringComparison.OrdinalIgnoreCase))
+{
+    return await LauncherAuthenticationTests.RunAsync();
+}
+
+if (args.Length == 1
     && string.Equals(args[0], "--local-shell-windows-smoke", StringComparison.OrdinalIgnoreCase))
 {
     return LauncherLocalActionTests.RunWindowsSmoke();

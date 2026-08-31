@@ -287,7 +287,9 @@ internal static class AuthOverlayPreviewTests
             True(overlay.IsFullyClosed, "Échap doit fermer et retirer le voile du hit-test.");
             True(overlay.ArePasswordFieldsEmpty, "Tous les PasswordBox doivent être vidés à la fermeture.");
             Equal(string.Empty, state.LoginUsername, "Le nom fictif doit être vidé à la fermeture complète.");
-            Equal(profile, Keyboard.FocusedElement, "Le focus doit revenir au bouton Compte.");
+            IInputElement? returnedFocus = Keyboard.FocusedElement
+                ?? FocusManager.GetFocusedElement(window);
+            Equal(profile, returnedFocus, "Le focus doit revenir au bouton Compte.");
 
             window.SetFriendsDrawerOpenForPreview();
             await DelayAndPumpAsync(220);
@@ -380,7 +382,7 @@ internal static class AuthOverlayPreviewTests
         int height,
         bool activate)
     {
-        return new LauncherShellV2(GamePreviewScenario.Ready, scenario)
+        LauncherShellV2 window = new(GamePreviewScenario.Ready, scenario)
         {
             Width = width,
             Height = height,
@@ -390,6 +392,10 @@ internal static class AuthOverlayPreviewTests
             ShowInTaskbar = false,
             ShowActivated = activate
         };
+        True(
+            !window.HasRealAuthenticationAttached,
+            "Le preview-auth ne doit jamais appeler ou attacher les usines d'authentification réelles.");
+        return window;
     }
 
     private static async Task ShowAndSettleAsync(LauncherShellV2 window)

@@ -117,6 +117,7 @@ internal sealed class LauncherRuntime : IDisposable
     private readonly ILauncherAuthService _authentication;
     private readonly HttpClient _clientHttpClient;
     private readonly LauncherSessionCoordinator _sessionCoordinator;
+    private Task<LauncherSessionRestoreResult>? _initializeTask;
     private int _disposeState;
 
     internal LauncherRuntime(LauncherRuntimeDependencies dependencies)
@@ -180,6 +181,8 @@ internal sealed class LauncherRuntime : IDisposable
 
     internal LauncherDashboardCoordinator Dashboard { get; }
 
+    internal LauncherSessionCoordinator Session => _sessionCoordinator;
+
     internal bool IsDisposed => Volatile.Read(ref _disposeState) != 0;
 
     internal static LauncherRuntime CreateProduction()
@@ -187,22 +190,26 @@ internal sealed class LauncherRuntime : IDisposable
         return new LauncherRuntime(LauncherRuntimeDependencies.CreateProduction());
     }
 
-    internal async Task<LauncherSessionRestoreResult> InitializeAsync()
+    internal Task<LauncherSessionRestoreResult> InitializeAsync()
     {
-        Task<LauncherSessionRestoreResult> restoreTask;
         lock (_lifecycleSync)
         {
             if (IsDisposed)
             {
-                return new LauncherSessionRestoreResult(
+                return Task.FromResult(new LauncherSessionRestoreResult(
                     LauncherSessionRestoreStatus.Cancelled,
-                    null);
+                    null));
             }
 
-            restoreTask = _sessionCoordinator.RestoreOnceAsync();
+            return _initializeTask ??= InitializeCoreAsync();
         }
+    }
 
-        LauncherSessionRestoreResult result = await restoreTask.ConfigureAwait(false);
+    private async Task<LauncherSessionRestoreResult> InitializeCoreAsync()
+    {
+        LauncherSessionRestoreResult result = await _sessionCoordinator
+            .RestoreOnceAsync()
+            .ConfigureAwait(false);
         if (!IsDisposed)
         {
             Game.RefreshAuthenticationAvailability();
@@ -210,6 +217,31 @@ internal sealed class LauncherRuntime : IDisposable
         }
 
         return result;
+    }
+
+    internal LauncherSessionStartResult TryLogin(string username, string password)
+    {
+        return ObserveInteractiveAuthentication(
+            _sessionCoordinator.TryLogin(username, password));
+    }
+
+    internal LauncherSessionStartResult TryRegister(
+        string username,
+        string email,
+        string password,
+        string passwordConfirmation)
+    {
+        return ObserveInteractiveAuthentication(
+            _sessionCoordinator.TryRegister(
+                username,
+                email,
+                password,
+                passwordConfirmation));
+    }
+
+    internal bool CancelInteractiveAuthentication()
+    {
+        return _sessionCoordinator.CancelInteractiveAttempt();
     }
 
     internal void BeginShutdown()
@@ -223,6 +255,7 @@ internal sealed class LauncherRuntime : IDisposable
 
             LocalActions.BeginShutdown();
             Dashboard.BeginShutdown();
+            _sessionCoordinator.BeginShutdown();
             Operations.CancelForShutdown();
         }
     }
@@ -232,7 +265,8 @@ internal sealed class LauncherRuntime : IDisposable
         BeginShutdown();
         Task<bool> operations = Operations.WaitForIdleAsync(timeout);
         Task<bool> dashboard = Dashboard.WaitForIdleAsync(timeout);
-        bool[] results = await Task.WhenAll(operations, dashboard).ConfigureAwait(false);
+        Task<bool> session = _sessionCoordinator.WaitForIdleAsync(timeout);
+        bool[] results = await Task.WhenAll(operations, dashboard, session).ConfigureAwait(false);
         return results.All(result => result);
     }
 
@@ -248,12 +282,42 @@ internal sealed class LauncherRuntime : IDisposable
             Volatile.Write(ref _disposeState, 1);
             LocalActions.BeginShutdown();
             Dashboard.BeginShutdown();
+            _sessionCoordinator.BeginShutdown();
             Operations.CancelForShutdown();
             Dashboard.Dispose();
             Game.Dispose();
+            _sessionCoordinator.Dispose();
             _clientHttpClient.Dispose();
             _authentication.Dispose();
             Operations.Dispose();
         }
+    }
+
+    private LauncherSessionStartResult ObserveInteractiveAuthentication(
+        LauncherSessionStartResult start)
+    {
+        if (!start.IsStarted || start.Completion is null)
+        {
+            return start;
+        }
+
+        return start with
+        {
+            Completion = ObserveInteractiveAuthenticationAsync(start.Completion)
+        };
+    }
+
+    private async Task<LauncherSessionCompletion> ObserveInteractiveAuthenticationAsync(
+        Task<LauncherSessionCompletion> completion)
+    {
+        LauncherSessionCompletion result = await completion.ConfigureAwait(false);
+        if (result.Status != LauncherSessionCompletionStatus.Succeeded || IsDisposed)
+        {
+            return result;
+        }
+
+        Game.RefreshAuthenticationAvailability();
+        await Dashboard.RefreshAfterAuthenticationAsync().ConfigureAwait(false);
+        return result;
     }
 }

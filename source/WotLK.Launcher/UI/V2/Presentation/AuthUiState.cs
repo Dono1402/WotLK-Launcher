@@ -1,4 +1,5 @@
 using System.Windows.Input;
+using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2.Commands;
 using WotLK.Launcher.UI.V2.Preview;
 
@@ -16,6 +17,8 @@ public enum AuthErrorKind
     Validation,
     InvalidCredentials,
     RegistrationRejected,
+    UsernameAlreadyExists,
+    EmailAlreadyExists,
     ServiceUnavailable
 }
 
@@ -157,6 +160,8 @@ public sealed class AuthUiState : BindableUiState, IDisposable
     public bool IsErrorVisible => ErrorKind != AuthErrorKind.None
         && !string.IsNullOrWhiteSpace(ErrorMessage);
 
+    public bool CanSubmit => IsOpen && !IsBusy && IsFormValid;
+
     public ICommand ShowLoginCommand => _showLoginCommand;
 
     public ICommand ShowRegisterCommand => _showRegisterCommand;
@@ -230,6 +235,50 @@ public sealed class AuthUiState : BindableUiState, IDisposable
         Mode = AuthMode.Login;
     }
 
+    internal void PrepareForOpen()
+    {
+        _mode = AuthMode.Login;
+        _isBusy = false;
+        _isEmailWarningVisible = false;
+        _isFormValid = false;
+        _errorKind = AuthErrorKind.None;
+        _errorMessage = string.Empty;
+        _isOpen = true;
+        RaisePropertyChanged(string.Empty);
+        RaiseCommandStates();
+    }
+
+    internal void ApplySessionSnapshot(AuthSessionSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        _isBusy = snapshot.IsSubmitting;
+
+        if (snapshot.IsAuthenticated)
+        {
+            _errorKind = AuthErrorKind.None;
+            _errorMessage = string.Empty;
+            _isEmailWarningVisible = false;
+            _isFormValid = false;
+            _isOpen = false;
+        }
+        else if (!snapshot.IsSubmitting
+                 && snapshot.OperationKind is LauncherSessionOperationKind.Login
+                     or LauncherSessionOperationKind.Register
+                 && snapshot.FailureCategory != LauncherSessionFailureCategory.None)
+        {
+            (_errorKind, _errorMessage) = MapFailure(snapshot.FailureCategory);
+            if (snapshot.FailureCategory
+                == LauncherSessionFailureCategory.AccountCreatedSignInRequired)
+            {
+                _mode = AuthMode.Login;
+                _loginUsername = snapshot.Username;
+            }
+        }
+
+        RaisePropertyChanged(string.Empty);
+        RaiseCommandStates();
+    }
+
     internal void SetMode(AuthMode mode)
     {
         if (mode == AuthMode.Register && string.IsNullOrWhiteSpace(RegisterUsername))
@@ -254,9 +303,36 @@ public sealed class AuthUiState : BindableUiState, IDisposable
 
     private void RaiseCommandStates()
     {
+        RaisePropertyChanged(nameof(CanSubmit));
         _showLoginCommand.RaiseCanExecuteChanged();
         _showRegisterCommand.RaiseCanExecuteChanged();
         _submitCommand.RaiseCanExecuteChanged();
+    }
+
+    private static (AuthErrorKind Kind, string Message) MapFailure(
+        LauncherSessionFailureCategory category)
+    {
+        return category switch
+        {
+            LauncherSessionFailureCategory.InvalidCredentials =>
+                (AuthErrorKind.InvalidCredentials, "Identifiants incorrects."),
+            LauncherSessionFailureCategory.UsernameAlreadyExists =>
+                (AuthErrorKind.UsernameAlreadyExists, "Ce nom d’utilisateur est déjà utilisé."),
+            LauncherSessionFailureCategory.EmailAlreadyExists =>
+                (AuthErrorKind.EmailAlreadyExists, "Cette adresse e-mail est déjà utilisée."),
+            LauncherSessionFailureCategory.Validation =>
+                (AuthErrorKind.RegistrationRejected, "Ce nom d’utilisateur ou cette adresse e-mail est déjà utilisé."),
+            LauncherSessionFailureCategory.AccountCreatedSignInRequired =>
+                (AuthErrorKind.RegistrationRejected, "Compte créé. Connecte-toi pour continuer."),
+            LauncherSessionFailureCategory.Network
+                or LauncherSessionFailureCategory.Timeout
+                or LauncherSessionFailureCategory.ServiceUnavailable =>
+                (AuthErrorKind.ServiceUnavailable, "Service temporairement indisponible."),
+            LauncherSessionFailureCategory.Unauthorized
+                or LauncherSessionFailureCategory.SessionExpired =>
+                (AuthErrorKind.InvalidCredentials, "Ta session n’est plus valide. Reconnecte-toi."),
+            _ => (AuthErrorKind.ServiceUnavailable, "Une erreur inattendue est survenue. Réessaie dans quelques instants.")
+        };
     }
 
     public void Dispose()

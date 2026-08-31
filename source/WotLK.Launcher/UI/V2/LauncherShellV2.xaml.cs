@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using WotLK.Launcher.Runtime;
+using WotLK.Launcher.UI.V2.Commands;
 using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Preview;
 using WotLK.Launcher.UI.V2.Views;
@@ -13,6 +15,7 @@ public partial class LauncherShellV2 : Window
     private readonly ShellOverlayCoordinator _overlayCoordinator;
     private readonly AuthPreviewScenario? _initialAuthPreviewScenario;
     private IInputElement? _authFocusReturnTarget;
+    private AuthCommands? _authCommands;
 
     public LauncherShellV2(GamePreviewScenario scenario = GamePreviewScenario.Ready)
         : this(
@@ -96,11 +99,24 @@ public partial class LauncherShellV2 : Window
 
     internal bool IsPreviewMode { get; }
 
+    internal bool HasRealAuthenticationAttached => _authCommands is not null;
+
     internal ShellOverlayKind CurrentOverlay => _overlayCoordinator.Current;
 
     internal AuthOverlayViewV2 AuthenticationOverlay => AuthOverlay;
 
     internal FriendsDrawerV2 FriendsOverlay => FriendsDrawer;
+
+    internal void AttachAuthentication(AuthCommands commands)
+    {
+        if (IsPreviewMode)
+        {
+            throw new InvalidOperationException("Le preview ne peut pas recevoir l’authentification réelle.");
+        }
+
+        _authCommands = commands ?? throw new ArgumentNullException(nameof(commands));
+        AuthOverlay.SubmissionRequested += AuthOverlay_SubmissionRequested;
+    }
 
     internal void OpenAuthenticationForPreview(AuthPreviewScenario scenario)
     {
@@ -158,6 +174,8 @@ public partial class LauncherShellV2 : Window
         StateChanged -= LauncherShellV2_StateChanged;
         PreviewKeyDown -= LauncherShellV2_PreviewKeyDown;
         PreviewGotKeyboardFocus -= LauncherShellV2_PreviewGotKeyboardFocus;
+        AuthOverlay.SubmissionRequested -= AuthOverlay_SubmissionRequested;
+        _authCommands = null;
         AuthOverlay.DetachFromShell();
         AuthOverlay.State = null;
         AuthOverlay.IsOpen = false;
@@ -239,12 +257,32 @@ public partial class LauncherShellV2 : Window
         if (IsPreviewMode)
         {
             OpenAuthenticationForPreview(AuthPreviewScenario.Login);
+            return;
         }
+
+        if (ShellState.IsAuthenticated || ShellState.IsSessionRestoring || AuthState.IsOpen)
+        {
+            return;
+        }
+
+        _authFocusReturnTarget = ProfileButton;
+        AuthState.PrepareForOpen();
+        _overlayCoordinator.OpenAuthentication();
+        FriendsButton.Focusable = false;
     }
 
     private void AuthOverlay_CloseRequested(object? sender, EventArgs e)
     {
+        _authCommands?.CancelCurrent();
         _overlayCoordinator.CloseAuthentication();
+    }
+
+    private void AuthOverlay_SubmissionRequested(
+        object? sender,
+        AuthSubmissionRequestedEventArgs e)
+    {
+        e.StartStatus = _authCommands?.TrySubmit(e.Request)
+            ?? LauncherSessionStartStatus.ShuttingDown;
     }
 
     private void AuthOverlay_Closed(object? sender, EventArgs e)
@@ -252,6 +290,7 @@ public partial class LauncherShellV2 : Window
         FriendsButton.Focusable = true;
         if (_authFocusReturnTarget is not null)
         {
+            FocusManager.SetFocusedElement(this, _authFocusReturnTarget);
             Keyboard.Focus(_authFocusReturnTarget);
         }
 

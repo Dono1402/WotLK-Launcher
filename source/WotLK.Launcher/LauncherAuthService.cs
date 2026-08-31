@@ -28,28 +28,56 @@ internal sealed class LauncherAuthService : ILauncherAuthService
     public bool IsAuthenticated =>
         Session is not null && Session.AccessExpiresAt > DateTimeOffset.UtcNow;
 
-    public async Task<bool> RestoreAsync(CancellationToken cancellationToken = default)
+    public async Task<LauncherAuthRestoreAttempt> PrepareRestoreAsync(
+        CancellationToken cancellationToken = default)
     {
         StoredLauncherSession? stored = SecureSessionStore.Load();
-        if (stored is null || stored.RefreshExpiresAt <= DateTimeOffset.UtcNow)
+        if (stored is null)
         {
-            SecureSessionStore.Clear();
-            GameSingleSignOn.Clear();
-            return false;
+            return new LauncherAuthRestoreAttempt(
+                LauncherAuthRestoreOutcome.NoSession,
+                null);
+        }
+
+        if (stored.RefreshExpiresAt <= DateTimeOffset.UtcNow)
+        {
+            InvalidateLocalSession();
+            return new LauncherAuthRestoreAttempt(
+                LauncherAuthRestoreOutcome.Rejected,
+                null);
         }
 
         using HttpResponseMessage response = await _http.PostAsJsonAsync(
             "auth/refresh",
             new { refreshToken = stored.RefreshToken },
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
-            SecureSessionStore.Clear();
-            GameSingleSignOn.Clear();
+            InvalidateLocalSession();
+            return new LauncherAuthRestoreAttempt(
+                LauncherAuthRestoreOutcome.Rejected,
+                null);
+        }
+
+        LauncherAuthSession session = await ReadAuthSessionAsync(
+            response,
+            cancellationToken).ConfigureAwait(false);
+        return new LauncherAuthRestoreAttempt(
+            LauncherAuthRestoreOutcome.Restored,
+            session);
+    }
+
+    public async Task<bool> RestoreAsync(CancellationToken cancellationToken = default)
+    {
+        LauncherAuthRestoreAttempt attempt = await PrepareRestoreAsync(
+            cancellationToken).ConfigureAwait(false);
+        if (attempt.Outcome != LauncherAuthRestoreOutcome.Restored
+            || attempt.Session is null)
+        {
             return false;
         }
 
-        await ReadAuthResponseAsync(response, cancellationToken);
+        CommitSession(attempt.Session, clearGameSingleSignOn: false);
         return true;
     }
 
@@ -80,7 +108,8 @@ internal sealed class LauncherAuthService : ILauncherAuthService
                 return false;
             }
 
-            await ReadAuthResponseAsync(response, cancellationToken);
+            LauncherAuthSession session = await ReadAuthSessionAsync(response, cancellationToken);
+            CommitSession(session, clearGameSingleSignOn: false);
             return true;
         }
         finally
@@ -89,10 +118,23 @@ internal sealed class LauncherAuthService : ILauncherAuthService
         }
     }
 
-    public async Task LoginAsync(
+    public async Task<LauncherAuthSession> PrepareLoginAsync(
         string username,
         string password,
         CancellationToken cancellationToken = default)
+    {
+        return await SendLoginAsync(
+            username,
+            password,
+            clearGameSingleSignOnBeforeReadingResponse: false,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<LauncherAuthSession> SendLoginAsync(
+        string username,
+        string password,
+        bool clearGameSingleSignOnBeforeReadingResponse,
+        CancellationToken cancellationToken)
     {
         using HttpResponseMessage response = await _http.PostAsJsonAsync(
             "auth/login",
@@ -102,12 +144,68 @@ internal sealed class LauncherAuthService : ILauncherAuthService
                 password,
                 deviceName = Environment.MachineName
             },
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.Unauthorized)
-            throw new LauncherAuthException("Nom d'utilisateur ou mot de passe incorrect.");
+            throw new LauncherAuthException(
+                "Nom d'utilisateur ou mot de passe incorrect.",
+                response.StatusCode);
 
-        GameSingleSignOn.Clear();
-        await ReadAuthResponseAsync(response, cancellationToken);
+        if (clearGameSingleSignOnBeforeReadingResponse)
+        {
+            GameSingleSignOn.Clear();
+        }
+
+        return await ReadAuthSessionAsync(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task LoginAsync(
+        string username,
+        string password,
+        CancellationToken cancellationToken = default)
+    {
+        LauncherAuthSession session = await SendLoginAsync(
+            username,
+            password,
+            clearGameSingleSignOnBeforeReadingResponse: true,
+            cancellationToken).ConfigureAwait(false);
+        CommitSession(session, clearGameSingleSignOn: false);
+    }
+
+    public async Task<LauncherAuthSession> PrepareRegistrationAsync(
+        string username,
+        string email,
+        string password,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendRegistrationAsync(
+            username,
+            email,
+            password,
+            clearGameSingleSignOnBeforeReadingResponse: false,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<LauncherAuthSession> SendRegistrationAsync(
+        string username,
+        string email,
+        string password,
+        bool clearGameSingleSignOnBeforeReadingResponse,
+        CancellationToken cancellationToken)
+    {
+        using HttpRequestMessage request = new(HttpMethod.Post, "accounts")
+        {
+            Content = JsonContent.Create(new { username, email, password })
+        };
+        request.Headers.Add("X-Atlas-Device", Environment.MachineName);
+        using HttpResponseMessage response = await _http
+            .SendAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+        if (clearGameSingleSignOnBeforeReadingResponse)
+        {
+            GameSingleSignOn.Clear();
+        }
+
+        return await ReadAuthSessionAsync(response, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task RegisterAsync(
@@ -116,14 +214,13 @@ internal sealed class LauncherAuthService : ILauncherAuthService
         string password,
         CancellationToken cancellationToken = default)
     {
-        using HttpRequestMessage request = new(HttpMethod.Post, "accounts")
-        {
-            Content = JsonContent.Create(new { username, email, password })
-        };
-        request.Headers.Add("X-Atlas-Device", Environment.MachineName);
-        using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
-        GameSingleSignOn.Clear();
-        await ReadAuthResponseAsync(response, cancellationToken);
+        LauncherAuthSession session = await SendRegistrationAsync(
+            username,
+            email,
+            password,
+            clearGameSingleSignOnBeforeReadingResponse: true,
+            cancellationToken).ConfigureAwait(false);
+        CommitSession(session, clearGameSingleSignOn: false);
     }
 
     public async Task<GameTicket> CreateGameTicketAsync(
@@ -353,9 +450,23 @@ internal sealed class LauncherAuthService : ILauncherAuthService
             }
         }
 
-        Session = null;
-        SecureSessionStore.Clear();
-        GameSingleSignOn.Clear();
+        InvalidateLocalSession();
+    }
+
+    public void CommitSession(
+        LauncherAuthSession session,
+        bool clearGameSingleSignOn)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        if (clearGameSingleSignOn)
+        {
+            GameSingleSignOn.Clear();
+        }
+
+        SecureSessionStore.Save(new StoredLauncherSession(
+            session.RefreshToken,
+            session.RefreshExpiresAt));
+        Session = session;
     }
 
     public void Dispose()
@@ -376,20 +487,23 @@ internal sealed class LauncherAuthService : ILauncherAuthService
         return request;
     }
 
-    private async Task ReadAuthResponseAsync(
+    private async Task<LauncherAuthSession> ReadAuthSessionAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
     {
-        await EnsureSuccessAsync(response, cancellationToken);
-        LauncherAuthSession session =
-            await response.Content.ReadFromJsonAsync<LauncherAuthSession>(
+        await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        return await response.Content.ReadFromJsonAsync<LauncherAuthSession>(
                 JsonOptions,
                 cancellationToken)
+            .ConfigureAwait(false)
             ?? throw new LauncherAuthException("La réponse d'authentification est invalide.");
-        Session = session;
-        SecureSessionStore.Save(new StoredLauncherSession(
-            session.RefreshToken,
-            session.RefreshExpiresAt));
+    }
+
+    private void InvalidateLocalSession()
+    {
+        Session = null;
+        SecureSessionStore.Clear();
+        GameSingleSignOn.Clear();
     }
 
     private static async Task EnsureSuccessAsync(

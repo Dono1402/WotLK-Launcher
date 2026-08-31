@@ -858,6 +858,12 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
 
     internal Func<CancellationToken, Task<bool>>? RestoreHandler { get; set; }
 
+    internal Func<CancellationToken, Task<LauncherAuthRestoreAttempt>>? PrepareRestoreHandler { get; set; }
+
+    internal Func<string, string, CancellationToken, Task<LauncherAuthSession>>? LoginHandler { get; set; }
+
+    internal Func<string, string, string, CancellationToken, Task<LauncherAuthSession>>? RegisterHandler { get; set; }
+
     internal Func<CancellationToken, Task<bool>>? EnsureFreshHandler { get; set; }
 
     internal Func<CancellationToken, Task<LauncherServerStatus>>? StatusHandler { get; set; }
@@ -872,6 +878,12 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
 
     internal int RestoreCalls { get; private set; }
 
+    internal int LoginCalls { get; private set; }
+
+    internal int RegisterCalls { get; private set; }
+
+    internal int CommitSessionCalls { get; private set; }
+
     internal int EnsureFreshCalls { get; private set; }
 
     internal int GetFriendsCalls { get; private set; }
@@ -880,12 +892,37 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
 
     internal int GetNewsCalls { get; private set; }
 
+    internal int CreateGameTicketCalls { get; private set; }
+
     internal int DisposeCalls { get; private set; }
 
-    public Task<bool> RestoreAsync(CancellationToken cancellationToken = default)
+    public async Task<LauncherAuthRestoreAttempt> PrepareRestoreAsync(
+        CancellationToken cancellationToken = default)
     {
         RestoreCalls++;
-        return RestoreHandler?.Invoke(cancellationToken) ?? Task.FromResult(RestoreResult);
+        if (PrepareRestoreHandler is not null)
+        {
+            return await PrepareRestoreHandler(cancellationToken).ConfigureAwait(false);
+        }
+
+        bool restored = RestoreHandler is not null
+            ? await RestoreHandler(cancellationToken).ConfigureAwait(false)
+            : RestoreResult;
+        return restored && Session is not null
+            ? new LauncherAuthRestoreAttempt(LauncherAuthRestoreOutcome.Restored, Session)
+            : new LauncherAuthRestoreAttempt(LauncherAuthRestoreOutcome.NoSession, null);
+    }
+
+    public async Task<bool> RestoreAsync(CancellationToken cancellationToken = default)
+    {
+        LauncherAuthRestoreAttempt result = await PrepareRestoreAsync(cancellationToken);
+        if (result.Outcome != LauncherAuthRestoreOutcome.Restored || result.Session is null)
+        {
+            return false;
+        }
+
+        CommitSession(result.Session, clearGameSingleSignOn: false);
+        return true;
     }
 
     public Task<bool> EnsureFreshAsync(CancellationToken cancellationToken = default)
@@ -895,22 +932,62 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
             ?? Task.FromResult(Session is not null);
     }
 
-    public Task LoginAsync(string username, string password, CancellationToken cancellationToken = default)
+    public Task<LauncherAuthSession> PrepareLoginAsync(
+        string username,
+        string password,
+        CancellationToken cancellationToken = default)
     {
-        return Task.CompletedTask;
+        LoginCalls++;
+        return LoginHandler?.Invoke(username, password, cancellationToken)
+            ?? Task.FromResult(Session ?? CreateSession(username));
     }
 
-    public Task RegisterAsync(
+    public async Task LoginAsync(
+        string username,
+        string password,
+        CancellationToken cancellationToken = default)
+    {
+        LauncherAuthSession session = await PrepareLoginAsync(
+            username,
+            password,
+            cancellationToken);
+        CommitSession(session, clearGameSingleSignOn: true);
+    }
+
+    public Task<LauncherAuthSession> PrepareRegistrationAsync(
         string username,
         string email,
         string password,
         CancellationToken cancellationToken = default)
     {
-        return Task.CompletedTask;
+        RegisterCalls++;
+        return RegisterHandler?.Invoke(username, email, password, cancellationToken)
+            ?? Task.FromResult(Session ?? CreateSession(username, email));
+    }
+
+    public async Task RegisterAsync(
+        string username,
+        string email,
+        string password,
+        CancellationToken cancellationToken = default)
+    {
+        LauncherAuthSession session = await PrepareRegistrationAsync(
+            username,
+            email,
+            password,
+            cancellationToken);
+        CommitSession(session, clearGameSingleSignOn: true);
+    }
+
+    public void CommitSession(LauncherAuthSession session, bool clearGameSingleSignOn)
+    {
+        CommitSessionCalls++;
+        Session = session;
     }
 
     public Task<GameTicket> CreateGameTicketAsync(CancellationToken cancellationToken = default)
     {
+        CreateGameTicketCalls++;
         return Task.FromResult(new GameTicket(
             "HP-0000000000000000000000000000000000000000",
             DateTimeOffset.UtcNow.AddMinutes(1),
@@ -1025,25 +1102,32 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
         GetFriendsCalls = 0;
         GetStatusCalls = 0;
         GetNewsCalls = 0;
+        CreateGameTicketCalls = 0;
     }
 
-    internal static LauncherAuthSession CreateSession()
+    internal static LauncherAuthSession CreateSession(
+        string username = "Dono1402",
+        string email = "dono@example.test",
+        bool emailVerified = true)
     {
         return new LauncherAuthSession(
             "access-token",
             DateTimeOffset.UtcNow.AddHours(1),
             "refresh-token",
             DateTimeOffset.UtcNow.AddDays(1),
-            CreateProfile());
+            CreateProfile(username, email, emailVerified));
     }
 
-    private static LauncherProfile CreateProfile()
+    private static LauncherProfile CreateProfile(
+        string username = "Dono1402",
+        string email = "dono@example.test",
+        bool emailVerified = true)
     {
         return new LauncherProfile(
             1,
-            "Dono1402",
-            "dono@example.test",
-            true,
+            username,
+            email,
+            emailVerified,
             "gold",
             false,
             false,

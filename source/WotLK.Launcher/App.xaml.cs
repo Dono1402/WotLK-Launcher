@@ -157,6 +157,14 @@ public partial class App : Application
             gameState,
             dashboardState,
             LauncherV2RuntimePresentation.CreateFriends());
+        AuthCommands authCommands = new(runtime);
+        window.AttachAuthentication(authCommands);
+        AuthStateAdapter authStateAdapter = new(
+            window.AuthState,
+            shellState,
+            gameState,
+            runtime.Session,
+            window.Dispatcher);
         PrimaryActionCommand primaryActionCommand = new(runtime.Game);
         gameState.AttachPrimaryActionCommand(primaryActionCommand.Command);
         GameVerificationCommand verificationCommand = new(runtime.Game);
@@ -184,6 +192,8 @@ public partial class App : Application
 
             gameStateAdapter.Dispose();
             dashboardStateAdapter.Dispose();
+            authStateAdapter.Dispose();
+            authCommands.Dispose();
             primaryActionCommand.Dispose();
             verificationCommand.Dispose();
             refreshDashboardCommand.Dispose();
@@ -200,7 +210,6 @@ public partial class App : Application
                 && !runtime.Operations.IsShuttingDown
                 && window.IsVisible)
             {
-                LauncherV2RuntimePresentation.ApplySession(shellState, result);
                 if (result.Status == LauncherSessionRestoreStatus.Restored)
                 {
                     _ = runtime.Game.TryStartVerification();

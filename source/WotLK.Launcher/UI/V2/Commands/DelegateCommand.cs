@@ -1,4 +1,5 @@
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace WotLK.Launcher.UI.V2.Commands;
 
@@ -6,12 +7,14 @@ internal sealed class DelegateCommand : ICommand, IDisposable
 {
     private readonly Action _execute;
     private readonly Func<bool> _canExecute;
+    private readonly Dispatcher? _ownerDispatcher;
     private int _disposeState;
 
     internal DelegateCommand(Action execute, Func<bool> canExecute)
     {
         _execute = execute ?? throw new ArgumentNullException(nameof(execute));
         _canExecute = canExecute ?? throw new ArgumentNullException(nameof(canExecute));
+        _ownerDispatcher = Dispatcher.FromThread(Thread.CurrentThread);
     }
 
     public event EventHandler? CanExecuteChanged;
@@ -31,7 +34,20 @@ internal sealed class DelegateCommand : ICommand, IDisposable
 
     internal void RaiseCanExecuteChanged()
     {
-        CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+        if (_ownerDispatcher is null || _ownerDispatcher.CheckAccess())
+        {
+            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        if (_ownerDispatcher.HasShutdownStarted || _ownerDispatcher.HasShutdownFinished)
+        {
+            return;
+        }
+
+        _ownerDispatcher.BeginInvoke(
+            DispatcherPriority.DataBind,
+            new Action(() => CanExecuteChanged?.Invoke(this, EventArgs.Empty)));
     }
 
     public void Dispose()

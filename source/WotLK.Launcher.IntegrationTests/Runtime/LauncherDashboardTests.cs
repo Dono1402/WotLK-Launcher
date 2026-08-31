@@ -480,9 +480,21 @@ internal static class LauncherDashboardTests
                 Equal("En ligne", realmText.Text, "Le mode compact doit afficher En ligne.");
                 dashboard.SetWideRealmLabel(true);
 
-                runtime.Publish(Snapshot(2, DashboardRealmState.Degraded, "Dégradée", true));
+                Exception? backgroundPublishFailure = null;
+                await Task.Run(() =>
+                {
+                    try
+                    {
+                        runtime.Publish(Snapshot(2, DashboardRealmState.Degraded, "Dégradée", true));
+                    }
+                    catch (Exception ex)
+                    {
+                        backgroundPublishFailure = ex;
+                    }
+                });
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
                 window.UpdateLayout();
+                True(backgroundPublishFailure is null, "Une actualisation en arrière-plan ne doit pas notifier les boutons WPF hors Dispatcher.");
                 Equal("Services dégradés", realmText.Text, "Le texte Degraded est incorrect.");
                 EqualBrush(application, "AtlasV2.Brush.Gold", realmDot.Fill, "Degraded doit utiliser l'or.");
 

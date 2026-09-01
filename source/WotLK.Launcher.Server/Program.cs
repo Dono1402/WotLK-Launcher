@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using WotLK.Launcher.Server;
 using WotLK.Launcher.Server.Avatars;
@@ -41,6 +42,9 @@ options.BrevoSenderEmail = FirstNonEmpty(
 options.BrevoSenderName = FirstNonEmpty(
     Environment.GetEnvironmentVariable("WOTLK_BREVO_SENDER_NAME"),
     options.BrevoSenderName);
+options.AvatarMediaRoot = FirstNonEmpty(
+    Environment.GetEnvironmentVariable("WOTLK_AVATAR_MEDIA_ROOT"),
+    options.AvatarMediaRoot);
 if (bool.TryParse(
         Environment.GetEnvironmentVariable("WOTLK_BREVO_SANDBOX"),
         out bool brevoSandbox))
@@ -71,6 +75,7 @@ builder.Services.AddHttpClient<BrevoEmailClient>(client =>
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 builder.Services.AddTransient<EmailVerificationService>();
+builder.Services.AddAtlasAvatarBackend(options);
 builder.Services.AddRateLimiter(rateLimiter =>
 {
     rateLimiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -80,6 +85,24 @@ builder.Services.AddRateLimiter(rateLimiter =>
         limiter.Window = TimeSpan.FromMinutes(1);
         limiter.QueueLimit = 0;
     });
+    rateLimiter.AddAtlasAvatarIpRateLimit();
+    rateLimiter.OnRejected = async (rejected, cancellationToken) =>
+    {
+        if (rejected.HttpContext.Request.Path.StartsWithSegments("/api/v1/me/avatar/photo"))
+        {
+            if (rejected.Lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan retryAfter))
+            {
+                rejected.HttpContext.Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds))
+                    .ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+            await rejected.HttpContext.Response.WriteAsJsonAsync(
+                new AvatarApiError(
+                    "RateLimited",
+                    "Trop de tentatives de modification. Reessaie plus tard.",
+                    Guid.NewGuid().ToString("N")),
+                cancellationToken);
+        }
+    };
 });
 
 WebApplication app = builder.Build();
@@ -89,6 +112,7 @@ LauncherDatabase database = app.Services.GetRequiredService<LauncherDatabase>();
 await database.InitializeAsync();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapAtlasAvatarEndpoints();
 
 app.MapPost("/api/v1/accounts", async (
     RegisterRequest request,
@@ -672,20 +696,11 @@ static async Task<AuthenticatedAccount?> AuthenticateAsync(
     LauncherDatabase database,
     CancellationToken cancellationToken)
 {
-    string? token = ReadBearer(context);
-    return token is null
-        ? null
-        : await database.AuthenticateAsync(token, cancellationToken);
+    return await AtlasRequestAuthentication.AuthenticateAsync(context, database, cancellationToken);
 }
 
 static string? ReadBearer(HttpContext context)
-{
-    string authorization = context.Request.Headers.Authorization.ToString();
-    const string prefix = "Bearer ";
-    return authorization.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-        ? authorization[prefix.Length..].Trim()
-        : null;
-}
+    => AtlasRequestAuthentication.ReadBearer(context);
 
 static string? ValidateRegistration(RegisterRequest request)
 {

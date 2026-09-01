@@ -1,5 +1,14 @@
 namespace WotLK.Launcher.Server.Avatars;
 
+internal interface IAvatarImageProcessor
+{
+    Task<ProcessedAvatarImage> ProcessAsync(
+        Stream source,
+        string declaredContentType,
+        NormalizedAvatarCrop crop,
+        CancellationToken cancellationToken = default);
+}
+
 internal sealed record NormalizedAvatarCrop(
     double X,
     double Y,

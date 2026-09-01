@@ -6,6 +6,7 @@ public sealed class LauncherServerOptions
     public string CharacterDatabaseName { get; set; } = "arthas_chars";
     public string FeedRoot { get; set; } = "/srv/wotlk/launcher-feed";
     public string AddonRoot { get; set; } = "/var/www/wotlk-launcher/launcher/addons";
+    public string AvatarMediaRoot { get; set; } = "/srv/wotlk/atlas-media";
     public string HermesTicketUrl { get; set; } = "http://127.0.0.1:8099/internal/launcher-ticket/";
     public string HermesSharedSecret { get; set; } = "";
     public string PublicBaseUrl { get; set; } = "https://animeclub.fr/wotlk";

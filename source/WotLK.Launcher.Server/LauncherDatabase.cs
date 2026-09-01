@@ -98,7 +98,7 @@ public sealed partial class LauncherDatabase
         await transaction.CommitAsync(cancellationToken);
 
         AccountProfile accountProfile = new(
-            accountId, displayUsername, email, false, null, false, false, 40);
+            accountId, displayUsername, email, false, null, false, false, 40, null);
         return ToAuthResponse(session, accountProfile);
     }
 
@@ -865,8 +865,13 @@ public sealed partial class LauncherDatabase
         command.CommandText = """
             SELECT p.account_id, p.display_username, p.email_normalized,
                    p.email_verified_at, p.avatar_key,
-                   p.two_factor_enabled, p.recovery_codes_generated
+                   p.two_factor_enabled, p.recovery_codes_generated,
+                   aa.id AS avatar_photo_id, aa.version AS avatar_photo_version
             FROM atlas_launcher_profile p
+            LEFT JOIN atlas_launcher_profile_avatar pa ON pa.account_id = p.account_id
+            LEFT JOIN atlas_launcher_avatar_asset aa
+              ON aa.id = pa.current_avatar_asset_id
+             AND aa.status = 1
             WHERE p.account_id = @accountId
             LIMIT 1;
             """;
@@ -879,9 +884,14 @@ public sealed partial class LauncherDatabase
         string? avatar = reader.IsDBNull("avatar_key") ? null : reader.GetString("avatar_key");
         bool twoFactor = reader.GetBoolean("two_factor_enabled");
         bool recovery = reader.GetBoolean("recovery_codes_generated");
+        Avatars.AvatarDescriptor? photo = reader.IsDBNull("avatar_photo_id")
+            ? null
+            : Avatars.AvatarDescriptor.Create(
+                new Guid((byte[])reader["avatar_photo_id"], bigEndian: true),
+                reader.GetUInt64("avatar_photo_version"));
         int completion = 40
             + (emailVerified ? 25 : 0)
-            + (avatar is null ? 0 : 10)
+            + (avatar is null && photo is null ? 0 : 10)
             + (twoFactor ? 20 : 0)
             + (recovery ? 5 : 0);
 
@@ -893,7 +903,8 @@ public sealed partial class LauncherDatabase
             avatar,
             twoFactor,
             recovery,
-            completion);
+            completion,
+            photo);
     }
 
     private static AuthResponse ToAuthResponse(SessionTokens session, AccountProfile profile)

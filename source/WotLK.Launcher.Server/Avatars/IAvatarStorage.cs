@@ -15,4 +15,5 @@ internal interface IAvatarStorage
     Task<bool> MoveToTrashAsync(AvatarStorageKey storageKey, CancellationToken cancellationToken);
     Task QuarantineAsync(AvatarStagingHandle handle, CancellationToken cancellationToken);
     Task DiscardStagingAsync(AvatarStagingHandle handle, CancellationToken cancellationToken);
+    Task<AvatarStorageInventory> InspectAsync(CancellationToken cancellationToken);
 }

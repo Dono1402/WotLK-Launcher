@@ -4,7 +4,6 @@ namespace WotLK.Launcher.Server.Avatars;
 
 internal sealed class LocalAvatarStorage : IAvatarStorage
 {
-    internal const long MaximumOriginalBytes = 8L * 1024 * 1024;
     private const long MaximumVariantBytes = 4L * 1024 * 1024;
     private static readonly byte[] PngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
     private readonly string _root;
@@ -54,7 +53,7 @@ internal sealed class LocalAvatarStorage : IAvatarStorage
                 FileShare.None,
                 81920,
                 FileOptions.Asynchronous | FileOptions.SequentialScan);
-            await CopyBoundedAsync(source, output, MaximumOriginalBytes, cancellationToken);
+            await CopyBoundedAsync(source, output, AvatarLimits.MaximumFileBytes, cancellationToken);
             await output.FlushAsync(cancellationToken);
         }
         catch
@@ -212,6 +211,50 @@ internal sealed class LocalAvatarStorage : IAvatarStorage
         cancellationToken.ThrowIfCancellationRequested();
         TryDeleteDirectory(StagingDirectory(handle));
         return Task.CompletedTask;
+    }
+
+    public Task<AvatarStorageInventory> InspectAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        List<AvatarStagingEntry> staging = [];
+        foreach (string directory in Directory.EnumerateDirectories(_stagingRoot))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string name = Path.GetFileName(directory);
+            if (Guid.TryParseExact(name, "N", out Guid operationId))
+            {
+                staging.Add(new AvatarStagingEntry(
+                    new AvatarStagingHandle(operationId),
+                    Directory.GetLastWriteTimeUtc(directory)));
+            }
+        }
+
+        List<AvatarPublishedEntry> published = [];
+        foreach (string avatarDirectory in Directory.EnumerateDirectories(_avatarsRoot))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string avatarName = Path.GetFileName(avatarDirectory);
+            if (avatarName.Length != 32 || !Guid.TryParseExact(avatarName, "N", out Guid avatarId))
+                continue;
+            foreach (string versionDirectory in Directory.EnumerateDirectories(avatarDirectory))
+            {
+                string versionName = Path.GetFileName(versionDirectory);
+                if (!ulong.TryParse(
+                        versionName,
+                        System.Globalization.NumberStyles.None,
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        out ulong version)
+                    || version == 0)
+                {
+                    continue;
+                }
+                published.Add(new AvatarPublishedEntry(
+                    AvatarStorageKey.Create(avatarId, version),
+                    Directory.GetLastWriteTimeUtc(versionDirectory)));
+            }
+        }
+
+        return Task.FromResult(new AvatarStorageInventory(staging, published));
     }
 
     private string StagingDirectory(AvatarStagingHandle handle)

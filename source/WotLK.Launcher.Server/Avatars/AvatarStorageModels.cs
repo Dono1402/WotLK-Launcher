@@ -65,6 +65,18 @@ internal sealed record AvatarStoredVariant(
     long ByteLength,
     byte[] Sha256);
 
+internal sealed record AvatarStagingEntry(
+    AvatarStagingHandle Handle,
+    DateTimeOffset LastModifiedAt);
+
+internal sealed record AvatarPublishedEntry(
+    AvatarStorageKey StorageKey,
+    DateTimeOffset LastModifiedAt);
+
+internal sealed record AvatarStorageInventory(
+    IReadOnlyList<AvatarStagingEntry> Staging,
+    IReadOnlyList<AvatarPublishedEntry> Published);
+
 internal sealed class AvatarStorageException : Exception
 {
     internal AvatarStorageException(string message)

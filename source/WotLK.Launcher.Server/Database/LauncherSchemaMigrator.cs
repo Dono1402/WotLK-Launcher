@@ -68,7 +68,6 @@ internal sealed class LauncherSchemaMigrator
             {
                 if (applied.ContainsKey(migration.Version))
                 {
-                    await ValidateSchemaForVersionAsync(connection, migration.Version, cancellationToken);
                     outcomes.Add(new(migration.Version, migration.Name, LauncherSchemaMigrationState.AlreadyApplied));
                     continue;
                 }
@@ -112,6 +111,7 @@ internal sealed class LauncherSchemaMigrator
                 outcomes.Add(new(migration.Version, migration.Name, state));
             }
 
+            await ValidateSchemaForVersionAsync(connection, migrations[^1].Version, cancellationToken);
             return outcomes;
         }
         finally
@@ -128,7 +128,7 @@ internal sealed class LauncherSchemaMigrator
         if (version >= 1)
             await _validator.ValidateLegacyAsync(connection, cancellationToken);
         if (version >= 2)
-            await _validator.ValidateAvatarAsync(connection, cancellationToken);
+            await _validator.ValidateAvatarAsync(connection, version, cancellationToken);
     }
 
     private static async Task ExecuteMigrationAsync(

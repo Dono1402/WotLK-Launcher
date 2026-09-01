@@ -6,7 +6,9 @@ internal sealed class LauncherSchemaValidator
 {
     private static readonly IReadOnlyDictionary<string, TableExpectation> HistoryTables = CreateHistoryTables();
     private static readonly IReadOnlyDictionary<string, TableExpectation> LegacyTables = CreateLegacyTables();
-    private static readonly IReadOnlyDictionary<string, TableExpectation> AvatarTables = CreateAvatarTables();
+    private static readonly IReadOnlyDictionary<string, TableExpectation> AvatarV2Tables = CreateAvatarTables(false);
+    private static readonly IReadOnlyDictionary<string, TableExpectation> AvatarV3Tables = CreateAvatarTables(true);
+    private static readonly IReadOnlyDictionary<string, TableExpectation> AvatarRateLimitTables = CreateAvatarRateLimitTables();
 
     internal async Task<int> CountLegacyTablesAsync(
         MySqlConnection connection,
@@ -32,8 +34,18 @@ internal sealed class LauncherSchemaValidator
     internal Task ValidateHistoryAsync(MySqlConnection connection, CancellationToken cancellationToken)
         => ValidateAsync(connection, HistoryTables, cancellationToken);
 
-    internal Task ValidateAvatarAsync(MySqlConnection connection, CancellationToken cancellationToken)
-        => ValidateAsync(connection, AvatarTables, cancellationToken);
+    internal async Task ValidateAvatarAsync(
+        MySqlConnection connection,
+        uint schemaVersion,
+        CancellationToken cancellationToken)
+    {
+        await ValidateAsync(
+            connection,
+            schemaVersion >= 3 ? AvatarV3Tables : AvatarV2Tables,
+            cancellationToken);
+        if (schemaVersion >= 3)
+            await ValidateAsync(connection, AvatarRateLimitTables, cancellationToken);
+    }
 
     private static async Task ValidateAsync(
         MySqlConnection connection,
@@ -280,7 +292,7 @@ internal sealed class LauncherSchemaValidator
         };
     }
 
-    private static IReadOnlyDictionary<string, TableExpectation> CreateAvatarTables()
+    private static IReadOnlyDictionary<string, TableExpectation> CreateAvatarTables(bool nullableActiveAvatar)
     {
         return new Dictionary<string, TableExpectation>(StringComparer.Ordinal)
         {
@@ -313,7 +325,8 @@ internal sealed class LauncherSchemaValidator
                 ["chk_atlas_avatar_variant_size"]),
             ["atlas_launcher_profile_avatar"] = Table(
                 [
-                    C("account_id", "int unsigned", "NO"), C("current_avatar_asset_id", "binary(16)", "NO"),
+                    C("account_id", "int unsigned", "NO"),
+                    C("current_avatar_asset_id", "binary(16)", nullableActiveAvatar ? "YES" : "NO"),
                     C("updated_at", "datetime(6)", "NO", "CURRENT_TIMESTAMP(6)", "DEFAULT_GENERATED on update CURRENT_TIMESTAMP(6)")
                 ],
                 [I("PRIMARY", 0, 1, "account_id"), I("current_avatar_asset_id", 0, 1, "current_avatar_asset_id")],
@@ -321,6 +334,25 @@ internal sealed class LauncherSchemaValidator
                     F("fk_atlas_profile_avatar_asset", 1, "current_avatar_asset_id", "atlas_launcher_avatar_asset", "id"),
                     F("fk_atlas_profile_avatar_profile", 1, "account_id", "atlas_launcher_profile", "account_id")
                 ])
+        };
+    }
+
+    private static IReadOnlyDictionary<string, TableExpectation> CreateAvatarRateLimitTables()
+    {
+        return new Dictionary<string, TableExpectation>(StringComparer.Ordinal)
+        {
+            ["atlas_launcher_avatar_upload_attempt"] = Table(
+                [
+                    C("id", "bigint unsigned", "NO", extra: "auto_increment"),
+                    C("account_id", "int unsigned", "NO"),
+                    C("attempted_at", "datetime(6)", "NO", "CURRENT_TIMESTAMP(6)", "DEFAULT_GENERATED")
+                ],
+                [
+                    I("PRIMARY", 0, 1, "id"),
+                    I("ix_atlas_avatar_upload_account_time", 1, 1, "account_id"),
+                    I("ix_atlas_avatar_upload_account_time", 1, 2, "attempted_at")
+                ],
+                [F("fk_atlas_avatar_upload_account", 1, "account_id", "account", "id")])
         };
     }
 

@@ -32,6 +32,11 @@ Status values reserved by the schema are `0 Pending`, `1 Ready`, `2 Retired`,
 and `3 Deleted`. The legacy `atlas_launcher_profile.avatar_key` column remains
 unchanged for older launchers.
 
+`0003_avatar_backend.sql` makes the active asset pointer nullable so deletion
+can detach the photo atomically, and adds the persistent per-account upload
+attempt ledger used by the rolling ten-minute and daily limits. Migrations
+`0001` and `0002` remain byte-for-byte immutable.
+
 Named MySQL locks are scoped from the database name. Migration commands never
 run concurrently in the same schema, while separate test and production schemas
 do not block each other.

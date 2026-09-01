@@ -1,7 +1,8 @@
 # Local avatar storage foundation
 
-`IAvatarStorage` isolates media persistence. Checkpoint 03A.2a provides only
-`LocalAvatarStorage`; it is not registered in the production API yet.
+`IAvatarStorage` isolates media persistence. Checkpoint 03A.2b registers
+`LocalAvatarStorage` through `LauncherServer:AvatarMediaRoot`; production does
+not receive that build or create the target directory until checkpoint 03A.2d.
 
 The storage root is `/srv/wotlk/atlas-media` with four children:
 
@@ -40,8 +41,37 @@ current permissions under `/opt/wotlk-launcher-api` are intentionally outside
 this checkpoint.
 
 Before production, backup MySQL and `atlas-media` with a coordinated timestamp,
-checksums, and an external copy. Staging, quarantine, and trash also require a
-later retention/scavenging policy before upload is enabled.
+checksums, and an external copy.
+
+## 03A.2b backend contract
+
+Authenticated routes are:
+
+- `POST /api/v1/me/avatar/photo` for an 8 MiB maximum JPEG, PNG, or static WebP;
+- `DELETE /api/v1/me/avatar/photo` for an idempotent detach;
+- `GET /media/avatars/{avatarId}/{version}/{size}.png` for private immutable
+  media at 32, 64, 128, or 256 pixels.
+
+Uploads stream into staging, apply EXIF orientation, validate a normalized
+square crop, generate fresh PNG surfaces, and publish the complete variant
+directory atomically before a short database transaction changes the active
+profile pointer. The original is never published and is removed on success,
+validation failure, or processing failure. Invalid uploads are not quarantined.
+After the database has committed, replaced or deleted media is moved to `trash`
+on a best-effort basis; a later maintenance policy owns physical trash purging.
+
+`AvatarMutationLockProvider` obtains `GET_LOCK` with a timeout of zero on a
+dedicated MySQL connection. A second upload or delete for the same account is
+therefore rejected immediately with `409`; closing or losing the connection
+releases the lock. Upload attempts are persisted and limited to five per ten
+minutes and twenty per rolling day per account. ASP.NET Core also applies a
+queue-free IP limit of thirty avatar mutations per ten minutes.
+
+`AvatarCleanupInspector` is inspection-only in 03A.2b. It reports stale staging,
+abandoned Pending assets, published media not belonging to the active Ready
+asset, and old Retired/Deleted assets. It never deletes anything and no timer is
+registered. A later explicit maintenance command must review and execute this
+plan; the currently referenced Ready asset is excluded structurally.
 
 ## 03A.2a SkiaSharp spike
 

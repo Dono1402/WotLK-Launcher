@@ -138,6 +138,18 @@ if (args.Length == 1
 }
 
 if (args.Length == 1
+    && string.Equals(args[0], "--avatar-backend", StringComparison.OrdinalIgnoreCase))
+{
+    return await AvatarBackendTests.RunAsync();
+}
+
+if (args.Length == 1
+    && string.Equals(args[0], "--avatar-backend-mysql", StringComparison.OrdinalIgnoreCase))
+{
+    return await AvatarBackendTests.RunMySqlAsync();
+}
+
+if (args.Length == 1
     && string.Equals(args[0], "--local-shell-windows-smoke", StringComparison.OrdinalIgnoreCase))
 {
     return LauncherLocalActionTests.RunWindowsSmoke();

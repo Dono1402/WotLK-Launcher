@@ -40,10 +40,11 @@ internal static class AvatarFoundationTests
 
         LauncherSchemaMigrator firstMigrator = new(options, source, validator, "03A.2a-test");
         IReadOnlyList<LauncherSchemaMigrationOutcome> first = await firstMigrator.MigrateAsync();
-        Equal(2, first.Count, "Deux migrations doivent etre connues.");
+        Equal(3, first.Count, "Trois migrations doivent etre connues.");
         Equal(LauncherSchemaMigrationState.Adopted, first[0].State, "La copie reelle doit etre adoptee comme baseline.");
         Equal(LauncherSchemaMigrationState.Applied, first[1].State, "Le schema avatar doit etre applique.");
-        await AssertHistoryCountAsync(builder.ConnectionString, 2);
+        Equal(LauncherSchemaMigrationState.Applied, first[2].State, "Le backend avatar doit etre applique.");
+        await AssertHistoryCountAsync(builder.ConnectionString, 3);
 
         IReadOnlyList<LauncherSchemaMigrationOutcome> second = await firstMigrator.MigrateAsync();
         True(second.All(item => item.State == LauncherSchemaMigrationState.AlreadyApplied), "La seconde execution doit etre sans effet.");
@@ -57,7 +58,7 @@ internal static class AvatarFoundationTests
         await ExpectAsync<InvalidOperationException>(
             () => new LauncherSchemaMigrator(
                 options,
-                new FixedMigrationSource([originals[0], changed]),
+                new FixedMigrationSource([originals[0], changed, originals[2]]),
                 validator,
                 "03A.2a-test").MigrateAsync(),
             "Un checksum modifie doit etre refuse.");
@@ -71,19 +72,19 @@ internal static class AvatarFoundationTests
         await ExpectAsync<MySqlException>(
             () => new LauncherSchemaMigrator(
                 options,
-                new FixedMigrationSource([originals[0], failing]),
+                new FixedMigrationSource([originals[0], failing, originals[2]]),
                 validator,
                 "03A.2a-test").MigrateAsync(),
             "Une migration SQL invalide doit echouer.");
         await AssertHistoryCountAsync(builder.ConnectionString, 1);
         await firstMigrator.MigrateAsync();
-        await AssertHistoryCountAsync(builder.ConnectionString, 2);
+        await AssertHistoryCountAsync(builder.ConnectionString, 3);
 
         await ResetToLegacyAsync(builder.ConnectionString);
         LauncherSchemaMigrator concurrentA = new(options, source, validator, "03A.2a-concurrent-a");
         LauncherSchemaMigrator concurrentB = new(options, source, validator, "03A.2a-concurrent-b");
         await Task.WhenAll(concurrentA.MigrateAsync(), concurrentB.MigrateAsync());
-        await AssertHistoryCountAsync(builder.ConnectionString, 2);
+        await AssertHistoryCountAsync(builder.ConnectionString, 3);
 
         Console.WriteLine("Avatar MySQL migrations OK: adoption, idempotence, checksum, failure recovery and concurrency.");
         return 0;
@@ -92,11 +93,13 @@ internal static class AvatarFoundationTests
     private static void ValidateEmbeddedMigrations()
     {
         IReadOnlyList<LauncherSchemaMigration> migrations = new EmbeddedLauncherSchemaMigrationSource().Load();
-        Equal(2, migrations.Count, "Le checkpoint doit embarquer exactement deux migrations.");
+        Equal(3, migrations.Count, "Le checkpoint doit embarquer exactement trois migrations.");
         Equal((uint)1, migrations[0].Version, "La baseline doit etre 0001.");
         Equal("legacy_baseline", migrations[0].Name, "Le nom de la baseline est incorrect.");
         Equal((uint)2, migrations[1].Version, "Le schema avatar doit etre 0002.");
         Equal("profile_avatar", migrations[1].Name, "Le nom de la migration avatar est incorrect.");
+        Equal((uint)3, migrations[2].Version, "Le backend avatar doit etre 0003.");
+        Equal("avatar_backend", migrations[2].Name, "Le nom de la migration backend est incorrect.");
         True(migrations.All(item => item.Sha256.Length == 32), "Chaque migration doit posseder un SHA-256.");
         True(migrations[0].Sql.Contains("avatar_key", StringComparison.Ordinal), "La compatibilite avatar_key doit rester dans la baseline.");
     }
@@ -153,7 +156,7 @@ internal static class AvatarFoundationTests
             await ExpectAsync<AvatarStorageException>(
                 () => storage.WriteOriginalAsync(
                     tooLarge,
-                    new MemoryStream(new byte[LocalAvatarStorage.MaximumOriginalBytes + 1], false),
+                    new MemoryStream(new byte[AvatarLimits.MaximumFileBytes + 1], false),
                     CancellationToken.None),
                 "La limite de 8 Mio doit etre appliquee par le stockage.");
             await storage.DiscardStagingAsync(tooLarge, CancellationToken.None);
@@ -193,6 +196,7 @@ internal static class AvatarFoundationTests
         await using MySqlCommand command = connection.CreateCommand();
         command.CommandText = """
             SET FOREIGN_KEY_CHECKS = 0;
+            DROP TABLE IF EXISTS atlas_launcher_avatar_upload_attempt;
             DROP TABLE IF EXISTS atlas_launcher_profile_avatar;
             DROP TABLE IF EXISTS atlas_launcher_avatar_variant;
             DROP TABLE IF EXISTS atlas_launcher_avatar_asset;

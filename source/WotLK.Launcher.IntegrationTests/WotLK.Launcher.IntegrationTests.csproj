@@ -13,4 +13,8 @@
     <ProjectReference Include="..\WotLK.Launcher.Server\WotLK.Launcher.Server.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
 </Project>

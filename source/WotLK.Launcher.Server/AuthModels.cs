@@ -62,7 +62,8 @@ public sealed record AccountProfile(
     string? AvatarKey,
     bool TwoFactorEnabled,
     bool RecoveryCodesGenerated,
-    int Completion);
+    int Completion,
+    Avatars.AvatarDescriptor? Avatar);
 
 public sealed record AuthResponse(
     string AccessToken,

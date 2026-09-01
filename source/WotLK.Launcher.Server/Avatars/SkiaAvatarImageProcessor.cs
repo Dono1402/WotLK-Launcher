@@ -1,8 +1,10 @@
+using System.Buffers.Binary;
+using System.Text;
 using SkiaSharp;
 
 namespace WotLK.Launcher.Server.Avatars;
 
-internal sealed class SkiaAvatarImageProcessor : IDisposable
+internal sealed class SkiaAvatarImageProcessor : IAvatarImageProcessor, IDisposable
 {
     internal const int MinimumDimension = 256;
     internal const int MaximumDimension = 8192;
@@ -22,7 +24,7 @@ internal sealed class SkiaAvatarImageProcessor : IDisposable
     internal int MaximumConcurrency { get; }
     internal int PeakObservedConcurrency => Volatile.Read(ref _peakObservedConcurrency);
 
-    internal async Task<ProcessedAvatarImage> ProcessAsync(
+    public async Task<ProcessedAvatarImage> ProcessAsync(
         Stream source,
         string declaredContentType,
         NormalizedAvatarCrop crop,
@@ -35,7 +37,7 @@ internal sealed class SkiaAvatarImageProcessor : IDisposable
 
         try
         {
-            byte[] encoded = await ReadBoundedAsync(source, LocalAvatarStorage.MaximumOriginalBytes, cancellationToken);
+            byte[] encoded = await ReadBoundedAsync(source, AvatarLimits.MaximumFileBytes, cancellationToken);
             return Process(encoded, declaredContentType, crop, cancellationToken);
         }
         finally
@@ -67,6 +69,8 @@ internal sealed class SkiaAvatarImageProcessor : IDisposable
         CancellationToken cancellationToken)
     {
         string normalizedContentType = NormalizeContentType(declaredContentType);
+        if (normalizedContentType == "image/webp" && IsAnimatedWebP(encoded))
+            throw Invalid("animated_image", "Les images animees ne sont pas acceptees.");
         using SKData data = SKData.CreateCopy(encoded);
         using SKCodec codec = SKCodec.Create(data)
             ?? throw Invalid("decode_failed", "Le fichier n'est pas une image prise en charge.");
@@ -177,14 +181,25 @@ internal sealed class SkiaAvatarImageProcessor : IDisposable
     {
         double[] values = [crop.X, crop.Y, crop.Width, crop.Height];
         if (values.Any(value => !double.IsFinite(value))
-            || crop.X < 0 || crop.Y < 0 || crop.Width <= 0 || crop.Height <= 0
-            || crop.X + crop.Width > 1.000001 || crop.Y + crop.Height > 1.000001)
+            || crop.X < 0 || crop.Y < 0 || crop.Width <= 0 || crop.Height <= 0)
         {
             throw Invalid("invalid_crop", "Le recadrage normalise est invalide.");
         }
 
         int left = (int)Math.Round(crop.X * width, MidpointRounding.AwayFromZero);
         int top = (int)Math.Round(crop.Y * height, MidpointRounding.AwayFromZero);
+        if (Math.Abs(crop.Width - crop.Height) <= 0.000001)
+        {
+            if (crop.Width > 1.000001)
+                throw Invalid("invalid_crop", "Le recadrage normalise est invalide.");
+            int squareSize = (int)Math.Round(
+                crop.Width * Math.Min(width, height),
+                MidpointRounding.AwayFromZero);
+            return ValidatePixelCrop(left, top, squareSize, width, height);
+        }
+
+        if (crop.X + crop.Width > 1.000001 || crop.Y + crop.Height > 1.000001)
+            throw Invalid("invalid_crop", "Le recadrage normalise est invalide.");
         int right = (int)Math.Round((crop.X + crop.Width) * width, MidpointRounding.AwayFromZero);
         int bottom = (int)Math.Round((crop.Y + crop.Height) * height, MidpointRounding.AwayFromZero);
         int cropWidth = right - left;
@@ -192,7 +207,11 @@ internal sealed class SkiaAvatarImageProcessor : IDisposable
         if (Math.Abs(cropWidth - cropHeight) > 2)
             throw Invalid("crop_not_square", "Le recadrage doit etre carre.");
 
-        int size = Math.Min(cropWidth, cropHeight);
+        return ValidatePixelCrop(left, top, Math.Min(cropWidth, cropHeight), width, height);
+    }
+
+    private static PixelCrop ValidatePixelCrop(int left, int top, int size, int width, int height)
+    {
         if (size < MinimumDimension)
             throw Invalid("crop_too_small", "Le recadrage doit mesurer au moins 256 x 256 pixels.");
         if (left < 0 || top < 0 || left + size > width || top + size > height)
@@ -232,6 +251,36 @@ internal sealed class SkiaAvatarImageProcessor : IDisposable
             "image/jpeg" or "image/png" or "image/webp" => normalized,
             _ => throw Invalid("unsupported_mime", "Seuls JPEG, PNG et WebP sont acceptes.")
         };
+    }
+
+    private static bool IsAnimatedWebP(ReadOnlySpan<byte> encoded)
+    {
+        if (encoded.Length < 12
+            || !encoded[..4].SequenceEqual("RIFF"u8)
+            || !encoded.Slice(8, 4).SequenceEqual("WEBP"u8))
+        {
+            return false;
+        }
+
+        int offset = 12;
+        while (offset <= encoded.Length - 8)
+        {
+            ReadOnlySpan<byte> fourCc = encoded.Slice(offset, 4);
+            uint chunkLength = BinaryPrimitives.ReadUInt32LittleEndian(encoded.Slice(offset + 4, 4));
+            long payloadEnd = (long)offset + 8 + chunkLength;
+            if (payloadEnd > encoded.Length)
+                return false;
+            if (fourCc.SequenceEqual("ANIM"u8) || fourCc.SequenceEqual("ANMF"u8))
+                return true;
+            if (fourCc.SequenceEqual("VP8X"u8)
+                && chunkLength >= 1
+                && (encoded[offset + 8] & 0x02) != 0)
+            {
+                return true;
+            }
+            offset = checked((int)(payloadEnd + (chunkLength & 1)));
+        }
+        return false;
     }
 
     private static async Task<byte[]> ReadBoundedAsync(

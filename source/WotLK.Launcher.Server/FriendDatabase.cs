@@ -5,32 +5,6 @@ namespace WotLK.Launcher.Server;
 
 public sealed partial class LauncherDatabase
 {
-    private static async Task InitializeFriendsAsync(
-        MySqlConnection connection,
-        CancellationToken cancellationToken)
-    {
-        await using MySqlCommand command = connection.CreateCommand();
-        command.CommandText = """
-            CREATE TABLE IF NOT EXISTS atlas_launcher_friendship (
-                account_low_id INT UNSIGNED NOT NULL,
-                account_high_id INT UNSIGNED NOT NULL,
-                requested_by_id INT UNSIGNED NOT NULL,
-                accepted_at DATETIME NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                PRIMARY KEY (account_low_id, account_high_id),
-                INDEX ix_atlas_friend_requested_by (requested_by_id),
-                CONSTRAINT fk_atlas_friend_low
-                    FOREIGN KEY (account_low_id) REFERENCES account(id) ON DELETE CASCADE,
-                CONSTRAINT fk_atlas_friend_high
-                    FOREIGN KEY (account_high_id) REFERENCES account(id) ON DELETE CASCADE,
-                CONSTRAINT fk_atlas_friend_requester
-                    FOREIGN KEY (requested_by_id) REFERENCES account(id) ON DELETE CASCADE
-            );
-            """;
-        await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
     public async Task<IReadOnlyList<LauncherFriend>> ListFriendsAsync(
         uint accountId,
         CancellationToken cancellationToken)

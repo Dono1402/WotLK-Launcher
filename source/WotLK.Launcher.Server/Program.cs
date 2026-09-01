@@ -6,6 +6,15 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.RateLimiting;
 using WotLK.Launcher.Server;
+using WotLK.Launcher.Server.Avatars;
+using WotLK.Launcher.Server.Database;
+
+if (args.Length == 1
+    && string.Equals(args[0], "--avatar-image-spike", StringComparison.OrdinalIgnoreCase))
+{
+    Environment.ExitCode = await AvatarImageSpikeRunner.RunAsync(Console.Out);
+    return;
+}
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -46,7 +55,11 @@ if (!Regex.IsMatch(options.CharacterDatabaseName, "^[A-Za-z0-9_]+$", RegexOption
 
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<TokenService>();
-builder.Services.AddSingleton<LauncherDatabase>();
+builder.Services.AddSingleton(_ => new LauncherSchemaMigrator(options));
+builder.Services.AddSingleton(services => new LauncherDatabase(
+    options,
+    services.GetRequiredService<TokenService>(),
+    services.GetRequiredService<LauncherSchemaMigrator>()));
 builder.Services.AddSingleton<AtlasStatusService>();
 builder.Services.AddHttpClient<HermesTicketClient>(client =>
 {

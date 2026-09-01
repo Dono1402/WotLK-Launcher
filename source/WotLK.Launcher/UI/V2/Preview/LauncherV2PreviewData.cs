@@ -1,6 +1,9 @@
+using System.IO;
+using System.Windows;
 using WotLK.Launcher.Dashboard;
 using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Commands;
+using System.Windows.Media.Imaging;
 
 namespace WotLK.Launcher.UI.V2.Preview;
 
@@ -165,19 +168,29 @@ public static class LauncherV2PreviewData
 
         return new AccountUiState(new AccountViewState(
             IsPreview: true,
+            IsRuntimeConnected: false,
             SelectedSection: section,
             Username: "Dono1402",
             Email: "dono1402@outlook.com",
             Initial: "D",
             IsEmailVerified: true,
             HasProfileAvatar: scenario != AccountPreviewScenario.Fallback,
-            AvatarImageUri: PreviewAvatarUri,
+            AvatarImage: scenario == AccountPreviewScenario.Fallback
+                ? null
+                : CreatePreviewAvatar(),
             AvatarOperation: removing
                 ? AvatarPreviewOperation.Removing
                 : AvatarPreviewOperation.None,
             AvatarStatusMessage: removing
                 ? "Suppression de la photo en cours…"
                 : string.Empty,
+            AvatarErrorMessage: string.Empty,
+            IsAvatarBackendAvailable: true,
+            IsAvatarBackendChecking: false,
+            AvatarAvailabilityMessage: string.Empty,
+            CanModifyAvatar: !removing,
+            CanRemoveAvatar: scenario != AccountPreviewScenario.Fallback && !removing,
+            IsDeleteConfirmationOpen: false,
             MemberSince: "Membre Atlas depuis juillet 2026",
             LastPasswordChange: "Modifié il y a 18 jours",
             ActiveSessionCount: 2));
@@ -200,13 +213,36 @@ public static class LauncherV2PreviewData
             IsPreview: true,
             IsOpen: isOpen,
             Status: status,
-            AvatarImageUri: PreviewAvatarUri,
+            AvatarImage: CreatePreviewAvatar(),
             ErrorMessage: status == AvatarCropPreviewStatus.Error
                 ? "La photo n’a pas pu être préparée. Réessaie avec une autre image."
                 : string.Empty,
+            StatusMessage: status == AvatarCropPreviewStatus.Uploading
+                ? "Envoi… 48 %"
+                : string.Empty,
+            UploadPercentage: status == AvatarCropPreviewStatus.Uploading ? 48 : null,
+            IsProgressIndeterminate: false,
             Zoom: 1.18,
             OffsetX: 0,
-            OffsetY: -8));
+            OffsetY: -8,
+            OrientedPixelWidth: 1024,
+            OrientedPixelHeight: 1024,
+            MaximumZoom: 2.4));
+    }
+
+    private static BitmapImage CreatePreviewAvatar()
+    {
+        System.Windows.Resources.StreamResourceInfo resource = Application.GetResourceStream(
+            new Uri(PreviewAvatarUri, UriKind.Relative))
+            ?? throw new InvalidOperationException("La ressource avatar de prévisualisation est absente.");
+        using Stream stream = resource.Stream;
+        BitmapImage image = new();
+        image.BeginInit();
+        image.StreamSource = stream;
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.EndInit();
+        image.Freeze();
+        return image;
     }
 
     internal static DashboardUiState CreateDashboard(GamePreviewScenario scenario)

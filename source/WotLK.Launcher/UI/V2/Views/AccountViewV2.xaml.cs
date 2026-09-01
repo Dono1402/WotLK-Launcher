@@ -1,6 +1,9 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
 using WotLK.Launcher.UI.V2.Presentation;
 
 namespace WotLK.Launcher.UI.V2.Views;
@@ -8,6 +11,7 @@ namespace WotLK.Launcher.UI.V2.Views;
 public partial class AccountViewV2 : UserControl
 {
     private AccountUiState? _subscribedState;
+    private bool _deleteConfirmationWasOpen;
 
     public static readonly DependencyProperty StateProperty = DependencyProperty.Register(
         nameof(State),
@@ -32,6 +36,8 @@ public partial class AccountViewV2 : UserControl
 
     public event EventHandler? RemoveAvatarRequested;
 
+    public event EventHandler? ConfirmAvatarDeleteRequested;
+
     public AccountUiState? State
     {
         get => (AccountUiState?)GetValue(StateProperty);
@@ -49,6 +55,46 @@ public partial class AccountViewV2 : UserControl
     internal AccountSection SelectedSection => State?.Current.SelectedSection ?? AccountSection.Profile;
 
     internal IInputElement AvatarActionFocusTarget => ModifyAvatarButton;
+
+    internal bool IsDeleteConfirmationOpen => State?.Current.IsDeleteConfirmationOpen == true;
+
+    internal bool ContainsDeleteConfirmationFocus(DependencyObject? target)
+    {
+        DependencyObject? current = target;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, DeleteConfirmationPanel))
+            {
+                return true;
+            }
+
+            current = current is Visual or System.Windows.Media.Media3D.Visual3D
+                ? VisualTreeHelper.GetParent(current)
+                : LogicalTreeHelper.GetParent(current);
+        }
+        return false;
+    }
+
+    internal void FocusDeleteConfirmation()
+    {
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.Input,
+            () => Keyboard.Focus(CancelDeleteAvatarButton));
+    }
+
+    internal bool TryCancelDeleteConfirmation()
+    {
+        if (!IsDeleteConfirmationOpen)
+        {
+            return false;
+        }
+
+        State?.CloseDeleteConfirmation();
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.Input,
+            () => Keyboard.Focus(RemoveAvatarButton));
+        return true;
+    }
 
     private static void StateChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)
     {
@@ -122,10 +168,57 @@ public partial class AccountViewV2 : UserControl
         SecurityTabButton.Tag = section == AccountSection.Security ? "Active" : null;
         SessionsTabButton.Tag = section == AccountSection.Sessions ? "Active" : null;
 
-        bool removing = State.Current.AvatarOperation == AvatarPreviewOperation.Removing;
-        AvatarOperationBanner.Visibility = removing ? Visibility.Visible : Visibility.Collapsed;
-        ModifyAvatarButton.IsEnabled = !removing;
-        RemoveAvatarButton.IsEnabled = State.Current.HasProfileAvatar && !removing;
+        AccountViewState state = State.Current;
+        bool operationActive = state.AvatarOperation != AvatarPreviewOperation.None;
+        AvatarOperationBanner.Visibility = operationActive ? Visibility.Visible : Visibility.Collapsed;
+        AvatarOperationProgress.IsIndeterminate = true;
+        ModifyAvatarButton.IsEnabled = state.CanModifyAvatar;
+        RemoveAvatarButton.IsEnabled = state.CanRemoveAvatar;
+        AvatarAvailabilityBanner.Visibility = string.IsNullOrWhiteSpace(state.AvatarAvailabilityMessage)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        AvatarErrorBanner.Visibility = string.IsNullOrWhiteSpace(state.AvatarErrorMessage)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        EmailVerificationText.Text = state.IsEmailVerified ? "Vérifiée" : "Non vérifiée";
+        SecuritySummaryTitle.Text = state.IsEmailVerified
+            ? "Compte protégé"
+            : "Vérification recommandée";
+        SecuritySummaryText.Text = state.IsEmailVerified
+            ? "Ton adresse e-mail est vérifiée."
+            : "Vérifie ton adresse e-mail pour renforcer la sécurité du compte.";
+        SessionsSummaryText.Text = state.IsPreview
+            ? $"{state.ActiveSessionCount} sessions actives"
+            : "Gestion des sessions à venir";
+        SessionsPreviewList.Visibility = state.IsPreview
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        SessionsUnavailableCard.Visibility = state.IsPreview
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        Brush emailBrush = (Brush)FindResource(state.IsEmailVerified
+            ? "AtlasV2.Brush.Success"
+            : "AtlasV2.Brush.Gold");
+        Brush emailSurface = (Brush)FindResource(state.IsEmailVerified
+            ? "AtlasV2.Brush.SuccessSurface"
+            : "AtlasV2.Brush.GoldSurface");
+        Brush emailBorder = (Brush)FindResource(state.IsEmailVerified
+            ? "AtlasV2.Brush.SuccessBorder"
+            : "AtlasV2.Brush.GoldBorder");
+        EmailVerificationText.Foreground = emailBrush;
+        EmailVerificationIcon.Stroke = emailBrush;
+        EmailVerificationBadge.Background = emailSurface;
+        EmailVerificationBadge.BorderBrush = emailBorder;
+
+        DeleteConfirmationLayer.Visibility = state.IsDeleteConfirmationOpen
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        DeleteConfirmationLayer.IsHitTestVisible = state.IsDeleteConfirmationOpen;
+        if (state.IsDeleteConfirmationOpen && !_deleteConfirmationWasOpen)
+        {
+            FocusDeleteConfirmation();
+        }
+        _deleteConfirmationWasOpen = state.IsDeleteConfirmationOpen;
     }
 
     private void ReplaceStateSubscription(AccountUiState? oldState, AccountUiState? newState)
@@ -177,7 +270,7 @@ public partial class AccountViewV2 : UserControl
 
     private void ModifyAvatarButton_Click(object sender, RoutedEventArgs e)
     {
-        if (State?.Current.IsPreview == true)
+        if (State?.Current.CanModifyAvatar == true)
         {
             ModifyAvatarRequested?.Invoke(this, EventArgs.Empty);
         }
@@ -185,10 +278,29 @@ public partial class AccountViewV2 : UserControl
 
     private void RemoveAvatarButton_Click(object sender, RoutedEventArgs e)
     {
-        if (State?.Current.IsPreview == true)
+        if (State?.Current.CanRemoveAvatar != true)
+        {
+            return;
+        }
+
+        if (State.Current.IsPreview)
         {
             State.StartRemovingPreview();
             RemoveAvatarRequested?.Invoke(this, EventArgs.Empty);
+            return;
         }
+
+        State.ShowDeleteConfirmation();
+        RemoveAvatarRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void CancelDeleteAvatarButton_Click(object sender, RoutedEventArgs e)
+    {
+        TryCancelDeleteConfirmation();
+    }
+
+    private void ConfirmDeleteAvatarButton_Click(object sender, RoutedEventArgs e)
+    {
+        ConfirmAvatarDeleteRequested?.Invoke(this, EventArgs.Empty);
     }
 }

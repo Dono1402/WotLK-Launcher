@@ -241,7 +241,9 @@ internal static class LauncherOperationCoordinatorTests
             LauncherOperationKind.GameInstall,
             LauncherOperationKind.GameUpdate,
             LauncherOperationKind.Addons,
-            LauncherOperationKind.LauncherAutoUpdate
+            LauncherOperationKind.LauncherAutoUpdate,
+            LauncherOperationKind.AvatarUpload,
+            LauncherOperationKind.AvatarDelete
         ];
 
         foreach (LauncherOperationKind activeKind in kinds)

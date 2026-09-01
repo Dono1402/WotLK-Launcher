@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
@@ -42,6 +43,7 @@ internal static partial class AvatarBackendTests
             IReadOnlyList<LauncherSchemaMigrationOutcome> migrations = await migrator.MigrateAsync();
             Equal(3, migrations.Count, "Les trois migrations avatar doivent etre connues.");
             await ValidateSchemaAndChecksumAsync(options);
+            await ValidateMutationLockLifecycleAsync(options);
             await ValidateRepositoryRateLimitAsync(options);
             await ValidateHttpContractAsync(options, roots);
             await ValidateDatabaseConcurrencyAsync(options, roots);
@@ -109,6 +111,54 @@ internal static partial class AvatarBackendTests
             dailyAccount.Profile.AccountId,
             CancellationToken.None);
         True(!afterDelete.Allowed, "Une suppression ne doit pas remettre le quota d'upload a zero.");
+    }
+
+    private static async Task ValidateMutationLockLifecycleAsync(LauncherServerOptions options)
+    {
+        const uint accountId = 4_000_000_001;
+        AvatarMutationLockProvider provider = new(options);
+        IAvatarMutationLease lease = await provider.TryAcquireAsync(accountId, CancellationToken.None)
+            ?? throw new InvalidOperationException("Le verrou MySQL témoin doit être acquis.");
+        AvatarMutationLease concrete = (AvatarMutationLease)lease;
+        FieldInfo connectionField = typeof(AvatarMutationLease).GetField(
+            "_connection",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Connexion propriétaire du verrou introuvable.");
+        MySqlConnection owner = (MySqlConnection?)connectionField.GetValue(concrete)
+            ?? throw new InvalidOperationException("Connexion propriétaire du verrou absente.");
+        long ownerConnectionId = await ScalarInt64Async(owner, "SELECT CONNECTION_ID()");
+        string lockName = GetAvatarLockName(options.ConnectionString, accountId);
+        await using MySqlConnection observer = new(options.ConnectionString);
+        await observer.OpenAsync();
+        long lockOwner = await ScalarInt64Async(
+            observer,
+            "SELECT IS_USED_LOCK(@name)",
+            ("@name", lockName));
+        Equal(ownerConnectionId, lockOwner,
+            "GET_LOCK doit être détenu par la connexion conservée dans le bail.");
+
+        await lease.DisposeAsync();
+        await lease.DisposeAsync();
+        Equal(1L, await ScalarInt64Async(
+                observer,
+                "SELECT IS_FREE_LOCK(@name)",
+                ("@name", lockName)),
+            "Dispose doit libérer le verrou de façon idempotente.");
+
+        await using (MySqlConnection pooled = new(options.ConnectionString))
+        {
+            await pooled.OpenAsync();
+            Equal(1L, await ScalarInt64Async(
+                    pooled,
+                    "SELECT IS_FREE_LOCK(@name)",
+                    ("@name", lockName)),
+                "Une connexion ne doit jamais retourner au pool avec GET_LOCK encore détenu.");
+        }
+
+        await using IAvatarMutationLease reacquired = await provider.TryAcquireAsync(
+            accountId,
+            CancellationToken.None)
+            ?? throw new InvalidOperationException("Le verrou doit pouvoir être repris après libération.");
     }
 
     private static async Task ValidateHttpContractAsync(LauncherServerOptions options, ICollection<string> roots)
@@ -252,6 +302,40 @@ internal static partial class AvatarBackendTests
         using (HttpResponseMessage after = await SendUploadAsync(
             harness.Client, harness.AccessToken, png, "image/png", "avatar.png", 0, 0, 1))
             Equal(HttpStatusCode.OK, after.StatusCode, "Une nouvelle mutation doit fonctionner apres liberation.");
+
+        string cancellationRoot = NewTemporaryRoot();
+        roots.Add(cancellationRoot);
+        using SkiaAvatarImageProcessor cancellationInner = new();
+        BlockingAvatarImageProcessor cancellationBlocking = new(cancellationInner);
+        await using AvatarHttpHarness cancellationHarness = await AvatarHttpHarness.CreateAsync(
+            options,
+            cancellationRoot,
+            "lock-cancellation",
+            processor: cancellationBlocking);
+        using CancellationTokenSource cancellation = new();
+        Task<HttpResponseMessage> cancelledRequest = SendUploadAsync(
+            cancellationHarness.Client,
+            cancellationHarness.AccessToken,
+            png,
+            "image/png",
+            "avatar.png",
+            0,
+            0,
+            1,
+            cancellation.Token);
+        await cancellationBlocking.WaitUntilEnteredAsync();
+        cancellation.Cancel();
+        try
+        {
+            using HttpResponseMessage ignored = await cancelledRequest;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        await AssertAvatarLockEventuallyFreeAsync(
+            options.ConnectionString,
+            cancellationHarness.AccountId,
+            "Une annulation HTTP doit libérer le verrou de mutation.");
     }
 
     private static async Task ValidateFailureAtomicityAsync(
@@ -271,6 +355,10 @@ internal static partial class AvatarBackendTests
             using HttpResponseMessage failed = await SendUploadAsync(
                 variantHarness.Client, variantHarness.AccessToken, png, "image/png", "avatar.png", 0, 0, 1);
             await AssertApiErrorAsync(failed, HttpStatusCode.ServiceUnavailable, "StorageFailed");
+            await AssertAvatarLockEventuallyFreeAsync(
+                options.ConnectionString,
+                variantHarness.AccountId,
+                "Une exception de stockage doit libérer le verrou de mutation.");
             True(await variantHarness.Repository.GetActiveDescriptorAsync(
                     variantHarness.AccountId, CancellationToken.None) is null,
                 "Une erreur de variante ne doit jamais activer un asset incomplet.");
@@ -455,7 +543,8 @@ internal static partial class AvatarBackendTests
         string fileName,
         double cropX,
         double cropY,
-        double cropSize)
+        double cropSize,
+        CancellationToken cancellationToken = default)
     {
         MultipartFormDataContent multipart = new("atlas-http-" + Guid.NewGuid().ToString("N"));
         ByteArrayContent image = new(bytes);
@@ -467,7 +556,52 @@ internal static partial class AvatarBackendTests
         HttpRequestMessage request = new(HttpMethod.Post, "/api/v1/me/avatar/photo") { Content = multipart };
         if (token is not null)
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return await client.SendAsync(request);
+        return await client.SendAsync(request, cancellationToken);
+    }
+
+    private static async Task AssertAvatarLockEventuallyFreeAsync(
+        string connectionString,
+        uint accountId,
+        string message)
+    {
+        string lockName = GetAvatarLockName(connectionString, accountId);
+        DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        await using MySqlConnection connection = new(connectionString);
+        await connection.OpenAsync();
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (await ScalarInt64Async(
+                    connection,
+                    "SELECT IS_FREE_LOCK(@name)",
+                    ("@name", lockName)) == 1)
+            {
+                return;
+            }
+            await Task.Delay(40);
+        }
+        throw new InvalidOperationException(message);
+    }
+
+    private static string GetAvatarLockName(string connectionString, uint accountId)
+    {
+        MySqlConnectionStringBuilder builder = new(connectionString);
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(builder.Database));
+        return $"atlas_avatar:{Convert.ToHexString(hash.AsSpan(0, 8))}:{accountId}";
+    }
+
+    private static async Task<long> ScalarInt64Async(
+        MySqlConnection connection,
+        string sql,
+        params (string Name, object Value)[] parameters)
+    {
+        await using MySqlCommand command = connection.CreateCommand();
+        command.CommandText = sql;
+        foreach ((string name, object value) in parameters)
+        {
+            command.Parameters.AddWithValue(name, value);
+        }
+        object? result = await command.ExecuteScalarAsync();
+        return Convert.ToInt64(result, System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static HttpRequestMessage Authorized(HttpMethod method, string url, string token)

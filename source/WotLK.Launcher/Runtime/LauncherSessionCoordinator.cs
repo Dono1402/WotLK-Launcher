@@ -324,6 +324,67 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
         }
     }
 
+    internal async Task<AtlasRequestPreparationStatus> PrepareAuthenticatedRequestAsync(
+        CancellationToken cancellationToken)
+    {
+        lock (_sync)
+        {
+            if (IsStoppingUnsafe())
+            {
+                return AtlasRequestPreparationStatus.ShuttingDown;
+            }
+
+            if (!_authentication.IsAuthenticated)
+            {
+                return AtlasRequestPreparationStatus.AuthenticationRequired;
+            }
+        }
+
+        try
+        {
+            bool refreshed = await _authentication
+                .EnsureFreshAsync(cancellationToken)
+                .ConfigureAwait(false);
+            if (!refreshed)
+            {
+                InvalidateSessionAfterGameTicketFailure(
+                    LauncherSessionFailureCategory.SessionExpired);
+                return AtlasRequestPreparationStatus.AuthenticationRequired;
+            }
+
+            return AtlasRequestPreparationStatus.Ready;
+        }
+        catch (OperationCanceledException) when (
+            cancellationToken.IsCancellationRequested || _lifetimeToken.IsCancellationRequested)
+        {
+            return AtlasRequestPreparationStatus.Cancelled;
+        }
+        catch (Exception exception)
+        {
+            LauncherSessionFailureCategory category = ClassifyFailure(
+                exception,
+                LauncherSessionOperationKind.Restore);
+            WriteGameTicketFailureSafely(category, exception);
+            if (category == LauncherSessionFailureCategory.Unauthorized)
+            {
+                InvalidateSessionAfterGameTicketFailure(
+                    LauncherSessionFailureCategory.SessionExpired);
+                return AtlasRequestPreparationStatus.AuthenticationRequired;
+            }
+
+            return AtlasRequestPreparationStatus.Unavailable;
+        }
+    }
+
+    internal void NotifyAuthenticatedRequestUnauthorized()
+    {
+        if (!IsStoppingUnsafe())
+        {
+            InvalidateSessionAfterGameTicketFailure(
+                LauncherSessionFailureCategory.SessionExpired);
+        }
+    }
+
     internal void BeginShutdown()
     {
         CancellationTokenSource[] cancellations;

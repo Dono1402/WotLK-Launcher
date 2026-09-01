@@ -19,6 +19,7 @@ public partial class LauncherShellV2 : Window
     private IInputElement? _authFocusReturnTarget;
     private IInputElement? _avatarCropFocusReturnTarget;
     private AuthCommands? _authCommands;
+    private AccountCommands? _accountCommands;
 
     public LauncherShellV2(GamePreviewScenario scenario = GamePreviewScenario.Ready)
         : this(
@@ -152,11 +153,32 @@ public partial class LauncherShellV2 : Window
             gameState,
             dashboardState,
             friendsState,
+            profileState,
+            settingsState,
+            new AccountUiState(AccountUiState.Empty.Current),
+            new AvatarCropUiState(AvatarCropUiState.Empty.Current))
+    {
+    }
+
+    internal LauncherShellV2(
+        ShellUiState shellState,
+        GameUiState gameState,
+        DashboardUiState dashboardState,
+        FriendsUiState friendsState,
+        ProfileUiState profileState,
+        SettingsUiState settingsState,
+        AccountUiState accountState,
+        AvatarCropUiState avatarCropState)
+        : this(
+            shellState,
+            gameState,
+            dashboardState,
+            friendsState,
             new AuthUiState(),
             profileState,
             settingsState,
-            AccountUiState.Empty,
-            AvatarCropUiState.Empty,
+            accountState,
+            avatarCropState,
             authPreviewScenario: null,
             profilePreviewScenario: null,
             isPreviewMode: false,
@@ -231,6 +253,10 @@ public partial class LauncherShellV2 : Window
 
     public bool IsSettingsNavigationEnabled => IsPreviewMode || SettingsState.Current.IsRuntimeConnected;
 
+    public bool IsAccountNavigationEnabled => IsPreviewMode
+        ? AccountState.Current.IsPreview
+        : AccountState.Current.IsRuntimeConnected;
+
     public bool IsAccountPreviewAvailable => IsPreviewMode && AccountState.Current.IsPreview;
 
     internal bool IsPreviewMode { get; }
@@ -270,6 +296,16 @@ public partial class LauncherShellV2 : Window
 
         _authCommands = commands ?? throw new ArgumentNullException(nameof(commands));
         AuthOverlay.SubmissionRequested += AuthOverlay_SubmissionRequested;
+    }
+
+    internal void AttachAccount(AccountCommands commands)
+    {
+        if (IsPreviewMode)
+        {
+            throw new InvalidOperationException("Le preview ne peut pas recevoir les commandes Compte réelles.");
+        }
+
+        _accountCommands = commands ?? throw new ArgumentNullException(nameof(commands));
     }
 
     internal void OpenAuthenticationForPendingPlay()
@@ -378,6 +414,7 @@ public partial class LauncherShellV2 : Window
         AuthOverlay.SubmissionRequested -= AuthOverlay_SubmissionRequested;
         ProfileMenu.ManageAccountRequested -= ProfileMenu_ManageAccountRequested;
         _authCommands = null;
+        _accountCommands = null;
         AuthOverlay.DetachFromShell();
         AuthOverlay.State = null;
         AuthOverlay.IsOpen = false;
@@ -519,19 +556,38 @@ public partial class LauncherShellV2 : Window
 
     private void ProfileMenu_ManageAccountRequested(object? sender, EventArgs e)
     {
-        if (!IsAccountPreviewAvailable)
+        if (!IsAccountNavigationEnabled)
         {
             return;
         }
 
         _overlayCoordinator.CloseProfile();
         NavigateTo(LauncherShellPage.Account);
+        _accountCommands?.RefreshProfile();
     }
 
-    private void AccountView_ModifyAvatarRequested(object? sender, EventArgs e)
+    private async void AccountView_ModifyAvatarRequested(object? sender, EventArgs e)
     {
-        if (!IsAccountPreviewAvailable || !_overlayCoordinator.TryOpenAvatarCrop())
+        if (IsPreviewMode)
         {
+            if (!IsAccountPreviewAvailable || !_overlayCoordinator.TryOpenAvatarCrop())
+            {
+                return;
+            }
+
+            _avatarCropFocusReturnTarget = AccountView.AvatarActionFocusTarget;
+            AvatarCropOverlay.FocusFirstControl();
+            return;
+        }
+
+        if (_accountCommands is null || !await _accountCommands.SelectAvatarAsync())
+        {
+            return;
+        }
+
+        if (!_overlayCoordinator.TryOpenAvatarCrop())
+        {
+            _accountCommands.CancelUploadOrCloseCrop();
             return;
         }
 
@@ -541,12 +597,31 @@ public partial class LauncherShellV2 : Window
 
     private void AccountView_RemoveAvatarRequested(object? sender, EventArgs e)
     {
-        // The preview state is applied locally by AccountViewV2. No service is contacted.
+        if (!IsPreviewMode)
+        {
+            _accountCommands?.ShowDeleteConfirmation();
+        }
+    }
+
+    private void AccountView_ConfirmAvatarDeleteRequested(object? sender, EventArgs e)
+    {
+        _accountCommands?.ConfirmDelete();
     }
 
     private void AvatarCropOverlay_CloseRequested(object? sender, EventArgs e)
     {
-        _overlayCoordinator.CloseAvatarCrop();
+        if (IsPreviewMode)
+        {
+            _overlayCoordinator.CloseAvatarCrop();
+            return;
+        }
+
+        _accountCommands?.CancelUploadOrCloseCrop();
+    }
+
+    private void AvatarCropOverlay_UploadRequested(object? sender, EventArgs e)
+    {
+        _accountCommands?.TryStartUpload();
     }
 
     private void AvatarCropOverlay_Closed(object? sender, EventArgs e)
@@ -621,9 +696,23 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && AccountView.TryCancelDeleteConfirmation())
+        {
+            _accountCommands?.CancelDeleteConfirmation();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.Escape && AvatarCropState.IsOpen)
         {
-            _overlayCoordinator.CloseAvatarCrop();
+            if (IsPreviewMode)
+            {
+                _overlayCoordinator.CloseAvatarCrop();
+            }
+            else
+            {
+                _accountCommands?.CancelUploadOrCloseCrop();
+            }
             e.Handled = true;
             return;
         }
@@ -668,6 +757,17 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_PreviewGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
+        if (AccountView.IsDeleteConfirmationOpen)
+        {
+            if (!AccountView.ContainsDeleteConfirmationFocus(e.NewFocus as DependencyObject))
+            {
+                e.Handled = true;
+                AccountView.FocusDeleteConfirmation();
+            }
+
+            return;
+        }
+
         if (AvatarCropState.IsOpen)
         {
             if (!AvatarCropOverlay.ContainsKeyboardFocusTarget(e.NewFocus as DependencyObject))
@@ -712,7 +812,7 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
-        if (page == LauncherShellPage.Account && !IsAccountPreviewAvailable)
+        if (page == LauncherShellPage.Account && !IsAccountNavigationEnabled)
         {
             return;
         }

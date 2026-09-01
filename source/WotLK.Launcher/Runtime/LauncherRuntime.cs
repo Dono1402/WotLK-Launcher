@@ -2,6 +2,7 @@ using System.IO;
 using System.Net.Http;
 using System.Reflection;
 using System.Text;
+using WotLK.Launcher.Account;
 using WotLK.Launcher.Dashboard;
 using WotLK.Launcher.Game;
 
@@ -78,6 +79,24 @@ internal sealed class LauncherRuntimeDependencies
 
     internal TimeProvider DashboardTimeProvider { get; init; } = TimeProvider.System;
 
+    internal TimeProvider AccountTimeProvider { get; init; } = TimeProvider.System;
+
+    internal Uri AvatarApiBaseUri { get; init; } = AtlasNetwork.LauncherApiBaseUri;
+
+    internal Func<string> GetAvatarCacheRoot { get; init; } = static () => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Atlas Launcher",
+        "cache",
+        "avatars");
+
+    internal Func<HttpClient, Uri, IAvatarMediaClient> CreateAvatarMediaClient { get; init; } =
+        static (httpClient, apiBaseUri) => new AvatarMediaClient(httpClient, apiBaseUri);
+
+    internal Func<IAvatarMediaClient, string, CancellationToken, Action, AvatarImageCache>
+        CreateAvatarImageCache { get; init; } =
+        static (mediaClient, root, lifetimeToken, onUnauthorized) =>
+            new AvatarImageCache(mediaClient, root, lifetimeToken, onUnauthorized);
+
     internal static LauncherRuntimeDependencies CreateProduction()
     {
         return new LauncherRuntimeDependencies
@@ -146,6 +165,14 @@ internal sealed class LauncherRuntime : IDisposable
             dependencies.WriteRuntimeLog);
         _clientHttpClient = dependencies.CreateAuthorizedHttpClient(
             () => _authentication.AccessToken);
+        AvatarMedia = dependencies.CreateAvatarMediaClient(
+            _clientHttpClient,
+            dependencies.AvatarApiBaseUri);
+        AvatarImages = dependencies.CreateAvatarImageCache(
+            AvatarMedia,
+            dependencies.GetAvatarCacheRoot(),
+            Operations.ShutdownToken,
+            _sessionCoordinator.NotifyAuthenticatedRequestUnauthorized);
         IGameClientVerificationService verificationService =
             dependencies.CreateGameVerificationService(
                 _clientHttpClient,
@@ -199,6 +226,14 @@ internal sealed class LauncherRuntime : IDisposable
             Operations,
             Game,
             Dashboard);
+        Account = new LauncherAccountCoordinator(
+            _sessionCoordinator,
+            Operations,
+            AvatarMedia,
+            AvatarImages,
+            () => _authentication.Session?.Profile,
+            dependencies.WriteRuntimeLog,
+            dependencies.AccountTimeProvider);
     }
 
     internal LauncherSettings Settings { get; }
@@ -218,6 +253,12 @@ internal sealed class LauncherRuntime : IDisposable
     internal LauncherDashboardCoordinator Dashboard { get; }
 
     internal LauncherProfileCoordinator Profile { get; }
+
+    internal IAvatarMediaClient AvatarMedia { get; }
+
+    internal AvatarImageCache AvatarImages { get; }
+
+    internal LauncherAccountCoordinator Account { get; }
 
     internal LauncherSessionCoordinator Session => _sessionCoordinator;
 
@@ -310,6 +351,7 @@ internal sealed class LauncherRuntime : IDisposable
             Dashboard.BeginShutdown();
             _sessionCoordinator.BeginShutdown();
             Game.BeginShutdown();
+            Account.BeginShutdown();
         }
     }
 
@@ -320,7 +362,13 @@ internal sealed class LauncherRuntime : IDisposable
         Task<bool> dashboard = Dashboard.WaitForIdleAsync(timeout);
         Task<bool> session = _sessionCoordinator.WaitForIdleAsync(timeout);
         Task<bool> profile = Profile.WaitForIdleAsync(timeout);
-        bool[] results = await Task.WhenAll(operations, dashboard, session, profile).ConfigureAwait(false);
+        Task<bool> account = Account.WaitForIdleAsync(timeout);
+        bool[] results = await Task.WhenAll(
+            operations,
+            dashboard,
+            session,
+            profile,
+            account).ConfigureAwait(false);
         return results.All(result => result);
     }
 
@@ -339,11 +387,14 @@ internal sealed class LauncherRuntime : IDisposable
             Dashboard.BeginShutdown();
             _sessionCoordinator.BeginShutdown();
             Game.BeginShutdown();
+            Account.BeginShutdown();
+            Account.Dispose();
             Profile.Dispose();
             SettingsRuntime.Dispose();
             Dashboard.Dispose();
             Game.Dispose();
             _sessionCoordinator.Dispose();
+            AvatarImages.Dispose();
             _clientHttpClient.Dispose();
             _authentication.Dispose();
             Operations.Dispose();

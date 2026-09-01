@@ -65,6 +65,15 @@ internal enum LauncherSessionRestoreStatus
     Cancelled
 }
 
+internal enum AtlasRequestPreparationStatus
+{
+    Ready,
+    AuthenticationRequired,
+    Unavailable,
+    Cancelled,
+    ShuttingDown
+}
+
 internal sealed record LauncherSessionRestoreResult(
     LauncherSessionRestoreStatus Status,
     LauncherAuthSession? Session);

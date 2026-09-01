@@ -58,7 +58,7 @@ internal static class AccountPreviewTests
         AccountUiState profile = LauncherV2PreviewData.CreateAccount(AccountPreviewScenario.Profile);
         True(profile.Current.IsPreview, "Le compte fictif doit être explicitement marqué preview.");
         True(profile.Current.HasProfileAvatar, "Le profil principal doit montrer une photo fictive.");
-        True(profile.Current.AvatarImageUri.Contains("AtlasProfilePreview.png", StringComparison.Ordinal), "La ressource avatar est incorrecte.");
+        True(profile.Current.AvatarImage is { IsFrozen: true }, "La ressource avatar fictive doit être chargée et figée localement.");
 
         AccountUiState fallback = LauncherV2PreviewData.CreateAccount(AccountPreviewScenario.Fallback);
         True(!fallback.Current.HasProfileAvatar, "Le fallback doit utiliser l'initiale.");

@@ -10,6 +10,9 @@ internal static class AtlasNetwork
     private const string AtlasHost = "animeclub.fr";
     private static readonly IPAddress AtlasIpv4 = IPAddress.Parse("152.228.225.7");
 
+    internal static Uri LauncherApiBaseUri { get; } =
+        new("https://animeclub.fr/wotlk/api/v1/");
+
     public static SocketsHttpHandler CreateHandler()
         => new()
         {

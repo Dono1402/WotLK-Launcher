@@ -297,7 +297,8 @@
                                      State="{Binding AccountState}"
                                      LayoutMode="{Binding ShellState.LayoutMode}"
                                      ModifyAvatarRequested="AccountView_ModifyAvatarRequested"
-                                     RemoveAvatarRequested="AccountView_RemoveAvatarRequested"/>
+                                     RemoveAvatarRequested="AccountView_RemoveAvatarRequested"
+                                     ConfirmAvatarDeleteRequested="AccountView_ConfirmAvatarDeleteRequested"/>
                 <views:FriendsDrawerV2 x:Name="FriendsDrawer"
                                        Panel.ZIndex="50"
                                        State="{Binding FriendsState}"
@@ -316,6 +317,7 @@
                                            IsOpen="{Binding AvatarCropState.IsOpen, Mode=TwoWay}"
                                            LayoutMode="{Binding ShellState.LayoutMode}"
                                            CloseRequested="AvatarCropOverlay_CloseRequested"
+                                           UploadRequested="AvatarCropOverlay_UploadRequested"
                                            Closed="AvatarCropOverlay_Closed"/>
             </Grid>
 
@@ -327,7 +329,7 @@
                                  Panel.ZIndex="150"
                                   State="{Binding ProfileState}"
                                   IsOpen="{Binding ProfileState.IsOpen, Mode=TwoWay}"
-                                  IsManageAccountEnabled="{Binding IsAccountPreviewAvailable}"
+                                  IsManageAccountEnabled="{Binding IsAccountNavigationEnabled}"
                                   CloseRequested="ProfileMenu_CloseRequested"
                                   ManageAccountRequested="ProfileMenu_ManageAccountRequested"
                                   Closed="ProfileMenu_Closed"/>

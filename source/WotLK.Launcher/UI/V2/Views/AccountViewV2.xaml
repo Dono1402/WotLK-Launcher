@@ -28,6 +28,7 @@
         </Style>
     </UserControl.Resources>
 
+    <Grid>
     <ScrollViewer x:Name="AccountScrollViewer"
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
@@ -147,7 +148,7 @@
                                          Stroke="{StaticResource AtlasV2.Brush.GoldBorder}"
                                          StrokeThickness="2">
                                     <Ellipse.Fill>
-                                        <ImageBrush ImageSource="{Binding Current.AvatarImageUri}"
+                                        <ImageBrush ImageSource="{Binding Current.AvatarImage}"
                                                     Stretch="UniformToFill"/>
                                     </Ellipse.Fill>
                                     <Ellipse.Style>
@@ -180,6 +181,7 @@
                                     Padding="15,0"
                                     HorizontalAlignment="Stretch"
                                     Style="{StaticResource AtlasV2.Button.Primary}"
+                                    IsEnabled="{Binding Current.CanModifyAvatar}"
                                     Click="ModifyAvatarButton_Click">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                     <Path Width="17"
@@ -199,7 +201,7 @@
                                     Padding="15,0"
                                     HorizontalAlignment="Stretch"
                                     Style="{StaticResource AtlasV2.Button.Secondary}"
-                                    IsEnabled="{Binding Current.HasProfileAvatar}"
+                                    IsEnabled="{Binding Current.CanRemoveAvatar}"
                                     Click="RemoveAvatarButton_Click">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                     <Path Width="16"
@@ -214,6 +216,31 @@
                                 </StackPanel>
                             </Button>
 
+                            <Border x:Name="AvatarAvailabilityBanner"
+                                    Margin="0,14,0,0"
+                                    Padding="12,10"
+                                    HorizontalAlignment="Stretch"
+                                    Background="{StaticResource AtlasV2.Brush.GoldSurface}"
+                                    BorderBrush="{StaticResource AtlasV2.Brush.GoldBorder}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Visibility="Collapsed">
+                                <TextBlock Text="{Binding Current.AvatarAvailabilityMessage}"
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource AtlasV2.Text.Caption}"
+                                           Foreground="{StaticResource AtlasV2.Brush.Gold}"/>
+                            </Border>
+
+                            <Border x:Name="AvatarErrorBanner"
+                                    Margin="0,14,0,0"
+                                    Style="{StaticResource AtlasV2.Banner.Error}"
+                                    Visibility="Collapsed">
+                                <TextBlock Text="{Binding Current.AvatarErrorMessage}"
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource AtlasV2.Text.Caption}"
+                                           Foreground="#F1A7AE"/>
+                            </Border>
+
                             <Border x:Name="AvatarOperationBanner"
                                     Margin="0,16,0,0"
                                     Padding="12,10"
@@ -227,7 +254,8 @@
                                     <TextBlock Text="{Binding Current.AvatarStatusMessage}"
                                                Style="{StaticResource AtlasV2.Text.Caption}"
                                                Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
-                                    <ProgressBar Height="3"
+                                    <ProgressBar x:Name="AvatarOperationProgress"
+                                                 Height="3"
                                                  Margin="0,8,0,0"
                                                  IsIndeterminate="True"
                                                  Style="{StaticResource AtlasV2.Progress.Compact}"/>
@@ -272,19 +300,22 @@
                                     <TextBlock Grid.Column="1"
                                                Text="{Binding Current.Email}"
                                                Style="{StaticResource AtlasV2.Account.Value}"/>
-                                    <Border Grid.Column="2"
+                                    <Border x:Name="EmailVerificationBadge"
+                                            Grid.Column="2"
                                             Padding="9,5"
                                             Background="{StaticResource AtlasV2.Brush.SuccessSurface}"
                                             BorderBrush="{StaticResource AtlasV2.Brush.SuccessBorder}"
                                             BorderThickness="1"
                                             CornerRadius="6">
                                         <StackPanel Orientation="Horizontal">
-                                            <Path Width="13"
+                                            <Path x:Name="EmailVerificationIcon"
+                                                  Width="13"
                                                   Height="13"
                                                   Data="{StaticResource AtlasV2.Icon.Check}"
                                                   Stroke="{StaticResource AtlasV2.Brush.Success}"
                                                   Style="{StaticResource AtlasV2.Icon.Stroke}"/>
-                                            <TextBlock Margin="6,0,0,0"
+                                            <TextBlock x:Name="EmailVerificationText"
+                                                       Margin="6,0,0,0"
                                                        Text="Vérifiée"
                                                        Style="{StaticResource AtlasV2.Text.Caption}"
                                                        Foreground="{StaticResource AtlasV2.Brush.Success}"/>
@@ -319,12 +350,14 @@
                                           Style="{StaticResource AtlasV2.Icon.Stroke}"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" Margin="12,0,20,0">
-                                    <TextBlock Text="Compte protégé"
+                                    <TextBlock x:Name="SecuritySummaryTitle"
+                                               Text="Compte protégé"
                                                Style="{StaticResource AtlasV2.Text.Body}"
                                                FontWeight="Bold"
                                                Foreground="{StaticResource AtlasV2.Brush.Text}"/>
-                                    <TextBlock Margin="0,3,0,0"
-                                               Text="Ton adresse e-mail est vérifiée et deux sessions sont actives."
+                                    <TextBlock x:Name="SecuritySummaryText"
+                                               Margin="0,3,0,0"
+                                               Text="Ton adresse e-mail est vérifiée."
                                                Style="{StaticResource AtlasV2.Text.Caption}"/>
                                 </StackPanel>
                                 <Button Grid.Column="2"
@@ -399,10 +432,10 @@
                                            Style="{StaticResource AtlasV2.Text.Body}"/>
                             </StackPanel>
                             <Button Grid.Column="2"
-                                    Content="Configurer"
+                                    Content="À venir"
                                     Style="{StaticResource AtlasV2.Button.Secondary}"
                                     IsEnabled="False"
-                                    ToolTip="Maquette visuelle"/>
+                                    ToolTip="Bientôt disponible"/>
                         </Grid>
                     </Border>
                 </StackPanel>
@@ -416,80 +449,139 @@
                         <StackPanel>
                             <TextBlock Text="Appareils connectés"
                                        Style="{StaticResource AtlasV2.Text.SectionTitle}"/>
-                            <TextBlock Margin="0,4,0,0"
+                            <TextBlock x:Name="SessionsSummaryText"
+                                       Margin="0,4,0,0"
                                        Text="{Binding Current.ActiveSessionCount, StringFormat={}{0} sessions actives}"
                                        Style="{StaticResource AtlasV2.Text.Body}"/>
                         </StackPanel>
                         <Button Grid.Column="1"
-                                Content="Déconnecter les autres"
+                                Content="À venir"
                                 Style="{StaticResource AtlasV2.Button.Secondary}"
                                 IsEnabled="False"
-                                ToolTip="Maquette visuelle"/>
+                                ToolTip="Bientôt disponible"/>
                     </Grid>
 
-                    <Border Padding="20"
-                            Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
-                            BorderBrush="{StaticResource AtlasV2.Brush.SuccessBorder}"
-                            BorderThickness="1"
-                            CornerRadius="8">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="48"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <Path Width="24" Height="24"
-                                  Data="{StaticResource AtlasV2.Icon.Laptop}"
-                                  Stroke="{StaticResource AtlasV2.Brush.Cyan}"
-                                  Style="{StaticResource AtlasV2.Icon.Stroke}"/>
-                            <StackPanel Grid.Column="1" Margin="14,0,0,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Windows · Atlas Launcher"
-                                               Style="{StaticResource AtlasV2.Account.Value}"/>
-                                    <Border Margin="10,0,0,0" Padding="8,3"
-                                            Background="{StaticResource AtlasV2.Brush.SuccessSurface}"
-                                            CornerRadius="5">
-                                        <TextBlock Text="Cet appareil"
-                                                   Style="{StaticResource AtlasV2.Text.Caption}"
-                                                   Foreground="{StaticResource AtlasV2.Brush.Success}"/>
-                                    </Border>
+                    <StackPanel x:Name="SessionsPreviewList">
+                        <Border Padding="20"
+                                Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                                BorderBrush="{StaticResource AtlasV2.Brush.SuccessBorder}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="48"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Path Width="24" Height="24"
+                                      Data="{StaticResource AtlasV2.Icon.Laptop}"
+                                      Stroke="{StaticResource AtlasV2.Brush.Cyan}"
+                                      Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                <StackPanel Grid.Column="1" Margin="14,0,0,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Windows · Atlas Launcher"
+                                                   Style="{StaticResource AtlasV2.Account.Value}"/>
+                                        <Border Margin="10,0,0,0" Padding="8,3"
+                                                Background="{StaticResource AtlasV2.Brush.SuccessSurface}"
+                                                CornerRadius="5">
+                                            <TextBlock Text="Cet appareil"
+                                                       Style="{StaticResource AtlasV2.Text.Caption}"
+                                                       Foreground="{StaticResource AtlasV2.Brush.Success}"/>
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Margin="0,5,0,0"
+                                               Text="Liège, Belgique · active maintenant"
+                                               Style="{StaticResource AtlasV2.Text.Caption}"/>
                                 </StackPanel>
-                                <TextBlock Margin="0,5,0,0"
-                                           Text="Liège, Belgique · active maintenant"
-                                           Style="{StaticResource AtlasV2.Text.Caption}"/>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
+                            </Grid>
+                        </Border>
 
-                    <Border Margin="0,12,0,0" Padding="20"
+                        <Border Margin="0,12,0,0" Padding="20"
+                                Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                                BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                                BorderThickness="1" CornerRadius="8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="48"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Path Width="22" Height="22"
+                                      Data="{StaticResource AtlasV2.Icon.Smartphone}"
+                                      Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                <StackPanel Grid.Column="1" Margin="14,0,0,0">
+                                    <TextBlock Text="Atlas Launcher · portable"
+                                               Style="{StaticResource AtlasV2.Account.Value}"/>
+                                    <TextBlock Margin="0,5,0,0"
+                                               Text="Namur, Belgique · il y a 2 jours"
+                                               Style="{StaticResource AtlasV2.Text.Caption}"/>
+                                </StackPanel>
+                                <Button Grid.Column="2"
+                                        Content="Déconnecter"
+                                        Style="{StaticResource AtlasV2.Button.GhostCompact}"
+                                        IsEnabled="False"
+                                        ToolTip="Bientôt disponible"/>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <Border x:Name="SessionsUnavailableCard"
+                            Padding="20"
+                            Visibility="Collapsed"
                             Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
                             BorderBrush="{StaticResource AtlasV2.Brush.Border}"
-                            BorderThickness="1" CornerRadius="8">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="48"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <Path Width="22" Height="22"
-                                  Data="{StaticResource AtlasV2.Icon.Smartphone}"
-                                  Style="{StaticResource AtlasV2.Icon.Stroke}"/>
-                            <StackPanel Grid.Column="1" Margin="14,0,0,0">
-                                <TextBlock Text="Atlas Launcher · portable"
-                                           Style="{StaticResource AtlasV2.Account.Value}"/>
-                                <TextBlock Margin="0,5,0,0"
-                                           Text="Namur, Belgique · il y a 2 jours"
-                                           Style="{StaticResource AtlasV2.Text.Caption}"/>
-                            </StackPanel>
-                            <Button Grid.Column="2"
-                                    Content="Déconnecter"
-                                    Style="{StaticResource AtlasV2.Button.GhostCompact}"
-                                    IsEnabled="False"
-                                    ToolTip="Maquette visuelle"/>
-                        </Grid>
+                            BorderThickness="1"
+                            CornerRadius="8">
+                        <TextBlock Text="La gestion des appareils connectés sera disponible prochainement."
+                                   TextWrapping="Wrap"
+                                   Style="{StaticResource AtlasV2.Text.Body}"/>
                     </Border>
                 </StackPanel>
             </Grid>
         </Grid>
     </ScrollViewer>
+
+        <Grid x:Name="DeleteConfirmationLayer"
+              Panel.ZIndex="30"
+              Background="{StaticResource AtlasV2.Brush.AuthScrim}"
+              Visibility="Collapsed"
+              IsHitTestVisible="False"
+              KeyboardNavigation.TabNavigation="Cycle"
+              KeyboardNavigation.ControlTabNavigation="Cycle">
+            <Border x:Name="DeleteConfirmationPanel"
+                    Width="430"
+                    Margin="20"
+                    Padding="24"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                    BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                <StackPanel>
+                    <TextBlock Text="Supprimer ta photo de profil ?"
+                               Style="{StaticResource AtlasV2.Text.SectionTitle}"/>
+                    <TextBlock Margin="0,8,0,0"
+                               Text="Ton initiale sera utilisée à la place."
+                               TextWrapping="Wrap"
+                               Style="{StaticResource AtlasV2.Text.Body}"/>
+                    <StackPanel Margin="0,22,0,0"
+                                HorizontalAlignment="Right"
+                                Orientation="Horizontal">
+                        <Button x:Name="CancelDeleteAvatarButton"
+                                MinWidth="108"
+                                Content="Annuler"
+                                Style="{StaticResource AtlasV2.Button.Secondary}"
+                                Click="CancelDeleteAvatarButton_Click"/>
+                        <Button x:Name="ConfirmDeleteAvatarButton"
+                                MinWidth="112"
+                                Margin="10,0,0,0"
+                                Content="Supprimer"
+                                Style="{StaticResource AtlasV2.Button.Primary}"
+                                Click="ConfirmDeleteAvatarButton_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
 </UserControl>

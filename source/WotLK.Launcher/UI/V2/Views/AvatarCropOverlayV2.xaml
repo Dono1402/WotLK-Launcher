@@ -192,11 +192,11 @@
                                         <Grid.Clip>
                                             <EllipseGeometry Center="180,180" RadiusX="180" RadiusY="180"/>
                                         </Grid.Clip>
-                                        <Image x:Name="CropImage"
+                                         <Image x:Name="CropImage"
                                                Width="360"
                                                Height="360"
-                                               Source="{Binding Current.AvatarImageUri}"
-                                               Stretch="UniformToFill"
+                                               Source="{Binding Current.AvatarImage}"
+                                               Stretch="Fill"
                                                RenderTransformOrigin="0.5,0.5">
                                             <Image.RenderTransform>
                                                 <TransformGroup>
@@ -264,8 +264,9 @@
                                                  Stroke="{StaticResource AtlasV2.Brush.GoldBorder}"
                                                  StrokeThickness="1">
                                             <Ellipse.Fill>
-                                                <ImageBrush x:Name="Preview128Brush"
-                                                            ImageSource="{Binding Current.AvatarImageUri}"
+                                                 <ImageBrush x:Name="Preview128Brush"
+                                                            ImageSource="{Binding Current.AvatarImage}"
+                                                            ViewboxUnits="RelativeToBoundingBox"
                                                             Stretch="UniformToFill"/>
                                             </Ellipse.Fill>
                                         </Ellipse>
@@ -279,8 +280,9 @@
                                                  Stroke="{StaticResource AtlasV2.Brush.Border}"
                                                  StrokeThickness="1">
                                             <Ellipse.Fill>
-                                                <ImageBrush x:Name="Preview64Brush"
-                                                            ImageSource="{Binding Current.AvatarImageUri}"
+                                                 <ImageBrush x:Name="Preview64Brush"
+                                                            ImageSource="{Binding Current.AvatarImage}"
+                                                            ViewboxUnits="RelativeToBoundingBox"
                                                             Stretch="UniformToFill"/>
                                             </Ellipse.Fill>
                                         </Ellipse>
@@ -294,8 +296,9 @@
                                                  Stroke="{StaticResource AtlasV2.Brush.Border}"
                                                  StrokeThickness="1">
                                             <Ellipse.Fill>
-                                                <ImageBrush x:Name="Preview32Brush"
-                                                            ImageSource="{Binding Current.AvatarImageUri}"
+                                                 <ImageBrush x:Name="Preview32Brush"
+                                                            ImageSource="{Binding Current.AvatarImage}"
+                                                            ViewboxUnits="RelativeToBoundingBox"
                                                             Stretch="UniformToFill"/>
                                             </Ellipse.Fill>
                                         </Ellipse>
@@ -318,7 +321,7 @@
                                                    FontWeight="Bold"
                                                    Foreground="{StaticResource AtlasV2.Brush.Text}"/>
                                         <TextBlock Margin="0,5,0,0"
-                                                   Text="Image carrée · recadrage circulaire · haute définition"
+                                                   Text="Image carrée · affichage circulaire · haute définition"
                                                    Style="{StaticResource AtlasV2.Text.Caption}"/>
                                     </StackPanel>
                                 </Border>
@@ -354,10 +357,11 @@
                                         CornerRadius="6"
                                         Visibility="Collapsed">
                                     <StackPanel>
-                                        <TextBlock Text="Préparation de la photo…"
+                                        <TextBlock Text="{Binding Current.StatusMessage}"
                                                    Style="{StaticResource AtlasV2.Text.Caption}"
                                                    Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
-                                        <ProgressBar Height="3"
+                                        <ProgressBar x:Name="UploadProgressBar"
+                                                     Height="3"
                                                      Margin="0,9,0,0"
                                                      IsIndeterminate="True"
                                                      Style="{StaticResource AtlasV2.Progress.Compact}"/>

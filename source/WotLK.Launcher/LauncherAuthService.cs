@@ -8,7 +8,7 @@ namespace WotLK.Launcher;
 
 internal sealed class LauncherAuthService : ILauncherAuthService
 {
-    private static readonly Uri ApiBaseUri = new("https://animeclub.fr/wotlk/api/v1/");
+    private static readonly Uri ApiBaseUri = AtlasNetwork.LauncherApiBaseUri;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -555,7 +555,8 @@ internal sealed record LauncherProfile(
     string? AvatarKey,
     bool TwoFactorEnabled,
     bool RecoveryCodesGenerated,
-    int Completion);
+    int Completion,
+    Account.AvatarDescriptor? Avatar = null);
 
 internal sealed record EmailChangeResult(
     LauncherProfile Profile,

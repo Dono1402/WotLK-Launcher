@@ -8,6 +8,8 @@ internal enum LauncherOperationKind
     GameUpdate,
     Addons,
     LauncherAutoUpdate,
+    AvatarUpload,
+    AvatarDelete,
     Logout,
     Play
 }

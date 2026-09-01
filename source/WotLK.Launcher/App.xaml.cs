@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Threading;
+using WotLK.Launcher.Account;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2;
 using WotLK.Launcher.UI.V2.Commands;
@@ -200,6 +201,10 @@ public partial class App : Application
             runtime.Dashboard.CurrentSnapshot,
             runtime.LauncherVersion,
             LauncherSettings.LauncherLogPath));
+        AccountUiState accountState = new(AccountStateAdapter.Project(
+            runtime.Account.CurrentSnapshot,
+            avatarImage: null));
+        AvatarCropUiState avatarCropState = new(AvatarCropUiState.Empty.Current);
         GameCommands gameCommands = LauncherV2RuntimePresentation.ConnectLocalActions(
             gameState,
             runtime.LocalActions);
@@ -209,7 +214,9 @@ public partial class App : Application
             dashboardState,
             LauncherV2RuntimePresentation.CreateFriends(),
             profileState,
-            settingsState);
+            settingsState,
+            accountState,
+            avatarCropState);
         GameVerificationCommand verificationCommand = new(runtime.Game);
         gameState.AttachVerifyCommand(verificationCommand.Command);
         SettingsCommands settingsCommands = new(
@@ -230,6 +237,19 @@ public partial class App : Application
             window.Dispatcher);
         AuthCommands authCommands = new(runtime);
         window.AttachAuthentication(authCommands);
+        AccountStateAdapter accountStateAdapter = new(
+            accountState,
+            avatarCropState,
+            runtime.Account,
+            runtime.AvatarImages,
+            window.Dispatcher);
+        AccountCommands accountCommands = new(
+            runtime.Account,
+            accountState,
+            avatarCropState,
+            new AvatarFileSelectionService(new WindowsAvatarFilePicker()),
+            window.Dispatcher);
+        window.AttachAccount(accountCommands);
         AuthStateAdapter authStateAdapter = new(
             window.AuthState,
             shellState,
@@ -292,9 +312,11 @@ public partial class App : Application
             dashboardStateAdapter.Dispose();
             authStateAdapter.Dispose();
             profileStateAdapter.Dispose();
+            accountStateAdapter.Dispose();
             settingsStateAdapter.Dispose();
             settingsCommands.Dispose();
             authCommands.Dispose();
+            accountCommands.Dispose();
             logoutCommand.Dispose();
             primaryActionCommand.Dispose();
             verificationCommand.Dispose();

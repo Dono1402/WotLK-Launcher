@@ -101,20 +101,28 @@ internal sealed class ShellOverlayCoordinator
 
     internal bool TryOpenAvatarCrop()
     {
-        if (_authentication.IsOpen || !_avatarCrop.Current.IsPreview)
+        if (_authentication.IsOpen)
         {
             return false;
         }
 
         _friends.IsOpen = false;
         _profile.IsOpen = false;
-        _avatarCrop.Open();
+        if (_avatarCrop.Current.IsPreview)
+        {
+            _avatarCrop.Open();
+        }
+        else if (!_avatarCrop.IsOpen)
+        {
+            return false;
+        }
         return true;
     }
 
     internal void CloseAvatarCrop()
     {
-        if (_avatarCrop.Current.Status != AvatarCropPreviewStatus.Uploading)
+        if (_avatarCrop.Current.IsPreview
+            && _avatarCrop.Current.Status != AvatarCropPreviewStatus.Uploading)
         {
             _avatarCrop.IsOpen = false;
         }

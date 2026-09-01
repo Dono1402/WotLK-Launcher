@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using WotLK.Launcher.UI.V2.Presentation;
+using WotLK.Launcher.Account;
 
 namespace WotLK.Launcher.UI.V2.Views;
 
@@ -18,6 +19,7 @@ public partial class AvatarCropOverlayV2 : UserControl
     private double _dragStartX;
     private double _dragStartY;
     private int _transitionVersion;
+    private bool _applyingState;
 
     public static readonly DependencyProperty StateProperty = DependencyProperty.Register(
         nameof(State),
@@ -51,6 +53,8 @@ public partial class AvatarCropOverlayV2 : UserControl
 
     public event EventHandler? Closed;
 
+    public event EventHandler? UploadRequested;
+
     public AvatarCropUiState? State
     {
         get => (AvatarCropUiState?)GetValue(StateProperty);
@@ -71,13 +75,21 @@ public partial class AvatarCropOverlayV2 : UserControl
 
     internal bool IsFullyClosed => Visibility == Visibility.Collapsed && !IsHitTestVisible;
 
-    internal bool IsBusy => State?.Current.Status == AvatarCropPreviewStatus.Uploading;
+    internal bool IsBusy => State?.Current.Status is AvatarCropPreviewStatus.Preparing
+        or AvatarCropPreviewStatus.Uploading
+        or AvatarCropPreviewStatus.Processing
+        or AvatarCropPreviewStatus.Cancelling
+        or AvatarCropPreviewStatus.Reconciling;
 
     internal void FocusFirstControl()
     {
         Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
-            () => Keyboard.Focus(IsBusy ? DialogPanel : CloseCropButton));
+            () => Keyboard.Focus(IsBusy && State?.Current.IsPreview == true
+                ? DialogPanel
+                : IsBusy
+                    ? CancelCropButton
+                    : CloseCropButton));
     }
 
     internal bool ContainsKeyboardFocusTarget(DependencyObject? target)
@@ -174,18 +186,38 @@ public partial class AvatarCropOverlayV2 : UserControl
             SetCurrentValue(IsOpenProperty, state.IsOpen);
         }
 
-        bool uploading = state.Status == AvatarCropPreviewStatus.Uploading;
+        bool uploading = state.Status is AvatarCropPreviewStatus.Preparing
+            or AvatarCropPreviewStatus.Uploading
+            or AvatarCropPreviewStatus.Processing
+            or AvatarCropPreviewStatus.Cancelling
+            or AvatarCropPreviewStatus.Reconciling;
         bool error = state.Status == AvatarCropPreviewStatus.Error;
         CropErrorBanner.Visibility = error ? Visibility.Visible : Visibility.Collapsed;
         UploadStatusBanner.Visibility = uploading ? Visibility.Visible : Visibility.Collapsed;
         SaveCropLabel.Text = uploading ? "Envoi…" : "Utiliser la photo";
         SaveCropButton.IsEnabled = !uploading;
-        CancelCropButton.IsEnabled = !uploading;
-        CloseCropButton.IsEnabled = !uploading;
+        bool canCancelRealUpload = !state.IsPreview
+            && state.Status is AvatarCropPreviewStatus.Preparing
+                or AvatarCropPreviewStatus.Uploading
+                or AvatarCropPreviewStatus.Processing;
+        CancelCropButton.IsEnabled = !uploading || canCancelRealUpload;
+        CloseCropButton.IsEnabled = !uploading || canCancelRealUpload;
+        CancelCropButton.Content = canCancelRealUpload ? "Annuler l’envoi" : "Annuler";
         CropEditorColumn.IsEnabled = !uploading;
+        UploadProgressBar.IsIndeterminate = state.IsProgressIndeterminate;
+        UploadProgressBar.Value = state.UploadPercentage ?? 0;
 
-        ZoomSlider.Value = state.Zoom;
-        ApplyTransform(state.Zoom, state.OffsetX, state.OffsetY, publish: false);
+        _applyingState = true;
+        try
+        {
+            ZoomSlider.Maximum = Math.Max(1, state.MaximumZoom);
+            ZoomSlider.Value = state.Zoom;
+            ApplyTransform(state.Zoom, state.OffsetX, state.OffsetY, publish: false);
+        }
+        finally
+        {
+            _applyingState = false;
+        }
     }
 
     private void ApplyOpenState(bool isOpen, bool animate)
@@ -267,32 +299,39 @@ public partial class AvatarCropOverlayV2 : UserControl
 
     private void ApplyTransform(double zoom, double offsetX, double offsetY, bool publish)
     {
-        double maxOffset = 180 * Math.Max(0, zoom - 1);
-        double x = Math.Clamp(offsetX, -maxOffset, maxOffset);
-        double y = Math.Clamp(offsetY, -maxOffset, maxOffset);
-        CropImageScale.ScaleX = zoom;
-        CropImageScale.ScaleY = zoom;
-        CropImageTranslate.X = x;
-        CropImageTranslate.Y = y;
-        ZoomValueText.Text = $"{Math.Round(zoom * 100):0} %";
+        if (State is null)
+        {
+            return;
+        }
 
-        double relativeX = x / 360;
-        double relativeY = y / 360;
+        AvatarCropLayout layout = AvatarCropGeometry.Calculate(
+            Math.Max(1, State.Current.OrientedPixelWidth),
+            Math.Max(1, State.Current.OrientedPixelHeight),
+            zoom,
+            offsetX,
+            offsetY);
+        CropImage.Width = layout.BaseDisplayWidth;
+        CropImage.Height = layout.BaseDisplayHeight;
+        CropImageScale.ScaleX = layout.Zoom;
+        CropImageScale.ScaleY = layout.Zoom;
+        CropImageTranslate.X = layout.OffsetX;
+        CropImageTranslate.Y = layout.OffsetY;
+        ZoomValueText.Text = $"{Math.Round(layout.Zoom * 100):0} %";
+
+        Rect viewbox = new(
+            layout.Crop.X,
+            layout.Crop.Y,
+            layout.RelativeCropWidth,
+            layout.RelativeCropHeight);
         foreach (ImageBrush brush in new[] { Preview32Brush, Preview64Brush, Preview128Brush })
         {
-            brush.RelativeTransform = new TransformGroup
-            {
-                Children = new TransformCollection
-                {
-                    new ScaleTransform(zoom, zoom, 0.5, 0.5),
-                    new TranslateTransform(relativeX, relativeY)
-                }
-            };
+            brush.RelativeTransform = Transform.Identity;
+            brush.Viewbox = viewbox;
         }
 
         if (publish)
         {
-            State?.SetTransform(zoom, x, y);
+            State.SetTransform(layout.Zoom, layout.OffsetX, layout.OffsetY);
         }
     }
 
@@ -328,7 +367,7 @@ public partial class AvatarCropOverlayV2 : UserControl
 
     private void ZoomSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (!IsInitialized || State is null)
+        if (!IsInitialized || State is null || _applyingState)
         {
             return;
         }
@@ -381,20 +420,25 @@ public partial class AvatarCropOverlayV2 : UserControl
 
     private void SaveCropButton_Click(object sender, RoutedEventArgs e)
     {
-        State?.StartUploadPreview();
+        if (State?.Current.IsPreview == true)
+        {
+            State.StartUploadPreview();
+        }
+        else
+        {
+            UploadRequested?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!IsBusy)
-        {
-            CloseRequested?.Invoke(this, EventArgs.Empty);
-        }
+        CloseRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void OverlayScrim_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (!IsBusy && ReferenceEquals(e.OriginalSource, OverlayScrim))
+        if ((!IsBusy || State?.Current.IsPreview == false)
+            && ReferenceEquals(e.OriginalSource, OverlayScrim))
         {
             CloseRequested?.Invoke(this, EventArgs.Empty);
         }

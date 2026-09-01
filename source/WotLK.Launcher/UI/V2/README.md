@@ -39,6 +39,21 @@ WotLK.Launcher.exe --ui-v2 --preview-auth=email-warning
 WotLK.Launcher.exe --ui-v2 --preview-auth=service-unavailable
 ```
 
+Prévisualiser la page Compte et le recadrage fictifs :
+
+```powershell
+WotLK.Launcher.exe --ui-v2 --preview-account=profile
+WotLK.Launcher.exe --ui-v2 --preview-account=fallback
+WotLK.Launcher.exe --ui-v2 --preview-account=crop
+WotLK.Launcher.exe --ui-v2 --preview-account=uploading
+WotLK.Launcher.exe --ui-v2 --preview-account=upload-error
+WotLK.Launcher.exe --ui-v2 --preview-account=removing
+WotLK.Launcher.exe --ui-v2 --preview-account=security
+WotLK.Launcher.exe --ui-v2 --preview-account=sessions
+```
+
+Les scénarios Compte utilisent exclusivement des états de présentation locaux. Ils ne composent aucun service de compte, client HTTP, sélecteur de fichier ou stockage.
+
 `--preview-auth` sans valeur ouvre la connexion. Cet argument sans `--ui-v2` est refusé avant toute composition de service. Le preview d'authentification ne crée ni authentification réelle, ni client HTTP, ni session, ni accès au client WotLK, ni timer, ni processus enfant.
 
 Le manifeste v1.1.0 ne déclare pas explicitement de mode DPI. Le processus observé sous Windows est `PROCESS_SYSTEM_DPI_AWARE`. Ce checkpoint conserve volontairement ce comportement ; le passage à PerMonitorV2 est hors périmètre.

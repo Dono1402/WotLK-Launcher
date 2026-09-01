@@ -289,9 +289,15 @@
                                   DashboardState="{Binding DashboardState}"
                                   LayoutMode="{Binding ShellState.LayoutMode}"/>
                 <views:SettingsViewV2 x:Name="SettingsView"
-                                      Visibility="Collapsed"
-                                      State="{Binding SettingsState}"
-                                      LayoutMode="{Binding ShellState.LayoutMode}"/>
+                                       Visibility="Collapsed"
+                                       State="{Binding SettingsState}"
+                                       LayoutMode="{Binding ShellState.LayoutMode}"/>
+                <views:AccountViewV2 x:Name="AccountView"
+                                     Visibility="Collapsed"
+                                     State="{Binding AccountState}"
+                                     LayoutMode="{Binding ShellState.LayoutMode}"
+                                     ModifyAvatarRequested="AccountView_ModifyAvatarRequested"
+                                     RemoveAvatarRequested="AccountView_RemoveAvatarRequested"/>
                 <views:FriendsDrawerV2 x:Name="FriendsDrawer"
                                        Panel.ZIndex="50"
                                        State="{Binding FriendsState}"
@@ -302,8 +308,15 @@
                                          Panel.ZIndex="100"
                                          State="{Binding AuthState}"
                                          IsOpen="{Binding AuthState.IsOpen, Mode=TwoWay}"
-                                         CloseRequested="AuthOverlay_CloseRequested"
-                                         Closed="AuthOverlay_Closed"/>
+                                          CloseRequested="AuthOverlay_CloseRequested"
+                                          Closed="AuthOverlay_Closed"/>
+                <views:AvatarCropOverlayV2 x:Name="AvatarCropOverlay"
+                                           Panel.ZIndex="120"
+                                           State="{Binding AvatarCropState}"
+                                           IsOpen="{Binding AvatarCropState.IsOpen, Mode=TwoWay}"
+                                           LayoutMode="{Binding ShellState.LayoutMode}"
+                                           CloseRequested="AvatarCropOverlay_CloseRequested"
+                                           Closed="AvatarCropOverlay_Closed"/>
             </Grid>
 
             <views:ProfileMenuV2 x:Name="ProfileMenu"
@@ -312,10 +325,12 @@
                                  HorizontalAlignment="Right"
                                  VerticalAlignment="Top"
                                  Panel.ZIndex="150"
-                                 State="{Binding ProfileState}"
-                                 IsOpen="{Binding ProfileState.IsOpen, Mode=TwoWay}"
-                                 CloseRequested="ProfileMenu_CloseRequested"
-                                 Closed="ProfileMenu_Closed"/>
+                                  State="{Binding ProfileState}"
+                                  IsOpen="{Binding ProfileState.IsOpen, Mode=TwoWay}"
+                                  IsManageAccountEnabled="{Binding IsAccountPreviewAvailable}"
+                                  CloseRequested="ProfileMenu_CloseRequested"
+                                  ManageAccountRequested="ProfileMenu_ManageAccountRequested"
+                                  Closed="ProfileMenu_Closed"/>
         </Grid>
     </Border>
 </Window>

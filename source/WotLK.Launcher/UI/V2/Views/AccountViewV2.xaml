@@ -1,0 +1,495 @@
+<UserControl x:Class="WotLK.Launcher.UI.V2.Views.AccountViewV2"
+             x:Name="AccountView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:presentation="clr-namespace:WotLK.Launcher.UI.V2.Presentation"
+             xmlns:views="clr-namespace:WotLK.Launcher.UI.V2.Views"
+             Background="Transparent">
+    <UserControl.Resources>
+        <Style x:Key="AtlasV2.Account.TabButton"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource AtlasV2.Button.Segment}">
+            <Setter Property="MinWidth" Value="118"/>
+            <Setter Property="Height" Value="42"/>
+            <Setter Property="Padding" Value="16,0"/>
+        </Style>
+
+        <Style x:Key="AtlasV2.Account.Label"
+               TargetType="{x:Type TextBlock}"
+               BasedOn="{StaticResource AtlasV2.Text.Caption}">
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+
+        <Style x:Key="AtlasV2.Account.Value"
+               TargetType="{x:Type TextBlock}"
+               BasedOn="{StaticResource AtlasV2.Text.Body}">
+            <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer x:Name="AccountScrollViewer"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  HorizontalContentAlignment="Stretch"
+                  PanningMode="VerticalOnly">
+        <ScrollViewer.Resources>
+            <Style TargetType="{x:Type ScrollBar}"
+                   BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/>
+        </ScrollViewer.Resources>
+
+        <Grid x:Name="ContentFrame"
+              MaxWidth="1220"
+              Margin="34,28,34,42"
+              HorizontalAlignment="Stretch"
+              DataContext="{Binding State, RelativeSource={RelativeSource AncestorType={x:Type views:AccountViewV2}}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="COMPTE ATLAS"
+                               Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
+                    <TextBlock x:Name="PageTitle"
+                               Margin="0,6,0,0"
+                               Text="Mon compte"
+                               FontFamily="{StaticResource AtlasV2.Font.Manrope}"
+                               FontSize="30"
+                               FontWeight="ExtraBold"
+                               Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                    <TextBlock Margin="0,5,0,0"
+                               Text="Ton identité Atlas, ta sécurité et les appareils connectés."
+                               Style="{StaticResource AtlasV2.Text.Body}"/>
+                </StackPanel>
+
+                <Border Grid.Column="1"
+                        Margin="24,4,0,0"
+                        Padding="12,8"
+                        VerticalAlignment="Top"
+                        Background="{StaticResource AtlasV2.Brush.SuccessSurface}"
+                        BorderBrush="{StaticResource AtlasV2.Brush.SuccessBorder}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="7"
+                                 Height="7"
+                                 Margin="0,0,8,0"
+                                 VerticalAlignment="Center"
+                                 Fill="{StaticResource AtlasV2.Brush.Success}"/>
+                        <TextBlock Text="Session Atlas active"
+                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                   Foreground="{StaticResource AtlasV2.Brush.Success}"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border Grid.Row="1"
+                    Margin="0,22,0,0"
+                    Padding="4"
+                    HorizontalAlignment="Left"
+                    Background="#A80C1117"
+                    BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
+                    BorderThickness="1"
+                    CornerRadius="7">
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="ProfileTabButton"
+                            Content="Profil"
+                            Style="{StaticResource AtlasV2.Account.TabButton}"
+                            Click="ProfileTabButton_Click"/>
+                    <Button x:Name="SecurityTabButton"
+                            Content="Sécurité"
+                            Style="{StaticResource AtlasV2.Account.TabButton}"
+                            Click="SecurityTabButton_Click"/>
+                    <Button x:Name="SessionsTabButton"
+                            Content="Sessions"
+                            Style="{StaticResource AtlasV2.Account.TabButton}"
+                            Click="SessionsTabButton_Click"/>
+                </StackPanel>
+            </Border>
+
+            <Grid Grid.Row="2" Margin="0,22,0,0">
+                <Grid x:Name="ProfilePanel">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="AvatarColumn" Width="352"/>
+                        <ColumnDefinition x:Name="ProfileGapColumn" Width="24"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border x:Name="AvatarCard"
+                            Grid.RowSpan="2"
+                            Padding="26,24"
+                            VerticalAlignment="Top"
+                            Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                            BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                            BorderThickness="1"
+                            CornerRadius="8">
+                        <StackPanel HorizontalAlignment="Center">
+                            <Grid Width="160" Height="160">
+                                <Ellipse Fill="{StaticResource AtlasV2.Brush.Gold}"/>
+                                <TextBlock HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Text="{Binding Current.Initial}"
+                                           FontSize="48"
+                                           FontWeight="ExtraBold"
+                                           Foreground="#111318"/>
+                                <Ellipse x:Name="ProfileAvatarImage"
+                                         Stroke="{StaticResource AtlasV2.Brush.GoldBorder}"
+                                         StrokeThickness="2">
+                                    <Ellipse.Fill>
+                                        <ImageBrush ImageSource="{Binding Current.AvatarImageUri}"
+                                                    Stretch="UniformToFill"/>
+                                    </Ellipse.Fill>
+                                    <Ellipse.Style>
+                                        <Style TargetType="{x:Type Ellipse}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Current.HasProfileAvatar}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                            </Grid>
+
+                            <TextBlock Margin="0,17,0,0"
+                                       HorizontalAlignment="Center"
+                                       Text="{Binding Current.Username}"
+                                       FontSize="20"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                            <TextBlock Margin="0,3,0,0"
+                                       HorizontalAlignment="Center"
+                                       Text="{Binding Current.MemberSince}"
+                                       Style="{StaticResource AtlasV2.Text.Caption}"/>
+
+                            <Button x:Name="ModifyAvatarButton"
+                                    Height="44"
+                                    Margin="0,22,0,0"
+                                    Padding="15,0"
+                                    HorizontalAlignment="Stretch"
+                                    Style="{StaticResource AtlasV2.Button.Primary}"
+                                    Click="ModifyAvatarButton_Click">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <Path Width="17"
+                                          Height="17"
+                                          Data="{StaticResource AtlasV2.Icon.Camera}"
+                                          Stroke="#111318"
+                                          Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                    <TextBlock Margin="9,0,0,0"
+                                               VerticalAlignment="Center"
+                                               Text="Modifier la photo"
+                                               FontWeight="Bold"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="RemoveAvatarButton"
+                                    Height="42"
+                                    Margin="0,9,0,0"
+                                    Padding="15,0"
+                                    HorizontalAlignment="Stretch"
+                                    Style="{StaticResource AtlasV2.Button.Secondary}"
+                                    IsEnabled="{Binding Current.HasProfileAvatar}"
+                                    Click="RemoveAvatarButton_Click">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <Path Width="16"
+                                          Height="16"
+                                          Data="{StaticResource AtlasV2.Icon.Trash}"
+                                          Stroke="{StaticResource AtlasV2.Brush.Danger}"
+                                          Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                    <TextBlock Margin="9,0,0,0"
+                                               VerticalAlignment="Center"
+                                               Text="Supprimer"
+                                               Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+                                </StackPanel>
+                            </Button>
+
+                            <Border x:Name="AvatarOperationBanner"
+                                    Margin="0,16,0,0"
+                                    Padding="12,10"
+                                    HorizontalAlignment="Stretch"
+                                    Background="{StaticResource AtlasV2.Brush.CyanSurface}"
+                                    BorderBrush="{StaticResource AtlasV2.Brush.CyanBorder}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Visibility="Collapsed">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Current.AvatarStatusMessage}"
+                                               Style="{StaticResource AtlasV2.Text.Caption}"
+                                               Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
+                                    <ProgressBar Height="3"
+                                                 Margin="0,8,0,0"
+                                                 IsIndeterminate="True"
+                                                 Style="{StaticResource AtlasV2.Progress.Compact}"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel x:Name="ProfileDetailsColumn" Grid.Column="2">
+                        <Border Padding="24"
+                                Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                                BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <StackPanel>
+                                <TextBlock Text="Identité"
+                                           Style="{StaticResource AtlasV2.Text.SectionTitle}"/>
+                                <TextBlock Margin="0,5,0,20"
+                                           Text="Les informations utilisées dans Atlas Launcher."
+                                           Style="{StaticResource AtlasV2.Text.Body}"/>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="NOM D’UTILISATEUR"
+                                               Style="{StaticResource AtlasV2.Account.Label}"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding Current.Username}"
+                                               Style="{StaticResource AtlasV2.Account.Value}"/>
+                                </Grid>
+                                <Border Height="1" Margin="0,17" Background="{StaticResource AtlasV2.Brush.BorderSoft}"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="ADRESSE E-MAIL"
+                                               Style="{StaticResource AtlasV2.Account.Label}"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding Current.Email}"
+                                               Style="{StaticResource AtlasV2.Account.Value}"/>
+                                    <Border Grid.Column="2"
+                                            Padding="9,5"
+                                            Background="{StaticResource AtlasV2.Brush.SuccessSurface}"
+                                            BorderBrush="{StaticResource AtlasV2.Brush.SuccessBorder}"
+                                            BorderThickness="1"
+                                            CornerRadius="6">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Width="13"
+                                                  Height="13"
+                                                  Data="{StaticResource AtlasV2.Icon.Check}"
+                                                  Stroke="{StaticResource AtlasV2.Brush.Success}"
+                                                  Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                            <TextBlock Margin="6,0,0,0"
+                                                       Text="Vérifiée"
+                                                       Style="{StaticResource AtlasV2.Text.Caption}"
+                                                       Foreground="{StaticResource AtlasV2.Brush.Success}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,18,0,0"
+                                Padding="24"
+                                Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                                BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="44"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Width="38"
+                                        Height="38"
+                                        Background="{StaticResource AtlasV2.Brush.CyanSurface}"
+                                        BorderBrush="{StaticResource AtlasV2.Brush.CyanBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="7">
+                                    <Path Width="18"
+                                          Height="18"
+                                          Data="{StaticResource AtlasV2.Icon.ShieldCheck}"
+                                          Stroke="{StaticResource AtlasV2.Brush.Cyan}"
+                                          Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="12,0,20,0">
+                                    <TextBlock Text="Compte protégé"
+                                               Style="{StaticResource AtlasV2.Text.Body}"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                                    <TextBlock Margin="0,3,0,0"
+                                               Text="Ton adresse e-mail est vérifiée et deux sessions sont actives."
+                                               Style="{StaticResource AtlasV2.Text.Caption}"/>
+                                </StackPanel>
+                                <Button Grid.Column="2"
+                                        Content="Voir la sécurité"
+                                        Style="{StaticResource AtlasV2.Button.GhostCompact}"
+                                        Click="SecurityShortcutButton_Click"/>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel x:Name="SecurityPanel" Visibility="Collapsed">
+                    <Border Padding="24"
+                            Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                            BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                            BorderThickness="1"
+                            CornerRadius="8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="48"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Width="40" Height="40"
+                                    Background="{StaticResource AtlasV2.Brush.GoldSurface}"
+                                    BorderBrush="{StaticResource AtlasV2.Brush.GoldBorder}"
+                                    BorderThickness="1" CornerRadius="7">
+                                <Path Width="19" Height="19"
+                                      Data="{StaticResource AtlasV2.Icon.Key}"
+                                      Stroke="{StaticResource AtlasV2.Brush.Gold}"
+                                      Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="14,0,24,0">
+                                <TextBlock Text="Mot de passe"
+                                           Style="{StaticResource AtlasV2.Text.SectionTitle}"/>
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="{Binding Current.LastPasswordChange}"
+                                           Style="{StaticResource AtlasV2.Text.Body}"/>
+                            </StackPanel>
+                            <Button Grid.Column="2"
+                                    Content="Modifier le mot de passe"
+                                    Style="{StaticResource AtlasV2.Button.Secondary}"
+                                    IsEnabled="False"
+                                    ToolTip="Maquette visuelle"/>
+                        </Grid>
+                    </Border>
+
+                    <Border Margin="0,18,0,0" Padding="24"
+                            Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                            BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                            BorderThickness="1" CornerRadius="8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="48"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Width="40" Height="40"
+                                    Background="{StaticResource AtlasV2.Brush.CyanSurface}"
+                                    BorderBrush="{StaticResource AtlasV2.Brush.CyanBorder}"
+                                    BorderThickness="1" CornerRadius="7">
+                                <Path Width="19" Height="19"
+                                      Data="{StaticResource AtlasV2.Icon.ShieldCheck}"
+                                      Stroke="{StaticResource AtlasV2.Brush.Cyan}"
+                                      Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="14,0,24,0">
+                                <TextBlock Text="Double authentification"
+                                           Style="{StaticResource AtlasV2.Text.SectionTitle}"/>
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="Ajoute une étape de sécurité à la connexion Atlas."
+                                           Style="{StaticResource AtlasV2.Text.Body}"/>
+                            </StackPanel>
+                            <Button Grid.Column="2"
+                                    Content="Configurer"
+                                    Style="{StaticResource AtlasV2.Button.Secondary}"
+                                    IsEnabled="False"
+                                    ToolTip="Maquette visuelle"/>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel x:Name="SessionsPanel" Visibility="Collapsed">
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Appareils connectés"
+                                       Style="{StaticResource AtlasV2.Text.SectionTitle}"/>
+                            <TextBlock Margin="0,4,0,0"
+                                       Text="{Binding Current.ActiveSessionCount, StringFormat={}{0} sessions actives}"
+                                       Style="{StaticResource AtlasV2.Text.Body}"/>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Content="Déconnecter les autres"
+                                Style="{StaticResource AtlasV2.Button.Secondary}"
+                                IsEnabled="False"
+                                ToolTip="Maquette visuelle"/>
+                    </Grid>
+
+                    <Border Padding="20"
+                            Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                            BorderBrush="{StaticResource AtlasV2.Brush.SuccessBorder}"
+                            BorderThickness="1"
+                            CornerRadius="8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="48"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Path Width="24" Height="24"
+                                  Data="{StaticResource AtlasV2.Icon.Laptop}"
+                                  Stroke="{StaticResource AtlasV2.Brush.Cyan}"
+                                  Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                            <StackPanel Grid.Column="1" Margin="14,0,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Windows · Atlas Launcher"
+                                               Style="{StaticResource AtlasV2.Account.Value}"/>
+                                    <Border Margin="10,0,0,0" Padding="8,3"
+                                            Background="{StaticResource AtlasV2.Brush.SuccessSurface}"
+                                            CornerRadius="5">
+                                        <TextBlock Text="Cet appareil"
+                                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                                   Foreground="{StaticResource AtlasV2.Brush.Success}"/>
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Margin="0,5,0,0"
+                                           Text="Liège, Belgique · active maintenant"
+                                           Style="{StaticResource AtlasV2.Text.Caption}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Border Margin="0,12,0,0" Padding="20"
+                            Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                            BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                            BorderThickness="1" CornerRadius="8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="48"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Path Width="22" Height="22"
+                                  Data="{StaticResource AtlasV2.Icon.Smartphone}"
+                                  Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                            <StackPanel Grid.Column="1" Margin="14,0,0,0">
+                                <TextBlock Text="Atlas Launcher · portable"
+                                           Style="{StaticResource AtlasV2.Account.Value}"/>
+                                <TextBlock Margin="0,5,0,0"
+                                           Text="Namur, Belgique · il y a 2 jours"
+                                           Style="{StaticResource AtlasV2.Text.Caption}"/>
+                            </StackPanel>
+                            <Button Grid.Column="2"
+                                    Content="Déconnecter"
+                                    Style="{StaticResource AtlasV2.Button.GhostCompact}"
+                                    IsEnabled="False"
+                                    ToolTip="Maquette visuelle"/>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

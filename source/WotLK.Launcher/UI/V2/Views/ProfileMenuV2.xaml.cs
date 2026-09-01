@@ -29,6 +29,12 @@ public partial class ProfileMenuV2 : UserControl
             FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
             IsOpenChanged));
 
+    public static readonly DependencyProperty IsManageAccountEnabledProperty = DependencyProperty.Register(
+        nameof(IsManageAccountEnabled),
+        typeof(bool),
+        typeof(ProfileMenuV2),
+        new PropertyMetadata(false));
+
     public ProfileMenuV2()
     {
         InitializeComponent();
@@ -36,6 +42,8 @@ public partial class ProfileMenuV2 : UserControl
     }
 
     public event EventHandler? CloseRequested;
+
+    public event EventHandler? ManageAccountRequested;
 
     public event EventHandler? Closed;
 
@@ -51,6 +59,12 @@ public partial class ProfileMenuV2 : UserControl
         set => SetValue(IsOpenProperty, value);
     }
 
+    public bool IsManageAccountEnabled
+    {
+        get => (bool)GetValue(IsManageAccountEnabledProperty);
+        set => SetValue(IsManageAccountEnabledProperty, value);
+    }
+
     internal bool IsFullyClosed => Visibility == Visibility.Collapsed
         && !IsHitTestVisible;
 
@@ -63,7 +77,11 @@ public partial class ProfileMenuV2 : UserControl
     {
         Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
-            () => Keyboard.Focus(LogoutButton.IsEnabled ? LogoutButton : CloseProfileButton));
+            () => Keyboard.Focus(ManageAccountButton.IsEnabled
+                ? ManageAccountButton
+                : LogoutButton.IsEnabled
+                    ? LogoutButton
+                    : CloseProfileButton));
     }
 
     internal void DetachFromShell()
@@ -202,5 +220,13 @@ public partial class ProfileMenuV2 : UserControl
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
         CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void ManageAccountButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (IsManageAccountEnabled)
+        {
+            ManageAccountRequested?.Invoke(this, EventArgs.Empty);
+        }
     }
 }

@@ -15,8 +15,9 @@ public partial class LauncherShellV2 : Window
     private readonly ShellOverlayCoordinator _overlayCoordinator;
     private readonly AuthPreviewScenario? _initialAuthPreviewScenario;
     private readonly ProfilePreviewScenario? _initialProfilePreviewScenario;
-    private readonly bool _showSettingsInitially;
+    private readonly LauncherShellPage _initialPage;
     private IInputElement? _authFocusReturnTarget;
+    private IInputElement? _avatarCropFocusReturnTarget;
     private AuthCommands? _authCommands;
 
     public LauncherShellV2(GamePreviewScenario scenario = GamePreviewScenario.Ready)
@@ -28,10 +29,12 @@ public partial class LauncherShellV2 : Window
             LauncherV2PreviewData.CreateAuth(),
             LauncherV2PreviewData.CreateProfile(),
             LauncherV2PreviewData.CreateSettings(),
+            LauncherV2PreviewData.CreateAccount(),
+            LauncherV2PreviewData.CreateAvatarCrop(),
             authPreviewScenario: null,
             profilePreviewScenario: null,
             isPreviewMode: true,
-            showSettingsInitially: false)
+            initialPage: LauncherShellPage.Game)
     {
     }
 
@@ -44,10 +47,12 @@ public partial class LauncherShellV2 : Window
             LauncherV2PreviewData.CreateAuth(authScenario),
             new ProfileUiState(),
             LauncherV2PreviewData.CreateSettings(),
+            LauncherV2PreviewData.CreateAccount(),
+            LauncherV2PreviewData.CreateAvatarCrop(),
             authScenario,
             profilePreviewScenario: null,
             isPreviewMode: true,
-            showSettingsInitially: false)
+            initialPage: LauncherShellPage.Game)
     {
     }
 
@@ -60,10 +65,12 @@ public partial class LauncherShellV2 : Window
             LauncherV2PreviewData.CreateAuth(),
             LauncherV2PreviewData.CreateProfile(profileScenario),
             LauncherV2PreviewData.CreateSettings(),
+            LauncherV2PreviewData.CreateAccount(),
+            LauncherV2PreviewData.CreateAvatarCrop(),
             authPreviewScenario: null,
             profilePreviewScenario: profileScenario,
             isPreviewMode: true,
-            showSettingsInitially: false)
+            initialPage: LauncherShellPage.Game)
     {
     }
 
@@ -76,10 +83,30 @@ public partial class LauncherShellV2 : Window
             LauncherV2PreviewData.CreateAuth(),
             LauncherV2PreviewData.CreateProfile(),
             LauncherV2PreviewData.CreateSettings(settingsScenario),
+            LauncherV2PreviewData.CreateAccount(),
+            LauncherV2PreviewData.CreateAvatarCrop(),
             authPreviewScenario: null,
             profilePreviewScenario: null,
             isPreviewMode: true,
-            showSettingsInitially: true)
+            initialPage: LauncherShellPage.Settings)
+    {
+    }
+
+    public LauncherShellV2(GamePreviewScenario scenario, AccountPreviewScenario accountScenario)
+        : this(
+            LauncherV2PreviewData.CreateShell(scenario, isAuthenticated: true),
+            LauncherV2PreviewData.CreateGame(scenario),
+            LauncherV2PreviewData.CreateDashboard(scenario),
+            LauncherV2PreviewData.CreateFriends(),
+            LauncherV2PreviewData.CreateAuth(),
+            LauncherV2PreviewData.CreateProfile(),
+            LauncherV2PreviewData.CreateSettings(),
+            LauncherV2PreviewData.CreateAccount(accountScenario),
+            LauncherV2PreviewData.CreateAvatarCrop(accountScenario),
+            authPreviewScenario: null,
+            profilePreviewScenario: null,
+            isPreviewMode: true,
+            initialPage: LauncherShellPage.Account)
     {
     }
 
@@ -128,10 +155,12 @@ public partial class LauncherShellV2 : Window
             new AuthUiState(),
             profileState,
             settingsState,
+            AccountUiState.Empty,
+            AvatarCropUiState.Empty,
             authPreviewScenario: null,
             profilePreviewScenario: null,
             isPreviewMode: false,
-            showSettingsInitially: false)
+            initialPage: LauncherShellPage.Game)
     {
     }
 
@@ -143,10 +172,12 @@ public partial class LauncherShellV2 : Window
         AuthUiState authState,
         ProfileUiState profileState,
         SettingsUiState settingsState,
+        AccountUiState accountState,
+        AvatarCropUiState avatarCropState,
         AuthPreviewScenario? authPreviewScenario,
         ProfilePreviewScenario? profilePreviewScenario,
         bool isPreviewMode,
-        bool showSettingsInitially)
+        LauncherShellPage initialPage)
     {
         ShellState = shellState ?? throw new ArgumentNullException(nameof(shellState));
         GameState = gameState ?? throw new ArgumentNullException(nameof(gameState));
@@ -155,10 +186,16 @@ public partial class LauncherShellV2 : Window
         AuthState = authState ?? throw new ArgumentNullException(nameof(authState));
         ProfileState = profileState ?? throw new ArgumentNullException(nameof(profileState));
         SettingsState = settingsState ?? throw new ArgumentNullException(nameof(settingsState));
-        _overlayCoordinator = new ShellOverlayCoordinator(FriendsState, AuthState, ProfileState);
+        AccountState = accountState ?? throw new ArgumentNullException(nameof(accountState));
+        AvatarCropState = avatarCropState ?? throw new ArgumentNullException(nameof(avatarCropState));
+        _overlayCoordinator = new ShellOverlayCoordinator(
+            FriendsState,
+            AuthState,
+            ProfileState,
+            AvatarCropState);
         _initialAuthPreviewScenario = authPreviewScenario;
         _initialProfilePreviewScenario = profilePreviewScenario;
-        _showSettingsInitially = showSettingsInitially;
+        _initialPage = initialPage;
         IsPreviewMode = isPreviewMode;
 
         InitializeComponent();
@@ -188,7 +225,13 @@ public partial class LauncherShellV2 : Window
 
     public SettingsUiState SettingsState { get; }
 
+    public AccountUiState AccountState { get; }
+
+    public AvatarCropUiState AvatarCropState { get; }
+
     public bool IsSettingsNavigationEnabled => IsPreviewMode || SettingsState.Current.IsRuntimeConnected;
+
+    public bool IsAccountPreviewAvailable => IsPreviewMode && AccountState.Current.IsPreview;
 
     internal bool IsPreviewMode { get; }
 
@@ -205,6 +248,10 @@ public partial class LauncherShellV2 : Window
     internal ProfileMenuV2 ProfileOverlay => ProfileMenu;
 
     internal SettingsViewV2 SettingsPage => SettingsView;
+
+    internal AccountViewV2 AccountPage => AccountView;
+
+    internal AvatarCropOverlayV2 AvatarCropPreviewOverlay => AvatarCropOverlay;
 
     internal void ShowGamePageForSettingsOperation()
     {
@@ -303,7 +350,7 @@ public partial class LauncherShellV2 : Window
     private void LauncherShellV2_Loaded(object sender, RoutedEventArgs e)
     {
         ApplyAdaptiveLayout();
-        NavigateTo(_showSettingsInitially ? LauncherShellPage.Settings : LauncherShellPage.Game);
+        NavigateTo(_initialPage);
         if (_initialAuthPreviewScenario is AuthPreviewScenario scenario)
         {
             OpenAuthenticationForPreview(scenario);
@@ -311,6 +358,12 @@ public partial class LauncherShellV2 : Window
         else if (_initialProfilePreviewScenario is ProfilePreviewScenario profileScenario)
         {
             OpenProfileForPreview(profileScenario);
+        }
+
+        if (AvatarCropState.IsOpen)
+        {
+            _avatarCropFocusReturnTarget = AccountView.AvatarActionFocusTarget;
+            AvatarCropOverlay.FocusFirstControl();
         }
     }
 
@@ -323,6 +376,7 @@ public partial class LauncherShellV2 : Window
         PreviewMouseDown -= LauncherShellV2_PreviewMouseDown;
         PreviewGotKeyboardFocus -= LauncherShellV2_PreviewGotKeyboardFocus;
         AuthOverlay.SubmissionRequested -= AuthOverlay_SubmissionRequested;
+        ProfileMenu.ManageAccountRequested -= ProfileMenu_ManageAccountRequested;
         _authCommands = null;
         AuthOverlay.DetachFromShell();
         AuthOverlay.State = null;
@@ -330,7 +384,11 @@ public partial class LauncherShellV2 : Window
         ProfileMenu.DetachFromShell();
         ProfileMenu.State = null;
         ProfileMenu.IsOpen = false;
+        AvatarCropOverlay.DetachFromShell();
+        AvatarCropOverlay.State = null;
+        AvatarCropOverlay.IsOpen = false;
         SettingsView.State = null;
+        AccountView.State = null;
         DataContext = null;
         AuthState.Dispose();
     }
@@ -401,7 +459,8 @@ public partial class LauncherShellV2 : Window
 
     private void GameNavigationButton_Click(object sender, RoutedEventArgs e)
     {
-        if (IsPreviewMode || SettingsState.Current.IsRuntimeConnected)
+        if (_overlayCoordinator.Current == ShellOverlayKind.None
+            && (IsPreviewMode || SettingsState.Current.IsRuntimeConnected))
         {
             NavigateTo(LauncherShellPage.Game);
         }
@@ -456,6 +515,55 @@ public partial class LauncherShellV2 : Window
     private void ProfileMenu_CloseRequested(object? sender, EventArgs e)
     {
         _overlayCoordinator.CloseProfile();
+    }
+
+    private void ProfileMenu_ManageAccountRequested(object? sender, EventArgs e)
+    {
+        if (!IsAccountPreviewAvailable)
+        {
+            return;
+        }
+
+        _overlayCoordinator.CloseProfile();
+        NavigateTo(LauncherShellPage.Account);
+    }
+
+    private void AccountView_ModifyAvatarRequested(object? sender, EventArgs e)
+    {
+        if (!IsAccountPreviewAvailable || !_overlayCoordinator.TryOpenAvatarCrop())
+        {
+            return;
+        }
+
+        _avatarCropFocusReturnTarget = AccountView.AvatarActionFocusTarget;
+        AvatarCropOverlay.FocusFirstControl();
+    }
+
+    private void AccountView_RemoveAvatarRequested(object? sender, EventArgs e)
+    {
+        // The preview state is applied locally by AccountViewV2. No service is contacted.
+    }
+
+    private void AvatarCropOverlay_CloseRequested(object? sender, EventArgs e)
+    {
+        _overlayCoordinator.CloseAvatarCrop();
+    }
+
+    private void AvatarCropOverlay_Closed(object? sender, EventArgs e)
+    {
+        if (AvatarCropState.IsOpen || _overlayCoordinator.Current != ShellOverlayKind.None)
+        {
+            _avatarCropFocusReturnTarget = null;
+            return;
+        }
+
+        if (_avatarCropFocusReturnTarget is not null)
+        {
+            FocusManager.SetFocusedElement(this, _avatarCropFocusReturnTarget);
+            Keyboard.Focus(_avatarCropFocusReturnTarget);
+        }
+
+        _avatarCropFocusReturnTarget = null;
     }
 
     private void AuthOverlay_CloseRequested(object? sender, EventArgs e)
@@ -513,6 +621,13 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && AvatarCropState.IsOpen)
+        {
+            _overlayCoordinator.CloseAvatarCrop();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.Escape && AuthState.IsOpen)
         {
             CloseAuthenticationFromUser();
@@ -553,6 +668,17 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_PreviewGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
+        if (AvatarCropState.IsOpen)
+        {
+            if (!AvatarCropOverlay.ContainsKeyboardFocusTarget(e.NewFocus as DependencyObject))
+            {
+                e.Handled = true;
+                AvatarCropOverlay.FocusFirstControl();
+            }
+
+            return;
+        }
+
         if (AuthState.IsOpen)
         {
             if (!AuthOverlay.ContainsKeyboardFocusTarget(e.NewFocus as DependencyObject))
@@ -586,15 +712,27 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
+        if (page == LauncherShellPage.Account && !IsAccountPreviewAvailable)
+        {
+            return;
+        }
+
         CurrentPage = page;
         bool showGame = page == LauncherShellPage.Game;
+        bool showSettings = page == LauncherShellPage.Settings;
+        bool showAccount = page == LauncherShellPage.Account;
         GameView.Visibility = showGame ? Visibility.Visible : Visibility.Collapsed;
-        SettingsView.Visibility = showGame ? Visibility.Collapsed : Visibility.Visible;
+        SettingsView.Visibility = showSettings ? Visibility.Visible : Visibility.Collapsed;
+        AccountView.Visibility = showAccount ? Visibility.Visible : Visibility.Collapsed;
         GameNavigationButton.Tag = showGame ? "Active" : null;
-        SettingsButton.Tag = showGame ? null : "Active";
-        if (!showGame)
+        SettingsButton.Tag = showSettings ? "Active" : null;
+        if (showSettings)
         {
             SettingsView.ScrollHost.ScrollToTop();
+        }
+        else if (showAccount)
+        {
+            AccountView.ScrollHost.ScrollToTop();
         }
     }
 

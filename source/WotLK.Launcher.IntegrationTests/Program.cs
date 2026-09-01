@@ -115,6 +115,16 @@ if (args.Length >= 1
     return await LauncherSettingsRuntimeTests.RunAsync(captureDirectory);
 }
 
+if (args.Length >= 1
+    && string.Equals(args[0], "--account-preview", StringComparison.OrdinalIgnoreCase))
+{
+    string? captureDirectory = args.Length == 3
+        && string.Equals(args[1], "--capture-directory", StringComparison.OrdinalIgnoreCase)
+            ? args[2]
+            : null;
+    return await AccountPreviewTests.RunAsync(captureDirectory);
+}
+
 if (args.Length == 1
     && string.Equals(args[0], "--local-shell-windows-smoke", StringComparison.OrdinalIgnoreCase))
 {

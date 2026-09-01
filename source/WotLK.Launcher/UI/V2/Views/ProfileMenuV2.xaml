@@ -145,16 +145,60 @@
                                Foreground="#F1A7AE"/>
                 </Border>
 
-                <Button x:Name="LogoutButton"
+                <Button x:Name="ManageAccountButton"
                         Height="44"
                         Margin="0,14,0,0"
+                        Padding="14,0"
+                        HorizontalContentAlignment="Stretch"
+                        IsEnabled="{Binding IsManageAccountEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:ProfileMenuV2}}}"
+                        ToolTipService.ShowOnDisabled="True"
+                        AutomationProperties.Name="Gérer mon compte"
+                        KeyboardNavigation.TabIndex="1"
+                        Click="ManageAccountButton_Click">
+                    <Button.Style>
+                        <Style TargetType="{x:Type Button}"
+                               BasedOn="{StaticResource AtlasV2.Button.Secondary}">
+                            <Setter Property="ToolTip" Value="Ouvrir mon compte Atlas"/>
+                            <Style.Triggers>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="ToolTip" Value="Bientôt disponible"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="22"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="22"/>
+                        </Grid.ColumnDefinitions>
+                        <Path Width="17"
+                              Height="17"
+                              Data="{StaticResource AtlasV2.Icon.User}"
+                              Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                        <TextBlock Grid.Column="1"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Text="Gérer mon compte"
+                                   FontWeight="SemiBold"/>
+                        <Path Grid.Column="2"
+                              Width="15"
+                              Height="15"
+                              Data="{StaticResource AtlasV2.Icon.ArrowRight}"
+                              Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                    </Grid>
+                </Button>
+
+                <Button x:Name="LogoutButton"
+                        Height="44"
+                        Margin="0,9,0,0"
                         Padding="14,0"
                         HorizontalContentAlignment="Stretch"
                         Style="{StaticResource AtlasV2.Button.Secondary}"
                         Command="{Binding LogoutCommand}"
                         ToolTip="{Binding Current.LogoutToolTip}"
                         AutomationProperties.Name="Déconnexion"
-                        KeyboardNavigation.TabIndex="1">
+                        KeyboardNavigation.TabIndex="2">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="22"/>

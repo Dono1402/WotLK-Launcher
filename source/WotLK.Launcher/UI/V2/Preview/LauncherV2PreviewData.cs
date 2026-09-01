@@ -7,6 +7,8 @@ namespace WotLK.Launcher.UI.V2.Preview;
 public static class LauncherV2PreviewData
 {
     private const string PreviewStatePrefix = "--preview-state=";
+    private const string PreviewAvatarUri =
+        "/WotLK.Launcher;component/Assets/Images/AtlasProfilePreview.png";
 
     public static GamePreviewScenario ResolveScenario(IEnumerable<string> arguments)
     {
@@ -148,6 +150,63 @@ public static class LauncherV2PreviewData
                 ServiceState: "Services disponibles")));
         state.AttachPreviewActions();
         return state;
+    }
+
+    internal static AccountUiState CreateAccount(
+        AccountPreviewScenario scenario = AccountPreviewScenario.Profile)
+    {
+        AccountSection section = scenario switch
+        {
+            AccountPreviewScenario.Security => AccountSection.Security,
+            AccountPreviewScenario.Sessions => AccountSection.Sessions,
+            _ => AccountSection.Profile
+        };
+        bool removing = scenario == AccountPreviewScenario.Removing;
+
+        return new AccountUiState(new AccountViewState(
+            IsPreview: true,
+            SelectedSection: section,
+            Username: "Dono1402",
+            Email: "dono1402@outlook.com",
+            Initial: "D",
+            IsEmailVerified: true,
+            HasProfileAvatar: scenario != AccountPreviewScenario.Fallback,
+            AvatarImageUri: PreviewAvatarUri,
+            AvatarOperation: removing
+                ? AvatarPreviewOperation.Removing
+                : AvatarPreviewOperation.None,
+            AvatarStatusMessage: removing
+                ? "Suppression de la photo en cours…"
+                : string.Empty,
+            MemberSince: "Membre Atlas depuis juillet 2026",
+            LastPasswordChange: "Modifié il y a 18 jours",
+            ActiveSessionCount: 2));
+    }
+
+    internal static AvatarCropUiState CreateAvatarCrop(
+        AccountPreviewScenario scenario = AccountPreviewScenario.Profile)
+    {
+        bool isOpen = scenario is AccountPreviewScenario.Crop
+            or AccountPreviewScenario.Uploading
+            or AccountPreviewScenario.UploadError;
+        AvatarCropPreviewStatus status = scenario switch
+        {
+            AccountPreviewScenario.Uploading => AvatarCropPreviewStatus.Uploading,
+            AccountPreviewScenario.UploadError => AvatarCropPreviewStatus.Error,
+            _ => AvatarCropPreviewStatus.Idle
+        };
+
+        return new AvatarCropUiState(new AvatarCropViewState(
+            IsPreview: true,
+            IsOpen: isOpen,
+            Status: status,
+            AvatarImageUri: PreviewAvatarUri,
+            ErrorMessage: status == AvatarCropPreviewStatus.Error
+                ? "La photo n’a pas pu être préparée. Réessaie avec une autre image."
+                : string.Empty,
+            Zoom: 1.18,
+            OffsetX: 0,
+            OffsetY: -8));
     }
 
     internal static DashboardUiState CreateDashboard(GamePreviewScenario scenario)

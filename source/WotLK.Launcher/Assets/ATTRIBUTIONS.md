@@ -1,5 +1,12 @@
 # Atlas Launcher V2 - Attributions
 
+## AtlasProfilePreview.png
+
+- Usage : photo de profil fictive réservée à la maquette WPF V2 du compte.
+- Générée avec OpenAI Image Generation le 1er septembre 2026 à partir d'un prompt original du projet.
+- Elle ne représente ni Dono, ni aucune autre personne réelle.
+- SHA-256 : `D27EF30B21E07C21DAE240FAFEF73630948124D9B6A9FC069847E9E757615359`.
+
 ## Manrope
 
 - Source: https://github.com/aaronbell/manrope

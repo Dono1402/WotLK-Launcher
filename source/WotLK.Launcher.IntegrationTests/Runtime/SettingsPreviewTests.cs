@@ -32,7 +32,7 @@ internal static class SettingsPreviewTests
         CharacterizeReadOnlyPreviewState();
         CharacterizePreviewScenarios();
         await ValidateWpfLayoutsNavigationAndCapturesAsync(captureDirectory);
-        Console.WriteLine($"Settings WPF preview OK (02G.1.1, window DPI={_observedWindowDpi}).");
+        Console.WriteLine($"Settings WPF preview OK (02G.2 isolation, window DPI={_observedWindowDpi}).");
         return 0;
     }
 
@@ -75,21 +75,14 @@ internal static class SettingsPreviewTests
         Equal("Stable", state.Current.Updates.ReleaseChannel, "Le canal doit appartenir aux mises à jour.");
         Equal("v1.1.0", state.Current.Updates.InstalledLauncherVersion, "La version launcher doit rester cohérente.");
 
-        Type[] presentationTypes =
-        [
-            typeof(SettingsUiState),
-            typeof(SettingsViewState),
-            typeof(GeneralSettingsViewState),
-            typeof(GameSettingsViewState),
-            typeof(UpdateSettingsViewState),
-            typeof(NotificationSettingsViewState),
-            typeof(AppearanceSettingsViewState),
-            typeof(DiagnosticSettingsViewState)
-        ];
-        True(
-            presentationTypes.SelectMany(type => type.GetProperties()).All(property =>
-                !typeof(System.Windows.Input.ICommand).IsAssignableFrom(property.PropertyType)),
-            "Les états Settings ne doivent exposer aucune commande métier en 02G.1.1.");
+        True(!state.Current.IsRuntimeConnected, "Le preview ne doit pas se déclarer connecté au runtime.");
+        SettingsViewState before = state.Current;
+        state.BrowseInstallPathCommand.Execute(null);
+        state.OpenGameFolderCommand.Execute(null);
+        state.OpenLogsCommand.Execute(null);
+        True(ReferenceEquals(before, state.Current), "Les commandes preview ne doivent modifier aucun état.");
+        True(!state.TryChangeGameLocale("enUS"), "Le preview ne doit pas accepter une langue réelle.");
+        True(!state.TryChangeCloseAfterLaunch(true), "Le preview ne doit pas enregistrer un comportement réel.");
     }
 
     private static void CharacterizePreviewScenarios()
@@ -367,15 +360,15 @@ internal static class SettingsPreviewTests
         SettingsViewV2 settings = window.SettingsPage;
         ValidateSelectedCategory(settings, expectedCategory);
         Equal(showsActionBar ? Visibility.Visible : Visibility.Collapsed, Required<Border>(settings, "SettingsActionBar").Visibility, "Visibilité inattendue de la barre d'action.");
-        True(!Required<Button>(settings, "BrowseInstallPathButton").IsHitTestVisible, "Parcourir ne doit lancer aucun dialogue en 02G.1.1.");
-        True(!Required<Button>(settings, "OpenGameFolderButton").IsHitTestVisible, "Ouvrir le jeu ne doit lancer aucun processus en 02G.1.1.");
-        True(!Required<Button>(settings, "VerifyRepairButton").IsHitTestVisible, "Vérifier ne doit lancer aucun pipeline en 02G.1.1.");
-        True(!Required<Button>(settings, "OpenLogsButton").IsHitTestVisible, "Ouvrir les journaux ne doit lancer aucun processus en 02G.1.1.");
-        True(!Required<Button>(settings, "CopyDiagnosticButton").IsHitTestVisible, "Copier ne doit toucher aucun presse-papiers en 02G.1.1.");
-        True(!Required<Button>(settings, "OpenLauncherFolderButton").IsHitTestVisible, "Ouvrir le launcher ne doit lancer aucun processus en 02G.1.1.");
-        True(!Required<Button>(settings, "ResetInterfaceButton").IsHitTestVisible, "Réinitialiser ne doit modifier aucun paramètre en 02G.1.1.");
+        True(!Required<Button>(settings, "BrowseInstallPathButton").IsHitTestVisible, "Parcourir ne doit lancer aucun dialogue en preview.");
+        True(!Required<Button>(settings, "OpenGameFolderButton").IsHitTestVisible, "Ouvrir le jeu ne doit lancer aucun processus en preview.");
+        True(!Required<Button>(settings, "VerifyRepairButton").IsHitTestVisible, "Vérifier ne doit lancer aucun pipeline en preview.");
+        True(!Required<Button>(settings, "OpenLogsButton").IsHitTestVisible, "Ouvrir les journaux ne doit lancer aucun processus en preview.");
+        True(!Required<Button>(settings, "CopyDiagnosticButton").IsHitTestVisible, "Copier ne doit toucher aucun presse-papiers en preview.");
+        True(!Required<Button>(settings, "OpenLauncherFolderButton").IsHitTestVisible, "Ouvrir le launcher ne doit lancer aucun processus en preview.");
+        True(!Required<Button>(settings, "ResetInterfaceButton").IsHitTestVisible, "Réinitialiser ne doit modifier aucun paramètre en preview.");
         Equal(@"C:\Program Files (x86)\WotLK", Required<TextBlock>(settings, "InstallPathText").Text, "Le dossier fictif doit être lisible.");
-        Equal("Français", Required<TextBlock>(settings, "GameLanguageText").Text, "La langue du jeu doit être visible.");
+        Equal("frFR", Required<ComboBox>(settings, "GameLanguageComboBox").SelectedValue as string, "La langue du jeu doit être visible.");
         Equal("Français", Required<TextBlock>(settings, "InterfaceLanguageText").Text, "La langue du launcher doit être visible.");
         True(Required<ToggleButton>(settings, "AutomaticUpdatesToggle").IsChecked == true, "L'auto-update doit être visuellement actif.");
         True(Required<ToggleButton>(settings, "CloseAfterLaunchToggle").IsChecked == false, "La fermeture doit être visuellement inactive.");

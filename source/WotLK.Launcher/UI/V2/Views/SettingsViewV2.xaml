@@ -81,6 +81,14 @@
             <Setter Property="IsHitTestVisible" Value="False"/>
         </Style>
 
+        <Style x:Key="AtlasV2.Settings.Action"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource AtlasV2.Button.Base}">
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Padding" Value="14,0"/>
+            <Setter Property="Focusable" Value="True"/>
+        </Style>
+
         <Style x:Key="AtlasV2.Settings.Separator" TargetType="{x:Type Border}">
             <Setter Property="Height" Value="1"/>
             <Setter Property="Margin" Value="0,17"/>
@@ -417,7 +425,10 @@
                                                       Grid.Column="1"
                                                       VerticalAlignment="Center"
                                                       IsChecked="{Binding State.Current.General.CloseLauncherAfterGameStart, ElementName=SettingsRoot, Mode=OneWay}"
-                                                      Style="{StaticResource AtlasV2.Toggle.ReadOnly}"/>
+                                                      IsHitTestVisible="{Binding State.Current.CanChangeBehavior, ElementName=SettingsRoot}"
+                                                      Focusable="{Binding State.Current.CanChangeBehavior, ElementName=SettingsRoot}"
+                                                      Style="{StaticResource AtlasV2.Toggle}"
+                                                      Click="CloseAfterLaunchToggle_Click"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -489,10 +500,16 @@
                                         <Button x:Name="BrowseInstallPathButton"
                                                 Margin="0,0,8,8"
                                                 Content="Parcourir"
-                                                Style="{StaticResource AtlasV2.Settings.ReadOnlyAction}"/>
+                                                Command="{Binding State.BrowseInstallPathCommand, ElementName=SettingsRoot}"
+                                                IsHitTestVisible="{Binding State.Current.IsRuntimeConnected, ElementName=SettingsRoot}"
+                                                Focusable="{Binding State.Current.IsRuntimeConnected, ElementName=SettingsRoot}"
+                                                Style="{StaticResource AtlasV2.Settings.Action}"/>
                                         <Button x:Name="OpenGameFolderButton"
                                                 Margin="0,0,8,8"
-                                                Style="{StaticResource AtlasV2.Settings.ReadOnlyAction}">
+                                                Command="{Binding State.OpenGameFolderCommand, ElementName=SettingsRoot}"
+                                                IsHitTestVisible="{Binding State.Current.IsRuntimeConnected, ElementName=SettingsRoot}"
+                                                Focusable="{Binding State.Current.IsRuntimeConnected, ElementName=SettingsRoot}"
+                                                Style="{StaticResource AtlasV2.Settings.Action}">
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Width="14"
                                                       Height="14"
@@ -539,33 +556,17 @@
                                                        Text="Textes et voix du client WotLK Classic."
                                                        Style="{StaticResource AtlasV2.Text.Caption}"/>
                                         </StackPanel>
-                                        <Border Grid.Column="1"
-                                                Style="{StaticResource AtlasV2.Field.Container}"
-                                                IsHitTestVisible="False">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="20"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="18"/>
-                                                </Grid.ColumnDefinitions>
-                                                <Path Width="15"
-                                                      Height="15"
-                                                      Data="{StaticResource AtlasV2.Icon.Globe}"
-                                                      Style="{StaticResource AtlasV2.Icon.Stroke}"/>
-                                                <TextBlock x:Name="GameLanguageText"
-                                                           Grid.Column="1"
-                                                           Margin="8,0,0,0"
-                                                           VerticalAlignment="Center"
-                                                           Text="{Binding State.Current.Game.GameLanguage, ElementName=SettingsRoot}"
-                                                           Style="{StaticResource AtlasV2.Text.Body}"
-                                                           Foreground="{StaticResource AtlasV2.Brush.Text}"/>
-                                                <Path Grid.Column="2"
-                                                      Width="14"
-                                                      Height="14"
-                                                      Data="{StaticResource AtlasV2.Icon.ChevronDown}"
-                                                      Style="{StaticResource AtlasV2.Icon.Stroke}"/>
-                                            </Grid>
-                                        </Border>
+                                        <ComboBox x:Name="GameLanguageComboBox"
+                                                  Grid.Column="1"
+                                                  SelectedValuePath="Tag"
+                                                  SelectedValue="{Binding State.Current.Game.GameLocale, ElementName=SettingsRoot, Mode=OneWay}"
+                                                  IsHitTestVisible="{Binding State.Current.CanChangeGameLocale, ElementName=SettingsRoot}"
+                                                  Focusable="{Binding State.Current.CanChangeGameLocale, ElementName=SettingsRoot}"
+                                                  Style="{StaticResource AtlasV2.ComboBox.Field}"
+                                                  SelectionChanged="GameLanguageComboBox_SelectionChanged">
+                                            <ComboBoxItem Content="Français" Tag="frFR"/>
+                                            <ComboBoxItem Content="English" Tag="enUS"/>
+                                        </ComboBox>
                                     </Grid>
 
                                     <Border Style="{StaticResource AtlasV2.Settings.Separator}"/>
@@ -931,7 +932,13 @@
                                             <TextBlock Text="Journaux locaux" Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
                                             <TextBlock x:Name="LogLocationText" Margin="0,3,0,0" Text="{Binding State.Current.Diagnostic.LogLocation, ElementName=SettingsRoot}" Style="{StaticResource AtlasV2.Text.Caption}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                         </StackPanel>
-                                        <Button x:Name="OpenLogsButton" Grid.Column="2" Content="Ouvrir les journaux" Style="{StaticResource AtlasV2.Settings.ReadOnlyAction}"/>
+                                        <Button x:Name="OpenLogsButton"
+                                                Grid.Column="2"
+                                                Content="Ouvrir les journaux"
+                                                Command="{Binding State.OpenLogsCommand, ElementName=SettingsRoot}"
+                                                IsHitTestVisible="{Binding State.Current.IsRuntimeConnected, ElementName=SettingsRoot}"
+                                                Focusable="{Binding State.Current.IsRuntimeConnected, ElementName=SettingsRoot}"
+                                                Style="{StaticResource AtlasV2.Settings.Action}"/>
                                     </Grid>
                                     <Border Style="{StaticResource AtlasV2.Settings.Separator}"/>
                                     <Grid>

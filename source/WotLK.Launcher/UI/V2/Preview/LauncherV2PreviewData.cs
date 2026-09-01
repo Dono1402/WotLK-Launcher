@@ -107,7 +107,7 @@ public static class LauncherV2PreviewData
             _ => SettingsSavePreviewState.None
         };
 
-        return new SettingsUiState(new SettingsViewState(
+        SettingsUiState state = new(new SettingsViewState(
             category,
             saveState,
             new GeneralSettingsViewState(
@@ -146,6 +146,8 @@ public static class LauncherV2PreviewData
                 ClientVersion: "3.4.3.54261",
                 LocalState: "Client prêt · non vérifié",
                 ServiceState: "Services disponibles")));
+        state.AttachPreviewActions();
+        return state;
     }
 
     internal static DashboardUiState CreateDashboard(GamePreviewScenario scenario)

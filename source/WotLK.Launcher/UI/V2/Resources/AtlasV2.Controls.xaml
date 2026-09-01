@@ -226,11 +226,11 @@
         </Style.Triggers>
     </Style>
 
-    <Style x:Key="AtlasV2.Toggle.ReadOnly" TargetType="{x:Type primitives:ToggleButton}">
+    <Style x:Key="AtlasV2.Toggle" TargetType="{x:Type primitives:ToggleButton}">
         <Setter Property="Width" Value="44"/>
         <Setter Property="Height" Value="24"/>
-        <Setter Property="Focusable" Value="False"/>
-        <Setter Property="IsHitTestVisible" Value="False"/>
+        <Setter Property="Focusable" Value="True"/>
+        <Setter Property="FocusVisualStyle" Value="{StaticResource AtlasV2.FocusVisual.Button}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type primitives:ToggleButton}">
@@ -254,10 +254,23 @@
                             <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
                             <Setter TargetName="Thumb" Property="Fill" Value="#111318"/>
                         </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.48"/>
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <Style x:Key="AtlasV2.Toggle.ReadOnly"
+           TargetType="{x:Type primitives:ToggleButton}"
+           BasedOn="{StaticResource AtlasV2.Toggle}">
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
     </Style>
 
     <Style x:Key="AtlasV2.Field.Container" TargetType="{x:Type Border}">
@@ -267,6 +280,120 @@
         <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Border}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="6"/>
+    </Style>
+
+    <Style x:Key="AtlasV2.ComboBoxItem.Field" TargetType="{x:Type ComboBoxItem}">
+        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
+        <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfaceRaised}"/>
+        <Setter Property="Padding" Value="13,10"/>
+        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Manrope}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ComboBoxItem}">
+                    <Border x:Name="ItemSurface" Background="{TemplateBinding Background}">
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="ItemSurface"
+                                    Property="Background"
+                                    Value="{StaticResource AtlasV2.Brush.SurfaceHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="ItemSurface"
+                                    Property="Background"
+                                    Value="{StaticResource AtlasV2.Brush.Field}"/>
+                            <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AtlasV2.ComboBox.Field" TargetType="{x:Type ComboBox}">
+        <Setter Property="Height" Value="46"/>
+        <Setter Property="Padding" Value="13,0"/>
+        <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.Field}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Border}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
+        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Manrope}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="ItemContainerStyle" Value="{StaticResource AtlasV2.ComboBoxItem.Field}"/>
+        <Setter Property="FocusVisualStyle" Value="{StaticResource AtlasV2.FocusVisual.Field}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ComboBox}">
+                    <Grid>
+                        <Border x:Name="ComboSurface"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"/>
+                        <primitives:ToggleButton Background="Transparent"
+                                                 BorderThickness="0"
+                                                 ClickMode="Press"
+                                                 Focusable="False"
+                                                 IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                            <primitives:ToggleButton.Template>
+                                <ControlTemplate TargetType="{x:Type primitives:ToggleButton}">
+                                    <Border Background="Transparent"/>
+                                </ControlTemplate>
+                            </primitives:ToggleButton.Template>
+                        </primitives:ToggleButton>
+                        <ContentPresenter Margin="13,0,40,0"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"
+                                          Content="{TemplateBinding SelectionBoxItem}"
+                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          IsHitTestVisible="False"/>
+                        <Path Width="14"
+                              Height="14"
+                              Margin="0,0,13,0"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Center"
+                              Data="{StaticResource AtlasV2.Icon.ChevronDown}"
+                              Stroke="{StaticResource AtlasV2.Brush.Gold}"
+                              Style="{StaticResource AtlasV2.Icon.Stroke}"
+                              IsHitTestVisible="False"/>
+                        <Popup x:Name="PART_Popup"
+                               Placement="Bottom"
+                               AllowsTransparency="True"
+                               IsOpen="{TemplateBinding IsDropDownOpen}"
+                               PopupAnimation="Fade">
+                            <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                    Margin="0,5,0,0"
+                                    Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                                    BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                                    BorderThickness="1"
+                                    CornerRadius="6">
+                                <ScrollViewer CanContentScroll="True" MaxHeight="180">
+                                    <ItemsPresenter/>
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ComboSurface"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="ComboSurface"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource AtlasV2.Brush.Gold}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.48"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style x:Key="AtlasV2.TextBox.Field" TargetType="{x:Type TextBox}">

@@ -1,5 +1,7 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using WotLK.Launcher.UI.V2.Presentation;
 
@@ -7,6 +9,10 @@ namespace WotLK.Launcher.UI.V2.Views;
 
 public partial class SettingsViewV2 : UserControl
 {
+    private SettingsUiState? _subscribedState;
+    private bool _isApplyingState;
+    private bool _initialCategoryApplied;
+
     public static readonly DependencyProperty StateProperty = DependencyProperty.Register(
         nameof(State),
         typeof(SettingsUiState),
@@ -44,7 +50,12 @@ public partial class SettingsViewV2 : UserControl
 
     private static void StateChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)
     {
-        ((SettingsViewV2)dependencyObject).ApplyState();
+        SettingsViewV2 view = (SettingsViewV2)dependencyObject;
+        view.ReplaceStateSubscription(
+            args.OldValue as SettingsUiState,
+            args.NewValue as SettingsUiState);
+        view._initialCategoryApplied = false;
+        view.ApplyState(applyInitialCategory: true);
     }
 
     private static void LayoutModeChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)
@@ -54,12 +65,14 @@ public partial class SettingsViewV2 : UserControl
 
     private void SettingsViewV2_Loaded(object sender, RoutedEventArgs e)
     {
+        SubscribeToState(State);
         ApplyLayout(LayoutMode);
-        ApplyState();
+        ApplyState(applyInitialCategory: !_initialCategoryApplied);
     }
 
     private void SettingsViewV2_Unloaded(object sender, RoutedEventArgs e)
     {
+        UnsubscribeFromState(_subscribedState);
         SettingsScrollViewer.ScrollToTop();
     }
 
@@ -124,15 +137,28 @@ public partial class SettingsViewV2 : UserControl
         SettingsScrollViewer.ScrollToTop();
     }
 
-    private void ApplyState()
+    private void ApplyState(bool applyInitialCategory = false)
     {
         if (!IsInitialized || State is null)
         {
             return;
         }
 
-        SelectCategory(State.Current.InitialCategory);
-        ApplySavePreviewState(State.Current.SavePreviewState);
+        _isApplyingState = true;
+        try
+        {
+            if (applyInitialCategory && !_initialCategoryApplied)
+            {
+                SelectCategory(State.Current.InitialCategory);
+                _initialCategoryApplied = true;
+            }
+
+            ApplySavePreviewState(State.Current.SavePreviewState);
+        }
+        finally
+        {
+            _isApplyingState = false;
+        }
     }
 
     private void ApplySavePreviewState(SettingsSavePreviewState state)
@@ -145,7 +171,10 @@ public partial class SettingsViewV2 : UserControl
 
         SettingsActionBar.Visibility = Visibility.Visible;
         SettingsActionProgress.Visibility = Visibility.Collapsed;
-        SettingsActionButtons.Visibility = Visibility.Visible;
+        bool runtimeConnected = State?.Current.IsRuntimeConnected == true;
+        SettingsActionButtons.Visibility = runtimeConnected
+            ? Visibility.Collapsed
+            : Visibility.Visible;
         CancelSettingsChangesButton.IsEnabled = true;
         SaveSettingsChangesButton.IsEnabled = true;
         SaveSettingsChangesButton.Content = "Enregistrer";
@@ -158,7 +187,9 @@ public partial class SettingsViewV2 : UserControl
         {
             case SettingsSavePreviewState.Saving:
                 SettingsActionStatusText.Text = "Enregistrement…";
-                SettingsActionDetailText.Text = "Les préférences fictives sont en cours d’application.";
+                SettingsActionDetailText.Text = runtimeConnected
+                    ? State?.Current.SaveStatusDetail ?? "Enregistrement immédiat des préférences locales."
+                    : "Les préférences fictives sont en cours d’application.";
                 SettingsActionProgress.Visibility = Visibility.Visible;
                 CancelSettingsChangesButton.IsEnabled = false;
                 SaveSettingsChangesButton.IsEnabled = false;
@@ -170,7 +201,9 @@ public partial class SettingsViewV2 : UserControl
                 break;
             case SettingsSavePreviewState.Saved:
                 SettingsActionStatusText.Text = "Enregistré";
-                SettingsActionDetailText.Text = "Les préférences fictives ont été prises en compte.";
+                SettingsActionDetailText.Text = runtimeConnected
+                    ? State?.Current.SaveStatusDetail ?? "Préférence enregistrée sur cet ordinateur."
+                    : "Les préférences fictives ont été prises en compte.";
                 SettingsActionButtons.Visibility = Visibility.Collapsed;
                 surfaceKey = "AtlasV2.Brush.SuccessSurface";
                 borderKey = "AtlasV2.Brush.SuccessBorder";
@@ -178,8 +211,12 @@ public partial class SettingsViewV2 : UserControl
                 iconKey = "AtlasV2.Icon.Check";
                 break;
             case SettingsSavePreviewState.Error:
-                SettingsActionStatusText.Text = "Erreur d’enregistrement";
-                SettingsActionDetailText.Text = "Les modifications fictives n’ont pas pu être enregistrées.";
+                SettingsActionStatusText.Text = runtimeConnected
+                    ? State?.Current.SaveStatusTitle ?? "Erreur d’enregistrement"
+                    : "Erreur d’enregistrement";
+                SettingsActionDetailText.Text = runtimeConnected
+                    ? State?.Current.SaveStatusDetail ?? "La préférence n’a pas pu être enregistrée."
+                    : "Les modifications fictives n’ont pas pu être enregistrées.";
                 surfaceKey = "AtlasV2.Brush.DangerSurface";
                 borderKey = "AtlasV2.Brush.DangerBorder";
                 accentKey = "AtlasV2.Brush.Danger";
@@ -240,5 +277,77 @@ public partial class SettingsViewV2 : UserControl
     private void DiagnosticCategoryButton_Click(object sender, RoutedEventArgs e)
     {
         SelectCategory(SettingsCategory.Diagnostic);
+    }
+
+    private void GameLanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isApplyingState
+            || State is null
+            || GameLanguageComboBox.SelectedItem is not ComboBoxItem item)
+        {
+            return;
+        }
+
+        string locale = LauncherSettings.NormalizeGameLocale(item.Tag?.ToString());
+        if (!State.TryChangeGameLocale(locale))
+        {
+            GameLanguageComboBox.SelectedValue = State.Current.Game.GameLocale;
+        }
+    }
+
+    private void CloseAfterLaunchToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isApplyingState || State is null)
+        {
+            return;
+        }
+
+        bool requested = CloseAfterLaunchToggle.IsChecked == true;
+        if (!State.TryChangeCloseAfterLaunch(requested))
+        {
+            CloseAfterLaunchToggle.IsChecked =
+                State.Current.General.CloseLauncherAfterGameStart;
+        }
+    }
+
+    private void ReplaceStateSubscription(SettingsUiState? previous, SettingsUiState? current)
+    {
+        UnsubscribeFromState(previous);
+        if (IsLoaded)
+        {
+            SubscribeToState(current);
+        }
+    }
+
+    private void SubscribeToState(SettingsUiState? state)
+    {
+        if (state is null || ReferenceEquals(_subscribedState, state))
+        {
+            return;
+        }
+
+        UnsubscribeFromState(_subscribedState);
+        _subscribedState = state;
+        _subscribedState.PropertyChanged += State_PropertyChanged;
+    }
+
+    private void UnsubscribeFromState(SettingsUiState? state)
+    {
+        if (state is null || !ReferenceEquals(_subscribedState, state))
+        {
+            return;
+        }
+
+        state.PropertyChanged -= State_PropertyChanged;
+        _subscribedState = null;
+    }
+
+    private void State_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.PropertyName)
+            || e.PropertyName == nameof(SettingsUiState.Current))
+        {
+            ApplyState();
+        }
     }
 }

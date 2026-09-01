@@ -11,6 +11,8 @@ internal sealed class LauncherRuntimeDependencies
 {
     internal required Func<LauncherSettings> LoadSettings { get; init; }
 
+    internal Action<LauncherSettings> SaveSettings { get; init; } = static _ => { };
+
     internal required Func<ILauncherAuthService> CreateAuthentication { get; init; }
 
     internal required GameClientStateReader GameClientStateReader { get; init; }
@@ -81,6 +83,7 @@ internal sealed class LauncherRuntimeDependencies
         return new LauncherRuntimeDependencies
         {
             LoadSettings = LauncherSettings.Load,
+            SaveSettings = static settings => settings.Save(),
             CreateAuthentication = static () => new LauncherAuthService(),
             GameClientStateReader = new GameClientStateReader(),
             WriteRuntimeLog = WriteProductionLog,
@@ -123,6 +126,7 @@ internal sealed class LauncherRuntime : IDisposable
     private readonly ILauncherAuthService _authentication;
     private readonly HttpClient _clientHttpClient;
     private readonly LauncherSessionCoordinator _sessionCoordinator;
+    private readonly Action<string> _writeRuntimeLog;
     private Task<LauncherSessionRestoreResult>? _initializeTask;
     private int _disposeState;
 
@@ -131,6 +135,7 @@ internal sealed class LauncherRuntime : IDisposable
         ArgumentNullException.ThrowIfNull(dependencies);
 
         Settings = dependencies.LoadSettings();
+        _writeRuntimeLog = dependencies.WriteRuntimeLog;
         _authentication = dependencies.CreateAuthentication();
         LocalClient = dependencies.GameClientStateReader.Read(Settings);
         LauncherVersion = dependencies.GetLauncherVersion();
@@ -164,6 +169,20 @@ internal sealed class LauncherRuntime : IDisposable
             () => dependencies.GameClientStateReader.Read(Settings),
             launchService,
             () => _sessionCoordinator.CurrentSnapshot.State);
+        SettingsRuntime = new LauncherSettingsCoordinator(
+            Settings,
+            Operations,
+            dependencies.SaveSettings,
+            changeKind =>
+            {
+                bool pathChanged = changeKind == LauncherSettingsChangeKind.InstallPath;
+                bool refreshed = Game.RefreshLocalSettings(pathChanged);
+                if (pathChanged && refreshed && _authentication.IsAuthenticated)
+                {
+                    _ = Game.TryStartVerification();
+                }
+            },
+            dependencies.WriteRuntimeLog);
         LocalActions = new LauncherLocalActionCoordinator(
             Settings,
             dependencies.GetLauncherLogPath(),
@@ -190,6 +209,8 @@ internal sealed class LauncherRuntime : IDisposable
 
     internal ILauncherLocalActions LocalActions { get; }
 
+    internal LauncherSettingsCoordinator SettingsRuntime { get; }
+
     internal LauncherOperationCoordinator Operations { get; }
 
     internal GameRuntimeCoordinator Game { get; }
@@ -199,6 +220,18 @@ internal sealed class LauncherRuntime : IDisposable
     internal LauncherProfileCoordinator Profile { get; }
 
     internal LauncherSessionCoordinator Session => _sessionCoordinator;
+
+    internal void WriteRuntimeDiagnostic(string message)
+    {
+        try
+        {
+            _writeRuntimeLog(message);
+        }
+        catch
+        {
+            // Presentation diagnostics cannot interrupt the runtime.
+        }
+    }
 
     internal bool IsDisposed => Volatile.Read(ref _disposeState) != 0;
 
@@ -273,6 +306,7 @@ internal sealed class LauncherRuntime : IDisposable
             }
 
             LocalActions.BeginShutdown();
+            SettingsRuntime.BeginShutdown();
             Dashboard.BeginShutdown();
             _sessionCoordinator.BeginShutdown();
             Game.BeginShutdown();
@@ -301,10 +335,12 @@ internal sealed class LauncherRuntime : IDisposable
 
             Volatile.Write(ref _disposeState, 1);
             LocalActions.BeginShutdown();
+            SettingsRuntime.BeginShutdown();
             Dashboard.BeginShutdown();
             _sessionCoordinator.BeginShutdown();
             Game.BeginShutdown();
             Profile.Dispose();
+            SettingsRuntime.Dispose();
             Dashboard.Dispose();
             Game.Dispose();
             _sessionCoordinator.Dispose();

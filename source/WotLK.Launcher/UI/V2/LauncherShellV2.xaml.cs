@@ -108,9 +108,26 @@ public partial class LauncherShellV2 : Window
             gameState,
             dashboardState,
             friendsState,
+            profileState,
+            SettingsUiState.Empty)
+    {
+    }
+
+    internal LauncherShellV2(
+        ShellUiState shellState,
+        GameUiState gameState,
+        DashboardUiState dashboardState,
+        FriendsUiState friendsState,
+        ProfileUiState profileState,
+        SettingsUiState settingsState)
+        : this(
+            shellState,
+            gameState,
+            dashboardState,
+            friendsState,
             new AuthUiState(),
             profileState,
-            SettingsUiState.Empty,
+            settingsState,
             authPreviewScenario: null,
             profilePreviewScenario: null,
             isPreviewMode: false,
@@ -171,7 +188,7 @@ public partial class LauncherShellV2 : Window
 
     public SettingsUiState SettingsState { get; }
 
-    public bool IsSettingsNavigationEnabled => IsPreviewMode;
+    public bool IsSettingsNavigationEnabled => IsPreviewMode || SettingsState.Current.IsRuntimeConnected;
 
     internal bool IsPreviewMode { get; }
 
@@ -376,7 +393,7 @@ public partial class LauncherShellV2 : Window
 
     private void GameNavigationButton_Click(object sender, RoutedEventArgs e)
     {
-        if (IsPreviewMode)
+        if (IsPreviewMode || SettingsState.Current.IsRuntimeConnected)
         {
             NavigateTo(LauncherShellPage.Game);
         }
@@ -384,7 +401,7 @@ public partial class LauncherShellV2 : Window
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        if (IsPreviewMode && _overlayCoordinator.Current == ShellOverlayKind.None)
+        if (IsSettingsNavigationEnabled && _overlayCoordinator.Current == ShellOverlayKind.None)
         {
             NavigateTo(LauncherShellPage.Settings);
         }

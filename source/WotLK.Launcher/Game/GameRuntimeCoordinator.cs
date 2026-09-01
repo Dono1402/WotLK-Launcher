@@ -1058,6 +1058,67 @@ internal sealed class GameRuntimeCoordinator :
         }
     }
 
+    internal bool RefreshLocalSettings(bool installationPathChanged)
+    {
+        if (Volatile.Read(ref _disposeState) != 0
+            || _operations.IsShuttingDown
+            || !_operations.IsIdle)
+        {
+            return false;
+        }
+
+        GameClientLocalState local = ReadLocalStateSafely();
+        GameRuntimeSnapshot snapshot;
+        lock (_sync)
+        {
+            if (Volatile.Read(ref _disposeState) != 0
+                || _operations.IsShuttingDown
+                || !_operations.IsIdle
+                || _currentSnapshot.IsMaintenanceActive
+                || _currentSnapshot.IsPlayActive)
+            {
+                return false;
+            }
+
+            _installedVersion = local.InstalledVersion;
+            if (installationPathChanged)
+            {
+                snapshot = new GameRuntimeSnapshot(
+                    Sequence: NextSequence(),
+                    OperationId: null,
+                    Action: local.Action,
+                    UpdateKnowledge: GameUpdateKnowledge.Unknown,
+                    Phase: GameVerificationPhase.Stable,
+                    IsVerifying: false,
+                    CanVerify: false,
+                    IsPlayable: local.IsPlayable,
+                    InstallPath: local.InstallPath,
+                    InstalledVersion: local.InstalledVersion,
+                    AvailableVersion: null,
+                    ProcessedFileCount: null,
+                    TotalFileCount: null,
+                    FailureCategory: null,
+                    GameLocale: local.GameLocale);
+            }
+            else
+            {
+                snapshot = _currentSnapshot with
+                {
+                    Sequence = NextSequence(),
+                    InstallPath = local.InstallPath,
+                    InstalledVersion = local.InstalledVersion,
+                    GameLocale = local.GameLocale
+                };
+            }
+
+            snapshot = RecalculateAvailabilityUnsafe(snapshot);
+            _currentSnapshot = snapshot;
+        }
+
+        Publish(snapshot, availabilityChanged: true);
+        return true;
+    }
+
     internal void BeginShutdown()
     {
         LauncherOperationLease? pendingLease = null;

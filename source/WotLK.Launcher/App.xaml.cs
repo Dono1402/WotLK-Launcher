@@ -17,6 +17,7 @@ internal enum LauncherStartupMode
     UiV2Preview,
     UiV2AuthPreview,
     UiV2ProfilePreview,
+    UiV2SettingsPreview,
     InvalidArguments,
     GrantGameDirectoryAccess,
     UninstallGame
@@ -44,7 +45,8 @@ public partial class App : Application
         if (startupMode is LauncherStartupMode.UiV2
             or LauncherStartupMode.UiV2Preview
             or LauncherStartupMode.UiV2AuthPreview
-            or LauncherStartupMode.UiV2ProfilePreview)
+            or LauncherStartupMode.UiV2ProfilePreview
+            or LauncherStartupMode.UiV2SettingsPreview)
         {
             try
             {
@@ -64,7 +66,8 @@ public partial class App : Application
 
             if (startupMode is LauncherStartupMode.UiV2Preview
                 or LauncherStartupMode.UiV2AuthPreview
-                or LauncherStartupMode.UiV2ProfilePreview)
+                or LauncherStartupMode.UiV2ProfilePreview
+                or LauncherStartupMode.UiV2SettingsPreview)
             {
                 GamePreviewScenario previewScenario = LauncherV2PreviewData.ResolveScenario(e.Args);
                 LauncherShellV2 previewWindow = startupMode switch
@@ -75,6 +78,9 @@ public partial class App : Application
                     LauncherStartupMode.UiV2ProfilePreview => new LauncherShellV2(
                         previewScenario,
                         ProfilePreviewArguments.ResolveScenario(e.Args)),
+                    LauncherStartupMode.UiV2SettingsPreview => new LauncherShellV2(
+                        previewScenario,
+                        SettingsPreviewArguments.ResolveScenario(e.Args)),
                     _ => new LauncherShellV2(previewScenario)
                 };
                 ApplyV2PreviewOptions(previewWindow, e.Args);
@@ -111,8 +117,12 @@ public partial class App : Application
             string.Equals(argument, "--ui-v2", StringComparison.OrdinalIgnoreCase));
         bool useAuthPreview = AuthPreviewArguments.IsRequested(args);
         bool useProfilePreview = ProfilePreviewArguments.IsRequested(args);
-        if (((useAuthPreview || useProfilePreview) && !useUiV2)
-            || (useAuthPreview && useProfilePreview))
+        bool useSettingsPreview = SettingsPreviewArguments.IsRequested(args);
+        int dedicatedPreviewCount = (useAuthPreview ? 1 : 0)
+            + (useProfilePreview ? 1 : 0)
+            + (useSettingsPreview ? 1 : 0);
+        if ((dedicatedPreviewCount > 0 && !useUiV2)
+            || dedicatedPreviewCount > 1)
         {
             return LauncherStartupMode.InvalidArguments;
         }
@@ -127,6 +137,11 @@ public partial class App : Application
             if (useProfilePreview)
             {
                 return LauncherStartupMode.UiV2ProfilePreview;
+            }
+
+            if (useSettingsPreview)
+            {
+                return LauncherStartupMode.UiV2SettingsPreview;
             }
 
             bool usePreview = args.Any(argument =>

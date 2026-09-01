@@ -86,6 +86,21 @@ public static class LauncherV2PreviewData
         return state;
     }
 
+    internal static SettingsUiState CreateSettings()
+    {
+        return new SettingsUiState(new SettingsViewState(
+            InstallPath: @"C:\Program Files (x86)\WotLK",
+            GameLanguage: "Français",
+            AutomaticLauncherUpdates: true,
+            AutomaticLauncherUpdatesStatus: "Activées",
+            CloseLauncherAfterGameStart: false,
+            CloseLauncherAfterGameStartStatus: "Désactivée",
+            LauncherVersion: "v1.1.0",
+            ClientVersion: "3.4.3.54261",
+            ReleaseChannel: "Stable",
+            LogLocation: @"%LOCALAPPDATA%\Atlas Launcher\Logs"));
+    }
+
     internal static DashboardUiState CreateDashboard(GamePreviewScenario scenario)
     {
         DashboardRealmState realmState = scenario == GamePreviewScenario.RealmOffline

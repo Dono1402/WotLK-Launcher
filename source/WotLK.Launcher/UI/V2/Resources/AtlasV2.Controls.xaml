@@ -122,6 +122,10 @@
             <Trigger Property="IsPressed" Value="True">
                 <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfacePressed}"/>
             </Trigger>
+            <Trigger Property="Tag" Value="Active">
+                <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfaceRaised}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.GoldBorder}"/>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -220,6 +224,40 @@
                 <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
             </Trigger>
         </Style.Triggers>
+    </Style>
+
+    <Style x:Key="AtlasV2.Toggle.ReadOnly" TargetType="{x:Type primitives:ToggleButton}">
+        <Setter Property="Width" Value="44"/>
+        <Setter Property="Height" Value="24"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type primitives:ToggleButton}">
+                    <Grid Width="44" Height="24">
+                        <Border x:Name="Track"
+                                Background="{StaticResource AtlasV2.Brush.Field}"
+                                BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                                BorderThickness="1"
+                                CornerRadius="12"/>
+                        <Ellipse x:Name="Thumb"
+                                 Width="18"
+                                 Height="18"
+                                 Margin="3"
+                                 HorizontalAlignment="Left"
+                                 Fill="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Track" Property="Background" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+                            <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                            <Setter TargetName="Thumb" Property="Fill" Value="#111318"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style x:Key="AtlasV2.Field.Container" TargetType="{x:Type Border}">

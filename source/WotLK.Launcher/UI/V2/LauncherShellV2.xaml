@@ -87,11 +87,13 @@
                     <StackPanel x:Name="TopNavigation"
                                 Grid.Column="1"
                                 Orientation="Horizontal">
-                        <Button Style="{StaticResource AtlasV2.Button.Nav}"
+                        <Button x:Name="GameNavigationButton"
+                                Style="{StaticResource AtlasV2.Button.Nav}"
                                 Tag="Active"
                                 Content="Jeu"
                                 IsEnabled="{Binding ShellState.IsGameNavigationEnabled}"
-                                Focusable="False"/>
+                                Focusable="False"
+                                Click="GameNavigationButton_Click"/>
                         <Button Style="{StaticResource AtlasV2.Button.Nav}"
                                 Content="Addons"
                                 IsEnabled="{Binding ShellState.IsNavigationEnabled}"
@@ -194,14 +196,26 @@
                             </StackPanel>
                         </Button>
 
-                        <Button Margin="0,0,3,0"
+                        <Button x:Name="SettingsButton"
+                                Margin="0,0,3,0"
                                 Style="{StaticResource AtlasV2.Button.Icon}"
                                 ToolTip="Paramètres"
-                                IsEnabled="{Binding ShellState.IsNavigationEnabled}"
-                                Focusable="False"
-                                AutomationProperties.Name="Paramètres">
-                            <Path Data="{StaticResource AtlasV2.Icon.Settings}"
-                                  Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                IsEnabled="{Binding IsSettingsNavigationEnabled}"
+                                AutomationProperties.Name="Paramètres"
+                                Click="SettingsButton_Click">
+                            <Path Data="{StaticResource AtlasV2.Icon.Settings}">
+                                <Path.Style>
+                                    <Style TargetType="{x:Type Path}"
+                                           BasedOn="{StaticResource AtlasV2.Icon.Stroke}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                                         Value="Active">
+                                                <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Path.Style>
+                            </Path>
                         </Button>
 
                         <Button x:Name="ProfileButton"
@@ -274,6 +288,10 @@
                                   State="{Binding GameState}"
                                   DashboardState="{Binding DashboardState}"
                                   LayoutMode="{Binding ShellState.LayoutMode}"/>
+                <views:SettingsViewV2 x:Name="SettingsView"
+                                      Visibility="Collapsed"
+                                      State="{Binding SettingsState}"
+                                      LayoutMode="{Binding ShellState.LayoutMode}"/>
                 <views:FriendsDrawerV2 x:Name="FriendsDrawer"
                                        Panel.ZIndex="50"
                                        State="{Binding FriendsState}"

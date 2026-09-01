@@ -15,6 +15,7 @@ public partial class LauncherShellV2 : Window
     private readonly ShellOverlayCoordinator _overlayCoordinator;
     private readonly AuthPreviewScenario? _initialAuthPreviewScenario;
     private readonly ProfilePreviewScenario? _initialProfilePreviewScenario;
+    private readonly bool _showSettingsInitially;
     private IInputElement? _authFocusReturnTarget;
     private AuthCommands? _authCommands;
 
@@ -26,9 +27,11 @@ public partial class LauncherShellV2 : Window
             LauncherV2PreviewData.CreateFriends(),
             LauncherV2PreviewData.CreateAuth(),
             LauncherV2PreviewData.CreateProfile(),
+            LauncherV2PreviewData.CreateSettings(),
             authPreviewScenario: null,
             profilePreviewScenario: null,
-            isPreviewMode: true)
+            isPreviewMode: true,
+            showSettingsInitially: false)
     {
     }
 
@@ -40,9 +43,11 @@ public partial class LauncherShellV2 : Window
             LauncherV2PreviewData.CreateFriends(),
             LauncherV2PreviewData.CreateAuth(authScenario),
             new ProfileUiState(),
+            LauncherV2PreviewData.CreateSettings(),
             authScenario,
             profilePreviewScenario: null,
-            isPreviewMode: true)
+            isPreviewMode: true,
+            showSettingsInitially: false)
     {
     }
 
@@ -54,10 +59,29 @@ public partial class LauncherShellV2 : Window
             LauncherV2PreviewData.CreateFriends(),
             LauncherV2PreviewData.CreateAuth(),
             LauncherV2PreviewData.CreateProfile(profileScenario),
+            LauncherV2PreviewData.CreateSettings(),
             authPreviewScenario: null,
             profilePreviewScenario: profileScenario,
-            isPreviewMode: true)
+            isPreviewMode: true,
+            showSettingsInitially: false)
     {
+    }
+
+    public LauncherShellV2(GamePreviewScenario scenario, SettingsPreviewScenario settingsScenario)
+        : this(
+            LauncherV2PreviewData.CreateShell(scenario),
+            LauncherV2PreviewData.CreateGame(scenario),
+            LauncherV2PreviewData.CreateDashboard(scenario),
+            LauncherV2PreviewData.CreateFriends(),
+            LauncherV2PreviewData.CreateAuth(),
+            LauncherV2PreviewData.CreateProfile(),
+            LauncherV2PreviewData.CreateSettings(),
+            authPreviewScenario: null,
+            profilePreviewScenario: null,
+            isPreviewMode: true,
+            showSettingsInitially: true)
+    {
+        _ = settingsScenario;
     }
 
     internal LauncherShellV2(
@@ -87,9 +111,11 @@ public partial class LauncherShellV2 : Window
             friendsState,
             new AuthUiState(),
             profileState,
+            SettingsUiState.Empty,
             authPreviewScenario: null,
             profilePreviewScenario: null,
-            isPreviewMode: false)
+            isPreviewMode: false,
+            showSettingsInitially: false)
     {
     }
 
@@ -100,9 +126,11 @@ public partial class LauncherShellV2 : Window
         FriendsUiState friendsState,
         AuthUiState authState,
         ProfileUiState profileState,
+        SettingsUiState settingsState,
         AuthPreviewScenario? authPreviewScenario,
         ProfilePreviewScenario? profilePreviewScenario,
-        bool isPreviewMode)
+        bool isPreviewMode,
+        bool showSettingsInitially)
     {
         ShellState = shellState ?? throw new ArgumentNullException(nameof(shellState));
         GameState = gameState ?? throw new ArgumentNullException(nameof(gameState));
@@ -110,9 +138,11 @@ public partial class LauncherShellV2 : Window
         FriendsState = friendsState ?? throw new ArgumentNullException(nameof(friendsState));
         AuthState = authState ?? throw new ArgumentNullException(nameof(authState));
         ProfileState = profileState ?? throw new ArgumentNullException(nameof(profileState));
+        SettingsState = settingsState ?? throw new ArgumentNullException(nameof(settingsState));
         _overlayCoordinator = new ShellOverlayCoordinator(FriendsState, AuthState, ProfileState);
         _initialAuthPreviewScenario = authPreviewScenario;
         _initialProfilePreviewScenario = profilePreviewScenario;
+        _showSettingsInitially = showSettingsInitially;
         IsPreviewMode = isPreviewMode;
 
         InitializeComponent();
@@ -140,17 +170,25 @@ public partial class LauncherShellV2 : Window
 
     public ProfileUiState ProfileState { get; }
 
+    public SettingsUiState SettingsState { get; }
+
+    public bool IsSettingsNavigationEnabled => IsPreviewMode;
+
     internal bool IsPreviewMode { get; }
 
     internal bool HasRealAuthenticationAttached => _authCommands is not null;
 
     internal ShellOverlayKind CurrentOverlay => _overlayCoordinator.Current;
 
+    internal LauncherShellPage CurrentPage { get; private set; } = LauncherShellPage.Game;
+
     internal AuthOverlayViewV2 AuthenticationOverlay => AuthOverlay;
 
     internal FriendsDrawerV2 FriendsOverlay => FriendsDrawer;
 
     internal ProfileMenuV2 ProfileOverlay => ProfileMenu;
+
+    internal SettingsViewV2 SettingsPage => SettingsView;
 
     internal void AttachAuthentication(AuthCommands commands)
     {
@@ -241,6 +279,7 @@ public partial class LauncherShellV2 : Window
     private void LauncherShellV2_Loaded(object sender, RoutedEventArgs e)
     {
         ApplyAdaptiveLayout();
+        NavigateTo(_showSettingsInitially ? LauncherShellPage.Settings : LauncherShellPage.Game);
         if (_initialAuthPreviewScenario is AuthPreviewScenario scenario)
         {
             OpenAuthenticationForPreview(scenario);
@@ -267,6 +306,7 @@ public partial class LauncherShellV2 : Window
         ProfileMenu.DetachFromShell();
         ProfileMenu.State = null;
         ProfileMenu.IsOpen = false;
+        SettingsView.State = null;
         DataContext = null;
         AuthState.Dispose();
     }
@@ -332,6 +372,22 @@ public partial class LauncherShellV2 : Window
         if (_overlayCoordinator.TryToggleFriends())
         {
             FriendsButton.Focusable = !FriendsState.IsOpen;
+        }
+    }
+
+    private void GameNavigationButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (IsPreviewMode)
+        {
+            NavigateTo(LauncherShellPage.Game);
+        }
+    }
+
+    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (IsPreviewMode && _overlayCoordinator.Current == ShellOverlayKind.None)
+        {
+            NavigateTo(LauncherShellPage.Settings);
         }
     }
 
@@ -497,6 +553,25 @@ public partial class LauncherShellV2 : Window
     {
         _authCommands?.CancelCurrent();
         _overlayCoordinator.CloseAuthentication();
+    }
+
+    private void NavigateTo(LauncherShellPage page)
+    {
+        if (page == LauncherShellPage.Settings && !IsSettingsNavigationEnabled)
+        {
+            return;
+        }
+
+        CurrentPage = page;
+        bool showGame = page == LauncherShellPage.Game;
+        GameView.Visibility = showGame ? Visibility.Visible : Visibility.Collapsed;
+        SettingsView.Visibility = showGame ? Visibility.Collapsed : Visibility.Visible;
+        GameNavigationButton.Tag = showGame ? "Active" : null;
+        SettingsButton.Tag = showGame ? null : "Active";
+        if (!showGame)
+        {
+            SettingsView.ScrollHost.ScrollToTop();
+        }
     }
 
     private void MinimizeButton_Click(object sender, RoutedEventArgs e)

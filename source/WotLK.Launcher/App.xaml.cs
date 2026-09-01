@@ -197,12 +197,16 @@ public partial class App : Application
             LauncherV2RuntimePresentation.CreateFriends(),
             profileState,
             settingsState);
+        GameVerificationCommand verificationCommand = new(runtime.Game);
+        gameState.AttachVerifyCommand(verificationCommand.Command);
         SettingsCommands settingsCommands = new(
             settingsState,
             runtime.SettingsRuntime,
             runtime.LocalActions,
             window,
-            runtime.WriteRuntimeDiagnostic);
+            runtime.WriteRuntimeDiagnostic,
+            verifyRepairCommand: verificationCommand.Command,
+            showGameForRepair: window.ShowGamePageForSettingsOperation);
         SettingsStateAdapter settingsStateAdapter = new(
             settingsState,
             runtime.SettingsRuntime,
@@ -230,8 +234,6 @@ public partial class App : Application
             runtime.Game,
             window.OpenAuthenticationForPendingPlay);
         gameState.AttachPrimaryActionCommand(primaryActionCommand.Command);
-        GameVerificationCommand verificationCommand = new(runtime.Game);
-        gameState.AttachVerifyCommand(verificationCommand.Command);
         GameStateAdapter gameStateAdapter = new(
             gameState,
             runtime.Game,

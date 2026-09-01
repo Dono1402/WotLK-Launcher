@@ -22,8 +22,10 @@ internal static class LauncherSettingsRuntimeTests
         CharacterizePersistenceRollback();
         CharacterizeLegacyAvailabilityRules();
         CharacterizeGameProjectionRefresh();
+        CharacterizeInstantQuestTextConfigFile();
+        CharacterizeInstantQuestTextRuntimePersistence();
         await ValidateConnectedWpfSettingsAsync(captureDirectory);
-        Console.WriteLine("Settings runtime integration OK (02G.2).");
+        Console.WriteLine("Settings runtime integration OK (02G.2.1).");
         return 0;
     }
 
@@ -180,6 +182,100 @@ internal static class LauncherSettingsRuntimeTests
         Equal(GameUpdateKnowledge.Unknown, game.CurrentSnapshot.UpdateKnowledge, "Un changement de dossier doit invalider uniquement la connaissance distante.");
     }
 
+    private static void CharacterizeInstantQuestTextConfigFile()
+    {
+        using TemporarySettingsRoot root = new();
+        string configPath = Path.Combine(root.Root, "_classic_", "WTF", "Config.wtf");
+
+        True(
+            GameInstallServices.ReadInstantQuestText(root.Root),
+            "Un Config.wtf absent doit conserver la valeur legacy active par défaut.");
+        True(
+            GameInstallServices.SetInstantQuestText(root.Root, enabled: false),
+            "Désactiver doit créer uniquement la préférence demandée lorsque Config.wtf est absent.");
+        True(File.Exists(configPath), "Config.wtf doit être créé au même emplacement legacy.");
+        True(
+            !GameInstallServices.ReadInstantQuestText(root.Root),
+            "La valeur désactivée doit être relue immédiatement.");
+
+        string[] preservedLines =
+        [
+            "SET gxWindow \"0\"",
+            "SET customAtlasSetting \"kept\"",
+            "SET instantQuestText \"0\"",
+            "SET anotherSetting \"42\""
+        ];
+        File.WriteAllLines(configPath, preservedLines, new System.Text.UTF8Encoding(false));
+        True(
+            GameInstallServices.SetInstantQuestText(root.Root, enabled: true),
+            "Activer doit remplacer la ligne existante.");
+        string[] enabledLines = File.ReadAllLines(configPath);
+        Equal("SET gxWindow \"0\"", enabledLines[0], "Le réglage précédent doit garder sa place et sa valeur.");
+        Equal("SET customAtlasSetting \"kept\"", enabledLines[1], "Les réglages étrangers doivent être conservés.");
+        Equal("SET instantQuestText \"1\"", enabledLines[2], "La valeur doit utiliser le format legacy 0/1.");
+        Equal("SET anotherSetting \"42\"", enabledLines[3], "Aucune ligne suivante ne doit être supprimée.");
+
+        string unchanged = File.ReadAllText(configPath);
+        True(
+            !GameInstallServices.SetInstantQuestText(root.Root, enabled: true),
+            "Une valeur identique ne doit pas réécrire Config.wtf.");
+        Equal(unchanged, File.ReadAllText(configPath), "Le contenu identique doit rester byte-for-byte stable.");
+
+        _ = GameInstallServices.SetInstantQuestText(root.Root, enabled: false);
+        _ = GameInstallServices.EnsureDefaultClientConfig(root.Root, "frFR");
+        True(
+            !GameInstallServices.ReadInstantQuestText(root.Root),
+            "Une réécriture legacy de Config.wtf ne doit plus réactiver le texte instantané.");
+    }
+
+    private static void CharacterizeInstantQuestTextRuntimePersistence()
+    {
+        using TemporarySettingsRoot root = new();
+        LauncherSettings settings = root.CreateSettings();
+        using LauncherOperationCoordinator operations = new();
+        bool storedValue = true;
+        int settingsSaveCalls = 0;
+        int configWriteCalls = 0;
+        List<string> logs = [];
+        using LauncherSettingsCoordinator coordinator = new(
+            settings,
+            operations,
+            _ => settingsSaveCalls++,
+            static _ => { },
+            logs.Add,
+            _ => storedValue,
+            (_, value) =>
+            {
+                configWriteCalls++;
+                storedValue = value;
+                return true;
+            });
+
+        LauncherSettingsChangeResult disabled = coordinator.TrySetInstantQuestText(false);
+        Equal(LauncherSettingsChangeStatus.Saved, disabled.Status, "Le réglage doit être enregistré immédiatement.");
+        True(!coordinator.CurrentSnapshot.InstantQuestText, "Le snapshot doit refléter immédiatement la valeur écrite.");
+        Equal(1, configWriteCalls, "Une seule écriture Config.wtf doit être effectuée.");
+        Equal(0, settingsSaveCalls, "Le réglage du jeu ne doit pas réécrire les paramètres JSON du launcher.");
+
+        LauncherSettingsChangeResult unchanged = coordinator.TrySetInstantQuestText(false);
+        Equal(LauncherSettingsChangeStatus.Unchanged, unchanged.Status, "Une valeur identique doit être ignorée.");
+        Equal(1, configWriteCalls, "La valeur identique ne doit pas toucher Config.wtf.");
+
+        using LauncherSettingsCoordinator denied = new(
+            settings,
+            operations,
+            static _ => { },
+            static _ => { },
+            logs.Add,
+            static _ => true,
+            static (_, _) => throw new UnauthorizedAccessException("secret-config-content"));
+        LauncherSettingsChangeResult failure = denied.TrySetInstantQuestText(false);
+        Equal(LauncherSettingsChangeStatus.Failed, failure.Status, "Un accès refusé doit être traduit en échec contrôlé.");
+        True(denied.CurrentSnapshot.InstantQuestText, "L'échec doit restaurer la valeur précédente.");
+        True(logs.Any(line => line.Contains("UnauthorizedAccessException", StringComparison.Ordinal)), "Seule la catégorie d'accès doit être journalisée.");
+        True(logs.All(line => !line.Contains("secret-config-content", StringComparison.Ordinal)), "Le journal ne doit pas exposer le message brut.");
+    }
+
     private static async Task ValidateConnectedWpfSettingsAsync(string? captureDirectory)
     {
         TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -251,12 +347,19 @@ internal static class LauncherSettingsRuntimeTests
             CloseLauncherOnGameStart = false
         };
         using LauncherOperationCoordinator operations = new();
+        bool instantQuestText = true;
         using LauncherSettingsCoordinator settingsRuntime = new(
             settings,
             operations,
             static _ => { },
             static _ => { },
-            static _ => { });
+            static _ => { },
+            _ => instantQuestText,
+            (_, enabled) =>
+            {
+                instantQuestText = enabled;
+                return true;
+            });
         SettingsGameRuntimeStub gameRuntime = new(settings.InstallPath, settings.GameLocale);
         SettingsDashboardRuntimeStub dashboardRuntime = new();
         SettingsUiState settingsState = new(SettingsStateAdapter.CreateInitialView(
@@ -280,6 +383,8 @@ internal static class LauncherSettingsRuntimeTests
                 true,
                 "3.4.3.54261",
                 GameUpdateKnowledge.Unknown));
+        using GameVerificationCommand verificationCommand = new(gameRuntime);
+        gameState.AttachVerifyCommand(verificationCommand.Command);
         DashboardUiState dashboardState = LauncherV2RuntimePresentation.CreateDashboard();
         LauncherShellV2 window = new(
             shellState,
@@ -300,6 +405,7 @@ internal static class LauncherSettingsRuntimeTests
         FakeSettingsLocalActions localActions = new();
         FakeSettingsFolderPicker folderPicker = new(@"C:\Games\WotLK");
         FakeSettingsLocaleApplier localeApplier = new();
+        FakeSettingsGameConfigAccess gameConfigAccess = new();
         using SettingsCommands commands = new(
             settingsState,
             settingsRuntime,
@@ -307,7 +413,14 @@ internal static class LauncherSettingsRuntimeTests
             window,
             static _ => { },
             folderPicker,
-            localeApplier);
+            localeApplier,
+            gameConfigAccess,
+            verificationCommand.Command,
+            window.ShowGamePageForSettingsOperation);
+        using GameStateAdapter gameAdapter = new(
+            gameState,
+            gameRuntime,
+            window.Dispatcher);
         using SettingsStateAdapter adapter = new(
             settingsState,
             settingsRuntime,
@@ -331,8 +444,21 @@ internal static class LauncherSettingsRuntimeTests
             True(Required<Button>(view, "BrowseInstallPathButton").IsHitTestVisible, "Parcourir doit être interactif en V2 réelle.");
             True(Required<Button>(view, "OpenGameFolderButton").IsHitTestVisible, "Le dossier du jeu doit être interactif.");
             True(Required<Button>(view, "OpenLogsButton").IsHitTestVisible, "Les journaux doivent être interactifs.");
-            True(!Required<Button>(view, "VerifyRepairButton").IsHitTestVisible, "Réparer reste hors du périmètre Settings 02G.2.");
-            True(!Required<ToggleButton>(view, "AutomaticUpdatesToggle").IsHitTestVisible, "L'auto-update reste en lecture seule jusqu'à 02H.2.");
+            Button repair = Required<Button>(view, "VerifyRepairButton");
+            True(repair.IsHitTestVisible && repair.IsEnabled, "Réparer doit partager le CanExecute réel de la page Jeu.");
+            True(ReferenceEquals(gameState.VerifyCommand, settingsState.VerifyRepairCommand), "Jeu et Paramètres doivent exposer exactement le même ICommand.");
+            True(!Required<ToggleButton>(view, "AutomaticUpdatesToggle").IsEnabled, "L'auto-update doit être visuellement désactivé jusqu'à 02H.2.");
+            True(!Required<ToggleButton>(view, "StartWithWindowsToggle").IsEnabled, "Le démarrage Windows doit être désactivé.");
+            True(!Required<Border>(view, "InterfaceLanguageControl").IsEnabled, "La langue du launcher doit être désactivée.");
+            True(!Required<Border>(view, "WindowCloseBehaviorControl").IsEnabled, "Le comportement du bouton Fermer doit être désactivé.");
+            True(!Required<Border>(view, "ReleaseChannelControl").IsEnabled, "Le canal de publication doit être désactivé.");
+            True(!Required<Border>(view, "ClientUpdateBehaviorControl").IsEnabled, "Le comportement de mise à jour client doit être désactivé.");
+            True(!Required<Border>(view, "NotificationsCard").IsEnabled, "Les notifications doivent être désactivées.");
+            True(!Required<Border>(view, "AppearanceCard").IsEnabled, "L'apparence doit être désactivée.");
+            True(!Required<Button>(view, "CopyDiagnosticButton").IsEnabled, "Le rapport de diagnostic doit être désactivé.");
+            True(!Required<Button>(view, "OpenLauncherFolderButton").IsEnabled, "Le dossier du launcher non raccordé doit être désactivé.");
+            True(!Required<Border>(view, "ResetInterfaceCard").IsEnabled, "La réinitialisation doit être désactivée.");
+            Equal(Visibility.Collapsed, Required<Border>(view, "SettingsActionBar").Visibility, "La barre de sauvegarde différée doit être absente en mode réel.");
 
             if (!string.IsNullOrWhiteSpace(captureDirectory))
             {
@@ -346,6 +472,38 @@ internal static class LauncherSettingsRuntimeTests
             {
                 SavePng(window, Path.Combine(captureDirectory, "02-settings-runtime-game-1440x860.png"));
             }
+
+            settingsState.VerifyRepairCommand.Execute(null);
+            RaiseClick(repair);
+            await PumpAsync(DispatcherPriority.DataBind);
+            Equal(1, gameRuntime.FullRepairCalls, "Un clic Paramètres doit démarrer une seule réparation complète.");
+            Equal(LauncherShellPage.Game, window.CurrentPage, "La réparation doit ramener immédiatement vers la page Jeu.");
+            Equal("Vérification complète", gameState.ProgressTitle, "La progression réelle doit être projetée sur la page Jeu.");
+            Equal(25d, gameState.Progress, "Le comptage réel de la réparation doit rester visible.");
+            settingsState.VerifyRepairCommand.Execute(null);
+            Equal(1, gameRuntime.FullRepairCalls, "Une deuxième réparation concurrente doit être refusée immédiatement.");
+
+            RaiseClick(settingsButton);
+            view.SelectCategory(SettingsCategory.Game);
+            ToggleButton instantToggle = Required<ToggleButton>(view, "InstantQuestTextToggle");
+            True(instantToggle.IsHitTestVisible && instantToggle.IsEnabled, "Le texte instantané doit être réellement modifiable.");
+            instantToggle.IsChecked = false;
+            instantToggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, instantToggle));
+            True(!instantQuestText && !settingsRuntime.CurrentSnapshot.InstantQuestText, "Le toggle désactivé doit être écrit et publié immédiatement.");
+            instantToggle.IsChecked = true;
+            instantToggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, instantToggle));
+            True(instantQuestText && settingsRuntime.CurrentSnapshot.InstantQuestText, "Le toggle activé doit être écrit et publié immédiatement.");
+            Equal(Visibility.Collapsed, Required<Border>(view, "SettingsActionBar").Visibility, "Aucun bouton Enregistrer ne doit apparaître après une écriture immédiate.");
+
+            gameConfigAccess.Result = new SettingsGameConfigAccessResult(
+                SettingsGameConfigAccessStatus.Failed,
+                nameof(UnauthorizedAccessException));
+            instantToggle.IsChecked = false;
+            instantToggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, instantToggle));
+            await PumpAsync(DispatcherPriority.DataBind);
+            True(instantQuestText && instantToggle.IsChecked == true, "Un accès refusé doit conserver et réafficher la valeur enregistrée.");
+            Equal(Visibility.Visible, Required<Border>(view, "RuntimeNotice").Visibility, "L'accès refusé doit afficher une notification intégrée courte.");
+            True(!Required<TextBlock>(view, "RuntimeNoticeText").Text.Contains("UnauthorizedAccessException", StringComparison.Ordinal), "L'interface ne doit afficher aucune exception brute.");
 
             commands.BrowseInstallPathCommand.Execute(null);
             Equal(@"C:\Games\WotLK", settings.InstallPath, "Parcourir doit enregistrer le dossier sélectionné.");
@@ -493,7 +651,7 @@ internal static class LauncherSettingsRuntimeTests
     }
 }
 
-internal sealed class SettingsGameRuntimeStub : IGamePrimaryActionRuntime
+internal sealed class SettingsGameRuntimeStub : IGamePrimaryActionRuntime, IGameVerificationRuntime
 {
     internal SettingsGameRuntimeStub(string installPath, string gameLocale)
     {
@@ -516,12 +674,44 @@ internal sealed class SettingsGameRuntimeStub : IGamePrimaryActionRuntime
             CanPrimaryAction: true);
     }
 
-    public event EventHandler? AvailabilityChanged { add { } remove { } }
+    public event EventHandler? AvailabilityChanged;
     public event EventHandler? PlayAuthenticationRequired { add { } remove { } }
-    public event EventHandler<GameRuntimeSnapshotEventArgs>? SnapshotChanged { add { } remove { } }
-    public bool CanExecutePrimaryAction => true;
-    public GameRuntimeSnapshot CurrentSnapshot { get; }
+    public event EventHandler<GameRuntimeSnapshotEventArgs>? SnapshotChanged;
+    public bool CanExecutePrimaryAction => CurrentSnapshot.CanPrimaryAction;
+    public bool CanVerify => CurrentSnapshot.CanVerify;
+    public GameRuntimeSnapshot CurrentSnapshot { get; private set; }
+    internal int FullRepairCalls { get; private set; }
     public GamePrimaryActionStatus TryExecutePrimaryAction() => GamePrimaryActionStatus.Unsupported;
+
+    public GameVerificationStartStatus TryStartVerification()
+    {
+        return GameVerificationStartStatus.RejectedByCompatibility;
+    }
+
+    public GameVerificationStartStatus TryStartFullRepair()
+    {
+        if (!CanVerify)
+        {
+            return GameVerificationStartStatus.Busy;
+        }
+
+        FullRepairCalls++;
+        CurrentSnapshot = CurrentSnapshot with
+        {
+            Sequence = CurrentSnapshot.Sequence + 1,
+            OperationId = 701,
+            OperationKind = LauncherOperationKind.GameRepair,
+            MaintenancePhase = GameClientMaintenancePhase.FullVerification,
+            ProcessedFileCount = 1,
+            TotalFileCount = 4,
+            CanVerify = false,
+            CanPrimaryAction = false,
+            CanUserCancel = true
+        };
+        AvailabilityChanged?.Invoke(this, EventArgs.Empty);
+        SnapshotChanged?.Invoke(this, new GameRuntimeSnapshotEventArgs(CurrentSnapshot));
+        return GameVerificationStartStatus.Started;
+    }
 }
 
 internal sealed class SettingsDashboardRuntimeStub : ILauncherDashboardRuntime
@@ -587,5 +777,16 @@ internal sealed class FakeSettingsLocaleApplier : ISettingsGameLocaleApplier
     {
         Calls++;
         return new SettingsGameLocaleApplyResult(SettingsGameLocaleApplyStatus.Applied);
+    }
+}
+
+internal sealed class FakeSettingsGameConfigAccess : ISettingsGameConfigAccess
+{
+    internal SettingsGameConfigAccessResult Result { get; set; } =
+        new(SettingsGameConfigAccessStatus.Granted);
+
+    public SettingsGameConfigAccessResult EnsureWritable(Window owner, string installPath)
+    {
+        return Result;
     }
 }

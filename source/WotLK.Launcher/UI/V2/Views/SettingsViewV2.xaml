@@ -79,6 +79,7 @@
             <Setter Property="Padding" Value="14,0"/>
             <Setter Property="Focusable" Value="False"/>
             <Setter Property="IsHitTestVisible" Value="False"/>
+            <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
         </Style>
 
         <Style x:Key="AtlasV2.Settings.Action"
@@ -93,6 +94,28 @@
             <Setter Property="Height" Value="1"/>
             <Setter Property="Margin" Value="0,17"/>
             <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.BorderSoft}"/>
+        </Style>
+
+        <Style x:Key="AtlasV2.Settings.DeferredField"
+               TargetType="{x:Type Border}"
+               BasedOn="{StaticResource AtlasV2.Field.Container}">
+            <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.48"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AtlasV2.Settings.DeferredCard"
+               TargetType="{x:Type Border}"
+               BasedOn="{StaticResource AtlasV2.Card}">
+            <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.48"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
     </UserControl.Resources>
 
@@ -135,6 +158,32 @@
                     <TextBlock Margin="0,5,0,0"
                                Text="Personnalise Atlas Launcher et ton client WotLK Classic."
                                Style="{StaticResource AtlasV2.Text.Body}"/>
+                    <Border x:Name="RuntimeNotice"
+                            Margin="0,12,0,0"
+                            Padding="12,9"
+                            Background="{StaticResource AtlasV2.Brush.DangerSurface}"
+                            BorderBrush="{StaticResource AtlasV2.Brush.DangerBorder}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Visibility="Collapsed">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="18"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Path Width="14"
+                                  Height="14"
+                                  Data="{StaticResource AtlasV2.Icon.AlertCircle}"
+                                  Stroke="{StaticResource AtlasV2.Brush.Danger}"
+                                  Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                            <TextBlock x:Name="RuntimeNoticeText"
+                                       Grid.Column="1"
+                                       Margin="8,0,0,0"
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource AtlasV2.Text.Caption}"
+                                       Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                        </Grid>
+                    </Border>
                 </StackPanel>
 
                 <Grid x:Name="SettingsWorkspace" Grid.Row="1" Margin="0,22,0,0">
@@ -321,9 +370,11 @@
                                                        Text="Langue utilisée par Atlas Launcher."
                                                        Style="{StaticResource AtlasV2.Text.Caption}"/>
                                         </StackPanel>
-                                        <Border Grid.Column="1"
-                                                Style="{StaticResource AtlasV2.Field.Container}"
-                                                IsHitTestVisible="False">
+                                        <Border x:Name="InterfaceLanguageControl"
+                                                Grid.Column="1"
+                                                Style="{StaticResource AtlasV2.Settings.DeferredField}"
+                                                IsEnabled="{Binding State.Current.AreDeferredControlsEnabled, ElementName=SettingsRoot}"
+                                                ToolTip="Bientôt disponible">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="20"/>
@@ -368,6 +419,9 @@
                                                       Grid.Column="1"
                                                       VerticalAlignment="Center"
                                                       IsChecked="{Binding State.Current.General.StartWithWindows, ElementName=SettingsRoot, Mode=OneWay}"
+                                                      IsEnabled="{Binding State.Current.AreDeferredControlsEnabled, ElementName=SettingsRoot}"
+                                                      ToolTip="Bientôt disponible"
+                                                      ToolTipService.ShowOnDisabled="True"
                                                       Style="{StaticResource AtlasV2.Toggle.ReadOnly}"/>
                                     </Grid>
 
@@ -385,9 +439,11 @@
                                                        Text="Action effectuée avec le bouton Fermer."
                                                        Style="{StaticResource AtlasV2.Text.Caption}"/>
                                         </StackPanel>
-                                        <Border Grid.Column="1"
-                                                Style="{StaticResource AtlasV2.Field.Container}"
-                                                IsHitTestVisible="False">
+                                        <Border x:Name="WindowCloseBehaviorControl"
+                                                Grid.Column="1"
+                                                Style="{StaticResource AtlasV2.Settings.DeferredField}"
+                                                IsEnabled="{Binding State.Current.AreDeferredControlsEnabled, ElementName=SettingsRoot}"
+                                                ToolTip="Bientôt disponible">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
@@ -521,7 +577,11 @@
                                         </Button>
                                         <Button x:Name="VerifyRepairButton"
                                                 Margin="0,0,0,8"
-                                                Style="{StaticResource AtlasV2.Settings.ReadOnlyAction}">
+                                                Command="{Binding State.VerifyRepairCommand, ElementName=SettingsRoot}"
+                                                IsHitTestVisible="{Binding State.Current.IsRuntimeConnected, ElementName=SettingsRoot}"
+                                                Focusable="{Binding State.Current.IsRuntimeConnected, ElementName=SettingsRoot}"
+                                                Style="{StaticResource AtlasV2.Settings.Action}"
+                                                Click="VerifyRepairButton_Click">
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Width="14"
                                                       Height="14"
@@ -609,7 +669,10 @@
                                                       Grid.Column="1"
                                                       VerticalAlignment="Center"
                                                       IsChecked="{Binding State.Current.Game.InstantQuestText, ElementName=SettingsRoot, Mode=OneWay}"
-                                                      Style="{StaticResource AtlasV2.Toggle.ReadOnly}"/>
+                                                      IsHitTestVisible="{Binding State.Current.CanChangeInstantQuestText, ElementName=SettingsRoot}"
+                                                      Focusable="{Binding State.Current.CanChangeInstantQuestText, ElementName=SettingsRoot}"
+                                                      Style="{StaticResource AtlasV2.Toggle}"
+                                                      Click="InstantQuestTextToggle_Click"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -647,6 +710,9 @@
                                                       Grid.Column="1"
                                                       VerticalAlignment="Center"
                                                       IsChecked="{Binding State.Current.Updates.AutomaticLauncherUpdates, ElementName=SettingsRoot, Mode=OneWay}"
+                                                      IsEnabled="{Binding State.Current.AreDeferredControlsEnabled, ElementName=SettingsRoot}"
+                                                      ToolTip="Bientôt disponible"
+                                                      ToolTipService.ShowOnDisabled="True"
                                                       Style="{StaticResource AtlasV2.Toggle.ReadOnly}"/>
                                     </Grid>
 
@@ -664,9 +730,11 @@
                                                        Text="Branche de distribution du launcher."
                                                        Style="{StaticResource AtlasV2.Text.Caption}"/>
                                         </StackPanel>
-                                        <Border Grid.Column="1"
-                                                Style="{StaticResource AtlasV2.Field.Container}"
-                                                IsHitTestVisible="False">
+                                        <Border x:Name="ReleaseChannelControl"
+                                                Grid.Column="1"
+                                                Style="{StaticResource AtlasV2.Settings.DeferredField}"
+                                                IsEnabled="{Binding State.Current.AreDeferredControlsEnabled, ElementName=SettingsRoot}"
+                                                ToolTip="Bientôt disponible">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
@@ -760,9 +828,11 @@
                                                        Text="Moment prévu pour préparer le client."
                                                        Style="{StaticResource AtlasV2.Text.Caption}"/>
                                         </StackPanel>
-                                        <Border Grid.Column="1"
-                                                Style="{StaticResource AtlasV2.Field.Container}"
-                                                IsHitTestVisible="False">
+                                        <Border x:Name="ClientUpdateBehaviorControl"
+                                                Grid.Column="1"
+                                                Style="{StaticResource AtlasV2.Settings.DeferredField}"
+                                                IsEnabled="{Binding State.Current.AreDeferredControlsEnabled, ElementName=SettingsRoot}"
+                                                ToolTip="Bientôt disponible">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
@@ -792,8 +862,11 @@
                                        Text="Choisis les événements signalés par Atlas Launcher."
                                        Style="{StaticResource AtlasV2.Text.Body}"/>
 
-                            <Border Margin="0,16,0,0"
-                                    Style="{StaticResource AtlasV2.Card}"
+                            <Border x:Name="NotificationsCard"
+                                    Margin="0,16,0,0"
+                                    Style="{StaticResource AtlasV2.Settings.DeferredCard}"
+                                    IsEnabled="{Binding State.Current.AreDeferredControlsEnabled, ElementName=SettingsRoot}"
+                                    ToolTip="Bientôt disponible"
                                     Padding="22">
                                 <StackPanel>
                                     <TextBlock Text="Événements"
@@ -856,8 +929,11 @@
                                        Text="Ajuste le confort visuel sans altérer l’identité Atlas."
                                        Style="{StaticResource AtlasV2.Text.Body}"/>
 
-                            <Border Margin="0,16,0,0"
-                                    Style="{StaticResource AtlasV2.Card}"
+                            <Border x:Name="AppearanceCard"
+                                    Margin="0,16,0,0"
+                                    Style="{StaticResource AtlasV2.Settings.DeferredCard}"
+                                    IsEnabled="{Binding State.Current.AreDeferredControlsEnabled, ElementName=SettingsRoot}"
+                                    ToolTip="Bientôt disponible"
                                     Padding="22">
                                 <StackPanel>
                                     <TextBlock Text="Interface"
@@ -948,7 +1024,12 @@
                                             <TextBlock Text="Rapport de diagnostic" Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
                                             <TextBlock Margin="0,3,0,0" Text="Rassembler les versions et l’état local utile." Style="{StaticResource AtlasV2.Text.Caption}"/>
                                         </StackPanel>
-                                        <Button x:Name="CopyDiagnosticButton" Grid.Column="2" Content="Copier le rapport" Style="{StaticResource AtlasV2.Settings.ReadOnlyAction}"/>
+                                        <Button x:Name="CopyDiagnosticButton"
+                                                Grid.Column="2"
+                                                Content="Copier le rapport"
+                                                IsEnabled="{Binding State.Current.AreDeferredControlsEnabled, ElementName=SettingsRoot}"
+                                                ToolTip="Bientôt disponible"
+                                                Style="{StaticResource AtlasV2.Settings.ReadOnlyAction}"/>
                                     </Grid>
                                     <Border Style="{StaticResource AtlasV2.Settings.Separator}"/>
                                     <Grid>
@@ -958,13 +1039,21 @@
                                             <TextBlock Text="Dossier du launcher" Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
                                             <TextBlock Margin="0,3,0,0" Text="{Binding State.Current.Diagnostic.LauncherLocation, ElementName=SettingsRoot}" Style="{StaticResource AtlasV2.Text.Caption}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                         </StackPanel>
-                                        <Button x:Name="OpenLauncherFolderButton" Grid.Column="2" Content="Ouvrir le dossier" Style="{StaticResource AtlasV2.Settings.ReadOnlyAction}"/>
+                                        <Button x:Name="OpenLauncherFolderButton"
+                                                Grid.Column="2"
+                                                Content="Ouvrir le dossier"
+                                                IsEnabled="{Binding State.Current.AreDeferredControlsEnabled, ElementName=SettingsRoot}"
+                                                ToolTip="Bientôt disponible"
+                                                Style="{StaticResource AtlasV2.Settings.ReadOnlyAction}"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>
 
-                            <Border Margin="0,14,0,0"
-                                    Style="{StaticResource AtlasV2.Card}"
+                            <Border x:Name="ResetInterfaceCard"
+                                    Margin="0,14,0,0"
+                                    Style="{StaticResource AtlasV2.Settings.DeferredCard}"
+                                    IsEnabled="{Binding State.Current.AreDeferredControlsEnabled, ElementName=SettingsRoot}"
+                                    ToolTip="Bientôt disponible"
                                     Padding="22">
                                 <StackPanel>
                                     <TextBlock Text="État et versions"

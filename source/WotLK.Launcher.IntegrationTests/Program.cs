@@ -297,8 +297,8 @@ if (args.Length == 1
         string[] lines = await File.ReadAllLinesAsync(writtenPath);
         Assert(
             lines.Count(line => line.StartsWith("SET instantQuestText ", StringComparison.OrdinalIgnoreCase)) == 1
-            && lines.Any(line => string.Equals(line, "SET instantQuestText \"1\"", StringComparison.OrdinalIgnoreCase)),
-            "Le launcher doit forcer une seule valeur instantQuestText active.");
+            && lines.Any(line => string.Equals(line, "SET instantQuestText \"0\"", StringComparison.OrdinalIgnoreCase)),
+            "Le launcher doit conserver une seule valeur instantQuestText explicite.");
         Assert(
             lines.Any(line => string.Equals(line, "SET textLocale \"frFR\"", StringComparison.OrdinalIgnoreCase)),
             "Le launcher doit conserver la langue demandée dans Config.wtf.");

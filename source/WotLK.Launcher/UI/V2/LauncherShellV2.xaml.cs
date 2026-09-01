@@ -206,6 +206,14 @@ public partial class LauncherShellV2 : Window
 
     internal SettingsViewV2 SettingsPage => SettingsView;
 
+    internal void ShowGamePageForSettingsOperation()
+    {
+        if (!IsPreviewMode && SettingsState.Current.IsRuntimeConnected)
+        {
+            NavigateTo(LauncherShellPage.Game);
+        }
+    }
+
     internal void AttachAuthentication(AuthCommands commands)
     {
         if (IsPreviewMode)

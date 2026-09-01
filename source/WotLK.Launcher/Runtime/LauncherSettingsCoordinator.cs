@@ -12,7 +12,8 @@ internal enum LauncherSettingsChangeKind
 {
     InstallPath,
     GameLocale,
-    CloseLauncherOnGameStart
+    CloseLauncherOnGameStart,
+    InstantQuestText
 }
 
 internal enum LauncherSettingsChangeStatus
@@ -37,9 +38,11 @@ internal sealed record LauncherSettingsSnapshot(
     string GameLocale,
     bool AutomaticLauncherUpdates,
     bool CloseLauncherOnGameStart,
+    bool InstantQuestText,
     bool CanChangeInstallPath,
     bool CanChangeGameLocale,
     bool CanChangeBehavior,
+    bool CanChangeInstantQuestText,
     LauncherSettingsSaveStatus SaveStatus,
     string? StatusMessage);
 
@@ -62,6 +65,8 @@ internal interface ILauncherSettingsRuntime
 
     LauncherSettingsChangeResult TrySetCloseLauncherOnGameStart(bool closeAfterLaunch);
 
+    LauncherSettingsChangeResult TrySetInstantQuestText(bool enabled);
+
     void BeginShutdown();
 }
 
@@ -73,7 +78,10 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
     private readonly Action<LauncherSettings> _saveSettings;
     private readonly Action<LauncherSettingsChangeKind> _settingsChanged;
     private readonly Action<string> _writeLog;
+    private readonly Func<string, bool> _readInstantQuestText;
+    private readonly Func<string, bool, bool> _writeInstantQuestText;
     private LauncherSettingsSnapshot _currentSnapshot;
+    private bool _instantQuestText;
     private long _sequence;
     private bool _isSaving;
     private bool _isShuttingDown;
@@ -84,13 +92,18 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
         LauncherOperationCoordinator operations,
         Action<LauncherSettings> saveSettings,
         Action<LauncherSettingsChangeKind> settingsChanged,
-        Action<string> writeLog)
+        Action<string> writeLog,
+        Func<string, bool>? readInstantQuestText = null,
+        Func<string, bool, bool>? writeInstantQuestText = null)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _operations = operations ?? throw new ArgumentNullException(nameof(operations));
         _saveSettings = saveSettings ?? throw new ArgumentNullException(nameof(saveSettings));
         _settingsChanged = settingsChanged ?? throw new ArgumentNullException(nameof(settingsChanged));
         _writeLog = writeLog ?? throw new ArgumentNullException(nameof(writeLog));
+        _readInstantQuestText = readInstantQuestText ?? GameInstallServices.ReadInstantQuestText;
+        _writeInstantQuestText = writeInstantQuestText ?? GameInstallServices.SetInstantQuestText;
+        _instantQuestText = ReadInstantQuestTextSafely(_settings.InstallPath);
         _currentSnapshot = CreateSnapshotUnsafe(LauncherSettingsSaveStatus.Idle, null);
         _operations.StateChanged += Operations_StateChanged;
     }
@@ -140,6 +153,84 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             static settings => settings.CloseLauncherOnGameStart,
             static (settings, value) => settings.CloseLauncherOnGameStart = value,
             pathRequiresIdleUserOperation: false);
+    }
+
+    public LauncherSettingsChangeResult TrySetInstantQuestText(bool enabled)
+    {
+        LauncherSettingsSnapshot savingSnapshot;
+        bool previous;
+        lock (_sync)
+        {
+            if (_isShuttingDown
+                || Volatile.Read(ref _disposeState) != 0
+                || _operations.IsShuttingDown)
+            {
+                return new LauncherSettingsChangeResult(
+                    LauncherSettingsChangeStatus.ShuttingDown,
+                    LauncherSettingsChangeKind.InstantQuestText);
+            }
+
+            if (_isSaving)
+            {
+                return new LauncherSettingsChangeResult(
+                    LauncherSettingsChangeStatus.Busy,
+                    LauncherSettingsChangeKind.InstantQuestText);
+            }
+
+            previous = _instantQuestText;
+            if (previous == enabled)
+            {
+                return new LauncherSettingsChangeResult(
+                    LauncherSettingsChangeStatus.Unchanged,
+                    LauncherSettingsChangeKind.InstantQuestText);
+            }
+
+            _isSaving = true;
+            _instantQuestText = enabled;
+            savingSnapshot = CreateSnapshotUnsafe(
+                LauncherSettingsSaveStatus.Saving,
+                "Enregistrement immédiat dans Config.wtf.");
+            _currentSnapshot = savingSnapshot;
+        }
+
+        Publish(savingSnapshot, availabilityChanged: true);
+
+        LauncherSettingsSnapshot finalSnapshot;
+        LauncherSettingsChangeStatus status;
+        try
+        {
+            _ = _writeInstantQuestText(_settings.InstallPath, enabled);
+            lock (_sync)
+            {
+                _isSaving = false;
+                finalSnapshot = CreateSnapshotUnsafe(
+                    LauncherSettingsSaveStatus.Saved,
+                    "Texte de quête instantané appliqué au client.");
+                _currentSnapshot = finalSnapshot;
+            }
+
+            status = LauncherSettingsChangeStatus.Saved;
+        }
+        catch (Exception exception)
+        {
+            lock (_sync)
+            {
+                _instantQuestText = previous;
+                _isSaving = false;
+                finalSnapshot = CreateSnapshotUnsafe(
+                    LauncherSettingsSaveStatus.Error,
+                    "Config.wtf n’a pas pu être modifié. La valeur précédente est conservée.");
+                _currentSnapshot = finalSnapshot;
+            }
+
+            WriteFailureSafely(LauncherSettingsChangeKind.InstantQuestText, exception);
+            status = LauncherSettingsChangeStatus.Failed;
+        }
+
+        Publish(finalSnapshot, availabilityChanged: true);
+        return new LauncherSettingsChangeResult(
+            status,
+            LauncherSettingsChangeKind.InstantQuestText);
     }
 
     public void BeginShutdown()
@@ -225,8 +316,16 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
         try
         {
             _saveSettings(_settings);
+            bool? refreshedInstantQuestText = changeKind == LauncherSettingsChangeKind.InstallPath
+                ? ReadInstantQuestTextSafely(_settings.InstallPath)
+                : null;
             lock (_sync)
             {
+                if (refreshedInstantQuestText is bool instantQuestText)
+                {
+                    _instantQuestText = instantQuestText;
+                }
+
                 _isSaving = false;
                 finalSnapshot = CreateSnapshotUnsafe(
                     LauncherSettingsSaveStatus.Saved,
@@ -282,9 +381,11 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             GameLocale: _settings.GameLocale,
             AutomaticLauncherUpdates: _settings.AutomaticLauncherUpdates,
             CloseLauncherOnGameStart: _settings.CloseLauncherOnGameStart,
+            InstantQuestText: _instantQuestText,
             CanChangeInstallPath: available && !_operations.HasActiveUserCancellableOperation,
             CanChangeGameLocale: available,
             CanChangeBehavior: available,
+            CanChangeInstantQuestText: available,
             SaveStatus: saveStatus,
             StatusMessage: statusMessage);
     }
@@ -345,6 +446,19 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
         catch
         {
             // A logging failure cannot replace the persistence result.
+        }
+    }
+
+    private bool ReadInstantQuestTextSafely(string installPath)
+    {
+        try
+        {
+            return _readInstantQuestText(installPath);
+        }
+        catch (Exception exception)
+        {
+            WriteFailureSafely(LauncherSettingsChangeKind.InstantQuestText, exception);
+            return true;
         }
     }
 }

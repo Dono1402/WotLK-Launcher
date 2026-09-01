@@ -78,8 +78,11 @@ public sealed record SettingsViewState(
     bool CanChangeInstallPath = false,
     bool CanChangeGameLocale = false,
     bool CanChangeBehavior = false,
+    bool CanChangeInstantQuestText = false,
+    bool AreDeferredControlsEnabled = true,
     string? SaveStatusDetail = null,
-    string? SaveStatusTitle = null);
+    string? SaveStatusTitle = null,
+    string? RuntimeNoticeMessage = null);
 
 public sealed class SettingsUiState : BindableUiState
 {
@@ -87,8 +90,11 @@ public sealed class SettingsUiState : BindableUiState
     private ICommand _browseInstallPathCommand = DisabledCommand.Instance;
     private ICommand _openGameFolderCommand = DisabledCommand.Instance;
     private ICommand _openLogsCommand = DisabledCommand.Instance;
+    private ICommand _verifyRepairCommand = DisabledCommand.Instance;
     private Func<string, bool> _changeGameLocale = static _ => false;
     private Func<bool, bool> _changeCloseAfterLaunch = static _ => false;
+    private Func<bool, bool> _changeInstantQuestText = static _ => false;
+    private Action _showGameForRepair = static () => { };
 
     internal static SettingsUiState Empty { get; } = new(new SettingsViewState(
         SettingsCategory.General,
@@ -135,6 +141,12 @@ public sealed class SettingsUiState : BindableUiState
         private set => SetProperty(ref _openLogsCommand, value);
     }
 
+    public ICommand VerifyRepairCommand
+    {
+        get => _verifyRepairCommand;
+        private set => SetProperty(ref _verifyRepairCommand, value);
+    }
+
     internal void ApplyRuntimeView(SettingsViewState viewState)
     {
         Current = viewState ?? throw new ArgumentNullException(nameof(viewState));
@@ -144,8 +156,11 @@ public sealed class SettingsUiState : BindableUiState
         ICommand browseInstallPathCommand,
         ICommand openGameFolderCommand,
         ICommand openLogsCommand,
+        ICommand verifyRepairCommand,
+        Action showGameForRepair,
         Func<string, bool> changeGameLocale,
-        Func<bool, bool> changeCloseAfterLaunch)
+        Func<bool, bool> changeCloseAfterLaunch,
+        Func<bool, bool> changeInstantQuestText)
     {
         BrowseInstallPathCommand = browseInstallPathCommand
             ?? throw new ArgumentNullException(nameof(browseInstallPathCommand));
@@ -153,10 +168,16 @@ public sealed class SettingsUiState : BindableUiState
             ?? throw new ArgumentNullException(nameof(openGameFolderCommand));
         OpenLogsCommand = openLogsCommand
             ?? throw new ArgumentNullException(nameof(openLogsCommand));
+        VerifyRepairCommand = verifyRepairCommand
+            ?? throw new ArgumentNullException(nameof(verifyRepairCommand));
+        _showGameForRepair = showGameForRepair
+            ?? throw new ArgumentNullException(nameof(showGameForRepair));
         _changeGameLocale = changeGameLocale
             ?? throw new ArgumentNullException(nameof(changeGameLocale));
         _changeCloseAfterLaunch = changeCloseAfterLaunch
             ?? throw new ArgumentNullException(nameof(changeCloseAfterLaunch));
+        _changeInstantQuestText = changeInstantQuestText
+            ?? throw new ArgumentNullException(nameof(changeInstantQuestText));
     }
 
     internal void AttachPreviewActions()
@@ -164,8 +185,11 @@ public sealed class SettingsUiState : BindableUiState
         BrowseInstallPathCommand = PreviewCommand.Instance;
         OpenGameFolderCommand = PreviewCommand.Instance;
         OpenLogsCommand = PreviewCommand.Instance;
+        VerifyRepairCommand = PreviewCommand.Instance;
+        _showGameForRepair = static () => { };
         _changeGameLocale = static _ => false;
         _changeCloseAfterLaunch = static _ => false;
+        _changeInstantQuestText = static _ => false;
     }
 
     internal bool TryChangeGameLocale(string locale)
@@ -182,6 +206,21 @@ public sealed class SettingsUiState : BindableUiState
             && _changeCloseAfterLaunch(closeAfterLaunch);
     }
 
+    internal bool TryChangeInstantQuestText(bool enabled)
+    {
+        return Current.IsRuntimeConnected
+            && Current.CanChangeInstantQuestText
+            && _changeInstantQuestText(enabled);
+    }
+
+    internal void ShowGameForRepair()
+    {
+        if (Current.IsRuntimeConnected)
+        {
+            _showGameForRepair();
+        }
+    }
+
     internal void ShowRuntimeActionFailure(string message)
     {
         if (!Current.IsRuntimeConnected || string.IsNullOrWhiteSpace(message))
@@ -191,9 +230,7 @@ public sealed class SettingsUiState : BindableUiState
 
         Current = Current with
         {
-            SavePreviewState = SettingsSavePreviewState.Error,
-            SaveStatusDetail = message,
-            SaveStatusTitle = "Action impossible"
+            RuntimeNoticeMessage = message
         };
     }
 }

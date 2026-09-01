@@ -153,6 +153,7 @@ public partial class SettingsViewV2 : UserControl
                 _initialCategoryApplied = true;
             }
 
+            ApplyRuntimeNotice(State.Current.RuntimeNoticeMessage);
             ApplySavePreviewState(State.Current.SavePreviewState);
         }
         finally
@@ -163,7 +164,8 @@ public partial class SettingsViewV2 : UserControl
 
     private void ApplySavePreviewState(SettingsSavePreviewState state)
     {
-        if (state == SettingsSavePreviewState.None)
+        if (State?.Current.IsRuntimeConnected == true
+            || state == SettingsSavePreviewState.None)
         {
             SettingsActionBar.Visibility = Visibility.Collapsed;
             return;
@@ -243,6 +245,14 @@ public partial class SettingsViewV2 : UserControl
         SettingsActionIcon.Data = (Geometry)FindResource(iconKey);
     }
 
+    private void ApplyRuntimeNotice(string? message)
+    {
+        bool show = State?.Current.IsRuntimeConnected == true
+            && !string.IsNullOrWhiteSpace(message);
+        RuntimeNotice.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        RuntimeNoticeText.Text = show ? message : string.Empty;
+    }
+
     private static void SetCategoryState(Button button, FrameworkElement panel, bool selected)
     {
         button.Tag = selected ? "Active" : null;
@@ -308,6 +318,25 @@ public partial class SettingsViewV2 : UserControl
             CloseAfterLaunchToggle.IsChecked =
                 State.Current.General.CloseLauncherAfterGameStart;
         }
+    }
+
+    private void InstantQuestTextToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isApplyingState || State is null)
+        {
+            return;
+        }
+
+        bool requested = InstantQuestTextToggle.IsChecked == true;
+        if (!State.TryChangeInstantQuestText(requested))
+        {
+            InstantQuestTextToggle.IsChecked = State.Current.Game.InstantQuestText;
+        }
+    }
+
+    private void VerifyRepairButton_Click(object sender, RoutedEventArgs e)
+    {
+        State?.ShowGameForRepair();
     }
 
     private void ReplaceStateSubscription(SettingsUiState? previous, SettingsUiState? current)

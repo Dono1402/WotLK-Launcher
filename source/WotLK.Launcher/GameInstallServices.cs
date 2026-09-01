@@ -236,10 +236,13 @@ internal static class GameInstallServices
         var videoDefaultsMarkerPath = Path.Combine(wtfDirectory, VideoDefaultsMarkerFileName);
         var applyDesktopResolution = !File.Exists(configPath) || !File.Exists(videoDefaultsMarkerPath);
         var keptLines = new List<string>();
+        var instantQuestText = true;
         if (File.Exists(configPath))
         {
             TrySetNormalAttributes(configPath);
-            foreach (var line in File.ReadAllLines(configPath, Encoding.UTF8))
+            var existingLines = File.ReadAllLines(configPath, Encoding.UTF8);
+            instantQuestText = ReadInstantQuestTextValue(existingLines);
+            foreach (var line in existingLines)
             {
                 var key = TryReadConfigKey(line);
                 if (key is not null && IsManagedClientConfigKey(key, applyDesktopResolution))
@@ -272,7 +275,7 @@ internal static class GameInstallServices
         keptLines.Add("SET gxMaximize \"1\"");
         keptLines.Add("SET gxVSync \"0\"");
         keptLines.Add("SET miniWorldMap \"1\"");
-        keptLines.Add("SET instantQuestText \"1\"");
+        keptLines.Add($"SET instantQuestText \"{(instantQuestText ? "1" : "0")}\"");
 
         File.WriteAllLines(configPath, keptLines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         if (applyDesktopResolution)
@@ -281,6 +284,125 @@ internal static class GameInstallServices
         }
 
         return configPath;
+    }
+
+    internal static bool ReadInstantQuestText(string installRoot)
+    {
+        var root = NormalizeAndValidateGameRoot(installRoot);
+        var configPath = Path.Combine(GetClassicDirectoryPath(root), "WTF", "Config.wtf");
+        return File.Exists(configPath)
+            ? ReadInstantQuestTextValue(File.ReadAllLines(configPath, Encoding.UTF8))
+            : true;
+    }
+
+    internal static bool SetInstantQuestText(string installRoot, bool enabled)
+    {
+        var root = NormalizeAndValidateGameRoot(installRoot);
+        var wtfDirectory = Path.Combine(GetClassicDirectoryPath(root), "WTF");
+        var configPath = Path.Combine(wtfDirectory, "Config.wtf");
+        var existingLines = File.Exists(configPath)
+            ? File.ReadAllLines(configPath, Encoding.UTF8).ToList()
+            : new List<string>();
+
+        if (ReadInstantQuestTextValue(existingLines) == enabled
+            && existingLines.Any(IsInstantQuestTextLine))
+        {
+            return false;
+        }
+
+        var updatedLines = new List<string>(existingLines.Count + 1);
+        var insertionIndex = -1;
+        foreach (var line in existingLines)
+        {
+            if (IsInstantQuestTextLine(line))
+            {
+                insertionIndex = insertionIndex < 0 ? updatedLines.Count : insertionIndex;
+                continue;
+            }
+
+            updatedLines.Add(line);
+        }
+
+        var setting = $"SET instantQuestText \"{(enabled ? "1" : "0")}\"";
+        if (insertionIndex >= 0)
+        {
+            updatedLines.Insert(insertionIndex, setting);
+        }
+        else
+        {
+            updatedLines.Add(setting);
+        }
+
+        Directory.CreateDirectory(wtfDirectory);
+        if (File.Exists(configPath))
+        {
+            TrySetNormalAttributes(configPath);
+        }
+
+        File.WriteAllLines(
+            configPath,
+            updatedLines,
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        return true;
+    }
+
+    private static bool ReadInstantQuestTextValue(IEnumerable<string> lines)
+    {
+        var enabled = true;
+        foreach (var line in lines)
+        {
+            if (!TryReadConfigValue(line, "instantQuestText", out var value))
+            {
+                continue;
+            }
+
+            if (string.Equals(value, "0", StringComparison.Ordinal))
+            {
+                enabled = false;
+            }
+            else if (string.Equals(value, "1", StringComparison.Ordinal))
+            {
+                enabled = true;
+            }
+        }
+
+        return enabled;
+    }
+
+    private static bool IsInstantQuestTextLine(string line)
+    {
+        return string.Equals(
+            TryReadConfigKey(line),
+            "instantQuestText",
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryReadConfigValue(string line, string expectedKey, out string value)
+    {
+        value = string.Empty;
+        var trimmed = line.TrimStart();
+        if (!trimmed.StartsWith("SET ", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var rest = trimmed[4..].TrimStart();
+        var keyEnd = rest.IndexOfAny([' ', '\t']);
+        if (keyEnd < 0
+            || !string.Equals(rest[..keyEnd], expectedKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var rawValue = rest[keyEnd..].Trim();
+        if (rawValue.Length >= 2 && rawValue[0] == '"' && rawValue[^1] == '"')
+        {
+            value = rawValue[1..^1];
+            return true;
+        }
+
+        value = rawValue;
+        return true;
     }
 
     private static string? TryReadConfigKey(string line)

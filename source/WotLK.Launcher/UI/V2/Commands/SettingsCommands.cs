@@ -75,6 +75,42 @@ internal sealed class SettingsGameLocaleApplier : ISettingsGameLocaleApplier
     }
 }
 
+internal enum SettingsGameConfigAccessStatus
+{
+    Granted,
+    PermissionCancelled,
+    Failed
+}
+
+internal readonly record struct SettingsGameConfigAccessResult(
+    SettingsGameConfigAccessStatus Status,
+    string? FailureCategory = null);
+
+internal interface ISettingsGameConfigAccess
+{
+    SettingsGameConfigAccessResult EnsureWritable(Window owner, string installPath);
+}
+
+internal sealed class SettingsGameConfigAccess : ISettingsGameConfigAccess
+{
+    public SettingsGameConfigAccessResult EnsureWritable(Window owner, string installPath)
+    {
+        try
+        {
+            return GameDirectoryAccess.EnsureWritable(owner, installPath)
+                ? new SettingsGameConfigAccessResult(SettingsGameConfigAccessStatus.Granted)
+                : new SettingsGameConfigAccessResult(
+                    SettingsGameConfigAccessStatus.PermissionCancelled);
+        }
+        catch (Exception exception)
+        {
+            return new SettingsGameConfigAccessResult(
+                SettingsGameConfigAccessStatus.Failed,
+                exception.GetType().Name);
+        }
+    }
+}
+
 internal sealed class SettingsCommands : IDisposable
 {
     private readonly SettingsUiState _state;
@@ -83,6 +119,7 @@ internal sealed class SettingsCommands : IDisposable
     private readonly Window _owner;
     private readonly ISettingsFolderPicker _folderPicker;
     private readonly ISettingsGameLocaleApplier _localeApplier;
+    private readonly ISettingsGameConfigAccess _gameConfigAccess;
     private readonly Action<string> _writeLog;
     private readonly DelegateCommand _browseInstallPath;
     private readonly DelegateCommand _openGameFolder;
@@ -96,7 +133,10 @@ internal sealed class SettingsCommands : IDisposable
         Window owner,
         Action<string> writeLog,
         ISettingsFolderPicker? folderPicker = null,
-        ISettingsGameLocaleApplier? localeApplier = null)
+        ISettingsGameLocaleApplier? localeApplier = null,
+        ISettingsGameConfigAccess? gameConfigAccess = null,
+        ICommand? verifyRepairCommand = null,
+        Action? showGameForRepair = null)
     {
         _state = state ?? throw new ArgumentNullException(nameof(state));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -105,6 +145,7 @@ internal sealed class SettingsCommands : IDisposable
         _writeLog = writeLog ?? throw new ArgumentNullException(nameof(writeLog));
         _folderPicker = folderPicker ?? new SettingsFolderPicker();
         _localeApplier = localeApplier ?? new SettingsGameLocaleApplier();
+        _gameConfigAccess = gameConfigAccess ?? new SettingsGameConfigAccess();
         _browseInstallPath = new DelegateCommand(
             BrowseInstallPath,
             () => _settings.CurrentSnapshot.CanChangeInstallPath);
@@ -120,8 +161,11 @@ internal sealed class SettingsCommands : IDisposable
             _browseInstallPath,
             _openGameFolder,
             _openLogs,
+            verifyRepairCommand ?? DisabledCommand.Instance,
+            showGameForRepair ?? (static () => { }),
             ChangeGameLocale,
-            ChangeCloseAfterLaunch);
+            ChangeCloseAfterLaunch,
+            ChangeInstantQuestText);
     }
 
     internal ICommand BrowseInstallPathCommand => _browseInstallPath;
@@ -195,6 +239,32 @@ internal sealed class SettingsCommands : IDisposable
             or LauncherSettingsChangeStatus.Unchanged;
     }
 
+    private bool ChangeInstantQuestText(bool enabled)
+    {
+        LauncherSettingsSnapshot current = _settings.CurrentSnapshot;
+        if (current.InstantQuestText == enabled)
+        {
+            return true;
+        }
+
+        SettingsGameConfigAccessResult access = _gameConfigAccess.EnsureWritable(
+            _owner,
+            current.InstallPath);
+        if (access.Status != SettingsGameConfigAccessStatus.Granted)
+        {
+            WriteGameConfigFailureSafely(access.FailureCategory);
+            _state.ShowRuntimeActionFailure(
+                access.Status == SettingsGameConfigAccessStatus.PermissionCancelled
+                    ? "La modification de Config.wtf a été annulée."
+                    : "Config.wtf n’est pas accessible pour le moment.");
+            return false;
+        }
+
+        LauncherSettingsChangeResult result = _settings.TrySetInstantQuestText(enabled);
+        return result.Status is LauncherSettingsChangeStatus.Saved
+            or LauncherSettingsChangeStatus.Unchanged;
+    }
+
     private void OpenGameFolder()
     {
         PublishLocalActionResult(_localActions.OpenGameFolder());
@@ -240,6 +310,23 @@ internal sealed class SettingsCommands : IDisposable
         catch
         {
             // A diagnostic failure cannot replace the persisted preference.
+        }
+    }
+
+    private void WriteGameConfigFailureSafely(string? failureCategory)
+    {
+        try
+        {
+            _writeLog(
+                "Config.wtf V2 non modifié: category="
+                + (string.IsNullOrWhiteSpace(failureCategory)
+                    ? "PermissionCancelled"
+                    : failureCategory)
+                + ".");
+        }
+        catch
+        {
+            // A diagnostic failure cannot replace the user-facing result.
         }
     }
 }

@@ -71,17 +71,13 @@ internal sealed class SettingsStateAdapter : IDisposable
                 : game.UpdateKnowledge == GameUpdateKnowledge.Known
                     ? "Client prêt · à jour"
                     : "Client prêt · non vérifié";
-        SettingsSavePreviewState saveState = settings.SaveStatus switch
-        {
-            LauncherSettingsSaveStatus.Saving => SettingsSavePreviewState.Saving,
-            LauncherSettingsSaveStatus.Saved => SettingsSavePreviewState.Saved,
-            LauncherSettingsSaveStatus.Error => SettingsSavePreviewState.Error,
-            _ => SettingsSavePreviewState.None
-        };
+        string? runtimeNotice = settings.SaveStatus == LauncherSettingsSaveStatus.Error
+            ? settings.StatusMessage
+            : null;
 
         return new SettingsViewState(
             initialCategory,
-            saveState,
+            SettingsSavePreviewState.None,
             new GeneralSettingsViewState(
                 InterfaceLanguage: "Français",
                 StartWithWindows: false,
@@ -91,7 +87,7 @@ internal sealed class SettingsStateAdapter : IDisposable
                 InstallPath: settings.InstallPath,
                 GameLanguage: gameLanguage,
                 VideoSettingsLocation: @"WTF\Config.wtf",
-                InstantQuestText: true,
+                InstantQuestText: settings.InstantQuestText,
                 ClientVersion: installedClientVersion,
                 GameLocale: settings.GameLocale),
             new UpdateSettingsViewState(
@@ -125,7 +121,10 @@ internal sealed class SettingsStateAdapter : IDisposable
             CanChangeInstallPath: settings.CanChangeInstallPath,
             CanChangeGameLocale: settings.CanChangeGameLocale,
             CanChangeBehavior: settings.CanChangeBehavior,
-            SaveStatusDetail: settings.StatusMessage);
+            CanChangeInstantQuestText: settings.CanChangeInstantQuestText,
+            AreDeferredControlsEnabled: false,
+            SaveStatusDetail: settings.StatusMessage,
+            RuntimeNoticeMessage: runtimeNotice);
     }
 
     public void Dispose()

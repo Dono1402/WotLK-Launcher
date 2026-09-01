@@ -23,6 +23,14 @@
     <Geometry x:Key="AtlasV2.Icon.LogOut">M9,21 H5 C3.9,21 3,20.1 3,19 V5 C3,3.9 3.9,3 5,3 H9 M16,17 L21,12 L16,7 M21,12 H9</Geometry>
     <Geometry x:Key="AtlasV2.Icon.Globe">M12,22 A10,10 0 1 0 12,2 A10,10 0 1 0 12,22 M2,12 H22 M12,2 C14.5,4.7 16,8.1 16,12 C16,15.9 14.5,19.3 12,22 M12,2 C9.5,4.7 8,8.1 8,12 C8,15.9 9.5,19.3 12,22</Geometry>
     <Geometry x:Key="AtlasV2.Icon.FileText">M14,2 H6 C4.9,2 4,2.9 4,4 V20 C4,21.1 4.9,22 6,22 H18 C19.1,22 20,21.1 20,20 V8 Z M14,2 V8 H20 M8,13 H16 M8,17 H16 M8,9 H10</Geometry>
+    <Geometry x:Key="AtlasV2.Icon.Gamepad">M6.5,6 H17.5 C20,6 22,8 22,10.5 V15 C22,17.2 20.2,19 18,19 L15,16 H9 L6,19 C3.8,19 2,17.2 2,15 V10.5 C2,8 4,6 6.5,6 Z M7,10 V14 M5,12 H9 M16.5,10.5 V10.6 M19,13 V13.1</Geometry>
+    <Geometry x:Key="AtlasV2.Icon.Bell">M18,8 A6,6 0 0 0 6,8 C6,15 3,17 3,17 H21 C21,17 18,15 18,8 M14,21 H10</Geometry>
+    <Geometry x:Key="AtlasV2.Icon.Sun">M12,2 V4 M12,20 V22 M4.93,4.93 L6.34,6.34 M17.66,17.66 L19.07,19.07 M2,12 H4 M20,12 H22 M4.93,19.07 L6.34,17.66 M17.66,6.34 L19.07,4.93 M12,17 A5,5 0 1 0 12,7 A5,5 0 1 0 12,17</Geometry>
+    <Geometry x:Key="AtlasV2.Icon.Activity">M3,12 H7 L10,3 L14,21 L17,12 H21</Geometry>
+    <Geometry x:Key="AtlasV2.Icon.Monitor">M4,3 H20 C21.1,3 22,3.9 22,5 V16 C22,17.1 21.1,18 20,18 H4 C2.9,18 2,17.1 2,16 V5 C2,3.9 2.9,3 4,3 Z M8,22 H16 M12,18 V22</Geometry>
+    <Geometry x:Key="AtlasV2.Icon.Copy">M8,8 H20 V20 H8 Z M4,4 H16 V8 M4,4 V16 H8</Geometry>
+    <Geometry x:Key="AtlasV2.Icon.RotateCcw">M3,4 V10 H9 M3.5,10 A9,9 0 1 0 6,5.5</Geometry>
+    <Geometry x:Key="AtlasV2.Icon.Volume">M11,5 L6,9 H2 V15 H6 L11,19 Z M15.5,8.5 C17.5,10.4 17.5,13.6 15.5,15.5 M18.5,5.5 C22.4,9.1 22.4,14.9 18.5,18.5</Geometry>
 
     <Style x:Key="AtlasV2.Icon.Stroke" TargetType="{x:Type Path}">
         <Setter Property="Stroke" Value="#B6C0CC"/>

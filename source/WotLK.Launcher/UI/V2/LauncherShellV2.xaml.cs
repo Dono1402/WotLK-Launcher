@@ -75,13 +75,12 @@ public partial class LauncherShellV2 : Window
             LauncherV2PreviewData.CreateFriends(),
             LauncherV2PreviewData.CreateAuth(),
             LauncherV2PreviewData.CreateProfile(),
-            LauncherV2PreviewData.CreateSettings(),
+            LauncherV2PreviewData.CreateSettings(settingsScenario),
             authPreviewScenario: null,
             profilePreviewScenario: null,
             isPreviewMode: true,
             showSettingsInitially: true)
     {
-        _ = settingsScenario;
     }
 
     internal LauncherShellV2(

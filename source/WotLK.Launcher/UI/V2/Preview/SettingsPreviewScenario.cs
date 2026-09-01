@@ -2,7 +2,16 @@ namespace WotLK.Launcher.UI.V2.Preview;
 
 public enum SettingsPreviewScenario
 {
-    Default
+    General,
+    Game,
+    Updates,
+    Notifications,
+    Appearance,
+    Diagnostic,
+    Dirty,
+    Saving,
+    Saved,
+    SaveError
 }
 
 internal static class SettingsPreviewArguments
@@ -18,6 +27,21 @@ internal static class SettingsPreviewArguments
 
     internal static SettingsPreviewScenario ResolveScenario(IEnumerable<string> arguments)
     {
-        return SettingsPreviewScenario.Default;
+        string? value = arguments
+            .FirstOrDefault(argument => argument.StartsWith(Argument + "=", StringComparison.OrdinalIgnoreCase))?
+            [(Argument.Length + 1)..];
+        return value?.ToLowerInvariant() switch
+        {
+            "game" or "jeu" => SettingsPreviewScenario.Game,
+            "updates" or "mises-a-jour" => SettingsPreviewScenario.Updates,
+            "notifications" => SettingsPreviewScenario.Notifications,
+            "appearance" or "apparence" => SettingsPreviewScenario.Appearance,
+            "diagnostic" => SettingsPreviewScenario.Diagnostic,
+            "dirty" or "modified" => SettingsPreviewScenario.Dirty,
+            "saving" => SettingsPreviewScenario.Saving,
+            "saved" => SettingsPreviewScenario.Saved,
+            "save-error" or "error" => SettingsPreviewScenario.SaveError,
+            _ => SettingsPreviewScenario.General
+        };
     }
 }

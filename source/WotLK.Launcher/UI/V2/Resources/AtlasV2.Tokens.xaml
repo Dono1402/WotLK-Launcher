@@ -29,6 +29,10 @@
     <SolidColorBrush x:Key="AtlasV2.Brush.Danger" Color="#EE6571"/>
     <SolidColorBrush x:Key="AtlasV2.Brush.GoldSurface" Color="#2C2516"/>
     <SolidColorBrush x:Key="AtlasV2.Brush.GoldBorder" Color="#715B29"/>
+    <SolidColorBrush x:Key="AtlasV2.Brush.CyanSurface" Color="#10252B"/>
+    <SolidColorBrush x:Key="AtlasV2.Brush.CyanBorder" Color="#27616C"/>
+    <SolidColorBrush x:Key="AtlasV2.Brush.SuccessSurface" Color="#10251E"/>
+    <SolidColorBrush x:Key="AtlasV2.Brush.SuccessBorder" Color="#28634E"/>
     <SolidColorBrush x:Key="AtlasV2.Brush.DangerSurface" Color="#2A171C"/>
     <SolidColorBrush x:Key="AtlasV2.Brush.DangerBorder" Color="#71343D"/>
     <SolidColorBrush x:Key="AtlasV2.Brush.Field" Color="#0D1217"/>

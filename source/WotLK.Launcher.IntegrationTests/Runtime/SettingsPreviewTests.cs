@@ -14,14 +14,25 @@ using WotLK.Launcher.UI.V2.Views;
 
 internal static class SettingsPreviewTests
 {
+    private static readonly (SettingsCategory Category, string ButtonName, string PanelName)[] CategoryControls =
+    [
+        (SettingsCategory.General, "GeneralCategoryButton", "GeneralPanel"),
+        (SettingsCategory.Game, "GameCategoryButton", "GamePanel"),
+        (SettingsCategory.Updates, "UpdatesCategoryButton", "UpdatesPanel"),
+        (SettingsCategory.Notifications, "NotificationsCategoryButton", "NotificationsPanel"),
+        (SettingsCategory.Appearance, "AppearanceCategoryButton", "AppearancePanel"),
+        (SettingsCategory.Diagnostic, "DiagnosticCategoryButton", "DiagnosticPanel")
+    ];
+
     private static uint _observedWindowDpi;
 
     internal static async Task<int> RunAsync(string? captureDirectory)
     {
         CharacterizePreviewStartupIsolation();
         CharacterizeReadOnlyPreviewState();
+        CharacterizePreviewScenarios();
         await ValidateWpfLayoutsNavigationAndCapturesAsync(captureDirectory);
-        Console.WriteLine($"Settings WPF preview OK (02G.1, window DPI={_observedWindowDpi}).");
+        Console.WriteLine($"Settings WPF preview OK (02G.1.1, window DPI={_observedWindowDpi}).");
         return 0;
     }
 
@@ -33,7 +44,7 @@ internal static class SettingsPreviewTests
             "preview-settings sans --ui-v2 doit être refusé avant composition.");
         Equal(
             LauncherStartupMode.UiV2SettingsPreview,
-            App.ResolveStartupMode(["--ui-v2", "--preview-settings"]),
+            App.ResolveStartupMode(["--ui-v2", "--preview-settings=game"]),
             "preview-settings doit utiliser sa branche isolée.");
         Equal(
             LauncherStartupMode.InvalidArguments,
@@ -56,15 +67,55 @@ internal static class SettingsPreviewTests
     private static void CharacterizeReadOnlyPreviewState()
     {
         SettingsUiState state = LauncherV2PreviewData.CreateSettings();
-        Equal(@"C:\Program Files (x86)\WotLK", state.Current.InstallPath, "Le chemin fictif est incorrect.");
-        Equal("Français", state.Current.GameLanguage, "La langue fictive est incorrecte.");
-        True(state.Current.AutomaticLauncherUpdates, "Le preview doit montrer l'auto-update actif.");
-        True(!state.Current.CloseLauncherAfterGameStart, "Le preview doit montrer la fermeture désactivée.");
-        Equal("v1.1.0", state.Current.LauncherVersion, "La version launcher doit rester cohérente.");
+        Equal(@"C:\Program Files (x86)\WotLK", state.Current.Game.InstallPath, "Le chemin fictif est incorrect.");
+        Equal("Français", state.Current.Game.GameLanguage, "La langue du jeu fictive est incorrecte.");
+        Equal("Français", state.Current.General.InterfaceLanguage, "La langue du launcher fictive est incorrecte.");
+        True(state.Current.Updates.AutomaticLauncherUpdates, "Le preview doit montrer l'auto-update actif.");
+        True(!state.Current.General.CloseLauncherAfterGameStart, "Le preview doit montrer la fermeture désactivée.");
+        Equal("Stable", state.Current.Updates.ReleaseChannel, "Le canal doit appartenir aux mises à jour.");
+        Equal("v1.1.0", state.Current.Updates.InstalledLauncherVersion, "La version launcher doit rester cohérente.");
+
+        Type[] presentationTypes =
+        [
+            typeof(SettingsUiState),
+            typeof(SettingsViewState),
+            typeof(GeneralSettingsViewState),
+            typeof(GameSettingsViewState),
+            typeof(UpdateSettingsViewState),
+            typeof(NotificationSettingsViewState),
+            typeof(AppearanceSettingsViewState),
+            typeof(DiagnosticSettingsViewState)
+        ];
         True(
-            typeof(SettingsUiState).GetProperties().All(property =>
+            presentationTypes.SelectMany(type => type.GetProperties()).All(property =>
                 !typeof(System.Windows.Input.ICommand).IsAssignableFrom(property.PropertyType)),
-            "SettingsUiState ne doit exposer aucune commande métier en 02G.1.");
+            "Les états Settings ne doivent exposer aucune commande métier en 02G.1.1.");
+    }
+
+    private static void CharacterizePreviewScenarios()
+    {
+        Equal(SettingsPreviewScenario.General, Resolve("--preview-settings"), "Le scénario par défaut doit être Général.");
+        Equal(SettingsPreviewScenario.Game, Resolve("--preview-settings=game"), "Le scénario Jeu est absent.");
+        Equal(SettingsPreviewScenario.Updates, Resolve("--preview-settings=updates"), "Le scénario Mises à jour est absent.");
+        Equal(SettingsPreviewScenario.Notifications, Resolve("--preview-settings=notifications"), "Le scénario Notifications est absent.");
+        Equal(SettingsPreviewScenario.Appearance, Resolve("--preview-settings=appearance"), "Le scénario Apparence est absent.");
+        Equal(SettingsPreviewScenario.Diagnostic, Resolve("--preview-settings=diagnostic"), "Le scénario Diagnostic est absent.");
+        Equal(SettingsPreviewScenario.Dirty, Resolve("--preview-settings=dirty"), "Le scénario de modifications est absent.");
+        Equal(SettingsPreviewScenario.Saving, Resolve("--preview-settings=saving"), "Le scénario d'enregistrement est absent.");
+        Equal(SettingsPreviewScenario.Saved, Resolve("--preview-settings=saved"), "Le scénario enregistré est absent.");
+        Equal(SettingsPreviewScenario.SaveError, Resolve("--preview-settings=save-error"), "Le scénario d'erreur est absent.");
+
+        Equal(SettingsCategory.Game, LauncherV2PreviewData.CreateSettings(SettingsPreviewScenario.Game).Current.InitialCategory, "Game doit cibler Jeu.");
+        Equal(SettingsCategory.Updates, LauncherV2PreviewData.CreateSettings(SettingsPreviewScenario.Updates).Current.InitialCategory, "Updates doit cibler Mises à jour.");
+        Equal(SettingsSavePreviewState.Dirty, LauncherV2PreviewData.CreateSettings(SettingsPreviewScenario.Dirty).Current.SavePreviewState, "Dirty doit exposer la barre d'action.");
+        Equal(SettingsSavePreviewState.Saving, LauncherV2PreviewData.CreateSettings(SettingsPreviewScenario.Saving).Current.SavePreviewState, "Saving doit rester purement visuel.");
+        Equal(SettingsSavePreviewState.Saved, LauncherV2PreviewData.CreateSettings(SettingsPreviewScenario.Saved).Current.SavePreviewState, "Saved doit rester purement visuel.");
+        Equal(SettingsSavePreviewState.Error, LauncherV2PreviewData.CreateSettings(SettingsPreviewScenario.SaveError).Current.SavePreviewState, "SaveError doit rester purement visuel.");
+
+        static SettingsPreviewScenario Resolve(string argument)
+        {
+            return SettingsPreviewArguments.ResolveScenario(["--ui-v2", argument]);
+        }
     }
 
     private static async Task ValidateWpfLayoutsNavigationAndCapturesAsync(string? captureDirectory)
@@ -77,7 +128,7 @@ internal static class SettingsPreviewTests
         };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        await completion.Task.WaitAsync(TimeSpan.FromSeconds(45));
+        await completion.Task.WaitAsync(TimeSpan.FromSeconds(60));
     }
 
     private static void RunWpfHarness(TaskCompletionSource completion, string? captureDirectory)
@@ -115,6 +166,7 @@ internal static class SettingsPreviewTests
                 LoadV2Resources(application);
                 await ValidateRequestedLayoutsAsync(captureDirectory);
                 await ValidateLocalNavigationAsync();
+                await ValidateSavePreviewStatesAsync();
             }
             catch (Exception exception)
             {
@@ -130,11 +182,15 @@ internal static class SettingsPreviewTests
 
     private static async Task ValidateRequestedLayoutsAsync(string? captureDirectory)
     {
-        (string FileName, double Width, double Height, AdaptiveLayoutMode Mode)[] layouts =
+        (string FileName, double Width, double Height, AdaptiveLayoutMode Mode, SettingsPreviewScenario Scenario, SettingsCategory Category, bool ShowsActionBar)[] layouts =
         [
-            ("01-settings-1440x860.png", 1440, 860, AdaptiveLayoutMode.Wide),
-            ("02-settings-1080x680.png", 1080, 680, AdaptiveLayoutMode.Stacked),
-            ("03-settings-1920x1080.png", 1920, 1080, AdaptiveLayoutMode.Wide)
+            ("01-settings-general-1440x860.png", 1440, 860, AdaptiveLayoutMode.Wide, SettingsPreviewScenario.General, SettingsCategory.General, false),
+            ("02-settings-game-1440x860.png", 1440, 860, AdaptiveLayoutMode.Wide, SettingsPreviewScenario.Game, SettingsCategory.Game, false),
+            ("03-settings-updates-1440x860.png", 1440, 860, AdaptiveLayoutMode.Wide, SettingsPreviewScenario.Updates, SettingsCategory.Updates, false),
+            ("04-settings-diagnostic-1440x860.png", 1440, 860, AdaptiveLayoutMode.Wide, SettingsPreviewScenario.Diagnostic, SettingsCategory.Diagnostic, false),
+            ("05-settings-game-1080x680.png", 1080, 680, AdaptiveLayoutMode.Stacked, SettingsPreviewScenario.Game, SettingsCategory.Game, false),
+            ("06-settings-general-1920x1080.png", 1920, 1080, AdaptiveLayoutMode.Wide, SettingsPreviewScenario.General, SettingsCategory.General, false),
+            ("07-settings-unsaved-1440x860.png", 1440, 860, AdaptiveLayoutMode.Wide, SettingsPreviewScenario.Dirty, SettingsCategory.General, true)
         ];
 
         if (!string.IsNullOrWhiteSpace(captureDirectory))
@@ -142,40 +198,49 @@ internal static class SettingsPreviewTests
             Directory.CreateDirectory(captureDirectory);
         }
 
-        foreach ((string fileName, double width, double height, AdaptiveLayoutMode expectedMode) in layouts)
+        foreach ((string fileName, double width, double height, AdaptiveLayoutMode expectedMode, SettingsPreviewScenario scenario, SettingsCategory expectedCategory, bool showsActionBar) in layouts)
         {
-            LauncherShellV2 window = CreateSettingsWindow(width, height);
+            LauncherShellV2 window = CreateSettingsWindow(width, height, scenario);
             window.Show();
             try
             {
-                await DelayAndPumpAsync(220);
+                await DelayAndPumpAsync(240);
                 RecordDpi(window);
-                ValidateCommonVisualContract(window);
+                ValidateCommonVisualContract(window, expectedCategory, showsActionBar);
                 Equal(expectedMode, window.ShellState.LayoutMode, $"Layout inattendu à {width}x{height}.");
 
                 SettingsViewV2 settings = window.SettingsPage;
-                Grid secondary = Required<Grid>(settings, "SettingsColumns");
-                StackPanel secondaryColumn = Required<StackPanel>(settings, "SecondarySettingsColumn");
-                if (expectedMode == AdaptiveLayoutMode.Stacked)
+                ColumnDefinition navigationColumn = Required<ColumnDefinition>(settings, "NavigationColumn");
+                double expectedNavigationWidth = expectedMode switch
                 {
-                    Equal(1, Grid.GetRow(secondaryColumn), "Les sections secondaires doivent être empilées à 1080 DIPs.");
-                    Equal(0, Grid.GetColumn(secondaryColumn), "La pile compacte doit rester dans la colonne principale.");
-                    True(
-                        settings.ScrollHost.ExtentHeight > settings.ScrollHost.ViewportHeight,
-                        "Le contenu 1080x680 doit défiler plutôt que se compresser.");
-                }
-                else
-                {
-                    Equal(0, Grid.GetRow(secondaryColumn), "Le mode Wide doit conserver deux colonnes.");
-                    Equal(2, Grid.GetColumn(secondaryColumn), "Le panneau Comportement doit rester à droite.");
-                }
+                    AdaptiveLayoutMode.Wide => 224,
+                    AdaptiveLayoutMode.Compact => 212,
+                    _ => 176
+                };
+                Near(expectedNavigationWidth, navigationColumn.ActualWidth, 0.6, "La navigation secondaire n'a pas la largeur attendue.");
 
-                True(secondary.ActualWidth <= 1220.5, "Le contenu Wide ne doit pas être étiré excessivement.");
+                Grid contentFrame = Required<Grid>(settings, "ContentFrame");
+                True(contentFrame.ActualWidth <= 1280.5, "Le contenu Wide ne doit pas être étiré excessivement.");
                 Equal(
                     ScrollBarVisibility.Disabled,
                     settings.ScrollHost.HorizontalScrollBarVisibility,
                     "Aucune barre horizontale n'est autorisée.");
                 True(settings.ScrollHost.ScrollableWidth <= 0.5, "Le contenu ne doit pas déborder horizontalement.");
+
+                if (width >= 1900)
+                {
+                    True(contentFrame.ActualWidth >= 1270, "La largeur maximale doit être utilisée sur grand écran.");
+                    Rect contentBounds = BoundsInAncestor(contentFrame, window);
+                    True(contentBounds.Left > 250, "Le contenu 1920 doit être visiblement centré.");
+                    True(window.ActualWidth - contentBounds.Right > 250, "Le vide latéral 1920 doit être équilibré.");
+                }
+
+                if (showsActionBar)
+                {
+                    FrameworkElement actionBar = Required<Border>(settings, "SettingsActionBar");
+                    Rect bounds = BoundsInAncestor(actionBar, window);
+                    True(bounds.Bottom <= window.ActualHeight + 0.5, "La barre Enregistrer/Annuler doit rester accessible.");
+                }
 
                 if (!string.IsNullOrWhiteSpace(captureDirectory))
                 {
@@ -212,6 +277,15 @@ internal static class SettingsPreviewTests
             RaiseClick(settingsButton);
             await PumpAsync(DispatcherPriority.Input);
             Equal(LauncherShellPage.Settings, window.CurrentPage, "Le bouton engrenage doit ouvrir la maquette locale.");
+
+            SettingsViewV2 settings = window.SettingsPage;
+            foreach ((SettingsCategory category, string buttonName, _) in CategoryControls)
+            {
+                RaiseClick(Required<Button>(settings, buttonName));
+                await PumpAsync(DispatcherPriority.Input);
+                ValidateSelectedCategory(settings, category);
+            }
+
             RaiseClick(gameButton);
             await PumpAsync(DispatcherPriority.Input);
             Equal(LauncherShellPage.Game, window.CurrentPage, "Jeu doit ramener au tableau de bord preview.");
@@ -224,9 +298,46 @@ internal static class SettingsPreviewTests
         }
     }
 
-    private static LauncherShellV2 CreateSettingsWindow(double width, double height)
+    private static async Task ValidateSavePreviewStatesAsync()
     {
-        return new LauncherShellV2(GamePreviewScenario.Ready, SettingsPreviewScenario.Default)
+        (SettingsPreviewScenario Scenario, string Label, bool ProgressVisible, bool ButtonsVisible)[] states =
+        [
+            (SettingsPreviewScenario.Dirty, "Modifications non enregistrées", false, true),
+            (SettingsPreviewScenario.Saving, "Enregistrement…", true, true),
+            (SettingsPreviewScenario.Saved, "Enregistré", false, false),
+            (SettingsPreviewScenario.SaveError, "Erreur d’enregistrement", false, true)
+        ];
+
+        foreach ((SettingsPreviewScenario scenario, string expectedLabel, bool progressVisible, bool buttonsVisible) in states)
+        {
+            LauncherShellV2 window = CreateSettingsWindow(1080, 680, scenario);
+            window.Show();
+            try
+            {
+                await DelayAndPumpAsync(100);
+                SettingsViewV2 settings = window.SettingsPage;
+                Equal(Visibility.Visible, Required<Border>(settings, "SettingsActionBar").Visibility, "L'état de sauvegarde doit afficher sa barre.");
+                Equal(expectedLabel, Required<TextBlock>(settings, "SettingsActionStatusText").Text, "Libellé d'enregistrement incohérent.");
+                Equal(progressVisible ? Visibility.Visible : Visibility.Collapsed, Required<ProgressBar>(settings, "SettingsActionProgress").Visibility, "Progression de sauvegarde incohérente.");
+                Equal(buttonsVisible ? Visibility.Visible : Visibility.Collapsed, Required<StackPanel>(settings, "SettingsActionButtons").Visibility, "Actions de sauvegarde incohérentes.");
+                True(settings.ScrollHost.ScrollableWidth <= 0.5, "La barre d'action ne doit pas provoquer de débordement horizontal.");
+                Rect bounds = BoundsInAncestor(Required<Border>(settings, "SettingsActionBar"), window);
+                True(bounds.Bottom <= window.ActualHeight + 0.5, "La barre d'action doit rester dans la fenêtre compacte.");
+            }
+            finally
+            {
+                window.Close();
+                await PumpAsync(DispatcherPriority.Background);
+            }
+        }
+    }
+
+    private static LauncherShellV2 CreateSettingsWindow(
+        double width,
+        double height,
+        SettingsPreviewScenario scenario)
+    {
+        return new LauncherShellV2(GamePreviewScenario.Ready, scenario)
         {
             Width = width,
             Height = height,
@@ -238,12 +349,15 @@ internal static class SettingsPreviewTests
         };
     }
 
-    private static void ValidateCommonVisualContract(LauncherShellV2 window)
+    private static void ValidateCommonVisualContract(
+        LauncherShellV2 window,
+        SettingsCategory expectedCategory,
+        bool showsActionBar)
     {
         True(window.IsPreviewMode, "SettingsViewV2 doit rester dans une fenêtre preview.");
         True(!window.HasRealAuthenticationAttached, "Le preview ne doit attacher aucun service réel.");
         Equal(LauncherShellPage.Settings, window.CurrentPage, "Le preview Settings doit ouvrir sa page directement.");
-        Equal(Visibility.Collapsed, Required<GameViewV2>(window, "GameView").Visibility, "GameView ne doit pas être instancié visuellement derrière Settings.");
+        Equal(Visibility.Collapsed, Required<GameViewV2>(window, "GameView").Visibility, "GameView ne doit pas être visible derrière Settings.");
         Equal(Visibility.Visible, window.SettingsPage.Visibility, "SettingsViewV2 doit être visible.");
 
         Button settingsButton = Required<Button>(window, "SettingsButton");
@@ -251,14 +365,33 @@ internal static class SettingsPreviewTests
         True(settingsButton.IsEnabled, "La navigation Paramètres doit être active dans le preview uniquement.");
 
         SettingsViewV2 settings = window.SettingsPage;
+        ValidateSelectedCategory(settings, expectedCategory);
+        Equal(showsActionBar ? Visibility.Visible : Visibility.Collapsed, Required<Border>(settings, "SettingsActionBar").Visibility, "Visibilité inattendue de la barre d'action.");
+        True(!Required<Button>(settings, "BrowseInstallPathButton").IsHitTestVisible, "Parcourir ne doit lancer aucun dialogue en 02G.1.1.");
+        True(!Required<Button>(settings, "OpenGameFolderButton").IsHitTestVisible, "Ouvrir le jeu ne doit lancer aucun processus en 02G.1.1.");
+        True(!Required<Button>(settings, "VerifyRepairButton").IsHitTestVisible, "Vérifier ne doit lancer aucun pipeline en 02G.1.1.");
+        True(!Required<Button>(settings, "OpenLogsButton").IsHitTestVisible, "Ouvrir les journaux ne doit lancer aucun processus en 02G.1.1.");
+        True(!Required<Button>(settings, "CopyDiagnosticButton").IsHitTestVisible, "Copier ne doit toucher aucun presse-papiers en 02G.1.1.");
+        True(!Required<Button>(settings, "OpenLauncherFolderButton").IsHitTestVisible, "Ouvrir le launcher ne doit lancer aucun processus en 02G.1.1.");
+        True(!Required<Button>(settings, "ResetInterfaceButton").IsHitTestVisible, "Réinitialiser ne doit modifier aucun paramètre en 02G.1.1.");
         Equal(@"C:\Program Files (x86)\WotLK", Required<TextBlock>(settings, "InstallPathText").Text, "Le dossier fictif doit être lisible.");
-        Equal("Français", Required<TextBlock>(settings, "GameLanguageText").Text, "La langue doit être visible.");
+        Equal("Français", Required<TextBlock>(settings, "GameLanguageText").Text, "La langue du jeu doit être visible.");
+        Equal("Français", Required<TextBlock>(settings, "InterfaceLanguageText").Text, "La langue du launcher doit être visible.");
         True(Required<ToggleButton>(settings, "AutomaticUpdatesToggle").IsChecked == true, "L'auto-update doit être visuellement actif.");
         True(Required<ToggleButton>(settings, "CloseAfterLaunchToggle").IsChecked == false, "La fermeture doit être visuellement inactive.");
-        True(!Required<Button>(settings, "BrowseInstallPathButton").IsHitTestVisible, "Parcourir ne doit lancer aucun dialogue en 02G.1.");
-        True(!Required<Button>(settings, "OpenLogsButton").IsHitTestVisible, "Ouvrir les logs ne doit lancer aucun processus en 02G.1.");
         Equal("v1.1.0", Required<TextBlock>(settings, "LauncherVersionText").Text, "La version launcher est absente.");
         Equal("3.4.3.54261", Required<TextBlock>(settings, "ClientVersionText").Text, "La version client est absente.");
+    }
+
+    private static void ValidateSelectedCategory(SettingsViewV2 settings, SettingsCategory expectedCategory)
+    {
+        Equal(expectedCategory, settings.SelectedCategory, "La catégorie sélectionnée est incohérente.");
+        foreach ((SettingsCategory category, string buttonName, string panelName) in CategoryControls)
+        {
+            bool expected = category == expectedCategory;
+            Equal(expected ? "Active" : null, Required<Button>(settings, buttonName).Tag as string, $"Sélection visuelle incorrecte pour {category}.");
+            Equal(expected ? Visibility.Visible : Visibility.Collapsed, Required<StackPanel>(settings, panelName).Visibility, $"Une seule catégorie doit être rendue : {category}.");
+        }
     }
 
     private static void LoadV2Resources(Application application)
@@ -296,6 +429,12 @@ internal static class SettingsPreviewTests
         encoder.Save(stream);
     }
 
+    private static Rect BoundsInAncestor(FrameworkElement element, Visual ancestor)
+    {
+        return element.TransformToAncestor(ancestor).TransformBounds(
+            new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+    }
+
     private static void RecordDpi(Window window)
     {
         uint dpi = GetDpiForWindow(new WindowInteropHelper(window).Handle);
@@ -310,7 +449,7 @@ internal static class SettingsPreviewTests
     }
 
     private static T Required<T>(FrameworkElement root, string name)
-        where T : FrameworkElement
+        where T : class
     {
         return root.FindName(name) as T
             ?? throw new InvalidOperationException($"Contrôle WPF absent : {name}.");
@@ -343,6 +482,14 @@ internal static class SettingsPreviewTests
     private static void Equal<T>(T expected, T actual, string message)
     {
         if (!EqualityComparer<T>.Default.Equals(expected, actual))
+        {
+            throw new InvalidOperationException($"{message} Attendu={expected}; obtenu={actual}.");
+        }
+    }
+
+    private static void Near(double expected, double actual, double tolerance, string message)
+    {
+        if (Math.Abs(expected - actual) > tolerance)
         {
             throw new InvalidOperationException($"{message} Attendu={expected}; obtenu={actual}.");
         }

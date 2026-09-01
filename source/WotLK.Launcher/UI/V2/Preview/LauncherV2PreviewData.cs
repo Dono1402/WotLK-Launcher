@@ -86,19 +86,66 @@ public static class LauncherV2PreviewData
         return state;
     }
 
-    internal static SettingsUiState CreateSettings()
+    internal static SettingsUiState CreateSettings(
+        SettingsPreviewScenario scenario = SettingsPreviewScenario.General)
     {
+        SettingsCategory category = scenario switch
+        {
+            SettingsPreviewScenario.Game => SettingsCategory.Game,
+            SettingsPreviewScenario.Updates => SettingsCategory.Updates,
+            SettingsPreviewScenario.Notifications => SettingsCategory.Notifications,
+            SettingsPreviewScenario.Appearance => SettingsCategory.Appearance,
+            SettingsPreviewScenario.Diagnostic => SettingsCategory.Diagnostic,
+            _ => SettingsCategory.General
+        };
+        SettingsSavePreviewState saveState = scenario switch
+        {
+            SettingsPreviewScenario.Dirty => SettingsSavePreviewState.Dirty,
+            SettingsPreviewScenario.Saving => SettingsSavePreviewState.Saving,
+            SettingsPreviewScenario.Saved => SettingsSavePreviewState.Saved,
+            SettingsPreviewScenario.SaveError => SettingsSavePreviewState.Error,
+            _ => SettingsSavePreviewState.None
+        };
+
         return new SettingsUiState(new SettingsViewState(
-            InstallPath: @"C:\Program Files (x86)\WotLK",
-            GameLanguage: "Français",
-            AutomaticLauncherUpdates: true,
-            AutomaticLauncherUpdatesStatus: "Activées",
-            CloseLauncherAfterGameStart: false,
-            CloseLauncherAfterGameStartStatus: "Désactivée",
-            LauncherVersion: "v1.1.0",
-            ClientVersion: "3.4.3.54261",
-            ReleaseChannel: "Stable",
-            LogLocation: @"%LOCALAPPDATA%\Atlas Launcher\Logs"));
+            category,
+            saveState,
+            new GeneralSettingsViewState(
+                InterfaceLanguage: "Français",
+                StartWithWindows: false,
+                WindowCloseBehavior: "Quitter Atlas Launcher",
+                CloseLauncherAfterGameStart: false),
+            new GameSettingsViewState(
+                InstallPath: @"C:\Program Files (x86)\WotLK",
+                GameLanguage: "Français",
+                VideoSettingsLocation: @"WTF\Config.wtf",
+                InstantQuestText: true,
+                ClientVersion: "3.4.3.54261"),
+            new UpdateSettingsViewState(
+                AutomaticLauncherUpdates: true,
+                ClientUpdateBehavior: "Avant le lancement du jeu",
+                ReleaseChannel: "Stable",
+                LastUpdateCheck: "Aujourd’hui à 08:42",
+                InstalledLauncherVersion: "v1.1.0",
+                AvailableLauncherVersion: "v1.1.0"),
+            new NotificationSettingsViewState(
+                UpdateCompleted: true,
+                Errors: true,
+                FriendRequests: true,
+                FriendPresence: false,
+                Sounds: true),
+            new AppearanceSettingsViewState(
+                ReduceAnimations: false,
+                InterfaceScale: "100 %",
+                EffectsIntensity: 68,
+                EffectsIntensityLabel: "Équilibrée"),
+            new DiagnosticSettingsViewState(
+                LogLocation: @"%LOCALAPPDATA%\Atlas Launcher\Logs",
+                LauncherLocation: @"C:\Program Files\Atlas Launcher",
+                LauncherVersion: "v1.1.0",
+                ClientVersion: "3.4.3.54261",
+                LocalState: "Client prêt · non vérifié",
+                ServiceState: "Services disponibles")));
     }
 
     internal static DashboardUiState CreateDashboard(GamePreviewScenario scenario)

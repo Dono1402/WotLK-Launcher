@@ -40,11 +40,12 @@ internal static class AvatarFoundationTests
 
         LauncherSchemaMigrator firstMigrator = new(options, source, validator, "03A.2a-test");
         IReadOnlyList<LauncherSchemaMigrationOutcome> first = await firstMigrator.MigrateAsync();
-        Equal(3, first.Count, "Trois migrations doivent etre connues.");
+        Equal(4, first.Count, "Quatre migrations doivent etre connues.");
         Equal(LauncherSchemaMigrationState.Adopted, first[0].State, "La copie reelle doit etre adoptee comme baseline.");
         Equal(LauncherSchemaMigrationState.Applied, first[1].State, "Le schema avatar doit etre applique.");
         Equal(LauncherSchemaMigrationState.Applied, first[2].State, "Le backend avatar doit etre applique.");
-        await AssertHistoryCountAsync(builder.ConnectionString, 3);
+        Equal(LauncherSchemaMigrationState.Applied, first[3].State, "La frontiere des profils Atlas doit etre appliquee.");
+        await AssertHistoryCountAsync(builder.ConnectionString, 4);
 
         IReadOnlyList<LauncherSchemaMigrationOutcome> second = await firstMigrator.MigrateAsync();
         True(second.All(item => item.State == LauncherSchemaMigrationState.AlreadyApplied), "La seconde execution doit etre sans effet.");
@@ -58,7 +59,7 @@ internal static class AvatarFoundationTests
         await ExpectAsync<InvalidOperationException>(
             () => new LauncherSchemaMigrator(
                 options,
-                new FixedMigrationSource([originals[0], changed, originals[2]]),
+                new FixedMigrationSource([originals[0], changed, originals[2], originals[3]]),
                 validator,
                 "03A.2a-test").MigrateAsync(),
             "Un checksum modifie doit etre refuse.");
@@ -72,19 +73,19 @@ internal static class AvatarFoundationTests
         await ExpectAsync<MySqlException>(
             () => new LauncherSchemaMigrator(
                 options,
-                new FixedMigrationSource([originals[0], failing, originals[2]]),
+                new FixedMigrationSource([originals[0], failing, originals[2], originals[3]]),
                 validator,
                 "03A.2a-test").MigrateAsync(),
             "Une migration SQL invalide doit echouer.");
         await AssertHistoryCountAsync(builder.ConnectionString, 1);
         await firstMigrator.MigrateAsync();
-        await AssertHistoryCountAsync(builder.ConnectionString, 3);
+        await AssertHistoryCountAsync(builder.ConnectionString, 4);
 
         await ResetToLegacyAsync(builder.ConnectionString);
         LauncherSchemaMigrator concurrentA = new(options, source, validator, "03A.2a-concurrent-a");
         LauncherSchemaMigrator concurrentB = new(options, source, validator, "03A.2a-concurrent-b");
         await Task.WhenAll(concurrentA.MigrateAsync(), concurrentB.MigrateAsync());
-        await AssertHistoryCountAsync(builder.ConnectionString, 3);
+        await AssertHistoryCountAsync(builder.ConnectionString, 4);
 
         Console.WriteLine("Avatar MySQL migrations OK: adoption, idempotence, checksum, failure recovery and concurrency.");
         return 0;
@@ -93,15 +94,24 @@ internal static class AvatarFoundationTests
     private static void ValidateEmbeddedMigrations()
     {
         IReadOnlyList<LauncherSchemaMigration> migrations = new EmbeddedLauncherSchemaMigrationSource().Load();
-        Equal(3, migrations.Count, "Le checkpoint doit embarquer exactement trois migrations.");
+        Equal(4, migrations.Count, "Le serveur doit embarquer exactement quatre migrations.");
         Equal((uint)1, migrations[0].Version, "La baseline doit etre 0001.");
         Equal("legacy_baseline", migrations[0].Name, "Le nom de la baseline est incorrect.");
         Equal((uint)2, migrations[1].Version, "Le schema avatar doit etre 0002.");
         Equal("profile_avatar", migrations[1].Name, "Le nom de la migration avatar est incorrect.");
         Equal((uint)3, migrations[2].Version, "Le backend avatar doit etre 0003.");
         Equal("avatar_backend", migrations[2].Name, "Le nom de la migration backend est incorrect.");
+        Equal((uint)4, migrations[3].Version, "La frontiere des profils Atlas doit etre 0004.");
+        Equal("atlas_profile_identity_boundary", migrations[3].Name, "Le nom de la migration de frontiere est incorrect.");
         True(migrations.All(item => item.Sha256.Length == 32), "Chaque migration doit posseder un SHA-256.");
         True(migrations[0].Sql.Contains("avatar_key", StringComparison.Ordinal), "La compatibilite avatar_key doit rester dans la baseline.");
+        True(
+            migrations[3].Sql.Contains("REFERENCES atlas_launcher_profile(account_id)", StringComparison.Ordinal),
+            "Les donnees Atlas doivent dependre d'un profil Atlas.");
+        True(
+            !migrations[3].Sql.Contains("DELETE FROM account", StringComparison.OrdinalIgnoreCase)
+            && !migrations[3].Sql.Contains("DROP TABLE account", StringComparison.OrdinalIgnoreCase),
+            "La migration ne doit jamais toucher aux lignes AzerothCore.");
     }
 
     private static async Task ValidateLocalStorageAsync()
@@ -201,6 +211,25 @@ internal static class AvatarFoundationTests
             DROP TABLE IF EXISTS atlas_launcher_avatar_variant;
             DROP TABLE IF EXISTS atlas_launcher_avatar_asset;
             DROP TABLE IF EXISTS atlas_launcher_schema_history;
+
+            ALTER TABLE atlas_launcher_session
+                DROP FOREIGN KEY fk_atlas_session_account,
+                ADD CONSTRAINT fk_atlas_session_account
+                    FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE CASCADE;
+            ALTER TABLE atlas_launcher_email_verification
+                DROP FOREIGN KEY fk_atlas_email_account,
+                ADD CONSTRAINT fk_atlas_email_account
+                    FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE CASCADE;
+            ALTER TABLE atlas_launcher_friendship
+                DROP FOREIGN KEY fk_atlas_friend_low,
+                DROP FOREIGN KEY fk_atlas_friend_high,
+                DROP FOREIGN KEY fk_atlas_friend_requester,
+                ADD CONSTRAINT fk_atlas_friend_low
+                    FOREIGN KEY (account_low_id) REFERENCES account(id) ON DELETE CASCADE,
+                ADD CONSTRAINT fk_atlas_friend_high
+                    FOREIGN KEY (account_high_id) REFERENCES account(id) ON DELETE CASCADE,
+                ADD CONSTRAINT fk_atlas_friend_requester
+                    FOREIGN KEY (requested_by_id) REFERENCES account(id) ON DELETE CASCADE;
             SET FOREIGN_KEY_CHECKS = 1;
             """;
         await command.ExecuteNonQueryAsync();

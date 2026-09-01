@@ -52,6 +52,10 @@ Authenticated routes are:
 - `GET /media/avatars/{avatarId}/{version}/{size}.png` for private immutable
   media at 32, 64, 128, or 256 pixels.
 
+Authentication alone is not sufficient: the account must own an
+`atlas_launcher_profile`. AzerothCore-only accounts, including Playerbots, can
+never reserve upload quota, create an asset, or expose an `AvatarDescriptor`.
+
 Uploads stream into staging, apply EXIF orientation, validate a normalized
 square crop, generate fresh PNG surfaces, and publish the complete variant
 directory atomically before a short database transaction changes the active

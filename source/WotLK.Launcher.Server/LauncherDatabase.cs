@@ -130,8 +130,8 @@ public sealed partial class LauncherDatabase
                 connection, transaction, credential.Username, salt, verifier, cancellationToken);
         }
 
-        AccountProfile profile = await EnsureAndLoadProfileAsync(
-            connection, transaction, credential, cancellationToken);
+        AccountProfile profile = await LoadProfileAsync(
+            connection, transaction, credential.AccountId, cancellationToken);
         SessionTokens session = _tokens.Create(_options.AccessTokenMinutes, _options.RefreshTokenDays);
         await InsertSessionAsync(
             connection, transaction, credential.AccountId, request.DeviceName, session, cancellationToken);
@@ -153,7 +153,8 @@ public sealed partial class LauncherDatabase
             command.CommandText = """
                 SELECT s.id, s.account_id, s.device_name, a.username
                 FROM atlas_launcher_session s
-                INNER JOIN account a ON a.id = s.account_id
+                INNER JOIN atlas_launcher_profile p ON p.account_id = s.account_id
+                INNER JOIN account a ON a.id = p.account_id
                 WHERE s.refresh_hash = @hash
                   AND s.revoked_at IS NULL
                   AND s.refresh_expires_at > UTC_TIMESTAMP()
@@ -210,7 +211,8 @@ public sealed partial class LauncherDatabase
         command.CommandText = """
             SELECT s.account_id, a.username
             FROM atlas_launcher_session s
-            INNER JOIN account a ON a.id = s.account_id
+            INNER JOIN atlas_launcher_profile p ON p.account_id = s.account_id
+            INNER JOIN account a ON a.id = p.account_id
             WHERE s.access_hash = @hash
               AND s.revoked_at IS NULL
               AND s.access_expires_at > UTC_TIMESTAMP()
@@ -794,43 +796,6 @@ public sealed partial class LauncherDatabase
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    private static async Task<AccountProfile> EnsureAndLoadProfileAsync(
-        MySqlConnection connection,
-        MySqlTransaction transaction,
-        AccountCredential credential,
-        CancellationToken cancellationToken)
-    {
-        string profileEmail = credential.Email.Trim().ToUpperInvariant();
-        if (string.IsNullOrWhiteSpace(profileEmail)
-            || await EmailExistsAsync(
-                connection,
-                transaction,
-                profileEmail,
-                credential.AccountId,
-                cancellationToken))
-        {
-            profileEmail =
-                $"{credential.Username.ToLowerInvariant()}+{credential.AccountId}@unverified.atlas.local";
-        }
-
-        await using (MySqlCommand command = connection.CreateCommand())
-        {
-            command.Transaction = transaction;
-            command.CommandText = """
-                INSERT IGNORE INTO atlas_launcher_profile
-                    (account_id, display_username, email_normalized)
-                VALUES
-                    (@accountId, @username, @email);
-                """;
-            command.Parameters.AddWithValue("@accountId", credential.AccountId);
-            command.Parameters.AddWithValue("@username", credential.Username);
-            command.Parameters.AddWithValue("@email", profileEmail);
-            await command.ExecuteNonQueryAsync(cancellationToken);
-        }
-
-        return await LoadProfileAsync(connection, transaction, credential.AccountId, cancellationToken);
-    }
-
     private static async Task<bool> EmailExistsAsync(
         MySqlConnection connection,
         MySqlTransaction transaction,
@@ -919,6 +884,7 @@ public sealed partial class LauncherDatabase
         SELECT a.id, a.username, a.email, a.salt, a.verifier,
                h.salt AS modern_salt, h.verifier AS modern_verifier
         FROM account a
+        INNER JOIN atlas_launcher_profile p ON p.account_id = a.id
         LEFT JOIN hermes_bnet_credentials h
           ON BINARY h.username = BINARY a.username
         """;

@@ -37,6 +37,12 @@ can detach the photo atomically, and adds the persistent per-account upload
 attempt ledger used by the rolling ten-minute and daily limits. Migrations
 `0001` and `0002` remain byte-for-byte immutable.
 
+`0004_atlas_profile_identity_boundary.sql` makes `atlas_launcher_profile` the
+identity boundary for launcher sessions, e-mail verification, friendships and
+avatar ownership. AzerothCore-only accounts remain untouched in `account`, but
+cannot acquire Atlas data unless an Atlas profile already exists. Migrations
+`0001`, `0002` and `0003` remain byte-for-byte immutable.
+
 Named MySQL locks are scoped from the database name. Migration commands never
 run concurrently in the same schema, while separate test and production schemas
 do not block each other.

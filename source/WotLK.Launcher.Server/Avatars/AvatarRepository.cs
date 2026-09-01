@@ -40,13 +40,14 @@ internal sealed class AvatarRepository : IAvatarRepository
         await using MySqlTransaction transaction =
             await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
 
-        await using (MySqlCommand accountLock = connection.CreateCommand())
+        await using (MySqlCommand profileLock = connection.CreateCommand())
         {
-            accountLock.Transaction = transaction;
-            accountLock.CommandText = "SELECT id FROM account WHERE id = @accountId FOR UPDATE";
-            accountLock.Parameters.AddWithValue("@accountId", accountId);
-            if (await accountLock.ExecuteScalarAsync(cancellationToken) is null)
-                throw new InvalidOperationException("Compte Atlas introuvable.");
+            profileLock.Transaction = transaction;
+            profileLock.CommandText =
+                "SELECT account_id FROM atlas_launcher_profile WHERE account_id = @accountId FOR UPDATE";
+            profileLock.Parameters.AddWithValue("@accountId", accountId);
+            if (await profileLock.ExecuteScalarAsync(cancellationToken) is null)
+                throw new InvalidOperationException("Profil Atlas introuvable.");
         }
 
         await using (MySqlCommand cleanup = connection.CreateCommand())
@@ -108,6 +109,12 @@ internal sealed class AvatarRepository : IAvatarRepository
         await using MySqlConnection connection = await OpenAsync(cancellationToken);
         await using MySqlTransaction transaction =
             await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+        await EnsureProfileExistsAsync(
+            connection,
+            transaction,
+            accountId,
+            forUpdate: true,
+            cancellationToken);
         ulong version;
         await using (MySqlCommand versionCommand = connection.CreateCommand())
         {
@@ -450,6 +457,26 @@ internal sealed class AvatarRepository : IAvatarRepository
         command.Parameters.AddWithValue("@accountId", accountId);
         await using MySqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken) ? ReadAsset(reader) : null;
+    }
+
+    private static async Task EnsureProfileExistsAsync(
+        MySqlConnection connection,
+        MySqlTransaction transaction,
+        uint accountId,
+        bool forUpdate,
+        CancellationToken cancellationToken)
+    {
+        await using MySqlCommand command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT account_id
+            FROM atlas_launcher_profile
+            WHERE account_id = @accountId
+            LIMIT 1
+            """ + (forUpdate ? " FOR UPDATE" : "");
+        command.Parameters.AddWithValue("@accountId", accountId);
+        if (await command.ExecuteScalarAsync(cancellationToken) is null)
+            throw new InvalidOperationException("Profil Atlas introuvable.");
     }
 
     private static AvatarAssetRecord ReadAsset(MySqlDataReader reader)

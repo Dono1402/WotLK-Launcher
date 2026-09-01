@@ -126,7 +126,7 @@ internal sealed class LauncherSchemaMigrator
         CancellationToken cancellationToken)
     {
         if (version >= 1)
-            await _validator.ValidateLegacyAsync(connection, cancellationToken);
+            await _validator.ValidateLegacyAsync(connection, version, cancellationToken);
         if (version >= 2)
             await _validator.ValidateAvatarAsync(connection, version, cancellationToken);
     }

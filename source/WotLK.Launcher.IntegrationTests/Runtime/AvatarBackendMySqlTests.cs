@@ -41,8 +41,9 @@ internal static partial class AvatarBackendTests
             await ResetAvatarSchemaAsync(options.ConnectionString);
             LauncherSchemaMigrator migrator = new(options);
             IReadOnlyList<LauncherSchemaMigrationOutcome> migrations = await migrator.MigrateAsync();
-            Equal(3, migrations.Count, "Les trois migrations avatar doivent etre connues.");
+            Equal(4, migrations.Count, "Les quatre migrations Atlas doivent etre connues.");
             await ValidateSchemaAndChecksumAsync(options);
+            await ValidateAtlasProfileBoundaryAsync(options);
             await ValidateMutationLockLifecycleAsync(options);
             await ValidateRepositoryRateLimitAsync(options);
             await ValidateHttpContractAsync(options, roots);
@@ -63,7 +64,8 @@ internal static partial class AvatarBackendTests
     {
         await using MySqlConnection connection = new(options.ConnectionString);
         await connection.OpenAsync();
-        await new LauncherSchemaValidator().ValidateAvatarAsync(connection, 3, CancellationToken.None);
+        await new LauncherSchemaValidator().ValidateLegacyAsync(connection, 4, CancellationToken.None);
+        await new LauncherSchemaValidator().ValidateAvatarAsync(connection, 4, CancellationToken.None);
         IReadOnlyList<LauncherSchemaMigration> originals = new EmbeddedLauncherSchemaMigrationSource().Load();
         LauncherSchemaMigration changed = originals[1] with
         {
@@ -73,10 +75,86 @@ internal static partial class AvatarBackendTests
         await ExpectAsync<InvalidOperationException>(
             () => new LauncherSchemaMigrator(
                 options,
-                new FixedAvatarMigrationSource([originals[0], changed, originals[2]]),
+                new FixedAvatarMigrationSource([originals[0], changed, originals[2], originals[3]]),
                 new LauncherSchemaValidator(),
                 "03A.2b-checksum").MigrateAsync(),
             "La modification d'une migration deja appliquee doit etre refusee.");
+    }
+
+    private static async Task ValidateAtlasProfileBoundaryAsync(LauncherServerOptions options)
+    {
+        string suffix = Guid.NewGuid().ToString("N")[..10].ToUpperInvariant();
+        string username = $"RNDBOT_BOUNDARY_{suffix}";
+        const string password = "Atlas-technical-test-2026";
+        uint technicalAccountId;
+        (byte[] salt, byte[] verifier) = SrpCredentials.MakeLegacy(username, password);
+
+        await using (MySqlConnection connection = new(options.ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using MySqlCommand insert = connection.CreateCommand();
+            insert.CommandText = """
+                INSERT INTO account
+                    (username, salt, verifier, email, reg_mail, joindate, expansion)
+                VALUES
+                    (@username, @salt, @verifier, @email, @email, UTC_TIMESTAMP(), 2);
+                SELECT LAST_INSERT_ID();
+                """;
+            insert.Parameters.AddWithValue("@username", username);
+            insert.Parameters.Add("@salt", MySqlDbType.Binary, 32).Value = salt;
+            insert.Parameters.Add("@verifier", MySqlDbType.Binary, 32).Value = verifier;
+            insert.Parameters.AddWithValue("@email", $"{username.ToLowerInvariant()}@example.test");
+            technicalAccountId = Convert.ToUInt32(
+                await insert.ExecuteScalarAsync(),
+                System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        LauncherDatabase database = CreateDatabase(options);
+        AuthResponse? login = await database.LoginAsync(
+            new LoginRequest(username, password, "technical-account-test"),
+            CancellationToken.None);
+        True(login is null, "Un compte AzerothCore sans profil ne doit pas ouvrir de session Atlas.");
+        await ExpectAsync<InvalidOperationException>(
+            () => database.GetProfileAsync(technicalAccountId, CancellationToken.None),
+            "Un compte technique ne doit exposer aucun profil ni AvatarDescriptor.");
+
+        await using (MySqlConnection connection = new(options.ConnectionString))
+        {
+            await connection.OpenAsync();
+            Equal(
+                1L,
+                await ScalarInt64Async(
+                    connection,
+                    "SELECT COUNT(*) FROM account WHERE id = @accountId",
+                    ("@accountId", technicalAccountId)),
+                "Le compte technique AzerothCore doit rester intact.");
+            Equal(
+                0L,
+                await ScalarInt64Async(
+                    connection,
+                    "SELECT COUNT(*) FROM atlas_launcher_profile WHERE account_id = @accountId",
+                    ("@accountId", technicalAccountId)),
+                "La connexion ne doit jamais creer automatiquement un profil Atlas.");
+        }
+
+        AuthResponse atlasAccount = await RegisterTestAccountAsync(database, "boundary");
+        AuthResponse? atlasLogin = await database.LoginAsync(
+            new LoginRequest(atlasAccount.Profile.Username, "Atlas-avatar-test-2026", "atlas-profile-test"),
+            CancellationToken.None);
+        True(atlasLogin is not null, "Un compte possedant un profil Atlas doit toujours pouvoir se connecter.");
+        FriendRequestResult request = await database.SendFriendRequestAsync(
+            atlasAccount.Profile.AccountId,
+            username,
+            CancellationToken.None);
+        Equal(FriendRequestOutcome.NotFound, request.Outcome, "Un compte technique ne doit pas etre trouvable socialement.");
+
+        AvatarRepository repository = new(options);
+        await ExpectAsync<InvalidOperationException>(
+            () => repository.TryConsumeUploadPermitAsync(technicalAccountId, CancellationToken.None),
+            "Un compte technique ne doit pas obtenir de quota avatar.");
+        await ExpectAsync<InvalidOperationException>(
+            () => repository.CreatePendingAsync(technicalAccountId, CancellationToken.None),
+            "Un compte technique ne doit pas creer d'avatar.");
     }
 
     private static async Task ValidateRepositoryRateLimitAsync(LauncherServerOptions options)
@@ -677,6 +755,25 @@ internal static partial class AvatarBackendTests
             DROP TABLE IF EXISTS atlas_launcher_avatar_variant;
             DROP TABLE IF EXISTS atlas_launcher_avatar_asset;
             DROP TABLE IF EXISTS atlas_launcher_schema_history;
+
+            ALTER TABLE atlas_launcher_session
+                DROP FOREIGN KEY fk_atlas_session_account,
+                ADD CONSTRAINT fk_atlas_session_account
+                    FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE CASCADE;
+            ALTER TABLE atlas_launcher_email_verification
+                DROP FOREIGN KEY fk_atlas_email_account,
+                ADD CONSTRAINT fk_atlas_email_account
+                    FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE CASCADE;
+            ALTER TABLE atlas_launcher_friendship
+                DROP FOREIGN KEY fk_atlas_friend_low,
+                DROP FOREIGN KEY fk_atlas_friend_high,
+                DROP FOREIGN KEY fk_atlas_friend_requester,
+                ADD CONSTRAINT fk_atlas_friend_low
+                    FOREIGN KEY (account_low_id) REFERENCES account(id) ON DELETE CASCADE,
+                ADD CONSTRAINT fk_atlas_friend_high
+                    FOREIGN KEY (account_high_id) REFERENCES account(id) ON DELETE CASCADE,
+                ADD CONSTRAINT fk_atlas_friend_requester
+                    FOREIGN KEY (requested_by_id) REFERENCES account(id) ON DELETE CASCADE;
             SET FOREIGN_KEY_CHECKS = 1;
             """;
         await command.ExecuteNonQueryAsync();

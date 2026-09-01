@@ -14,6 +14,12 @@ Les cartes utilisent les logos de projet distribues par CurseForge. Les URL d'or
 
 Le compte Atlas permet de modifier et valider l'e-mail via Brevo, de choisir l'avatar, de changer le mot de passe, de consulter les sessions actives et d'en revoquer une a distance. Le tableau de bord affiche aussi l'etat direct des passerelles et du worldserver. La double authentification et les codes de recuperation restent des ameliorations futures.
 
+`account` reste la table technique d'identite AzerothCore et conserve notamment
+les comptes `rndbot` de Playerbots. Seule l'existence d'une ligne dans
+`atlas_launcher_profile` donne acces aux fonctions Atlas (session launcher,
+profil, avatar et social). Aucun profil Atlas n'est cree automatiquement lors
+de la connexion d'un compte AzerothCore existant.
+
 ## Catalogue addons 3.4.3
 
 ```powershell

@@ -42,6 +42,9 @@ internal static partial class AvatarBackendTests
             LauncherSchemaMigrator migrator = new(options);
             IReadOnlyList<LauncherSchemaMigrationOutcome> migrations = await migrator.MigrateAsync();
             Equal(4, migrations.Count, "Les quatre migrations Atlas doivent etre connues.");
+            True(
+                migrations.All(item => item.State == LauncherSchemaMigrationState.Applied),
+                "Une base fraiche doit appliquer reellement les migrations 0001 a 0004.");
             await ValidateSchemaAndChecksumAsync(options);
             await ValidateAtlasProfileBoundaryAsync(options);
             await ValidateMutationLockLifecycleAsync(options);
@@ -110,10 +113,14 @@ internal static partial class AvatarBackendTests
         }
 
         LauncherDatabase database = CreateDatabase(options);
-        AuthResponse? login = await database.LoginAsync(
+        AtlasLoginResult login = await database.LoginAsync(
             new LoginRequest(username, password, "technical-account-test"),
             CancellationToken.None);
-        True(login is null, "Un compte AzerothCore sans profil ne doit pas ouvrir de session Atlas.");
+        Equal(
+            AtlasLoginOutcome.AtlasProfileRequired,
+            login.Outcome,
+            "Un compte AzerothCore valide sans profil doit recevoir la frontiere Atlas controlee.");
+        True(login.Response is null, "Un compte sans profil ne doit pas ouvrir de session Atlas.");
         await ExpectAsync<InvalidOperationException>(
             () => database.GetProfileAsync(technicalAccountId, CancellationToken.None),
             "Un compte technique ne doit exposer aucun profil ni AvatarDescriptor.");
@@ -138,10 +145,14 @@ internal static partial class AvatarBackendTests
         }
 
         AuthResponse atlasAccount = await RegisterTestAccountAsync(database, "boundary");
-        AuthResponse? atlasLogin = await database.LoginAsync(
+        AtlasLoginResult atlasLogin = await database.LoginAsync(
             new LoginRequest(atlasAccount.Profile.Username, "Atlas-avatar-test-2026", "atlas-profile-test"),
             CancellationToken.None);
-        True(atlasLogin is not null, "Un compte possedant un profil Atlas doit toujours pouvoir se connecter.");
+        Equal(
+            AtlasLoginOutcome.Succeeded,
+            atlasLogin.Outcome,
+            "Un compte possedant un profil Atlas doit toujours pouvoir se connecter.");
+        True(atlasLogin.Response is not null, "La connexion Atlas doit creer une session.");
         FriendRequestResult request = await database.SendFriendRequestAsync(
             atlasAccount.Profile.AccountId,
             username,
@@ -754,26 +765,11 @@ internal static partial class AvatarBackendTests
             DROP TABLE IF EXISTS atlas_launcher_profile_avatar;
             DROP TABLE IF EXISTS atlas_launcher_avatar_variant;
             DROP TABLE IF EXISTS atlas_launcher_avatar_asset;
+            DROP TABLE IF EXISTS atlas_launcher_friendship;
+            DROP TABLE IF EXISTS atlas_launcher_email_verification;
+            DROP TABLE IF EXISTS atlas_launcher_session;
+            DROP TABLE IF EXISTS atlas_launcher_profile;
             DROP TABLE IF EXISTS atlas_launcher_schema_history;
-
-            ALTER TABLE atlas_launcher_session
-                DROP FOREIGN KEY fk_atlas_session_account,
-                ADD CONSTRAINT fk_atlas_session_account
-                    FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE CASCADE;
-            ALTER TABLE atlas_launcher_email_verification
-                DROP FOREIGN KEY fk_atlas_email_account,
-                ADD CONSTRAINT fk_atlas_email_account
-                    FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE CASCADE;
-            ALTER TABLE atlas_launcher_friendship
-                DROP FOREIGN KEY fk_atlas_friend_low,
-                DROP FOREIGN KEY fk_atlas_friend_high,
-                DROP FOREIGN KEY fk_atlas_friend_requester,
-                ADD CONSTRAINT fk_atlas_friend_low
-                    FOREIGN KEY (account_low_id) REFERENCES account(id) ON DELETE CASCADE,
-                ADD CONSTRAINT fk_atlas_friend_high
-                    FOREIGN KEY (account_high_id) REFERENCES account(id) ON DELETE CASCADE,
-                ADD CONSTRAINT fk_atlas_friend_requester
-                    FOREIGN KEY (requested_by_id) REFERENCES account(id) ON DELETE CASCADE;
             SET FOREIGN_KEY_CHECKS = 1;
             """;
         await command.ExecuteNonQueryAsync();

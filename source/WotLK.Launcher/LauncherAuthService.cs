@@ -506,7 +506,7 @@ internal sealed class LauncherAuthService : ILauncherAuthService
         GameSingleSignOn.Clear();
     }
 
-    private static async Task EnsureSuccessAsync(
+    internal static async Task EnsureSuccessAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
     {
@@ -528,7 +528,8 @@ internal sealed class LauncherAuthService : ILauncherAuthService
                 cancellationToken);
             throw new LauncherAuthException(
                 string.IsNullOrWhiteSpace(error?.Error) ? fallback : error.Error,
-                response.StatusCode);
+                response.StatusCode,
+                error?.Code);
         }
         catch (JsonException)
         {
@@ -536,7 +537,7 @@ internal sealed class LauncherAuthService : ILauncherAuthService
         }
     }
 
-    private sealed record ApiError(string Error);
+    private sealed record ApiError(string Error, string? Code);
     private sealed record ApiMessage(string Message);
 }
 
@@ -654,10 +655,16 @@ internal sealed record LauncherNews(
 
 internal sealed class LauncherAuthException : Exception
 {
-    public LauncherAuthException(string message, HttpStatusCode? statusCode = null) : base(message)
+    public LauncherAuthException(
+        string message,
+        HttpStatusCode? statusCode = null,
+        string? code = null) : base(message)
     {
         StatusCode = statusCode;
+        Code = code;
     }
 
     internal HttpStatusCode? StatusCode { get; }
+
+    internal string? Code { get; }
 }

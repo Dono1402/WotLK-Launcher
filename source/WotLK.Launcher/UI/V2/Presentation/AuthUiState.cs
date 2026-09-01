@@ -16,6 +16,7 @@ public enum AuthErrorKind
     None,
     Validation,
     InvalidCredentials,
+    AtlasProfileRequired,
     RegistrationRejected,
     UsernameAlreadyExists,
     EmailAlreadyExists,
@@ -316,6 +317,8 @@ public sealed class AuthUiState : BindableUiState, IDisposable
         {
             LauncherSessionFailureCategory.InvalidCredentials =>
                 (AuthErrorKind.InvalidCredentials, "Identifiants incorrects."),
+            LauncherSessionFailureCategory.AtlasProfileRequired =>
+                (AuthErrorKind.AtlasProfileRequired, AtlasAuthErrorMessage),
             LauncherSessionFailureCategory.UsernameAlreadyExists =>
                 (AuthErrorKind.UsernameAlreadyExists, "Ce nom d’utilisateur est déjà utilisé."),
             LauncherSessionFailureCategory.EmailAlreadyExists =>
@@ -334,6 +337,9 @@ public sealed class AuthUiState : BindableUiState, IDisposable
             _ => (AuthErrorKind.ServiceUnavailable, "Une erreur inattendue est survenue. Réessaie dans quelques instants.")
         };
     }
+
+    private const string AtlasAuthErrorMessage =
+        "Ce compte n’est pas encore inscrit dans Atlas Launcher.";
 
     public void Dispose()
     {

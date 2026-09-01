@@ -160,6 +160,12 @@ if (args.Length == 1
 }
 
 if (args.Length == 1
+    && string.Equals(args[0], "--atlas-identity-mysql", StringComparison.OrdinalIgnoreCase))
+{
+    return await AvatarBackendTests.RunIdentityMySqlAsync();
+}
+
+if (args.Length == 1
     && string.Equals(args[0], "--local-shell-windows-smoke", StringComparison.OrdinalIgnoreCase))
 {
     return LauncherLocalActionTests.RunWindowsSmoke();

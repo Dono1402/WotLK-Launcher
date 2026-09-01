@@ -146,10 +146,8 @@ app.MapPost("/api/v1/auth/login", async (
     LauncherDatabase db,
     CancellationToken cancellationToken) =>
 {
-    AuthResponse? response = await db.LoginAsync(request, cancellationToken);
-    return response is null
-        ? Results.Unauthorized()
-        : Results.Ok(response);
+    AtlasLoginResult result = await db.LoginAsync(request, cancellationToken);
+    return AuthenticationEndpointResults.FromLogin(result);
 }).RequireRateLimiting("auth");
 
 app.MapPost("/api/v1/auth/refresh", async (

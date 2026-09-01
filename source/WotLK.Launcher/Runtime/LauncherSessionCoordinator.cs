@@ -1102,6 +1102,15 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
 
         if (exception is LauncherAuthException authException)
         {
+            if (operationKind == LauncherSessionOperationKind.Login
+                && string.Equals(
+                    authException.Code,
+                    "AtlasProfileRequired",
+                    StringComparison.Ordinal))
+            {
+                return LauncherSessionFailureCategory.AtlasProfileRequired;
+            }
+
             if (authException.StatusCode == HttpStatusCode.Unauthorized)
             {
                 if (operationKind == LauncherSessionOperationKind.Logout)

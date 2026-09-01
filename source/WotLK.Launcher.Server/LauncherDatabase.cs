@@ -102,14 +102,14 @@ public sealed partial class LauncherDatabase
         return ToAuthResponse(session, accountProfile);
     }
 
-    public async Task<AuthResponse?> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
+    public async Task<AtlasLoginResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
     {
         string username = request.Username.Trim().ToUpperInvariant();
         await using MySqlConnection connection = await OpenAsync(cancellationToken);
 
         AccountCredential? credential = await LoadCredentialAsync(connection, username, cancellationToken);
         if (credential is null)
-            return null;
+            return new AtlasLoginResult(AtlasLoginOutcome.InvalidCredentials, null);
 
         bool valid = credential.ModernSalt is not null && credential.ModernVerifier is not null
             ? SrpCredentials.VerifyModern(
@@ -117,7 +117,10 @@ public sealed partial class LauncherDatabase
             : SrpCredentials.VerifyLegacy(
                 credential.Username, request.Password, credential.LegacySalt, credential.LegacyVerifier);
         if (!valid)
-            return null;
+            return new AtlasLoginResult(AtlasLoginOutcome.InvalidCredentials, null);
+
+        if (!credential.HasAtlasProfile)
+            return new AtlasLoginResult(AtlasLoginOutcome.AtlasProfileRequired, null);
 
         await using MySqlTransaction transaction =
             await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
@@ -136,7 +139,9 @@ public sealed partial class LauncherDatabase
         await InsertSessionAsync(
             connection, transaction, credential.AccountId, request.DeviceName, session, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return ToAuthResponse(session, profile);
+        return new AtlasLoginResult(
+            AtlasLoginOutcome.Succeeded,
+            ToAuthResponse(session, profile));
     }
 
     public async Task<AuthResponse?> RefreshAsync(string refreshToken, CancellationToken cancellationToken)
@@ -634,7 +639,7 @@ public sealed partial class LauncherDatabase
         await using MySqlConnection connection = await OpenAsync(cancellationToken);
         AccountCredential? credential = await LoadCredentialByIdAsync(
             connection, accountId, cancellationToken);
-        if (credential is null)
+        if (credential is null || !credential.HasAtlasProfile)
             return false;
 
         bool valid = credential.ModernSalt is not null && credential.ModernVerifier is not null
@@ -739,7 +744,8 @@ public sealed partial class LauncherDatabase
             (byte[])reader["salt"],
             (byte[])reader["verifier"],
             reader.IsDBNull("modern_salt") ? null : (byte[])reader["modern_salt"],
-            reader.IsDBNull("modern_verifier") ? null : (byte[])reader["modern_verifier"]);
+            reader.IsDBNull("modern_verifier") ? null : (byte[])reader["modern_verifier"],
+            reader.GetBoolean("has_atlas_profile"));
     }
 
     private static async Task UpsertModernCredentialAsync(
@@ -882,9 +888,10 @@ public sealed partial class LauncherDatabase
 
     private const string CredentialQuery = """
         SELECT a.id, a.username, a.email, a.salt, a.verifier,
-               h.salt AS modern_salt, h.verifier AS modern_verifier
+               h.salt AS modern_salt, h.verifier AS modern_verifier,
+               p.account_id IS NOT NULL AS has_atlas_profile
         FROM account a
-        INNER JOIN atlas_launcher_profile p ON p.account_id = a.id
+        LEFT JOIN atlas_launcher_profile p ON p.account_id = a.id
         LEFT JOIN hermes_bnet_credentials h
           ON BINARY h.username = BINARY a.username
         """;
@@ -896,7 +903,8 @@ public sealed partial class LauncherDatabase
         byte[] LegacySalt,
         byte[] LegacyVerifier,
         byte[]? ModernSalt,
-        byte[]? ModernVerifier);
+        byte[]? ModernVerifier,
+        bool HasAtlasProfile);
 
     private sealed record SessionAccount(
         byte[] SessionId,

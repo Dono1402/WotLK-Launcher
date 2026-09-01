@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Json;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
@@ -231,6 +232,13 @@ internal static class LauncherAuthenticationTests
             new LauncherAuthException("bad credentials", HttpStatusCode.Unauthorized),
             LauncherSessionFailureCategory.InvalidCredentials);
         await LoginFailureAsync(
+            new LauncherAuthException(
+                AtlasProfileRequiredMessage,
+                HttpStatusCode.Forbidden,
+                "AtlasProfileRequired"),
+            LauncherSessionFailureCategory.AtlasProfileRequired);
+        await AtlasProfileRequiredContractAndPresentationAsync();
+        await LoginFailureAsync(
             new HttpRequestException("offline"),
             LauncherSessionFailureCategory.Network);
         await LoginFailureAsync(
@@ -241,6 +249,50 @@ internal static class LauncherAuthenticationTests
             LauncherSessionFailureCategory.ServiceUnavailable);
         await LoginDoubleSubmitAndRetryAsync();
         await LoginStaleResultCannotReplaceNewerAsync();
+    }
+
+    private static async Task AtlasProfileRequiredContractAndPresentationAsync()
+    {
+        using HttpResponseMessage response = new(HttpStatusCode.Forbidden)
+        {
+            Content = JsonContent.Create(new
+            {
+                error = AtlasProfileRequiredMessage,
+                code = "AtlasProfileRequired"
+            })
+        };
+        LauncherAuthException? parsed = null;
+        try
+        {
+            await LauncherAuthService.EnsureSuccessAsync(response, CancellationToken.None);
+        }
+        catch (LauncherAuthException exception)
+        {
+            parsed = exception;
+        }
+
+        True(parsed is not null, "Le client legacy doit observer le refus Atlas controle.");
+        Equal(HttpStatusCode.Forbidden, parsed!.StatusCode, "Le statut du refus Atlas doit rester 403.");
+        Equal("AtlasProfileRequired", parsed.Code, "Le code de frontiere Atlas doit etre conserve.");
+        Equal(AtlasProfileRequiredMessage, parsed.Message, "Le legacy doit afficher le message utilisateur du serveur.");
+
+        using AuthUiState state = new();
+        state.PrepareForOpen();
+        state.ApplySessionSnapshot(new AuthSessionSnapshot(
+            1,
+            1,
+            LauncherSessionState.SignedOut,
+            LauncherSessionOperationKind.Login,
+            "PlayerOnly",
+            false,
+            LauncherSessionFailureCategory.AtlasProfileRequired));
+
+        Equal(AuthErrorKind.AtlasProfileRequired, state.ErrorKind, "La V2 doit distinguer ce refus des mauvais identifiants.");
+        Equal(AtlasProfileRequiredMessage, state.ErrorMessage, "La V2 doit afficher un message controle.");
+        True(
+            !state.ErrorMessage.Contains("bot", StringComparison.OrdinalIgnoreCase)
+            && !state.ErrorMessage.Contains("technique", StringComparison.OrdinalIgnoreCase),
+            "Le message utilisateur ne doit reveler aucune nature technique du compte.");
     }
 
     private static async Task LoginSuccessAsync()
@@ -286,6 +338,9 @@ internal static class LauncherAuthenticationTests
         Equal(expectedCategory, completion.Snapshot.FailureCategory, "La catégorie de connexion est incorrecte.");
         Equal(0, authentication.CommitSessionCalls, "Un échec ne doit pas créer de session.");
     }
+
+    private const string AtlasProfileRequiredMessage =
+        "Ce compte n’est pas encore inscrit dans Atlas Launcher.";
 
     private static async Task LoginDoubleSubmitAndRetryAsync()
     {

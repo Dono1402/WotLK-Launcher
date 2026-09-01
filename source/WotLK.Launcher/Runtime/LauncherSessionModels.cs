@@ -17,6 +17,7 @@ internal enum LauncherSessionFailureCategory
     NoStoredSession,
     SessionExpired,
     InvalidCredentials,
+    AtlasProfileRequired,
     Validation,
     UsernameAlreadyExists,
     EmailAlreadyExists,

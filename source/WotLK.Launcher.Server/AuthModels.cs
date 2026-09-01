@@ -72,6 +72,26 @@ public sealed record AuthResponse(
     DateTimeOffset RefreshExpiresAt,
     AccountProfile Profile);
 
+public enum AtlasLoginOutcome
+{
+    Succeeded,
+    InvalidCredentials,
+    AtlasProfileRequired
+}
+
+public sealed record AtlasLoginResult(
+    AtlasLoginOutcome Outcome,
+    AuthResponse? Response);
+
+public sealed record AtlasAuthErrorResponse(string Error, string Code);
+
+public static class AtlasAuthErrorCodes
+{
+    public const string ProfileRequired = "AtlasProfileRequired";
+    public const string ProfileRequiredMessage =
+        "Ce compte n’est pas encore inscrit dans Atlas Launcher.";
+}
+
 public sealed record GameTicketResponse(
     string Ticket,
     DateTimeOffset ExpiresAt,

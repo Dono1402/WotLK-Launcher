@@ -1015,6 +1015,18 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
 
     internal Func<CancellationToken, Task>? LogoutHandler { get; set; }
 
+    internal Func<string, CancellationToken, Task<EmailChangeResult>>? ChangeEmailHandler { get; set; }
+
+    internal Func<CancellationToken, Task<LauncherProfile>>? RefreshProfileHandler { get; set; }
+
+    internal Func<string, string, CancellationToken, Task>? ChangePasswordHandler { get; set; }
+
+    internal Func<CancellationToken, Task<IReadOnlyList<LauncherDeviceSession>>>? SessionsHandler { get; set; }
+
+    internal Func<string, CancellationToken, Task>? RevokeSessionHandler { get; set; }
+
+    internal Func<CancellationToken, Task<string>>? ResendVerificationHandler { get; set; }
+
     public LauncherAuthSession? Session { get; set; }
 
     public string? AccessToken => Session?.AccessToken;
@@ -1040,6 +1052,18 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
     internal int CreateGameTicketCalls { get; private set; }
 
     internal int LogoutCalls { get; private set; }
+
+    internal int ChangeEmailCalls { get; private set; }
+
+    internal int RefreshProfileCalls { get; private set; }
+
+    internal int ChangePasswordCalls { get; private set; }
+
+    internal int GetSessionsCalls { get; private set; }
+
+    internal int RevokeSessionCalls { get; private set; }
+
+    internal int ResendVerificationCalls { get; private set; }
 
     internal int InvalidateLocalSessionCalls { get; private set; }
 
@@ -1162,12 +1186,28 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
         string email,
         CancellationToken cancellationToken = default)
     {
+        ChangeEmailCalls++;
+        if (ChangeEmailHandler is not null)
+        {
+            return ChangeEmailHandler(email, cancellationToken);
+        }
+
         LauncherProfile profile = Session?.Profile ?? CreateProfile();
-        return Task.FromResult(new EmailChangeResult(profile with { Email = email }, false, string.Empty));
+        LauncherProfile changed = profile with { Email = email, EmailVerified = false };
+        if (Session is not null)
+        {
+            Session = Session with { Profile = changed };
+        }
+        return Task.FromResult(new EmailChangeResult(changed, false, string.Empty));
     }
 
     public Task<LauncherProfile> RefreshProfileAsync(CancellationToken cancellationToken = default)
     {
+        RefreshProfileCalls++;
+        if (RefreshProfileHandler is not null)
+        {
+            return RefreshProfileHandler(cancellationToken);
+        }
         return Task.FromResult(Session?.Profile ?? CreateProfile());
     }
 
@@ -1184,18 +1224,24 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
         string newPassword,
         CancellationToken cancellationToken = default)
     {
-        return Task.CompletedTask;
+        ChangePasswordCalls++;
+        return ChangePasswordHandler?.Invoke(currentPassword, newPassword, cancellationToken)
+            ?? Task.CompletedTask;
     }
 
     public Task<IReadOnlyList<LauncherDeviceSession>> GetSessionsAsync(
         CancellationToken cancellationToken = default)
     {
-        return Task.FromResult<IReadOnlyList<LauncherDeviceSession>>([]);
+        GetSessionsCalls++;
+        return SessionsHandler?.Invoke(cancellationToken)
+            ?? Task.FromResult<IReadOnlyList<LauncherDeviceSession>>([]);
     }
 
     public Task RevokeSessionAsync(string sessionId, CancellationToken cancellationToken = default)
     {
-        return Task.CompletedTask;
+        RevokeSessionCalls++;
+        return RevokeSessionHandler?.Invoke(sessionId, cancellationToken)
+            ?? Task.CompletedTask;
     }
 
     public Task<IReadOnlyList<LauncherFriend>> GetFriendsAsync(
@@ -1244,7 +1290,9 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
 
     public Task<string> ResendVerificationAsync(CancellationToken cancellationToken = default)
     {
-        return Task.FromResult("OK");
+        ResendVerificationCalls++;
+        return ResendVerificationHandler?.Invoke(cancellationToken)
+            ?? Task.FromResult("OK");
     }
 
     public async Task LogoutAsync(CancellationToken cancellationToken = default)
@@ -1287,7 +1335,7 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
             CreateProfile(username, email, emailVerified, avatar));
     }
 
-    private static LauncherProfile CreateProfile(
+    internal static LauncherProfile CreateProfile(
         string username = "Dono1402",
         string email = "dono@example.test",
         bool emailVerified = true,

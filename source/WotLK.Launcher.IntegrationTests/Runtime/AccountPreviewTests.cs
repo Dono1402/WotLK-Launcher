@@ -18,7 +18,7 @@ internal static class AccountPreviewTests
         CharacterizeStartupIsolation();
         CharacterizePreviewStates();
         await ValidateWpfLayoutsInteractionsAndCapturesAsync(captureDirectory);
-        Console.WriteLine("Account WPF preview OK (03A.4 global avatar scenarios, isolated presentation only).");
+        Console.WriteLine("Account WPF preview OK (03A.4 avatar and 03A.5 security/session scenarios, isolated presentation only).");
         return 0;
     }
 
@@ -57,6 +57,12 @@ internal static class AccountPreviewTests
         Equal(AccountPreviewScenario.Removing, Resolve("--preview-account=removing"), "La suppression est absente.");
         Equal(AccountPreviewScenario.Security, Resolve("--preview-account=security"), "La sécurité est absente.");
         Equal(AccountPreviewScenario.Sessions, Resolve("--preview-account=sessions"), "Les sessions sont absentes.");
+        Equal(AccountPreviewScenario.PasswordChange, Resolve("--preview-account=password-change"), "Le formulaire mot de passe est absent.");
+        Equal(AccountPreviewScenario.PasswordError, Resolve("--preview-account=password-error"), "L'erreur mot de passe est absente.");
+        Equal(AccountPreviewScenario.EmailUnverified, Resolve("--preview-account=email-unverified"), "L'e-mail non vérifié est absent.");
+        Equal(AccountPreviewScenario.EmailChange, Resolve("--preview-account=email-change"), "Le formulaire e-mail est absent.");
+        Equal(AccountPreviewScenario.SessionRevoke, Resolve("--preview-account=session-revoke"), "La révocation de session est absente.");
+        Equal(AccountPreviewScenario.SessionRevokeError, Resolve("--preview-account=session-revoke-error"), "L'erreur de révocation est absente.");
 
         AccountUiState profile = LauncherV2PreviewData.CreateAccount(AccountPreviewScenario.Profile);
         True(profile.Current.IsPreview, "Le compte fictif doit être explicitement marqué preview.");
@@ -190,6 +196,12 @@ internal static class AccountPreviewTests
             (AccountPreviewScenario.AvatarDeleted, 1440, 860, "02c-account-avatar-deleted-1440x860.png"),
             (AccountPreviewScenario.Security, 1440, 860, "03-account-security-1440x860.png"),
             (AccountPreviewScenario.Sessions, 1440, 860, "04-account-sessions-1440x860.png"),
+            (AccountPreviewScenario.PasswordChange, 1440, 860, "04b-account-password-change-1440x860.png"),
+            (AccountPreviewScenario.PasswordError, 1080, 680, "04c-account-password-error-1080x680.png"),
+            (AccountPreviewScenario.EmailUnverified, 1440, 860, "04d-account-email-unverified-1440x860.png"),
+            (AccountPreviewScenario.EmailChange, 1440, 860, "04e-account-email-change-1440x860.png"),
+            (AccountPreviewScenario.SessionRevoke, 1080, 680, "04f-account-session-revoke-1080x680.png"),
+            (AccountPreviewScenario.SessionRevokeError, 1440, 860, "04g-account-session-revoke-error-1440x860.png"),
             (AccountPreviewScenario.Crop, 1440, 860, "05-account-crop-1440x860.png"),
             (AccountPreviewScenario.Uploading, 1440, 860, "06-account-uploading-1440x860.png"),
             (AccountPreviewScenario.UploadError, 1440, 860, "07-account-upload-error-1440x860.png"),
@@ -281,8 +293,14 @@ internal static class AccountPreviewTests
 
         AccountSection expectedSection = scenario switch
         {
-            AccountPreviewScenario.Security => AccountSection.Security,
-            AccountPreviewScenario.Sessions => AccountSection.Sessions,
+            AccountPreviewScenario.Security
+                or AccountPreviewScenario.PasswordChange
+                or AccountPreviewScenario.PasswordError
+                or AccountPreviewScenario.EmailUnverified
+                or AccountPreviewScenario.EmailChange => AccountSection.Security,
+            AccountPreviewScenario.Sessions
+                or AccountPreviewScenario.SessionRevoke
+                or AccountPreviewScenario.SessionRevokeError => AccountSection.Sessions,
             _ => AccountSection.Profile
         };
         Equal(expectedSection, window.AccountPage.SelectedSection, "L'onglet initial est incorrect.");
@@ -345,6 +363,32 @@ internal static class AccountPreviewTests
         {
             Equal(Visibility.Visible, Required<Border>(window.AccountPage, "AvatarOperationBanner").Visibility, "La suppression fictive doit être visible.");
             True(!Required<Button>(window.AccountPage, "ModifyAvatarButton").IsEnabled, "Les actions avatar doivent être bloquées pendant la suppression.");
+        }
+
+        if (scenario is AccountPreviewScenario.PasswordChange or AccountPreviewScenario.PasswordError)
+        {
+            Equal(Visibility.Visible, Required<Grid>(window.AccountPage, "PasswordEditorLayer").Visibility,
+                "Le scénario mot de passe doit ouvrir son formulaire local.");
+            True(window.AccountPage.IsSensitiveEditorOpen,
+                "Le focus doit reconnaître le formulaire mot de passe comme modal.");
+        }
+
+        if (scenario == AccountPreviewScenario.PasswordError)
+        {
+            Equal(Visibility.Visible, Required<Border>(window.AccountPage, "PasswordEditorErrorBanner").Visibility,
+                "Le scénario mot de passe en erreur doit afficher un message contrôlé.");
+        }
+
+        if (scenario == AccountPreviewScenario.EmailChange)
+        {
+            Equal(Visibility.Visible, Required<Grid>(window.AccountPage, "EmailEditorLayer").Visibility,
+                "Le scénario e-mail doit ouvrir son formulaire local.");
+        }
+
+        if (scenario == AccountPreviewScenario.SessionRevokeError)
+        {
+            Equal(Visibility.Visible, Required<Border>(window.AccountPage, "SessionsErrorBanner").Visibility,
+                "Le scénario session en erreur doit afficher un message contrôlé.");
         }
     }
 

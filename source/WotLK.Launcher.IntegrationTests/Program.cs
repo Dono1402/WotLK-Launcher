@@ -135,6 +135,16 @@ if (args.Length >= 1
     return await AccountAvatarClientTests.RunAsync(captureDirectory);
 }
 
+if (args.Length >= 1
+    && string.Equals(args[0], "--account-security-sessions", StringComparison.OrdinalIgnoreCase))
+{
+    string? captureDirectory = args.Length == 3
+        && string.Equals(args[1], "--capture-directory", StringComparison.OrdinalIgnoreCase)
+            ? args[2]
+            : null;
+    return await AccountSecuritySessionTests.RunAsync(captureDirectory);
+}
+
 if (args.Length == 1
     && string.Equals(args[0], "--avatar-foundation", StringComparison.OrdinalIgnoreCase))
 {

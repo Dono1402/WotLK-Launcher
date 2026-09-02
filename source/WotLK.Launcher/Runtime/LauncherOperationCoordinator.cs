@@ -10,6 +10,10 @@ internal enum LauncherOperationKind
     LauncherAutoUpdate,
     AvatarUpload,
     AvatarDelete,
+    AccountEmailChange,
+    AccountEmailVerification,
+    AccountPasswordChange,
+    AccountSessionRevoke,
     Logout,
     Play
 }

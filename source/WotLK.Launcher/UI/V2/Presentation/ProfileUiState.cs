@@ -73,6 +73,27 @@ public sealed class ProfileUiState : BindableUiState
         RaisePropertyChanged(nameof(HasAvatar));
     }
 
+    internal void ApplyAccountIdentity(string username, bool isEmailVerified)
+    {
+        if (!_current.IsAuthenticated)
+        {
+            return;
+        }
+
+        _current = _current with
+        {
+            Username = username,
+            Initial = string.IsNullOrWhiteSpace(username)
+                ? "?"
+                : username[..1].ToUpperInvariant(),
+            IsEmailVerified = isEmailVerified,
+            EmailStatusText = isEmailVerified
+                ? "Adresse e-mail vérifiée"
+                : "Adresse e-mail non vérifiée"
+        };
+        RaisePropertyChanged(string.Empty);
+    }
+
     internal void AttachLogoutCommand(ICommand command)
     {
         LogoutCommand = command ?? throw new ArgumentNullException(nameof(command));

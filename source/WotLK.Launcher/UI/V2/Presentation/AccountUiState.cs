@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Windows.Media.Imaging;
 using WotLK.Launcher.Account;
 
@@ -20,6 +21,42 @@ public enum AvatarPreviewOperation
     Removing
 }
 
+public enum AccountOperationViewState
+{
+    None,
+    ChangingEmail,
+    ResendingVerification,
+    ChangingPassword,
+    RevokingSession
+}
+
+public enum AccountSessionsViewState
+{
+    NotLoaded,
+    Loading,
+    Loaded,
+    Failed
+}
+
+public enum AccountNoticeViewState
+{
+    None,
+    EmailChanged,
+    VerificationEmailSent,
+    PasswordChanged,
+    SessionRevoked
+}
+
+public sealed record AccountSessionViewState(
+    string Id,
+    string DeviceName,
+    string LastActivityText,
+    string CreatedText,
+    string ExpiresText,
+    bool IsCurrent,
+    bool CanRevoke,
+    bool IsRevoking);
+
 public sealed record AccountViewState(
     bool IsPreview,
     bool IsRuntimeConnected,
@@ -41,7 +78,20 @@ public sealed record AccountViewState(
     bool IsDeleteConfirmationOpen,
     string MemberSince,
     string LastPasswordChange,
-    int ActiveSessionCount);
+    int ActiveSessionCount,
+    AccountOperationViewState AccountOperation,
+    AccountOperationViewState AccountErrorOperation,
+    string AccountErrorMessage,
+    string AccountNoticeMessage,
+    AccountNoticeViewState AccountNotice,
+    bool CanChangeEmail,
+    bool CanResendVerification,
+    bool CanChangePassword,
+    bool IsEmailEditorOpen,
+    bool IsPasswordEditorOpen,
+    AccountSessionsViewState SessionsState,
+    ImmutableArray<AccountSessionViewState> Sessions,
+    string SessionsMessage);
 
 public sealed class AccountUiState : BindableUiState
 {
@@ -73,7 +123,20 @@ public sealed class AccountUiState : BindableUiState
         IsDeleteConfirmationOpen: false,
         MemberSince: string.Empty,
         LastPasswordChange: "À venir",
-        ActiveSessionCount: 0));
+        ActiveSessionCount: 0,
+        AccountOperation: AccountOperationViewState.None,
+        AccountErrorOperation: AccountOperationViewState.None,
+        AccountErrorMessage: string.Empty,
+        AccountNoticeMessage: string.Empty,
+        AccountNotice: AccountNoticeViewState.None,
+        CanChangeEmail: false,
+        CanResendVerification: false,
+        CanChangePassword: false,
+        IsEmailEditorOpen: false,
+        IsPasswordEditorOpen: false,
+        SessionsState: AccountSessionsViewState.NotLoaded,
+        Sessions: ImmutableArray<AccountSessionViewState>.Empty,
+        SessionsMessage: string.Empty));
 
     public AccountViewState Current => _current;
 
@@ -125,7 +188,83 @@ public sealed class AccountUiState : BindableUiState
         {
             SelectedSection = _current.SelectedSection,
             IsDeleteConfirmationOpen = _current.IsDeleteConfirmationOpen
-                && state.CanRemoveAvatar
+                && state.CanRemoveAvatar,
+            IsEmailEditorOpen = _current.IsEmailEditorOpen
+                && state.AccountNotice != AccountNoticeViewState.EmailChanged,
+            IsPasswordEditorOpen = _current.IsPasswordEditorOpen
+                && state.AccountNotice != AccountNoticeViewState.PasswordChanged
+        });
+    }
+
+    internal void OpenEmailEditor()
+    {
+        if (_current.CanChangeEmail)
+        {
+            Apply(_current with
+            {
+                IsEmailEditorOpen = true,
+                IsPasswordEditorOpen = false,
+                AccountErrorOperation = AccountOperationViewState.None,
+                AccountErrorMessage = string.Empty,
+                AccountNoticeMessage = string.Empty
+            });
+        }
+    }
+
+    internal void CloseEmailEditor()
+    {
+        if (_current.IsEmailEditorOpen)
+        {
+            Apply(_current with { IsEmailEditorOpen = false });
+        }
+    }
+
+    internal void OpenPasswordEditor()
+    {
+        if (_current.CanChangePassword)
+        {
+            Apply(_current with
+            {
+                IsEmailEditorOpen = false,
+                IsPasswordEditorOpen = true,
+                AccountErrorOperation = AccountOperationViewState.None,
+                AccountErrorMessage = string.Empty,
+                AccountNoticeMessage = string.Empty
+            });
+        }
+    }
+
+    internal void ClosePasswordEditor()
+    {
+        if (_current.IsPasswordEditorOpen)
+        {
+            Apply(_current with { IsPasswordEditorOpen = false });
+        }
+    }
+
+    internal void CloseSensitiveEditors()
+    {
+        if (_current.IsEmailEditorOpen || _current.IsPasswordEditorOpen)
+        {
+            Apply(_current with
+            {
+                IsEmailEditorOpen = false,
+                IsPasswordEditorOpen = false
+            });
+        }
+    }
+
+    internal void ShowAccountLocalError(string message)
+    {
+        Apply(_current with
+        {
+            AccountErrorOperation = _current.IsPasswordEditorOpen
+                ? AccountOperationViewState.ChangingPassword
+                : _current.IsEmailEditorOpen
+                    ? AccountOperationViewState.ChangingEmail
+                    : AccountOperationViewState.None,
+            AccountErrorMessage = message,
+            AccountNoticeMessage = string.Empty
         });
     }
 
@@ -151,6 +290,7 @@ public sealed class AccountUiState : BindableUiState
         _current = state;
         RaisePropertyChanged(string.Empty);
     }
+
 }
 
 public enum AvatarCropPreviewStatus

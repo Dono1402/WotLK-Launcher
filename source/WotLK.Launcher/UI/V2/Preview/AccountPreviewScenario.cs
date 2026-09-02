@@ -11,7 +11,13 @@ public enum AccountPreviewScenario
     UploadError,
     Removing,
     Security,
-    Sessions
+    Sessions,
+    PasswordChange,
+    PasswordError,
+    EmailUnverified,
+    EmailChange,
+    SessionRevoke,
+    SessionRevokeError
 }
 
 internal static class AccountPreviewArguments
@@ -43,6 +49,12 @@ internal static class AccountPreviewArguments
             "removing" or "delete" or "suppression" => AccountPreviewScenario.Removing,
             "security" or "securite" => AccountPreviewScenario.Security,
             "sessions" => AccountPreviewScenario.Sessions,
+            "password-change" => AccountPreviewScenario.PasswordChange,
+            "password-error" => AccountPreviewScenario.PasswordError,
+            "email-unverified" => AccountPreviewScenario.EmailUnverified,
+            "email-change" => AccountPreviewScenario.EmailChange,
+            "session-revoke" => AccountPreviewScenario.SessionRevoke,
+            "session-revoke-error" => AccountPreviewScenario.SessionRevokeError,
             _ => AccountPreviewScenario.Profile
         };
     }

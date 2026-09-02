@@ -228,6 +228,7 @@ internal sealed class LauncherRuntime : IDisposable
             Dashboard);
         Account = new LauncherAccountCoordinator(
             _sessionCoordinator,
+            _authentication,
             Operations,
             AvatarMedia,
             AvatarImages,

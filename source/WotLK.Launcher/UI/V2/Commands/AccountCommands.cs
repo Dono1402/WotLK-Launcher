@@ -44,6 +44,43 @@ internal sealed class AccountCommands : IDisposable
         }
     }
 
+    internal bool TryChangeEmail(string email)
+    {
+        return StartAccountAction(
+            () => _runtime.TryChangeEmail(email),
+            "L’adresse e-mail ne peut pas être modifiée pour le moment.");
+    }
+
+    internal bool TryResendVerification()
+    {
+        return StartAccountAction(
+            _runtime.TryResendVerification,
+            "Le message de validation ne peut pas être envoyé pour le moment.");
+    }
+
+    internal bool TryChangePassword(
+        string currentPassword,
+        string newPassword,
+        string confirmation)
+    {
+        if (!string.Equals(newPassword, confirmation, StringComparison.Ordinal))
+        {
+            _accountState.ShowAccountLocalError("Les deux nouveaux mots de passe ne correspondent pas.");
+            return false;
+        }
+
+        return StartAccountAction(
+            () => _runtime.TryChangePassword(currentPassword, newPassword),
+            "Le mot de passe ne peut pas être modifié pour le moment.");
+    }
+
+    internal bool TryRevokeSession(string sessionId)
+    {
+        return StartAccountAction(
+            () => _runtime.TryRevokeSession(sessionId),
+            "Cette session ne peut pas être déconnectée pour le moment.");
+    }
+
     internal async Task<bool> SelectAvatarAsync()
     {
         if (Volatile.Read(ref _disposeState) != 0
@@ -169,6 +206,31 @@ internal sealed class AccountCommands : IDisposable
         }
     }
 
+    private bool StartAccountAction(
+        Func<AccountActionStartResult> startAction,
+        string fallbackMessage)
+    {
+        if (Volatile.Read(ref _disposeState) != 0)
+        {
+            return false;
+        }
+
+        AccountActionStartResult start = startAction();
+        if (!start.IsStarted || start.Completion is null)
+        {
+            if (start.Status != AccountActionStartStatus.InvalidRequest)
+            {
+                _accountState.ShowAccountLocalError(MapAccountStartFailure(
+                    start.Status,
+                    fallbackMessage));
+            }
+            return false;
+        }
+
+        _activeTask = ObserveSilentlyAsync(start.Completion);
+        return true;
+    }
+
     private async Task ObserveUploadAsync(Task<AccountActionCompletion> completion)
     {
         AccountActionCompletion result;
@@ -253,6 +315,21 @@ internal sealed class AccountCommands : IDisposable
             AccountActionStartStatus.RejectedByCompatibility =>
                 "Termine l’opération en cours avant de modifier ta photo.",
             _ => "La photo ne peut pas être modifiée pour le moment."
+        };
+    }
+
+    private static string MapAccountStartFailure(
+        AccountActionStartStatus status,
+        string fallbackMessage)
+    {
+        return status switch
+        {
+            AccountActionStartStatus.Busy => "Une modification du compte est déjà en cours.",
+            AccountActionStartStatus.NotAuthenticated => "Ta session Atlas doit être renouvelée.",
+            AccountActionStartStatus.ShuttingDown => "Atlas Launcher est en cours de fermeture.",
+            AccountActionStartStatus.RejectedByCompatibility =>
+                "Termine l’opération en cours avant de modifier ton compte.",
+            _ => fallbackMessage
         };
     }
 }

@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using WotLK.Launcher.UI.V2.Commands;
 using WotLK.Launcher.UI.V2.Presentation;
 
 namespace WotLK.Launcher.UI.V2.Views;
@@ -11,7 +12,11 @@ namespace WotLK.Launcher.UI.V2.Views;
 public partial class AccountViewV2 : UserControl
 {
     private AccountUiState? _subscribedState;
+    private AccountCommands? _commands;
     private bool _deleteConfirmationWasOpen;
+    private bool _emailEditorWasOpen;
+    private bool _passwordEditorWasOpen;
+    private AccountOperationViewState _lastAccountOperation;
 
     public static readonly DependencyProperty StateProperty = DependencyProperty.Register(
         nameof(State),
@@ -58,28 +63,78 @@ public partial class AccountViewV2 : UserControl
 
     internal bool IsDeleteConfirmationOpen => State?.Current.IsDeleteConfirmationOpen == true;
 
+    internal bool IsSensitiveEditorOpen =>
+        State?.Current.IsEmailEditorOpen == true
+        || State?.Current.IsPasswordEditorOpen == true;
+
+    internal void AttachCommands(AccountCommands commands)
+    {
+        _commands = commands ?? throw new ArgumentNullException(nameof(commands));
+    }
+
+    internal void DetachFromShell()
+    {
+        _commands = null;
+        ClearPasswordFields();
+        NewEmailBox.Clear();
+        State?.CloseSensitiveEditors();
+    }
+
+    internal void OnNavigatedAway()
+    {
+        ClearPasswordFields();
+        NewEmailBox.Clear();
+        State?.CloseSensitiveEditors();
+    }
+
     internal bool ContainsDeleteConfirmationFocus(DependencyObject? target)
     {
-        DependencyObject? current = target;
-        while (current is not null)
-        {
-            if (ReferenceEquals(current, DeleteConfirmationPanel))
-            {
-                return true;
-            }
+        return target is not null
+            && (ReferenceEquals(target, DeleteConfirmationPanel)
+                || DeleteConfirmationPanel.IsAncestorOf(target));
+    }
 
-            current = current is Visual or System.Windows.Media.Media3D.Visual3D
-                ? VisualTreeHelper.GetParent(current)
-                : LogicalTreeHelper.GetParent(current);
+    internal bool ContainsSensitiveEditorFocus(DependencyObject? target)
+    {
+        Border? panel = State?.Current.IsPasswordEditorOpen == true
+            ? PasswordEditorPanel
+            : State?.Current.IsEmailEditorOpen == true
+                ? EmailEditorPanel
+                : null;
+        return panel is not null
+            && target is not null
+            && (ReferenceEquals(target, panel) || panel.IsAncestorOf(target));
+    }
+
+    internal void FocusSensitiveEditor()
+    {
+        Control target = State?.Current.IsPasswordEditorOpen == true
+            ? CurrentPasswordBoxV2
+            : NewEmailBox;
+        target.Focus();
+        Keyboard.Focus(target);
+    }
+
+    internal bool TryCloseSensitiveEditor()
+    {
+        if (State?.Current.IsPasswordEditorOpen == true)
+        {
+            ClosePasswordEditor();
+            return true;
+        }
+        if (State?.Current.IsEmailEditorOpen == true)
+        {
+            CloseEmailEditor();
+            return true;
         }
         return false;
     }
 
     internal void FocusDeleteConfirmation()
     {
-        Dispatcher.BeginInvoke(
-            DispatcherPriority.Input,
-            () => Keyboard.Focus(CancelDeleteAvatarButton));
+        FocusManager.SetFocusedElement(DeleteConfirmationLayer, CancelDeleteAvatarButton);
+        CancelDeleteAvatarButton.Focus();
+        Keyboard.Focus(CancelDeleteAvatarButton);
     }
 
     internal bool TryCancelDeleteConfirmation()
@@ -118,6 +173,9 @@ public partial class AccountViewV2 : UserControl
     private void AccountViewV2_Unloaded(object sender, RoutedEventArgs e)
     {
         UnsubscribeFromState(_subscribedState);
+        ClearPasswordFields();
+        NewEmailBox.Clear();
+        State?.CloseSensitiveEditors();
         AccountScrollViewer.ScrollToTop();
     }
 
@@ -189,11 +247,46 @@ public partial class AccountViewV2 : UserControl
             : "Vérifie ton adresse e-mail pour renforcer la sécurité du compte.";
         SessionsSummaryText.Text = state.IsPreview
             ? $"{state.ActiveSessionCount} sessions actives"
-            : "Gestion des sessions à venir";
+            : state.ActiveSessionCount == 1
+                ? "1 session active"
+                : $"{state.ActiveSessionCount} sessions actives";
         SessionsPreviewList.Visibility = state.IsPreview
             ? Visibility.Visible
             : Visibility.Collapsed;
-        SessionsUnavailableCard.Visibility = state.IsPreview
+        SessionsRealList.Visibility = state.IsPreview
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        SessionsMessageCard.Visibility = !state.IsPreview
+            && !string.IsNullOrWhiteSpace(state.SessionsMessage)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        AccountNoticeBanner.Visibility = string.IsNullOrWhiteSpace(state.AccountNoticeMessage)
+            || state.AccountNotice == AccountNoticeViewState.SessionRevoked
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        AccountErrorBanner.Visibility = string.IsNullOrWhiteSpace(state.AccountErrorMessage)
+            || state.AccountErrorOperation == AccountOperationViewState.RevokingSession
+            || state.SessionsState == AccountSessionsViewState.Failed
+            || state.IsEmailEditorOpen
+                && state.AccountErrorOperation == AccountOperationViewState.ChangingEmail
+            || state.IsPasswordEditorOpen
+                && state.AccountErrorOperation == AccountOperationViewState.ChangingPassword
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        SessionsNoticeBanner.Visibility = state.AccountNotice == AccountNoticeViewState.SessionRevoked
+            && !string.IsNullOrWhiteSpace(state.AccountNoticeMessage)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        SessionsErrorBanner.Visibility = !string.IsNullOrWhiteSpace(state.AccountErrorMessage)
+            && (state.AccountErrorOperation == AccountOperationViewState.RevokingSession
+                || state.SessionsState == AccountSessionsViewState.Failed)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        SecurityEmailStatus.Text = state.IsEmailVerified ? "Vérifiée" : "Non vérifiée";
+        SecurityEmailStatus.Foreground = (Brush)FindResource(state.IsEmailVerified
+            ? "AtlasV2.Brush.Success"
+            : "AtlasV2.Brush.Gold");
+        ResendVerificationButton.Visibility = state.IsEmailVerified
             ? Visibility.Collapsed
             : Visibility.Visible;
         Brush emailBrush = (Brush)FindResource(state.IsEmailVerified
@@ -219,6 +312,54 @@ public partial class AccountViewV2 : UserControl
             FocusDeleteConfirmation();
         }
         _deleteConfirmationWasOpen = state.IsDeleteConfirmationOpen;
+
+        bool emailOpen = state.IsEmailEditorOpen;
+        bool passwordOpen = state.IsPasswordEditorOpen;
+        EmailEditorLayer.Visibility = emailOpen ? Visibility.Visible : Visibility.Collapsed;
+        EmailEditorLayer.IsHitTestVisible = emailOpen;
+        PasswordEditorLayer.Visibility = passwordOpen ? Visibility.Visible : Visibility.Collapsed;
+        PasswordEditorLayer.IsHitTestVisible = passwordOpen;
+
+        bool emailBusy = state.AccountOperation == AccountOperationViewState.ChangingEmail;
+        bool passwordBusy = state.AccountOperation == AccountOperationViewState.ChangingPassword;
+        NewEmailBox.IsEnabled = !emailBusy;
+        CancelEmailChangeButton.IsEnabled = !emailBusy;
+        ConfirmEmailChangeButton.IsEnabled = !emailBusy && state.CanChangeEmail;
+        CurrentPasswordBoxV2.IsEnabled = !passwordBusy;
+        NewPasswordBoxV2.IsEnabled = !passwordBusy;
+        ConfirmPasswordBoxV2.IsEnabled = !passwordBusy;
+        CancelPasswordChangeButton.IsEnabled = !passwordBusy;
+        ConfirmPasswordChangeButton.IsEnabled = !passwordBusy && state.CanChangePassword;
+        PasswordBusyPanel.Visibility = passwordBusy ? Visibility.Visible : Visibility.Collapsed;
+        EmailEditorErrorBanner.Visibility = emailOpen
+            && !string.IsNullOrWhiteSpace(state.AccountErrorMessage)
+            && state.AccountErrorOperation == AccountOperationViewState.ChangingEmail
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        PasswordEditorErrorBanner.Visibility = passwordOpen
+            && !string.IsNullOrWhiteSpace(state.AccountErrorMessage)
+            && state.AccountErrorOperation == AccountOperationViewState.ChangingPassword
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+        if (_lastAccountOperation == AccountOperationViewState.ChangingPassword
+            && state.AccountOperation == AccountOperationViewState.None)
+        {
+            ClearPasswordFields();
+        }
+        _lastAccountOperation = state.AccountOperation;
+        if (emailOpen && !_emailEditorWasOpen)
+        {
+            NewEmailBox.Text = state.Email;
+            FocusSensitiveEditor();
+        }
+        if (passwordOpen && !_passwordEditorWasOpen)
+        {
+            ClearPasswordFields();
+            FocusSensitiveEditor();
+        }
+        _emailEditorWasOpen = emailOpen;
+        _passwordEditorWasOpen = passwordOpen;
     }
 
     private void ReplaceStateSubscription(AccountUiState? oldState, AccountUiState? newState)
@@ -256,6 +397,12 @@ public partial class AccountViewV2 : UserControl
 
     private void SelectSection(AccountSection section)
     {
+        if (section != AccountSection.Security)
+        {
+            ClearPasswordFields();
+            NewEmailBox.Clear();
+            State?.CloseSensitiveEditors();
+        }
         State?.SelectSection(section);
         AccountScrollViewer.ScrollToTop();
     }
@@ -303,4 +450,76 @@ public partial class AccountViewV2 : UserControl
     {
         ConfirmAvatarDeleteRequested?.Invoke(this, EventArgs.Empty);
     }
+
+    private void ModifyEmailButton_Click(object sender, RoutedEventArgs e)
+    {
+        State?.OpenEmailEditor();
+    }
+
+    private void ResendVerificationButton_Click(object sender, RoutedEventArgs e)
+    {
+        _commands?.TryResendVerification();
+    }
+
+    private void ModifyPasswordButton_Click(object sender, RoutedEventArgs e)
+    {
+        State?.OpenPasswordEditor();
+    }
+
+    private void CancelEmailChangeButton_Click(object sender, RoutedEventArgs e)
+    {
+        CloseEmailEditor();
+    }
+
+    private void ConfirmEmailChangeButton_Click(object sender, RoutedEventArgs e)
+    {
+        _commands?.TryChangeEmail(NewEmailBox.Text);
+    }
+
+    private void CancelPasswordChangeButton_Click(object sender, RoutedEventArgs e)
+    {
+        ClosePasswordEditor();
+    }
+
+    private void ConfirmPasswordChangeButton_Click(object sender, RoutedEventArgs e)
+    {
+        _commands?.TryChangePassword(
+            CurrentPasswordBoxV2.Password,
+            NewPasswordBoxV2.Password,
+            ConfirmPasswordBoxV2.Password);
+    }
+
+    private void RevokeSessionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string sessionId })
+        {
+            _commands?.TryRevokeSession(sessionId);
+        }
+    }
+
+    private void CloseEmailEditor()
+    {
+        NewEmailBox.Clear();
+        State?.CloseEmailEditor();
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.Input,
+            () => Keyboard.Focus(ModifyEmailButton));
+    }
+
+    private void ClosePasswordEditor()
+    {
+        ClearPasswordFields();
+        State?.ClosePasswordEditor();
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.Input,
+            () => Keyboard.Focus(ModifyPasswordButton));
+    }
+
+    private void ClearPasswordFields()
+    {
+        CurrentPasswordBoxV2.Clear();
+        NewPasswordBoxV2.Clear();
+        ConfirmPasswordBoxV2.Clear();
+    }
+
 }

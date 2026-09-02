@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -238,6 +239,7 @@ public partial class LauncherShellV2 : Window
         PreviewKeyDown += LauncherShellV2_PreviewKeyDown;
         PreviewMouseDown += LauncherShellV2_PreviewMouseDown;
         PreviewGotKeyboardFocus += LauncherShellV2_PreviewGotKeyboardFocus;
+        AccountState.PropertyChanged += AccountState_PropertyChanged;
         Loaded += LauncherShellV2_Loaded;
         Closed += LauncherShellV2_Closed;
     }
@@ -315,6 +317,7 @@ public partial class LauncherShellV2 : Window
         }
 
         _accountCommands = commands ?? throw new ArgumentNullException(nameof(commands));
+        AccountView.AttachCommands(commands);
     }
 
     internal void OpenAuthenticationForPendingPlay()
@@ -420,10 +423,12 @@ public partial class LauncherShellV2 : Window
         PreviewKeyDown -= LauncherShellV2_PreviewKeyDown;
         PreviewMouseDown -= LauncherShellV2_PreviewMouseDown;
         PreviewGotKeyboardFocus -= LauncherShellV2_PreviewGotKeyboardFocus;
+        AccountState.PropertyChanged -= AccountState_PropertyChanged;
         AuthOverlay.SubmissionRequested -= AuthOverlay_SubmissionRequested;
         ProfileMenu.ManageAccountRequested -= ProfileMenu_ManageAccountRequested;
         _authCommands = null;
         _accountCommands = null;
+        AccountView.DetachFromShell();
         AuthOverlay.DetachFromShell();
         AuthOverlay.State = null;
         AuthOverlay.IsOpen = false;
@@ -705,6 +710,12 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && AccountView.TryCloseSensitiveEditor())
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.Escape && AccountView.TryCancelDeleteConfirmation())
         {
             _accountCommands?.CancelDeleteConfirmation();
@@ -766,6 +777,17 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_PreviewGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
+        if (AccountView.IsSensitiveEditorOpen)
+        {
+            if (!AccountView.ContainsSensitiveEditorFocus(e.NewFocus as DependencyObject))
+            {
+                e.Handled = true;
+                AccountView.FocusSensitiveEditor();
+            }
+
+            return;
+        }
+
         if (AccountView.IsDeleteConfirmationOpen)
         {
             if (!AccountView.ContainsDeleteConfirmationFocus(e.NewFocus as DependencyObject))
@@ -826,6 +848,11 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
+        if (CurrentPage == LauncherShellPage.Account && page != LauncherShellPage.Account)
+        {
+            AccountView.OnNavigatedAway();
+        }
+
         CurrentPage = page;
         bool showGame = page == LauncherShellPage.Game;
         bool showSettings = page == LauncherShellPage.Settings;
@@ -842,6 +869,16 @@ public partial class LauncherShellV2 : Window
         else if (showAccount)
         {
             AccountView.ScrollHost.ScrollToTop();
+        }
+    }
+
+    private void AccountState_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (!IsPreviewMode
+            && CurrentPage == LauncherShellPage.Account
+            && !IsAccountNavigationEnabled)
+        {
+            NavigateTo(LauncherShellPage.Game);
         }
     }
 

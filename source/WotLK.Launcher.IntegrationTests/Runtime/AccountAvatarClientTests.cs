@@ -479,6 +479,7 @@ internal static class AccountAvatarClientTests
         List<string> logs = [];
         using LauncherAccountCoordinator coordinator = new(
             session,
+            authentication,
             operations,
             media,
             cache,
@@ -616,6 +617,7 @@ internal static class AccountAvatarClientTests
         using AvatarImageCache cache = new(media, root, lifetime.Token);
         using LauncherAccountCoordinator account = new(
             session,
+            authentication,
             operations,
             media,
             cache,

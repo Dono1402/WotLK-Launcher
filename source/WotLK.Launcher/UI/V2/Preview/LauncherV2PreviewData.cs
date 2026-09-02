@@ -177,12 +177,41 @@ public static class LauncherV2PreviewData
     {
         AccountSection section = scenario switch
         {
-            AccountPreviewScenario.Security => AccountSection.Security,
-            AccountPreviewScenario.Sessions => AccountSection.Sessions,
+            AccountPreviewScenario.Security
+                or AccountPreviewScenario.PasswordChange
+                or AccountPreviewScenario.PasswordError
+                or AccountPreviewScenario.EmailUnverified
+                or AccountPreviewScenario.EmailChange => AccountSection.Security,
+            AccountPreviewScenario.Sessions
+                or AccountPreviewScenario.SessionRevoke
+                or AccountPreviewScenario.SessionRevokeError => AccountSection.Sessions,
             _ => AccountSection.Profile
         };
         bool removing = scenario == AccountPreviewScenario.Removing;
         bool hasAvatar = avatarImage is not null;
+        bool emailVerified = scenario is not (
+            AccountPreviewScenario.EmailUnverified
+            or AccountPreviewScenario.EmailChange);
+        AccountOperationViewState accountOperation = scenario switch
+        {
+            AccountPreviewScenario.PasswordChange => AccountOperationViewState.ChangingPassword,
+            AccountPreviewScenario.EmailChange => AccountOperationViewState.ChangingEmail,
+            AccountPreviewScenario.SessionRevoke => AccountOperationViewState.RevokingSession,
+            _ => AccountOperationViewState.None
+        };
+        bool accountBusy = accountOperation != AccountOperationViewState.None;
+        string accountError = scenario switch
+        {
+            AccountPreviewScenario.PasswordError => "Le mot de passe actuel est incorrect.",
+            AccountPreviewScenario.SessionRevokeError => "Cette session n’est plus active.",
+            _ => string.Empty
+        };
+        AccountOperationViewState errorOperation = scenario switch
+        {
+            AccountPreviewScenario.PasswordError => AccountOperationViewState.ChangingPassword,
+            AccountPreviewScenario.SessionRevokeError => AccountOperationViewState.RevokingSession,
+            _ => AccountOperationViewState.None
+        };
 
         return new AccountUiState(new AccountViewState(
             IsPreview: true,
@@ -191,7 +220,7 @@ public static class LauncherV2PreviewData
             Username: "Dono1402",
             Email: "dono1402@outlook.com",
             Initial: "D",
-            IsEmailVerified: true,
+            IsEmailVerified: emailVerified,
             HasProfileAvatar: hasAvatar,
             AvatarImage: avatarImage,
             AvatarOperation: removing
@@ -209,7 +238,21 @@ public static class LauncherV2PreviewData
             IsDeleteConfirmationOpen: false,
             MemberSince: "Membre Atlas depuis juillet 2026",
             LastPasswordChange: "Modifié il y a 18 jours",
-            ActiveSessionCount: 2));
+            ActiveSessionCount: 2,
+            AccountOperation: accountOperation,
+            AccountErrorOperation: errorOperation,
+            AccountErrorMessage: accountError,
+            AccountNoticeMessage: string.Empty,
+            AccountNotice: AccountNoticeViewState.None,
+            CanChangeEmail: !accountBusy,
+            CanResendVerification: !emailVerified && !accountBusy,
+            CanChangePassword: !accountBusy,
+            IsEmailEditorOpen: scenario == AccountPreviewScenario.EmailChange,
+            IsPasswordEditorOpen: scenario is AccountPreviewScenario.PasswordChange
+                or AccountPreviewScenario.PasswordError,
+            SessionsState: AccountSessionsViewState.Loaded,
+            Sessions: [],
+            SessionsMessage: string.Empty));
     }
 
     internal static AccountAvatarPreviewComposition CreateAccountAvatarComposition(

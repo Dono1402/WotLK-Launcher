@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using WotLK.Launcher.Account;
@@ -80,10 +81,62 @@ internal sealed class AccountStateAdapter : IDisposable
         bool canMutate = snapshot.IsAuthenticated
             && available
             && snapshot.LoadingState != AccountLoadingState.Loading
-            && snapshot.AvatarOperation == AccountAvatarOperationState.None;
+            && snapshot.AvatarOperation == AccountAvatarOperationState.None
+            && snapshot.AccountOperation == AccountOperationState.None;
+        bool canMutateAccount = snapshot.IsAuthenticated
+            && snapshot.LoadingState != AccountLoadingState.Loading
+            && snapshot.AvatarOperation == AccountAvatarOperationState.None
+            && snapshot.AccountOperation == AccountOperationState.None;
+        AccountOperationViewState accountOperation = snapshot.AccountOperation switch
+        {
+            AccountOperationState.ChangingEmail => AccountOperationViewState.ChangingEmail,
+            AccountOperationState.ResendingVerification => AccountOperationViewState.ResendingVerification,
+            AccountOperationState.ChangingPassword => AccountOperationViewState.ChangingPassword,
+            AccountOperationState.RevokingSession => AccountOperationViewState.RevokingSession,
+            _ => AccountOperationViewState.None
+        };
+        var sessions = snapshot.Sessions.Select(session => new AccountSessionViewState(
+            session.Id,
+            session.DeviceName,
+            session.IsCurrent
+                ? "Active maintenant"
+                : $"Dernière activité le {session.LastSeenAt.ToLocalTime():dd/MM/yyyy à HH:mm}",
+            $"Créée le {session.CreatedAt.ToLocalTime():dd/MM/yyyy}",
+            $"Expire le {session.ExpiresAt.ToLocalTime():dd/MM/yyyy}",
+            session.IsCurrent,
+            canMutateAccount && !session.IsCurrent,
+            snapshot.AccountOperation == AccountOperationState.RevokingSession
+                && string.Equals(
+                    snapshot.TargetSessionId,
+                    session.Id,
+                    StringComparison.OrdinalIgnoreCase))).ToImmutableArray();
+        AccountSessionsViewState sessionsState = snapshot.SessionsState switch
+        {
+            AccountSessionsState.Loading => AccountSessionsViewState.Loading,
+            AccountSessionsState.Loaded => AccountSessionsViewState.Loaded,
+            AccountSessionsState.Failed => AccountSessionsViewState.Failed,
+            _ => AccountSessionsViewState.NotLoaded
+        };
+        string sessionsMessage = snapshot.SessionsState switch
+        {
+            AccountSessionsState.Loading => "Chargement des appareils connectés…",
+            AccountSessionsState.Failed => "Les sessions Atlas sont temporairement indisponibles.",
+            AccountSessionsState.Loaded when sessions.IsEmpty => "Aucune autre session active.",
+            _ => string.Empty
+        };
+        AccountNoticeViewState accountNotice = snapshot.Notice switch
+        {
+            AccountNoticeKind.EmailChangedVerificationSent
+                or AccountNoticeKind.EmailChangedVerificationUnavailable =>
+                    AccountNoticeViewState.EmailChanged,
+            AccountNoticeKind.VerificationEmailSent => AccountNoticeViewState.VerificationEmailSent,
+            AccountNoticeKind.PasswordChanged => AccountNoticeViewState.PasswordChanged,
+            AccountNoticeKind.SessionRevoked => AccountNoticeViewState.SessionRevoked,
+            _ => AccountNoticeViewState.None
+        };
         return new AccountViewState(
             IsPreview: false,
-            IsRuntimeConnected: true,
+            IsRuntimeConnected: snapshot.IsAuthenticated,
             SelectedSection: AccountSection.Profile,
             Username: snapshot.Username,
             Email: snapshot.Email,
@@ -101,8 +154,28 @@ internal sealed class AccountStateAdapter : IDisposable
             CanRemoveAvatar: canMutate && snapshot.Avatar is not null,
             IsDeleteConfirmationOpen: false,
             MemberSince: snapshot.IsAuthenticated ? "Profil synchronisé avec Atlas" : string.Empty,
-            LastPasswordChange: "À venir",
-            ActiveSessionCount: 0);
+            LastPasswordChange: "Utilise entre 10 et 128 caractères.",
+            ActiveSessionCount: sessions.Length,
+            AccountOperation: accountOperation,
+            AccountErrorOperation: snapshot.AccountError.Operation switch
+            {
+                AccountOperationState.ChangingEmail => AccountOperationViewState.ChangingEmail,
+                AccountOperationState.ResendingVerification => AccountOperationViewState.ResendingVerification,
+                AccountOperationState.ChangingPassword => AccountOperationViewState.ChangingPassword,
+                AccountOperationState.RevokingSession => AccountOperationViewState.RevokingSession,
+                _ => AccountOperationViewState.None
+            },
+            AccountErrorMessage: MapAccountError(snapshot.AccountError.Category),
+            AccountNoticeMessage: MapNotice(snapshot.Notice),
+            AccountNotice: accountNotice,
+            CanChangeEmail: canMutateAccount,
+            CanResendVerification: canMutateAccount && !snapshot.EmailVerified,
+            CanChangePassword: canMutateAccount,
+            IsEmailEditorOpen: false,
+            IsPasswordEditorOpen: false,
+            SessionsState: sessionsState,
+            Sessions: sessions,
+            SessionsMessage: sessionsMessage);
     }
 
     public void Dispose()
@@ -241,6 +314,7 @@ internal sealed class AccountStateAdapter : IDisposable
         BitmapSource? accountImage)
     {
         _shell.ApplyProfileAvatar(chromeImage);
+        _profile.ApplyAccountIdentity(snapshot.Username, snapshot.EmailVerified);
         _profile.ApplyAvatarImage(chromeImage);
         _target.ApplyRuntimeView(Project(snapshot, accountImage));
     }
@@ -320,6 +394,42 @@ internal sealed class AccountStateAdapter : IDisposable
             AccountAvatarErrorCategory.CancellationAmbiguous =>
                 "L’état de la photo n’a pas pu être confirmé. Actualise le profil.",
             _ => "La photo n’a pas pu être modifiée. Réessaie."
+        };
+    }
+
+    internal static string MapAccountError(AccountErrorCategory category)
+    {
+        return category switch
+        {
+            AccountErrorCategory.None => string.Empty,
+            AccountErrorCategory.InvalidEmail => "Saisis une adresse e-mail valide.",
+            AccountErrorCategory.EmailAlreadyUsed => "Cette adresse e-mail est déjà utilisée.",
+            AccountErrorCategory.CurrentPasswordIncorrect => "Le mot de passe actuel est incorrect.",
+            AccountErrorCategory.InvalidPassword => "Le nouveau mot de passe doit contenir entre 10 et 128 caractères.",
+            AccountErrorCategory.SessionExpired => "Ta session Atlas a expiré. Reconnecte-toi.",
+            AccountErrorCategory.SessionNotFound => "Cette session n’est plus active.",
+            AccountErrorCategory.RateLimited => "Trop de tentatives. Réessaie dans quelques instants.",
+            AccountErrorCategory.Network => "Atlas est temporairement inaccessible.",
+            AccountErrorCategory.Timeout => "Atlas met trop de temps à répondre. Réessaie.",
+            AccountErrorCategory.ServiceUnavailable => "Ce service Atlas est temporairement indisponible.",
+            AccountErrorCategory.ServerRejected => "Atlas n’a pas pu appliquer cette modification.",
+            _ => "Cette modification n’a pas pu être appliquée. Réessaie."
+        };
+    }
+
+    internal static string MapNotice(AccountNoticeKind notice)
+    {
+        return notice switch
+        {
+            AccountNoticeKind.EmailChangedVerificationSent =>
+                "Adresse e-mail modifiée. Un message de validation a été envoyé.",
+            AccountNoticeKind.EmailChangedVerificationUnavailable =>
+                "Adresse e-mail modifiée. Le message de validation n’a pas pu être envoyé.",
+            AccountNoticeKind.VerificationEmailSent =>
+                "Un message de validation a été envoyé.",
+            AccountNoticeKind.PasswordChanged => "Mot de passe modifié.",
+            AccountNoticeKind.SessionRevoked => "Appareil déconnecté.",
+            _ => string.Empty
         };
     }
 

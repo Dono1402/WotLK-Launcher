@@ -1,4 +1,5 @@
 using WotLK.Launcher.Account;
+using System.Collections.Immutable;
 
 namespace WotLK.Launcher.Runtime;
 
@@ -46,6 +47,73 @@ internal enum AccountAvatarErrorCategory
     Unknown
 }
 
+internal enum AccountSecurityState
+{
+    SignedOut,
+    Ready
+}
+
+internal enum AccountSessionsState
+{
+    NotLoaded,
+    Loading,
+    Loaded,
+    Failed
+}
+
+internal enum AccountOperationState
+{
+    None,
+    ChangingEmail,
+    ResendingVerification,
+    ChangingPassword,
+    RevokingSession
+}
+
+internal enum AccountErrorCategory
+{
+    None,
+    InvalidEmail,
+    EmailAlreadyUsed,
+    CurrentPasswordIncorrect,
+    InvalidPassword,
+    SessionExpired,
+    SessionNotFound,
+    RateLimited,
+    Network,
+    Timeout,
+    ServiceUnavailable,
+    ServerRejected,
+    Unknown
+}
+
+internal enum AccountNoticeKind
+{
+    None,
+    EmailChangedVerificationSent,
+    EmailChangedVerificationUnavailable,
+    VerificationEmailSent,
+    PasswordChanged,
+    SessionRevoked
+}
+
+internal sealed record AccountRuntimeError(
+    AccountOperationState Operation,
+    AccountErrorCategory Category)
+{
+    internal static AccountRuntimeError None { get; } = new(
+        AccountOperationState.None,
+        AccountErrorCategory.None);
+}
+
+internal sealed record AccountDeviceSessionSnapshot(
+    string Id,
+    string DeviceName,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset LastSeenAt,
+    DateTimeOffset ExpiresAt,
+    bool IsCurrent);
+
 internal sealed record AccountRuntimeSnapshot(
     long Sequence,
     long? OperationId,
@@ -58,7 +126,15 @@ internal sealed record AccountRuntimeSnapshot(
     AccountLoadingState LoadingState,
     AccountAvatarOperationState AvatarOperation,
     int? UploadPercentage,
-    AccountAvatarErrorCategory ErrorCategory)
+    AccountAvatarErrorCategory ErrorCategory,
+    AccountSecurityState SecurityState,
+    AccountSessionsState SessionsState,
+    ImmutableArray<AccountDeviceSessionSnapshot> Sessions,
+    string? CurrentSessionId,
+    AccountOperationState AccountOperation,
+    string? TargetSessionId,
+    AccountRuntimeError AccountError,
+    AccountNoticeKind Notice)
 {
     internal static AccountRuntimeSnapshot SignedOut { get; } = new(
         Sequence: 0,
@@ -72,13 +148,22 @@ internal sealed record AccountRuntimeSnapshot(
         LoadingState: AccountLoadingState.SignedOut,
         AvatarOperation: AccountAvatarOperationState.None,
         UploadPercentage: null,
-        ErrorCategory: AccountAvatarErrorCategory.None);
+        ErrorCategory: AccountAvatarErrorCategory.None,
+        SecurityState: AccountSecurityState.SignedOut,
+        SessionsState: AccountSessionsState.NotLoaded,
+        Sessions: ImmutableArray<AccountDeviceSessionSnapshot>.Empty,
+        CurrentSessionId: null,
+        AccountOperation: AccountOperationState.None,
+        TargetSessionId: null,
+        AccountError: AccountRuntimeError.None,
+        Notice: AccountNoticeKind.None);
 
     internal string DisplayInitial => string.IsNullOrWhiteSpace(Username)
         ? "?"
         : Username[..1].ToUpperInvariant();
 
-    internal bool IsBusy => AvatarOperation != AccountAvatarOperationState.None;
+    internal bool IsBusy => AvatarOperation != AccountAvatarOperationState.None
+        || AccountOperation != AccountOperationState.None;
 }
 
 internal sealed class AccountRuntimeSnapshotEventArgs : EventArgs

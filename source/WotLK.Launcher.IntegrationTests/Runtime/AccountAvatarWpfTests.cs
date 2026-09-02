@@ -141,6 +141,7 @@ internal static class AccountAvatarWpfTests
                     session.NotifyAuthenticatedRequestUnauthorized);
                 account = new LauncherAccountCoordinator(
                     session,
+                    authentication,
                     operations,
                     media,
                     cache,
@@ -263,8 +264,8 @@ internal static class AccountAvatarWpfTests
                     "Les appareils fictifs doivent rester réservés au preview.");
                 AccountAvatarClientTests.Equal(
                     Visibility.Visible,
-                    Required<Border>(window.AccountPage, "SessionsUnavailableCard").Visibility,
-                    "La page réelle doit annoncer clairement la fonctionnalité Sessions différée.");
+                    Required<ItemsControl>(window.AccountPage, "SessionsRealList").Visibility,
+                    "La page réelle doit réserver sa liste aux sessions Atlas réelles.");
                 AccountAvatarClientTests.True(server.ProfileCalls >= 1,
                     "Gérer mon compte conserve l'actualisation explicite existante.");
                 SaveCapture(window, captureDirectory, "03-global-avatar-account-1440x860.png");
@@ -458,8 +459,13 @@ internal static class AccountAvatarWpfTests
                 AccountAvatarClientTests.True(logoutB.IsStarted,
                     "Le compte B sans avatar doit pouvoir être déconnecté.");
                 _ = await logoutB.Completion!;
+                AccountAvatarClientTests.Equal(
+                    LauncherShellPage.Game,
+                    window.CurrentPage,
+                    "Une session fermée doit retirer la page Compte réelle.");
                 AvatarDescriptor avatarB = AccountAvatarClientTests.Descriptor(4);
                 server.SetCurrentAvatar(avatarB);
+                server.SetCurrentIdentity("BetaAvatar", "beta-avatar@example.test");
                 authentication.LoginHandler = (_, _, _) => Task.FromResult(
                     FakeLauncherAuthService.CreateSession(
                         "BetaAvatar",
@@ -485,6 +491,16 @@ internal static class AccountAvatarWpfTests
                 AccountAvatarClientTests.False(
                     ReferenceEquals(shellAvatarV3, shellState.ProfileAvatarImage),
                     "Le compte B ne doit jamais réutiliser l'ImageSource du compte A.");
+
+                RaiseClick(Required<Button>(window, "ProfileButton"));
+                await PumpAsync(DispatcherPriority.Input);
+                RaiseClick(Required<Button>(window.ProfileOverlay, "ManageAccountButton"));
+                await WaitUntilAsync(
+                    () => window.CurrentPage == LauncherShellPage.Account,
+                    "Le second compte doit rouvrir explicitement sa page Compte.");
+                await WaitUntilAsync(
+                    () => accountState.Current.CanRemoveAvatar,
+                    "Le profil du second compte doit terminer son actualisation avant suppression.");
 
                 Button remove = Required<Button>(window.AccountPage, "RemoveAvatarButton");
                 RaiseClick(remove);
@@ -754,6 +770,8 @@ internal sealed class AccountAvatarTestServer : IAsyncDisposable
 
     internal Uri ApiBaseUri { get; }
     internal AvatarDescriptor? CurrentAvatar { get; private set; }
+    internal string CurrentUsername { get; private set; } = "Dono1402";
+    internal string CurrentEmail { get; private set; } = "dono@example.test";
     internal AvatarNormalizedCrop LastCrop { get; private set; }
     internal TaskCompletionSource UploadEntered => _uploadEntered;
     internal TaskCompletionSource DeleteEntered => _deleteEntered;
@@ -801,8 +819,8 @@ internal sealed class AccountAvatarTestServer : IAsyncDisposable
             return Results.Json(new
             {
                 accountId = 1,
-                username = "Dono1402",
-                email = "dono@example.test",
+                username = server.CurrentUsername,
+                email = server.CurrentEmail,
                 emailVerified = true,
                 avatarKey = "gold",
                 twoFactorEnabled = false,
@@ -935,6 +953,12 @@ internal sealed class AccountAvatarTestServer : IAsyncDisposable
     internal void SetCurrentAvatar(AvatarDescriptor? avatar)
     {
         CurrentAvatar = avatar;
+    }
+
+    internal void SetCurrentIdentity(string username, string email)
+    {
+        CurrentUsername = username;
+        CurrentEmail = email;
     }
 
     internal void FailNextUpload(string code, int statusCode)

@@ -16,6 +16,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using WotLK.Launcher.Game;
 using WotLK.Launcher.Runtime;
+using WotLK.Launcher.Updater;
 
 namespace WotLK.Launcher;
 
@@ -64,6 +65,7 @@ public partial class MainWindow : Window
     private readonly IGameInstallPlatform _gameInstallPlatform;
     private readonly IGameClientMaintenanceService _gameClientMaintenanceService;
     private readonly IGameLaunchService _gameLaunchService;
+    private readonly ILauncherSelfUpdateFinalizer _launcherSelfUpdateFinalizer;
     private readonly LauncherOperationCoordinator _operations;
     private readonly ILauncherAuthService _auth;
     private readonly HttpClient _http;
@@ -110,6 +112,7 @@ public partial class MainWindow : Window
         _dependencies = dependencies ?? throw new ArgumentNullException(nameof(dependencies));
         _startupObserver = dependencies.StartupObserver;
         _operations = dependencies.OperationCoordinator;
+        _launcherSelfUpdateFinalizer = dependencies.LauncherSelfUpdateFinalizer;
         _gameClientStateReader = new GameClientStateReader(dependencies.HasPlayableClient);
         InitializeComponent();
         _startupObserver.Record(LegacyStartupEvent.ComponentsInitialized);
@@ -2086,7 +2089,6 @@ public partial class MainWindow : Window
         Directory.CreateDirectory(updateDirectory);
 
         var downloadedExe = Path.Combine(updateDirectory, Path.GetFileName(currentExe));
-        var scriptPath = Path.Combine(updateDirectory, "apply-launcher-update.ps1");
         var updateUri = BuildLauncherUpdateUri(manifest.Url);
 
         MainProgress.Value = 0;
@@ -2119,15 +2121,17 @@ public partial class MainWindow : Window
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+        operation.DisableUserCancellation();
+        await _launcherSelfUpdateFinalizer.PrepareAndLaunchAsync(
+            currentExe,
+            downloadedExe,
+            manifest.Size,
+            manifest.Sha256,
+            Process.GetCurrentProcess().Id,
+            cancellationToken);
         operation.TryInvoke(() =>
         {
-            WriteLauncherUpdateScript(
-                scriptPath,
-                currentExe,
-                downloadedExe,
-                Process.GetCurrentProcess().Id);
             AppendLog("Application de la mise à jour. Une validation administrateur peut être demandée.");
-            StartElevatedScript(scriptPath);
             System.Windows.Application.Current.Shutdown();
         });
     }
@@ -2926,58 +2930,6 @@ public partial class MainWindow : Window
     private static string GetLauncherLogPath()
     {
         return LauncherSettings.LauncherLogPath;
-    }
-
-    private static void WriteLauncherUpdateScript(string scriptPath, string targetExe, string downloadedExe, int processId)
-    {
-        var workingDirectory = Path.GetDirectoryName(targetExe) ?? Environment.CurrentDirectory;
-        var script = $$"""
-        $ErrorActionPreference = 'Stop'
-        $ProcessIdToWait = {{processId}}
-        $Source = {{PowerShellString(downloadedExe)}}
-        $Target = {{PowerShellString(targetExe)}}
-        $WorkingDirectory = {{PowerShellString(workingDirectory)}}
-
-        try {
-            Wait-Process -Id $ProcessIdToWait -Timeout 45 -ErrorAction SilentlyContinue
-        } catch {
-        }
-
-        Copy-Item -LiteralPath $Source -Destination $Target -Force
-        Start-Process -FilePath $Target -WorkingDirectory $WorkingDirectory
-        Start-Sleep -Seconds 2
-        Remove-Item -LiteralPath $Source -Force -ErrorAction SilentlyContinue
-        Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
-        """;
-
-        File.WriteAllText(scriptPath, script, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-    }
-
-    private static void StartElevatedScript(string scriptPath)
-    {
-        var process = Process.Start(new ProcessStartInfo
-        {
-            FileName = "powershell.exe",
-            Arguments = "-NoProfile -ExecutionPolicy Bypass -File " + QuoteProcessArgument(scriptPath),
-            UseShellExecute = true,
-            Verb = "runas",
-            WindowStyle = ProcessWindowStyle.Hidden
-        });
-
-        if (process is null)
-        {
-            throw new InvalidOperationException("Impossible de lancer le processus de mise à jour.");
-        }
-    }
-
-    private static string PowerShellString(string value)
-    {
-        return "'" + value.Replace("'", "''") + "'";
-    }
-
-    private static string QuoteProcessArgument(string value)
-    {
-        return "\"" + value.Replace("\"", "\\\"") + "\"";
     }
 
     private static string FormatBytes(long bytes)

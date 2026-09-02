@@ -8,6 +8,7 @@ using WotLK.Launcher.UI.V2.Commands;
 using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Preview;
 using WotLK.Launcher.UI.V2.Validation;
+using WotLK.Launcher.Updater;
 
 namespace WotLK.Launcher;
 
@@ -32,7 +33,28 @@ public partial class App : Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
-        LauncherStartupMode startupMode = ResolveStartupMode(e.Args);
+        if (LauncherUpdateCommandLine.TryParseHelper(
+                e.Args,
+                out bool recovery,
+                out string transactionPath,
+                out int requesterProcessId))
+        {
+            base.OnStartup(e);
+            Shutdown(LauncherUpdateHelperRunner.Run(
+                recovery,
+                transactionPath,
+                requesterProcessId));
+            return;
+        }
+
+        string[] applicationArguments = LauncherUpdateCommandLine.ApplicationArguments(e.Args);
+        LauncherStartupMode startupMode = ResolveStartupMode(applicationArguments);
+        LauncherUpdateStartupSession? updateStartup = startupMode is
+            LauncherStartupMode.Legacy or LauncherStartupMode.UiV2
+                ? LauncherUpdateStartupSession.Begin(
+                    e.Args,
+                    recoverInterruptedTransactions: true)
+                : null;
 
         base.OnStartup(e);
 
@@ -114,7 +136,7 @@ public partial class App : Application
                 return;
             }
 
-            StartRuntimeV2();
+            StartRuntimeV2(updateStartup);
             return;
         }
 
@@ -133,6 +155,7 @@ public partial class App : Application
         var window = new MainWindow();
         MainWindow = window;
         window.Show();
+        ScheduleUpdateReadyConfirmation(window, updateStartup);
     }
 
     internal static LauncherStartupMode ResolveStartupMode(IEnumerable<string> arguments)
@@ -212,7 +235,7 @@ public partial class App : Application
             : LauncherStartupMode.Legacy;
     }
 
-    private void StartRuntimeV2()
+    private void StartRuntimeV2(LauncherUpdateStartupSession? updateStartup)
     {
         LauncherRuntime runtime;
         try
@@ -457,6 +480,41 @@ public partial class App : Application
 
         MainWindow = window;
         window.Show();
+        ScheduleUpdateReadyConfirmation(window, updateStartup);
+    }
+
+    private static void ScheduleUpdateReadyConfirmation(
+        Window window,
+        LauncherUpdateStartupSession? updateStartup)
+    {
+        if (updateStartup is null)
+        {
+            return;
+        }
+
+        _ = ConfirmAsync();
+        async Task ConfirmAsync()
+        {
+            try
+            {
+                await updateStartup.ConfirmReadyAsync(() =>
+                {
+                    if (window.Dispatcher.HasShutdownStarted
+                        || window.Dispatcher.HasShutdownFinished)
+                    {
+                        return false;
+                    }
+
+                    return window.Dispatcher.CheckAccess()
+                        ? window.IsVisible
+                        : window.Dispatcher.Invoke(() => window.IsVisible);
+                });
+            }
+            catch
+            {
+                // A failed recovery handshake must not crash normal launcher startup.
+            }
+        }
     }
 
     private void LoadV2Resources()

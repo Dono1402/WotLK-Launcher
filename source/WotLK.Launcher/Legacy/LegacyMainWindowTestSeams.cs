@@ -5,6 +5,7 @@ using System.Text;
 using System.Windows.Threading;
 using WotLK.Launcher.Game;
 using WotLK.Launcher.Runtime;
+using WotLK.Launcher.Updater;
 
 namespace WotLK.Launcher;
 
@@ -123,6 +124,9 @@ internal sealed class LegacyMainWindowDependencies
     internal IGameInstallPlatform? GameInstallPlatform { get; init; }
 
     internal IGameClientMaintenanceService? GameClientMaintenanceService { get; init; }
+
+    internal ILauncherSelfUpdateFinalizer LauncherSelfUpdateFinalizer { get; init; } =
+        WotLK.Launcher.Updater.LauncherSelfUpdateFinalizer.CreateProduction();
 
     internal LauncherOperationCoordinator OperationCoordinator { get; init; } = new();
 

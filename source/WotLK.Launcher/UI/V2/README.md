@@ -26,6 +26,21 @@ WotLK.Launcher.exe --ui-v2 --preview-state=Ready --ui-v2-size=1080x680 --ui-v2-f
 
 Dans le mode preview uniquement, les statuts, l'actualité, l'installation et la liste d'amis sont fictifs. Seules les commandes de fenêtre et l'ouverture/fermeture du panneau Amis sont interactives.
 
+Prévisualiser le catalogue Addons V2 :
+
+```powershell
+WotLK.Launcher.exe --ui-v2 --preview-addons=default
+WotLK.Launcher.exe --ui-v2 --preview-addons=updates
+WotLK.Launcher.exe --ui-v2 --preview-addons=detail
+WotLK.Launcher.exe --ui-v2 --preview-addons=installing
+WotLK.Launcher.exe --ui-v2 --preview-addons=empty
+WotLK.Launcher.exe --ui-v2 --preview-addons=error
+WotLK.Launcher.exe --ui-v2 --preview-addons=many
+WotLK.Launcher.exe --ui-v2 --preview-addons=game-running
+```
+
+Ces scénarios utilisent uniquement des états de présentation locaux de 0, 6, 20 ou 50 entrées. La recherche, les filtres, le panneau de détail et les transitions visuelles sont fictifs. Aucun catalogue distant, fichier `.atlas-addons.json`, téléchargement, processus ou timer n'est créé. Les logos proviennent exclusivement des ressources déjà documentées dans `Assets/Launcher/addon-icons/sources.json`; les entrées étendues sans ressource utilisent l'icône générique Atlas.
+
 Prévisualiser les états isolés du panneau Amis :
 
 ```powershell

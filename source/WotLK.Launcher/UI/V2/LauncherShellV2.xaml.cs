@@ -28,6 +28,7 @@ public partial class LauncherShellV2 : Window
         : this(
             LauncherV2PreviewData.CreateShell(scenario),
             LauncherV2PreviewData.CreateGame(scenario),
+            AddonsPreviewData.CreateRuntimePlaceholder(),
             LauncherV2PreviewData.CreateDashboard(scenario),
             LauncherV2PreviewData.CreateFriends(),
             LauncherV2PreviewData.CreateAuth(),
@@ -42,10 +43,30 @@ public partial class LauncherShellV2 : Window
     {
     }
 
+    public LauncherShellV2(GamePreviewScenario scenario, AddonsPreviewScenario addonsScenario)
+        : this(
+            LauncherV2PreviewData.CreateShell(scenario),
+            LauncherV2PreviewData.CreateGame(scenario),
+            AddonsPreviewData.Create(addonsScenario),
+            LauncherV2PreviewData.CreateDashboard(scenario),
+            LauncherV2PreviewData.CreateFriends(),
+            LauncherV2PreviewData.CreateAuth(),
+            LauncherV2PreviewData.CreateProfile(),
+            LauncherV2PreviewData.CreateSettings(),
+            LauncherV2PreviewData.CreateAccount(),
+            LauncherV2PreviewData.CreateAvatarCrop(),
+            authPreviewScenario: null,
+            profilePreviewScenario: null,
+            isPreviewMode: true,
+            initialPage: LauncherShellPage.Addons)
+    {
+    }
+
     public LauncherShellV2(GamePreviewScenario scenario, AuthPreviewScenario authScenario)
         : this(
             LauncherV2PreviewData.CreateShell(scenario, isAuthenticated: false),
             LauncherV2PreviewData.CreateGame(scenario),
+            AddonsPreviewData.CreateRuntimePlaceholder(),
             LauncherV2PreviewData.CreateDashboard(scenario),
             LauncherV2PreviewData.CreateFriends(),
             LauncherV2PreviewData.CreateAuth(authScenario),
@@ -64,6 +85,7 @@ public partial class LauncherShellV2 : Window
         : this(
             LauncherV2PreviewData.CreateShell(scenario, isAuthenticated: true),
             LauncherV2PreviewData.CreateGame(scenario),
+            AddonsPreviewData.CreateRuntimePlaceholder(),
             LauncherV2PreviewData.CreateDashboard(scenario),
             LauncherV2PreviewData.CreateFriends(),
             LauncherV2PreviewData.CreateAuth(),
@@ -82,6 +104,7 @@ public partial class LauncherShellV2 : Window
         : this(
             LauncherV2PreviewData.CreateShell(scenario),
             LauncherV2PreviewData.CreateGame(scenario),
+            AddonsPreviewData.CreateRuntimePlaceholder(),
             LauncherV2PreviewData.CreateDashboard(scenario),
             LauncherV2PreviewData.CreateFriends(),
             LauncherV2PreviewData.CreateAuth(),
@@ -100,6 +123,7 @@ public partial class LauncherShellV2 : Window
         : this(
             LauncherV2PreviewData.CreateShell(scenario),
             LauncherV2PreviewData.CreateGame(scenario),
+            AddonsPreviewData.CreateRuntimePlaceholder(),
             LauncherV2PreviewData.CreateDashboard(scenario),
             LauncherV2PreviewData.CreateFriends(friendsScenario),
             LauncherV2PreviewData.CreateAuth(),
@@ -128,6 +152,7 @@ public partial class LauncherShellV2 : Window
         : this(
             composition.Shell,
             LauncherV2PreviewData.CreateGame(scenario),
+            AddonsPreviewData.CreateRuntimePlaceholder(),
             LauncherV2PreviewData.CreateDashboard(scenario),
             LauncherV2PreviewData.CreateFriends(),
             LauncherV2PreviewData.CreateAuth(),
@@ -203,6 +228,7 @@ public partial class LauncherShellV2 : Window
         : this(
             shellState,
             gameState,
+            AddonsPreviewData.CreateRuntimePlaceholder(),
             dashboardState,
             friendsState,
             new AuthUiState(),
@@ -220,6 +246,7 @@ public partial class LauncherShellV2 : Window
     private LauncherShellV2(
         ShellUiState shellState,
         GameUiState gameState,
+        AddonsUiState addonsState,
         DashboardUiState dashboardState,
         FriendsUiState friendsState,
         AuthUiState authState,
@@ -235,6 +262,7 @@ public partial class LauncherShellV2 : Window
     {
         ShellState = shellState ?? throw new ArgumentNullException(nameof(shellState));
         GameState = gameState ?? throw new ArgumentNullException(nameof(gameState));
+        AddonsState = addonsState ?? throw new ArgumentNullException(nameof(addonsState));
         DashboardState = dashboardState ?? throw new ArgumentNullException(nameof(dashboardState));
         FriendsState = friendsState ?? throw new ArgumentNullException(nameof(friendsState));
         AuthState = authState ?? throw new ArgumentNullException(nameof(authState));
@@ -271,6 +299,8 @@ public partial class LauncherShellV2 : Window
 
     public GameUiState GameState { get; }
 
+    public AddonsUiState AddonsState { get; }
+
     public DashboardUiState DashboardState { get; }
 
     public FriendsUiState FriendsState { get; }
@@ -306,6 +336,8 @@ public partial class LauncherShellV2 : Window
     internal FriendsDrawerV2 FriendsOverlay => FriendsDrawer;
 
     internal ProfileMenuV2 ProfileOverlay => ProfileMenu;
+
+    internal AddonsViewV2 AddonsPage => AddonsView;
 
     internal SettingsViewV2 SettingsPage => SettingsView;
 
@@ -478,6 +510,7 @@ public partial class LauncherShellV2 : Window
         AvatarCropOverlay.DetachFromShell();
         AvatarCropOverlay.State = null;
         AvatarCropOverlay.IsOpen = false;
+        AddonsView.State = null;
         SettingsView.State = null;
         AccountView.State = null;
         DataContext = null;
@@ -558,6 +591,15 @@ public partial class LauncherShellV2 : Window
             && (IsPreviewMode || SettingsState.Current.IsRuntimeConnected))
         {
             NavigateTo(LauncherShellPage.Game);
+        }
+    }
+
+    private void AddonsNavigationButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ShellState.IsNavigationEnabled
+            && _overlayCoordinator.Current == ShellOverlayKind.None)
+        {
+            NavigateTo(LauncherShellPage.Addons);
         }
     }
 
@@ -754,6 +796,14 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape
+            && CurrentPage == LauncherShellPage.Addons
+            && AddonsView.TryCloseTopLayer())
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.Escape && AccountView.TryCloseSensitiveEditor())
         {
             e.Handled = true;
@@ -897,16 +947,31 @@ public partial class LauncherShellV2 : Window
             AccountView.OnNavigatedAway();
         }
 
+        if (CurrentPage == LauncherShellPage.Addons && page != LauncherShellPage.Addons)
+        {
+            AddonsView.OnNavigatedAway();
+        }
+
         CurrentPage = page;
         bool showGame = page == LauncherShellPage.Game;
+        bool showAddons = page == LauncherShellPage.Addons;
         bool showSettings = page == LauncherShellPage.Settings;
         bool showAccount = page == LauncherShellPage.Account;
         GameView.Visibility = showGame ? Visibility.Visible : Visibility.Collapsed;
+        AddonsView.Visibility = showAddons ? Visibility.Visible : Visibility.Collapsed;
         SettingsView.Visibility = showSettings ? Visibility.Visible : Visibility.Collapsed;
         AccountView.Visibility = showAccount ? Visibility.Visible : Visibility.Collapsed;
         GameNavigationButton.Tag = showGame ? "Active" : null;
+        AddonsNavigationButton.Tag = showAddons ? "Active" : null;
         SettingsButton.Tag = showSettings ? "Active" : null;
-        if (showSettings)
+        if (showAddons)
+        {
+            if (AddonsView.ListHost.Items.Count > 0)
+            {
+                AddonsView.ListHost.ScrollIntoView(AddonsView.ListHost.Items[0]);
+            }
+        }
+        else if (showSettings)
         {
             SettingsView.ScrollHost.ScrollToTop();
         }

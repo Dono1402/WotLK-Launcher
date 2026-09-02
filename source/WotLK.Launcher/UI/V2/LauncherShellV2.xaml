@@ -94,10 +94,12 @@
                                 IsEnabled="{Binding ShellState.IsGameNavigationEnabled}"
                                 Focusable="False"
                                 Click="GameNavigationButton_Click"/>
-                        <Button Style="{StaticResource AtlasV2.Button.Nav}"
+                        <Button x:Name="AddonsNavigationButton"
+                                Style="{StaticResource AtlasV2.Button.Nav}"
                                 Content="Addons"
                                 IsEnabled="{Binding ShellState.IsNavigationEnabled}"
-                                Focusable="False"/>
+                                Focusable="False"
+                                Click="AddonsNavigationButton_Click"/>
                         <Button Style="{StaticResource AtlasV2.Button.Nav}"
                                 Content="Actualités"
                                 IsEnabled="{Binding ShellState.IsNavigationEnabled}"
@@ -305,6 +307,10 @@
                                   State="{Binding GameState}"
                                   DashboardState="{Binding DashboardState}"
                                   LayoutMode="{Binding ShellState.LayoutMode}"/>
+                <views:AddonsViewV2 x:Name="AddonsView"
+                                    Visibility="Collapsed"
+                                    State="{Binding AddonsState}"
+                                    LayoutMode="{Binding ShellState.LayoutMode}"/>
                 <views:SettingsViewV2 x:Name="SettingsView"
                                        Visibility="Collapsed"
                                        State="{Binding SettingsState}"

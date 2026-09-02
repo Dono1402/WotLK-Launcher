@@ -40,6 +40,8 @@
     <Geometry x:Key="AtlasV2.Icon.ZoomIn">M11,19 A8,8 0 1 0 11,3 A8,8 0 1 0 11,19 M21,21 L16.65,16.65 M11,7 V15 M7,11 H15</Geometry>
     <Geometry x:Key="AtlasV2.Icon.Key">M21,2 L13.6,9.4 M15,4 L19,8 M9,15 A5,5 0 1 0 9,5 A5,5 0 1 0 9,15 M5.5,11.5 L2,15 V19 H6 V16 H9 L12,13</Geometry>
     <Geometry x:Key="AtlasV2.Icon.Smartphone">M7,2 H17 V22 H7 Z M11,18 H13</Geometry>
+    <Geometry x:Key="AtlasV2.Icon.Search">M11,19 A8,8 0 1 0 11,3 A8,8 0 1 0 11,19 M21,21 L16.65,16.65</Geometry>
+    <Geometry x:Key="AtlasV2.Icon.Package">M21,8 L12,13 L3,8 M12,22 V13 M21,8 V17 L12,22 L3,17 V8 L12,3 Z</Geometry>
 
     <Style x:Key="AtlasV2.Icon.Stroke" TargetType="{x:Type Path}">
         <Setter Property="Stroke" Value="#B6C0CC"/>

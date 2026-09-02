@@ -21,6 +21,7 @@ internal enum LauncherStartupMode
     UiV2SettingsPreview,
     UiV2FriendsPreview,
     UiV2AccountPreview,
+    UiV2AddonsPreview,
     InvalidArguments,
     GrantGameDirectoryAccess,
     UninstallGame
@@ -51,7 +52,8 @@ public partial class App : Application
             or LauncherStartupMode.UiV2ProfilePreview
             or LauncherStartupMode.UiV2SettingsPreview
             or LauncherStartupMode.UiV2FriendsPreview
-            or LauncherStartupMode.UiV2AccountPreview)
+            or LauncherStartupMode.UiV2AccountPreview
+            or LauncherStartupMode.UiV2AddonsPreview)
         {
             try
             {
@@ -74,7 +76,8 @@ public partial class App : Application
                 or LauncherStartupMode.UiV2ProfilePreview
                 or LauncherStartupMode.UiV2SettingsPreview
                 or LauncherStartupMode.UiV2FriendsPreview
-                or LauncherStartupMode.UiV2AccountPreview)
+                or LauncherStartupMode.UiV2AccountPreview
+                or LauncherStartupMode.UiV2AddonsPreview)
             {
                 GamePreviewScenario previewScenario = LauncherV2PreviewData.ResolveScenario(e.Args);
                 LauncherShellV2 previewWindow = startupMode switch
@@ -94,6 +97,9 @@ public partial class App : Application
                     LauncherStartupMode.UiV2AccountPreview => new LauncherShellV2(
                         previewScenario,
                         AccountPreviewArguments.ResolveScenario(e.Args)),
+                    LauncherStartupMode.UiV2AddonsPreview => new LauncherShellV2(
+                        previewScenario,
+                        AddonsPreviewArguments.ResolveScenario(e.Args)),
                     _ => new LauncherShellV2(previewScenario)
                 };
                 ApplyV2PreviewOptions(previewWindow, e.Args);
@@ -133,11 +139,13 @@ public partial class App : Application
         bool useSettingsPreview = SettingsPreviewArguments.IsRequested(args);
         bool useFriendsPreview = FriendsPreviewArguments.IsRequested(args);
         bool useAccountPreview = AccountPreviewArguments.IsRequested(args);
+        bool useAddonsPreview = AddonsPreviewArguments.IsRequested(args);
         int dedicatedPreviewCount = (useAuthPreview ? 1 : 0)
             + (useProfilePreview ? 1 : 0)
             + (useSettingsPreview ? 1 : 0)
             + (useFriendsPreview ? 1 : 0)
-            + (useAccountPreview ? 1 : 0);
+            + (useAccountPreview ? 1 : 0)
+            + (useAddonsPreview ? 1 : 0);
         if ((dedicatedPreviewCount > 0 && !useUiV2)
             || dedicatedPreviewCount > 1)
         {
@@ -169,6 +177,11 @@ public partial class App : Application
             if (useAccountPreview)
             {
                 return LauncherStartupMode.UiV2AccountPreview;
+            }
+
+            if (useAddonsPreview)
+            {
+                return LauncherStartupMode.UiV2AddonsPreview;
             }
 
             bool usePreview = args.Any(argument =>

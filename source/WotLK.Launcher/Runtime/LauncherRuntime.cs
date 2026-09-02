@@ -330,6 +330,18 @@ internal sealed class LauncherRuntime : IDisposable
                 passwordConfirmation));
     }
 
+    internal LauncherSessionStartResult TryEnrollExisting(
+        string username,
+        string email,
+        string currentPassword)
+    {
+        return ObserveInteractiveAuthentication(
+            _sessionCoordinator.TryEnrollExisting(
+                username,
+                email,
+                currentPassword));
+    }
+
     internal bool CancelInteractiveAuthentication()
     {
         bool authenticationCancelled = _sessionCoordinator.CancelInteractiveAttempt();

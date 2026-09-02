@@ -213,17 +213,21 @@ internal static class AvatarFoundationTests
             DROP TABLE IF EXISTS atlas_launcher_schema_history;
 
             ALTER TABLE atlas_launcher_session
-                DROP FOREIGN KEY fk_atlas_session_account,
-                ADD CONSTRAINT fk_atlas_session_account
-                    FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE CASCADE;
+                DROP FOREIGN KEY fk_atlas_session_account;
             ALTER TABLE atlas_launcher_email_verification
-                DROP FOREIGN KEY fk_atlas_email_account,
-                ADD CONSTRAINT fk_atlas_email_account
-                    FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE CASCADE;
+                DROP FOREIGN KEY fk_atlas_email_account;
             ALTER TABLE atlas_launcher_friendship
                 DROP FOREIGN KEY fk_atlas_friend_low,
                 DROP FOREIGN KEY fk_atlas_friend_high,
-                DROP FOREIGN KEY fk_atlas_friend_requester,
+                DROP FOREIGN KEY fk_atlas_friend_requester;
+
+            ALTER TABLE atlas_launcher_session
+                ADD CONSTRAINT fk_atlas_session_account
+                    FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE CASCADE;
+            ALTER TABLE atlas_launcher_email_verification
+                ADD CONSTRAINT fk_atlas_email_account
+                    FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE CASCADE;
+            ALTER TABLE atlas_launcher_friendship
                 ADD CONSTRAINT fk_atlas_friend_low
                     FOREIGN KEY (account_low_id) REFERENCES account(id) ON DELETE CASCADE,
                 ADD CONSTRAINT fk_atlas_friend_high

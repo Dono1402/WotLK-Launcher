@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Reflection;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -9,6 +10,7 @@ using System.Windows.Threading;
 using WotLK.Launcher;
 using WotLK.Launcher.Game;
 using WotLK.Launcher.Runtime;
+using WotLK.Launcher.Server;
 using WotLK.Launcher.UI.V2;
 using WotLK.Launcher.UI.V2.Commands;
 using WotLK.Launcher.UI.V2.Presentation;
@@ -22,6 +24,7 @@ internal static class LauncherAuthenticationTests
         await CharacterizeRestorationAsync();
         await CharacterizeLoginAsync();
         await CharacterizeRegistrationAsync();
+        await CharacterizeEnrollmentAsync();
         await CharacterizeRuntimeIntegrationAsync();
         await CharacterizeRealWpfOverlayAsync();
         Console.WriteLine("Launcher authentication and session OK (02F.2).");
@@ -287,12 +290,14 @@ internal static class LauncherAuthenticationTests
             false,
             LauncherSessionFailureCategory.AtlasProfileRequired));
 
-        Equal(AuthErrorKind.AtlasProfileRequired, state.ErrorKind, "La V2 doit distinguer ce refus des mauvais identifiants.");
-        Equal(AtlasProfileRequiredMessage, state.ErrorMessage, "La V2 doit afficher un message controle.");
+        Equal(AuthMode.EnrollmentPrompt, state.Mode, "La V2 doit ouvrir l'etat d'enrolement dedie.");
+        Equal(AuthErrorKind.None, state.ErrorKind, "L'enrolement requis ne doit pas devenir une erreur rouge.");
+        Equal("PlayerOnly", state.EnrollmentUsername, "Le nom valide doit etre reutilise sans creer de profil.");
         True(
-            !state.ErrorMessage.Contains("bot", StringComparison.OrdinalIgnoreCase)
-            && !state.ErrorMessage.Contains("technique", StringComparison.OrdinalIgnoreCase),
-            "Le message utilisateur ne doit reveler aucune nature technique du compte.");
+            state.Description.Contains("Associe", StringComparison.OrdinalIgnoreCase)
+            && !state.Description.Contains("bot", StringComparison.OrdinalIgnoreCase)
+            && !state.Description.Contains("technique", StringComparison.OrdinalIgnoreCase),
+            "La presentation ne doit reveler aucune nature technique du compte.");
     }
 
     private static async Task LoginSuccessAsync()
@@ -337,6 +342,7 @@ internal static class LauncherAuthenticationTests
         Equal(LauncherSessionCompletionStatus.Failed, completion.Status, "L'échec doit être observé.");
         Equal(expectedCategory, completion.Snapshot.FailureCategory, "La catégorie de connexion est incorrecte.");
         Equal(0, authentication.CommitSessionCalls, "Un échec ne doit pas créer de session.");
+        Equal(0, authentication.EnrollmentCalls, "Une simple connexion ne doit jamais lancer l'enrolement automatiquement.");
     }
 
     private const string AtlasProfileRequiredMessage =
@@ -549,6 +555,210 @@ internal static class LauncherAuthenticationTests
         Equal(1, authentication.RegisterCalls, "Une seule inscription réseau est autorisée.");
     }
 
+    private static async Task CharacterizeEnrollmentAsync()
+    {
+        await CharacterizeEnrollmentHttpClientAsync();
+        CharacterizeEnrollmentValidation();
+        await EnrollmentSuccessAsync();
+        await EnrollmentFailureAsync(
+            new LauncherAuthException("invalid", HttpStatusCode.Unauthorized),
+            LauncherSessionFailureCategory.InvalidCredentials);
+        await EnrollmentFailureAsync(
+            new LauncherAuthException(
+                "Ce compte ne peut pas être associé à Atlas.",
+                HttpStatusCode.Forbidden,
+                "AtlasEnrollmentNotAllowed"),
+            LauncherSessionFailureCategory.EnrollmentNotAllowed);
+        await EnrollmentFailureAsync(
+            new LauncherAuthException(
+                "Ce compte est déjà associé à Atlas.",
+                HttpStatusCode.Conflict,
+                "AtlasAlreadyEnrolled"),
+            LauncherSessionFailureCategory.AlreadyEnrolled);
+        await EnrollmentFailureAsync(
+            new LauncherAuthException(
+                "Cette adresse e-mail est déjà utilisée.",
+                HttpStatusCode.Conflict,
+                "AtlasEmailAlreadyUsed"),
+            LauncherSessionFailureCategory.EmailAlreadyExists);
+        await EnrollmentDoubleSubmitAsync();
+    }
+
+    private static async Task CharacterizeEnrollmentHttpClientAsync()
+    {
+        LauncherAuthSession expected = FakeLauncherAuthService.CreateSession(
+            "ExistingPlayer",
+            "existing@example.test",
+            emailVerified: false);
+        EnrollmentHttpHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(expected)
+        });
+        using (LauncherAuthService service = new(handler))
+        {
+            LauncherAuthSession actual = await service.PrepareEnrollmentAsync(
+                "ExistingPlayer",
+                "existing@example.test",
+                "current-password",
+                CancellationToken.None);
+            Equal(expected.Profile.Username, actual.Profile.Username, "Le client doit lire la session d'enrolement.");
+            Equal(HttpMethod.Post, handler.Method, "L'enrolement doit utiliser POST.");
+            Equal(
+                new Uri("https://animeclub.fr/wotlk/api/v1/auth/enroll-existing"),
+                handler.RequestUri,
+                "Le client doit utiliser l'endpoint d'enrolement distinct.");
+            Equal(Environment.MachineName, handler.DeviceName, "Le nom d'appareil doit rester dans l'en-tete existant.");
+            using JsonDocument body = JsonDocument.Parse(handler.Body ?? throw new InvalidOperationException("Corps d'enrolement absent."));
+            Equal("ExistingPlayer", body.RootElement.GetProperty("username").GetString(), "Le nom est absent du contrat.");
+            Equal("existing@example.test", body.RootElement.GetProperty("email").GetString(), "L'e-mail est absent du contrat.");
+            Equal("current-password", body.RootElement.GetProperty("currentPassword").GetString(), "La preuve de propriete est absente du contrat.");
+            True(!body.RootElement.TryGetProperty("accountId", out _), "Le client ne doit jamais envoyer d'AccountId.");
+            True(service.Session is null, "PrepareEnrollment ne doit pas valider la session avant le coordinateur.");
+        }
+
+        EnrollmentHttpHandler refusalHandler = new(_ => new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            Content = JsonContent.Create(new
+            {
+                error = "Ce compte ne peut pas être associé à Atlas.",
+                code = "AtlasEnrollmentNotAllowed"
+            })
+        });
+        using LauncherAuthService refusalService = new(refusalHandler);
+        LauncherAuthException? refusal = null;
+        try
+        {
+            await refusalService.PrepareEnrollmentAsync(
+                "HiddenAccount",
+                "hidden@example.test",
+                "current-password",
+                CancellationToken.None);
+        }
+        catch (LauncherAuthException exception)
+        {
+            refusal = exception;
+        }
+
+        True(refusal is not null, "Le refus serveur doit etre converti en erreur controlee.");
+        Equal("AtlasEnrollmentNotAllowed", refusal!.Code, "Le code d'eligibilite doit etre conserve.");
+        True(
+            !refusal.Message.Contains("bot", StringComparison.OrdinalIgnoreCase)
+            && !refusal.Message.Contains("technique", StringComparison.OrdinalIgnoreCase),
+            "Le client ne doit recevoir aucune classification technique.");
+    }
+
+    private static void CharacterizeEnrollmentValidation()
+    {
+        Equal(
+            "Renseigne le nom de ton compte WoW.",
+            AuthenticationRequestValidation.ExistingEnrollment(
+                new EnrollExistingAccountRequest(null!, "current-password", "player@example.test")),
+            "Un nom JSON null doit produire un refus controle.");
+        Equal(
+            "Renseigne le mot de passe actuel de ton compte WoW.",
+            AuthenticationRequestValidation.ExistingEnrollment(
+                new EnrollExistingAccountRequest("Player", null!, "player@example.test")),
+            "Un mot de passe JSON null doit produire un refus controle.");
+        Equal(
+            "Adresse e-mail invalide.",
+            AuthenticationRequestValidation.ExistingEnrollment(
+                new EnrollExistingAccountRequest("Player", "current-password", null!)),
+            "Un e-mail JSON null doit produire un refus controle.");
+
+        (string Username, string Email, string Password)[] invalid =
+        [
+            (string.Empty, "player@example.test", "password"),
+            ("Player", "invalid", "password"),
+            ("Player", "player@example.test", string.Empty),
+            (new string('p', 33), "player@example.test", "password"),
+            ("Player", "player@example.test", new string('p', 129))
+        ];
+        foreach ((string username, string email, string password) in invalid)
+        {
+            FakeLauncherAuthService authentication = new();
+            using CancellationTokenSource lifetime = new();
+            using LauncherSessionCoordinator coordinator = new(authentication, lifetime.Token, _ => { });
+            LauncherSessionStartResult result = coordinator.TryEnrollExisting(username, email, password);
+            Equal(LauncherSessionStartStatus.RejectedByValidation, result.Status, "L'enrolement invalide doit etre refuse localement.");
+            Equal(0, authentication.EnrollmentCalls, "Aucune requete ne doit partir pour un formulaire invalide.");
+        }
+    }
+
+    private static async Task EnrollmentSuccessAsync()
+    {
+        FakeLauncherAuthService authentication = new()
+        {
+            EnrollmentHandler = (username, email, password, _) =>
+            {
+                Equal("ExistingPlayer", username, "Le nom d'enrolement doit etre normalise.");
+                Equal("existing@example.test", email, "L'e-mail d'enrolement doit etre normalise.");
+                Equal("current-password", password, "Le mot de passe actuel doit etre transmis uniquement au service d'authentification.");
+                return Task.FromResult(FakeLauncherAuthService.CreateSession(username, email, emailVerified: false));
+            }
+        };
+        using CancellationTokenSource lifetime = new();
+        using LauncherSessionCoordinator coordinator = new(authentication, lifetime.Token, _ => { });
+
+        LauncherSessionCompletion completion = await RequiredCompletion(
+            coordinator.TryEnrollExisting(
+                " ExistingPlayer ",
+                " existing@example.test ",
+                "current-password"));
+
+        Equal(LauncherSessionCompletionStatus.Succeeded, completion.Status, "L'enrolement doit fournir directement une session.");
+        Equal(LauncherSessionState.Authenticated, completion.Snapshot.State, "Le profil enrole doit etre authentifie.");
+        Equal(1, authentication.EnrollmentCalls, "Un seul appel d'enrolement est attendu.");
+        Equal(0, authentication.LoginCalls, "L'enrolement ne doit pas rejouer Login.");
+        Equal(1, authentication.CommitSessionCalls, "La session initiale doit etre stockee une fois.");
+    }
+
+    private static async Task EnrollmentFailureAsync(
+        Exception exception,
+        LauncherSessionFailureCategory expectedCategory)
+    {
+        FakeLauncherAuthService authentication = new()
+        {
+            EnrollmentHandler = (_, _, _, _) => Task.FromException<LauncherAuthSession>(exception)
+        };
+        using CancellationTokenSource lifetime = new();
+        using LauncherSessionCoordinator coordinator = new(authentication, lifetime.Token, _ => { });
+
+        LauncherSessionCompletion completion = await RequiredCompletion(
+            coordinator.TryEnrollExisting(
+                "ExistingPlayer",
+                "existing@example.test",
+                "current-password"));
+
+        Equal(LauncherSessionCompletionStatus.Failed, completion.Status, "Le refus d'enrolement doit etre observe.");
+        Equal(expectedCategory, completion.Snapshot.FailureCategory, "La categorie d'enrolement est incorrecte.");
+        Equal(0, authentication.CommitSessionCalls, "Un refus d'enrolement ne doit creer aucune session locale.");
+    }
+
+    private static async Task EnrollmentDoubleSubmitAsync()
+    {
+        TaskCompletionSource<LauncherAuthSession> release = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        FakeLauncherAuthService authentication = new()
+        {
+            EnrollmentHandler = (_, _, _, _) => release.Task
+        };
+        using CancellationTokenSource lifetime = new();
+        using LauncherSessionCoordinator coordinator = new(authentication, lifetime.Token, _ => { });
+
+        LauncherSessionStartResult first = coordinator.TryEnrollExisting(
+            "ExistingPlayer",
+            "existing@example.test",
+            "current-password");
+        LauncherSessionStartResult duplicate = coordinator.TryEnrollExisting(
+            "ExistingPlayer",
+            "existing@example.test",
+            "current-password");
+        Equal(LauncherSessionStartStatus.Busy, duplicate.Status, "Le double enrolement doit etre refuse immediatement.");
+        release.SetResult(FakeLauncherAuthService.CreateSession("ExistingPlayer"));
+        await RequiredCompletion(first);
+        Equal(1, authentication.EnrollmentCalls, "Une seule requete d'enrolement est autorisee.");
+    }
+
     private static async Task CharacterizeRuntimeIntegrationAsync()
     {
         await RuntimeInitializationIsSingleFlightAsync();
@@ -739,6 +949,7 @@ internal static class LauncherAuthenticationTests
                 };
                 LoadV2Resources(application);
                 await ValidateRealLoginFlowAsync();
+                await ValidateRealEnrollmentFlowAsync();
                 await ValidateRealRegistrationFlowAsync();
                 await ValidateCloseDuringRealRequestAsync();
             }
@@ -839,6 +1050,148 @@ internal static class LauncherAuthenticationTests
                 || !unavailableReason.Contains("Connexion requise", StringComparison.OrdinalIgnoreCase),
                 "La raison Connexion requise doit disparaître.");
             Equal(0, authentication.CreateGameTicketCalls, "Le flux WPF ne doit créer aucun ticket.");
+        }
+        finally
+        {
+            harness.Dispose();
+            await PumpAsync(DispatcherPriority.Background);
+        }
+    }
+
+    private static async Task ValidateRealEnrollmentFlowAsync()
+    {
+        using TemporaryClient client = new();
+        TaskCompletionSource<LauncherAuthSession> firstEnrollment = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource<LauncherAuthSession> lateEnrollment = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        int enrollmentAttempt = 0;
+        FakeLauncherAuthService authentication = AuthForRuntime("ExistingPlayer");
+        authentication.LoginHandler = (_, _, _) => Task.FromException<LauncherAuthSession>(
+            new LauncherAuthException(
+                AtlasProfileRequiredMessage,
+                HttpStatusCode.Forbidden,
+                "AtlasProfileRequired"));
+        authentication.EnrollmentHandler = (username, email, _, _) => ++enrollmentAttempt switch
+        {
+            1 => firstEnrollment.Task,
+            2 => lateEnrollment.Task,
+            _ => Task.FromResult(FakeLauncherAuthService.CreateSession(
+                username,
+                email,
+                emailVerified: false))
+        };
+        using LauncherRuntime runtime = CreateRuntime(
+            client,
+            authentication,
+            new RuntimeVerificationStub(),
+            new RuntimeMaintenanceStub());
+        RuntimeAuthHarness harness = CreateRuntimeAuthHarness(runtime);
+        try
+        {
+            harness.Window.Show();
+            await runtime.InitializeAsync();
+            await PumpAsync(DispatcherPriority.DataBind);
+            Button profile = Required<Button>(harness.Window, "ProfileButton");
+            RaiseClick(profile);
+            await DelayAndPumpAsync(220);
+            AuthOverlayViewV2 overlay = harness.Window.AuthenticationOverlay;
+
+            async Task LoginUntilEnrollmentPromptAsync()
+            {
+                Required<TextBox>(overlay, "LoginUsernameBox").Text = "ExistingPlayer";
+                Required<PasswordBox>(overlay, "LoginPasswordBox").Password = "current-password";
+                await PumpAsync(DispatcherPriority.DataBind);
+                RaiseClick(Required<Button>(overlay, "PrimaryAuthButton"));
+                await WaitForAsync(() => harness.Window.AuthState.Mode == AuthMode.EnrollmentPrompt);
+                await PumpAsync(DispatcherPriority.Input);
+            }
+
+            await LoginUntilEnrollmentPromptAsync();
+            Equal(1, authentication.LoginCalls, "Le login doit seulement signaler l'enrolement requis.");
+            Equal(0, authentication.EnrollmentCalls, "Le login ne doit pas activer Atlas automatiquement.");
+            Equal(AuthErrorKind.None, harness.Window.AuthState.ErrorKind, "Le compte existant ne doit pas afficher une erreur rouge.");
+            Equal("ExistingPlayer", harness.Window.AuthState.EnrollmentUsername, "Le nom valide doit etre reutilise.");
+            Equal(
+                Required<Button>(overlay, "BeginEnrollmentButton"),
+                Keyboard.FocusedElement,
+                "Le focus doit rejoindre l'action d'activation.");
+
+            harness.Window.AuthState.ReturnCommand.Execute(null);
+            await PumpAsync(DispatcherPriority.Input);
+            Equal(AuthMode.Login, harness.Window.AuthState.Mode, "Retour doit revenir a la connexion.");
+            Equal("ExistingPlayer", harness.Window.AuthState.LoginUsername, "Retour doit conserver le nom du compte.");
+            await LoginUntilEnrollmentPromptAsync();
+
+            Button beginEnrollment = Required<Button>(overlay, "BeginEnrollmentButton");
+            beginEnrollment.Command.Execute(beginEnrollment.CommandParameter);
+            await PumpAsync(DispatcherPriority.Input);
+            Equal(AuthMode.Enrollment, harness.Window.AuthState.Mode, "Activer Atlas doit ouvrir le formulaire.");
+            TextBox enrollmentUsername = Required<TextBox>(overlay, "EnrollmentUsernameBox");
+            TextBox enrollmentEmail = Required<TextBox>(overlay, "EnrollmentEmailBox");
+            PasswordBox enrollmentPassword = Required<PasswordBox>(overlay, "EnrollmentPasswordBox");
+            True(enrollmentUsername.IsReadOnly && !enrollmentUsername.IsTabStop, "Le nom valide doit rester en lecture seule.");
+            Equal(enrollmentEmail, Keyboard.FocusedElement, "Le focus doit viser le premier champ modifiable.");
+
+            enrollmentEmail.Text = "invalid";
+            enrollmentPassword.Password = "current-password";
+            overlay.ValidateForPreview(showErrors: true);
+            Equal(AuthErrorKind.Validation, harness.Window.AuthState.ErrorKind, "L'e-mail invalide doit etre refuse localement.");
+            Equal(0, authentication.EnrollmentCalls, "La validation locale ne doit produire aucune requete.");
+
+            enrollmentEmail.Text = "existing@example.test";
+            enrollmentPassword.Password = "current-password";
+            await PumpAsync(DispatcherPriority.DataBind);
+            Button submit = Required<Button>(overlay, "PrimaryAuthButton");
+            RaiseClick(submit);
+            True(harness.Window.AuthState.IsBusy, "L'activation doit passer immediatement en busy.");
+            True(!enrollmentEmail.IsEnabled && !enrollmentPassword.IsEnabled, "Le formulaire doit etre desactive pendant l'activation.");
+            Equal(string.Empty, enrollmentPassword.Password, "Le mot de passe d'enrolement doit etre abandonne des le depart.");
+            RaiseClick(submit);
+            RaisePreviewKey(overlay, Key.Enter);
+            Equal(1, authentication.EnrollmentCalls, "Le double clic et Entree doivent etre refuses.");
+
+            firstEnrollment.SetException(new LauncherAuthException(
+                "raw duplicate detail",
+                HttpStatusCode.Conflict,
+                "AtlasEmailAlreadyUsed"));
+            await WaitForAsync(() => !harness.Window.AuthState.IsBusy);
+            Equal(AuthMode.Enrollment, harness.Window.AuthState.Mode, "Un refus doit conserver le formulaire d'activation.");
+            Equal(AuthErrorKind.EmailAlreadyExists, harness.Window.AuthState.ErrorKind, "Le conflit e-mail doit etre controle.");
+            True(!harness.Window.AuthState.ErrorMessage.Contains("raw", StringComparison.OrdinalIgnoreCase), "Le detail serveur brut ne doit pas etre affiche.");
+
+            enrollmentPassword.Password = "current-password";
+            await PumpAsync(DispatcherPriority.DataBind);
+            RaiseClick(submit);
+            True(harness.Window.AuthState.IsBusy, "Une nouvelle activation doit pouvoir demarrer.");
+            RaiseClick(Required<Button>(overlay, "CloseButton"));
+            await DelayAndPumpAsync(220);
+            True(overlay.IsFullyClosed, "Fermer doit annuler visuellement l'activation.");
+            lateEnrollment.SetResult(FakeLauncherAuthService.CreateSession("ObsoleteEnrollment"));
+            await DelayAndPumpAsync(80);
+            Equal(0, authentication.CommitSessionCalls, "Le resultat d'enrolement tardif doit etre ignore.");
+            True(!harness.Window.ShellState.IsAuthenticated, "Le resultat tardif ne doit pas modifier WPF.");
+
+            RaiseClick(profile);
+            await DelayAndPumpAsync(220);
+            await LoginUntilEnrollmentPromptAsync();
+            beginEnrollment = Required<Button>(overlay, "BeginEnrollmentButton");
+            beginEnrollment.Command.Execute(beginEnrollment.CommandParameter);
+            await PumpAsync(DispatcherPriority.Input);
+            Required<TextBox>(overlay, "EnrollmentEmailBox").Text = "existing@example.test";
+            Required<PasswordBox>(overlay, "EnrollmentPasswordBox").Password = "current-password";
+            await PumpAsync(DispatcherPriority.DataBind);
+            RaiseClick(Required<Button>(overlay, "PrimaryAuthButton"));
+            await WaitForAsync(() => harness.Window.ShellState.IsAuthenticated);
+            await DelayAndPumpAsync(220);
+
+            Equal("ExistingPlayer", harness.Window.ShellState.Username, "Le succes doit rafraichir l'identite Atlas.");
+            True(overlay.IsFullyClosed, "Le succes doit fermer l'overlay.");
+            True(overlay.ArePasswordFieldsEmpty, "Aucun mot de passe ne doit rester en memoire WPF.");
+            Equal(3, authentication.LoginCalls, "Chaque retour volontaire au login doit rester explicite.");
+            Equal(3, authentication.EnrollmentCalls, "Les trois tentatives explicites doivent etre observees.");
+            Equal(1, authentication.CommitSessionCalls, "Seul le succes courant doit stocker la session.");
+            Equal(0, authentication.CreateGameTicketCalls, "L'enrolement hors demande Play ne doit pas lancer le jeu.");
         }
         finally
         {
@@ -1090,6 +1443,33 @@ internal static class LauncherAuthenticationTests
         if (!condition)
         {
             throw new InvalidOperationException(message);
+        }
+    }
+
+    private sealed class EnrollmentHttpHandler(
+        Func<HttpRequestMessage, HttpResponseMessage> createResponse) : HttpMessageHandler
+    {
+        internal HttpMethod? Method { get; private set; }
+
+        internal Uri? RequestUri { get; private set; }
+
+        internal string? DeviceName { get; private set; }
+
+        internal string? Body { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            Method = request.Method;
+            RequestUri = request.RequestUri;
+            DeviceName = request.Headers.TryGetValues("X-Atlas-Device", out IEnumerable<string>? values)
+                ? values.SingleOrDefault()
+                : null;
+            Body = request.Content is null
+                ? null
+                : await request.Content.ReadAsStringAsync(cancellationToken);
+            return createResponse(request);
         }
     }
 

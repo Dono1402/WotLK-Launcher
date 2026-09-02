@@ -8,7 +8,9 @@ namespace WotLK.Launcher.UI.V2.Presentation;
 public enum AuthMode
 {
     Login,
-    Register
+    Register,
+    EnrollmentPrompt,
+    Enrollment
 }
 
 public enum AuthErrorKind
@@ -27,6 +29,8 @@ public sealed class AuthUiState : BindableUiState, IDisposable
 {
     private readonly DelegateCommand _showLoginCommand;
     private readonly DelegateCommand _showRegisterCommand;
+    private readonly DelegateCommand _beginEnrollmentCommand;
+    private readonly DelegateCommand _returnCommand;
     private readonly DelegateCommand _submitCommand;
     private bool _isOpen;
     private AuthMode _mode;
@@ -38,6 +42,8 @@ public sealed class AuthUiState : BindableUiState, IDisposable
     private string _loginUsername = string.Empty;
     private string _registerUsername = string.Empty;
     private string _registerEmail = string.Empty;
+    private string _enrollmentUsername = string.Empty;
+    private string _enrollmentEmail = string.Empty;
     private int _previewSubmissionCount;
     private int _disposeState;
 
@@ -49,6 +55,12 @@ public sealed class AuthUiState : BindableUiState, IDisposable
         _showRegisterCommand = new DelegateCommand(
             () => SetMode(AuthMode.Register),
             () => IsOpen && !IsBusy && Mode != AuthMode.Register);
+        _beginEnrollmentCommand = new DelegateCommand(
+            () => SetMode(AuthMode.Enrollment),
+            () => IsOpen && !IsBusy && Mode == AuthMode.EnrollmentPrompt);
+        _returnCommand = new DelegateCommand(
+            ReturnFromEnrollment,
+            () => IsOpen && !IsBusy && Mode is AuthMode.EnrollmentPrompt or AuthMode.Enrollment);
         _submitCommand = new DelegateCommand(
             () => _previewSubmissionCount++,
             () => IsOpen && !IsBusy && IsFormValid);
@@ -107,7 +119,13 @@ public sealed class AuthUiState : BindableUiState, IDisposable
     public string ErrorMessage
     {
         get => _errorMessage;
-        private set => SetProperty(ref _errorMessage, value);
+        private set
+        {
+            if (SetProperty(ref _errorMessage, value))
+            {
+                RaisePropertyChanged(nameof(IsErrorVisible));
+            }
+        }
     }
 
     public bool IsEmailWarningVisible
@@ -146,15 +164,46 @@ public sealed class AuthUiState : BindableUiState, IDisposable
         set => SetProperty(ref _registerEmail, value);
     }
 
-    public string Title => Mode == AuthMode.Login ? "Connexion" : "Créer un compte";
+    public string EnrollmentUsername
+    {
+        get => _enrollmentUsername;
+        set => SetProperty(ref _enrollmentUsername, value);
+    }
 
-    public string Description => Mode == AuthMode.Login
-        ? "Retrouve ton compte Atlas et continue vers Arthas."
-        : "Crée ton compte Atlas pour rejoindre le royaume Arthas.";
+    public string EnrollmentEmail
+    {
+        get => _enrollmentEmail;
+        set => SetProperty(ref _enrollmentEmail, value);
+    }
+
+    public string Title => Mode switch
+    {
+        AuthMode.Login => "Connexion",
+        AuthMode.Register => "Créer un compte",
+        _ => "Activer Atlas"
+    };
+
+    public string Description => Mode switch
+    {
+        AuthMode.Login => "Retrouve ton compte Atlas et continue vers Arthas.",
+        AuthMode.Register => "Crée ton compte Atlas pour rejoindre le royaume Arthas.",
+        AuthMode.EnrollmentPrompt => "Associe volontairement ton compte WoW à Atlas Launcher.",
+        _ => "Confirme ton compte WoW et choisis l’adresse e-mail de ton profil Atlas."
+    };
 
     public string PrimaryActionLabel => IsBusy
-        ? Mode == AuthMode.Login ? "Connexion…" : "Création…"
-        : Mode == AuthMode.Login ? "Se connecter" : "Créer mon compte";
+        ? Mode switch
+        {
+            AuthMode.Login => "Connexion…",
+            AuthMode.Register => "Création…",
+            _ => "Activation…"
+        }
+        : Mode switch
+        {
+            AuthMode.Login => "Se connecter",
+            AuthMode.Register => "Créer mon compte",
+            _ => "Activer Atlas"
+        };
 
     public bool IsFormEnabled => !IsBusy;
 
@@ -163,9 +212,21 @@ public sealed class AuthUiState : BindableUiState, IDisposable
 
     public bool CanSubmit => IsOpen && !IsBusy && IsFormValid;
 
+    public bool IsModeSelectorVisible => Mode is AuthMode.Login or AuthMode.Register;
+
+    public bool IsEnrollmentPromptVisible => Mode == AuthMode.EnrollmentPrompt;
+
+    public bool IsEnrollmentFormVisible => Mode == AuthMode.Enrollment;
+
+    public bool IsPrimaryActionVisible => Mode != AuthMode.EnrollmentPrompt;
+
     public ICommand ShowLoginCommand => _showLoginCommand;
 
     public ICommand ShowRegisterCommand => _showRegisterCommand;
+
+    public ICommand BeginEnrollmentCommand => _beginEnrollmentCommand;
+
+    public ICommand ReturnCommand => _returnCommand;
 
     public ICommand SubmitCommand => _submitCommand;
 
@@ -177,7 +238,11 @@ public sealed class AuthUiState : BindableUiState, IDisposable
         Mode = scenario is AuthPreviewScenario.Register
             or AuthPreviewScenario.RegisterError
             or AuthPreviewScenario.RegisterValidation
-            ? AuthMode.Register
+                ? AuthMode.Register
+            : scenario == AuthPreviewScenario.AtlasEnrollment
+                ? AuthMode.EnrollmentPrompt
+            : scenario == AuthPreviewScenario.AtlasEnrollmentError
+                ? AuthMode.Enrollment
             : AuthMode.Login;
         IsBusy = scenario == AuthPreviewScenario.Loading;
         IsEmailWarningVisible = scenario == AuthPreviewScenario.EmailWarning;
@@ -187,6 +252,7 @@ public sealed class AuthUiState : BindableUiState, IDisposable
             AuthPreviewScenario.RegisterError => AuthErrorKind.RegistrationRejected,
             AuthPreviewScenario.RegisterValidation => AuthErrorKind.Validation,
             AuthPreviewScenario.ServiceUnavailable => AuthErrorKind.ServiceUnavailable,
+            AuthPreviewScenario.AtlasEnrollmentError => AuthErrorKind.EmailAlreadyExists,
             _ => AuthErrorKind.None
         };
         ErrorMessage = scenario switch
@@ -195,8 +261,18 @@ public sealed class AuthUiState : BindableUiState, IDisposable
             AuthPreviewScenario.RegisterError => "Atlas n’a pas pu créer ce compte pour le moment.",
             AuthPreviewScenario.RegisterValidation => "Les deux mots de passe ne correspondent pas.",
             AuthPreviewScenario.ServiceUnavailable => "Atlas est temporairement indisponible. Réessaie dans quelques instants.",
+            AuthPreviewScenario.AtlasEnrollmentError => "Cette adresse e-mail est déjà utilisée.",
             _ => string.Empty
         };
+        if (scenario is AuthPreviewScenario.AtlasEnrollment
+            or AuthPreviewScenario.AtlasEnrollmentError)
+        {
+            LoginUsername = "Dono1402";
+            EnrollmentUsername = "Dono1402";
+            EnrollmentEmail = scenario == AuthPreviewScenario.AtlasEnrollmentError
+                ? "dono1402@example.test"
+                : string.Empty;
+        }
         RaiseDerivedProperties();
         RaiseCommandStates();
     }
@@ -228,6 +304,8 @@ public sealed class AuthUiState : BindableUiState, IDisposable
         LoginUsername = string.Empty;
         RegisterUsername = string.Empty;
         RegisterEmail = string.Empty;
+        EnrollmentUsername = string.Empty;
+        EnrollmentEmail = string.Empty;
         IsBusy = false;
         IsEmailWarningVisible = false;
         IsFormValid = false;
@@ -265,14 +343,31 @@ public sealed class AuthUiState : BindableUiState, IDisposable
         else if (!snapshot.IsSubmitting
                  && snapshot.OperationKind is LauncherSessionOperationKind.Login
                      or LauncherSessionOperationKind.Register
+                     or LauncherSessionOperationKind.Enrollment
                  && snapshot.FailureCategory != LauncherSessionFailureCategory.None)
         {
-            (_errorKind, _errorMessage) = MapFailure(snapshot.FailureCategory);
-            if (snapshot.FailureCategory
-                == LauncherSessionFailureCategory.AccountCreatedSignInRequired)
+            if (snapshot.FailureCategory == LauncherSessionFailureCategory.AtlasProfileRequired)
             {
-                _mode = AuthMode.Login;
+                _mode = AuthMode.EnrollmentPrompt;
                 _loginUsername = snapshot.Username;
+                _enrollmentUsername = snapshot.Username;
+                _errorKind = AuthErrorKind.None;
+                _errorMessage = string.Empty;
+                _isFormValid = false;
+            }
+            else
+            {
+                (_errorKind, _errorMessage) = MapFailure(snapshot.FailureCategory);
+                if (snapshot.OperationKind == LauncherSessionOperationKind.Enrollment)
+                {
+                    _mode = AuthMode.Enrollment;
+                }
+                else if (snapshot.FailureCategory
+                         == LauncherSessionFailureCategory.AccountCreatedSignInRequired)
+                {
+                    _mode = AuthMode.Login;
+                    _loginUsername = snapshot.Username;
+                }
             }
         }
 
@@ -285,6 +380,14 @@ public sealed class AuthUiState : BindableUiState, IDisposable
         if (mode == AuthMode.Register && string.IsNullOrWhiteSpace(RegisterUsername))
         {
             RegisterUsername = LoginUsername.Trim();
+        }
+
+        else if (mode == AuthMode.Enrollment)
+        {
+            if (string.IsNullOrWhiteSpace(EnrollmentUsername))
+            {
+                EnrollmentUsername = LoginUsername.Trim();
+            }
         }
 
         Mode = mode;
@@ -300,6 +403,10 @@ public sealed class AuthUiState : BindableUiState, IDisposable
         RaisePropertyChanged(nameof(Description));
         RaisePropertyChanged(nameof(PrimaryActionLabel));
         RaisePropertyChanged(nameof(IsFormEnabled));
+        RaisePropertyChanged(nameof(IsModeSelectorVisible));
+        RaisePropertyChanged(nameof(IsEnrollmentPromptVisible));
+        RaisePropertyChanged(nameof(IsEnrollmentFormVisible));
+        RaisePropertyChanged(nameof(IsPrimaryActionVisible));
     }
 
     private void RaiseCommandStates()
@@ -307,6 +414,8 @@ public sealed class AuthUiState : BindableUiState, IDisposable
         RaisePropertyChanged(nameof(CanSubmit));
         _showLoginCommand.RaiseCanExecuteChanged();
         _showRegisterCommand.RaiseCanExecuteChanged();
+        _beginEnrollmentCommand.RaiseCanExecuteChanged();
+        _returnCommand.RaiseCanExecuteChanged();
         _submitCommand.RaiseCanExecuteChanged();
     }
 
@@ -319,6 +428,10 @@ public sealed class AuthUiState : BindableUiState, IDisposable
                 (AuthErrorKind.InvalidCredentials, "Identifiants incorrects."),
             LauncherSessionFailureCategory.AtlasProfileRequired =>
                 (AuthErrorKind.AtlasProfileRequired, AtlasAuthErrorMessage),
+            LauncherSessionFailureCategory.EnrollmentNotAllowed =>
+                (AuthErrorKind.RegistrationRejected, "Ce compte ne peut pas être associé à Atlas."),
+            LauncherSessionFailureCategory.AlreadyEnrolled =>
+                (AuthErrorKind.RegistrationRejected, "Ce compte est déjà associé à Atlas."),
             LauncherSessionFailureCategory.UsernameAlreadyExists =>
                 (AuthErrorKind.UsernameAlreadyExists, "Ce nom d’utilisateur est déjà utilisé."),
             LauncherSessionFailureCategory.EmailAlreadyExists =>
@@ -341,6 +454,13 @@ public sealed class AuthUiState : BindableUiState, IDisposable
     private const string AtlasAuthErrorMessage =
         "Ce compte n’est pas encore inscrit dans Atlas Launcher.";
 
+    private void ReturnFromEnrollment()
+    {
+        SetMode(Mode == AuthMode.Enrollment
+            ? AuthMode.EnrollmentPrompt
+            : AuthMode.Login);
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposeState, 1) != 0)
@@ -351,6 +471,8 @@ public sealed class AuthUiState : BindableUiState, IDisposable
         ResetAfterClose();
         _showLoginCommand.Dispose();
         _showRegisterCommand.Dispose();
+        _beginEnrollmentCommand.Dispose();
+        _returnCommand.Dispose();
         _submitCommand.Dispose();
     }
 }

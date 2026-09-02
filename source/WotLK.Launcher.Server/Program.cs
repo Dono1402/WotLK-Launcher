@@ -150,6 +150,32 @@ app.MapPost("/api/v1/auth/login", async (
     return AuthenticationEndpointResults.FromLogin(result);
 }).RequireRateLimiting("auth");
 
+app.MapPost("/api/v1/auth/enroll-existing", async (
+    EnrollExistingAccountRequest request,
+    HttpContext context,
+    LauncherDatabase db,
+    EmailVerificationService emailVerification,
+    CancellationToken cancellationToken) =>
+{
+    string? validation = AuthenticationRequestValidation.ExistingEnrollment(request);
+    if (validation is not null)
+        return Results.BadRequest(new { error = validation });
+
+    string? deviceName = context.Request.Headers["X-Atlas-Device"].FirstOrDefault();
+    AtlasEnrollmentResult result = await db.EnrollExistingAsync(
+        request,
+        deviceName,
+        cancellationToken);
+    if (result is { Outcome: AtlasEnrollmentOutcome.Succeeded, Response: not null })
+    {
+        await emailVerification.SendAsync(
+            result.Response.Profile.AccountId,
+            cancellationToken);
+    }
+
+    return AuthenticationEndpointResults.FromEnrollment(result);
+}).RequireRateLimiting("auth");
+
 app.MapPost("/api/v1/auth/refresh", async (
     RefreshRequest request,
     LauncherDatabase db,

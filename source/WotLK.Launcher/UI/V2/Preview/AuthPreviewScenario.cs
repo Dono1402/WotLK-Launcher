@@ -9,7 +9,9 @@ public enum AuthPreviewScenario
     RegisterError,
     RegisterValidation,
     EmailWarning,
-    ServiceUnavailable
+    ServiceUnavailable,
+    AtlasEnrollment,
+    AtlasEnrollmentError
 }
 
 internal static class AuthPreviewArguments
@@ -50,6 +52,8 @@ internal static class AuthPreviewArguments
             "registervalidation" => AuthPreviewScenario.RegisterValidation,
             "emailwarning" => AuthPreviewScenario.EmailWarning,
             "serviceunavailable" => AuthPreviewScenario.ServiceUnavailable,
+            "atlasenrollment" => AuthPreviewScenario.AtlasEnrollment,
+            "atlasenrollmenterror" => AuthPreviewScenario.AtlasEnrollmentError,
             _ => AuthPreviewScenario.Login
         };
     }

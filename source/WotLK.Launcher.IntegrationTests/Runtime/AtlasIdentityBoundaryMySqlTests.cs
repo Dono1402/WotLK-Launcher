@@ -78,6 +78,7 @@ internal static partial class AvatarBackendTests
 
             await ValidateLoginBoundariesAsync(options);
             await ValidateRegistrationAtomicityAsync(options);
+            await ValidateEnrollmentBoundariesAsync(options);
 
             Console.WriteLine(
                 $"Atlas identity MySQL 8.4 OK: accounts={before.AccountCount}, "

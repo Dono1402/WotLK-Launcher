@@ -150,6 +150,35 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
                 cancellationToken));
     }
 
+    internal LauncherSessionStartResult TryEnrollExisting(
+        string username,
+        string email,
+        string currentPassword)
+    {
+        LauncherAuthInputValidation validation = LauncherAuthenticationValidator.EnrollExisting(
+            username,
+            email,
+            !string.IsNullOrEmpty(currentPassword),
+            currentPassword.Length);
+        if (!validation.IsValid)
+        {
+            return LauncherSessionStartResult.Rejected(
+                LauncherSessionStartStatus.RejectedByValidation,
+                CurrentSnapshot);
+        }
+
+        string normalizedUsername = username.Trim();
+        string normalizedEmail = email.Trim();
+        return TryStartInteractive(
+            LauncherSessionOperationKind.Enrollment,
+            normalizedUsername,
+            cancellationToken => _authentication.PrepareEnrollmentAsync(
+                normalizedUsername,
+                normalizedEmail,
+                currentPassword,
+                cancellationToken));
+    }
+
     internal bool CancelInteractiveAttempt()
     {
         CancellationTokenSource? cancellation = null;
@@ -159,7 +188,8 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
             if (_activeAttemptId is not long attemptId
                 || _activeOperationKind is not (
                     LauncherSessionOperationKind.Login
-                    or LauncherSessionOperationKind.Register))
+                    or LauncherSessionOperationKind.Register
+                    or LauncherSessionOperationKind.Enrollment))
             {
                 return false;
             }
@@ -489,9 +519,12 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
             _activeOperationKind = operationKind;
             snapshot = SetSnapshotUnsafe(
                 attemptId,
-                operationKind == LauncherSessionOperationKind.Login
-                    ? LauncherSessionState.Authenticating
-                    : LauncherSessionState.Registering,
+                operationKind switch
+                {
+                    LauncherSessionOperationKind.Login => LauncherSessionState.Authenticating,
+                    LauncherSessionOperationKind.Enrollment => LauncherSessionState.Enrolling,
+                    _ => LauncherSessionState.Registering
+                },
                 operationKind,
                 username,
                 isEmailVerified: true,
@@ -1111,6 +1144,33 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
                 return LauncherSessionFailureCategory.AtlasProfileRequired;
             }
 
+            if (operationKind == LauncherSessionOperationKind.Enrollment)
+            {
+                if (string.Equals(
+                        authException.Code,
+                        "AtlasEnrollmentNotAllowed",
+                        StringComparison.Ordinal))
+                {
+                    return LauncherSessionFailureCategory.EnrollmentNotAllowed;
+                }
+
+                if (string.Equals(
+                        authException.Code,
+                        "AtlasAlreadyEnrolled",
+                        StringComparison.Ordinal))
+                {
+                    return LauncherSessionFailureCategory.AlreadyEnrolled;
+                }
+
+                if (string.Equals(
+                        authException.Code,
+                        "AtlasEmailAlreadyUsed",
+                        StringComparison.Ordinal))
+                {
+                    return LauncherSessionFailureCategory.EmailAlreadyExists;
+                }
+            }
+
             if (authException.StatusCode == HttpStatusCode.Unauthorized)
             {
                 if (operationKind == LauncherSessionOperationKind.Logout)
@@ -1118,7 +1178,8 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
                     return LauncherSessionFailureCategory.ServerRejected;
                 }
 
-                return operationKind == LauncherSessionOperationKind.Login
+                return operationKind is LauncherSessionOperationKind.Login
+                    or LauncherSessionOperationKind.Enrollment
                     ? LauncherSessionFailureCategory.InvalidCredentials
                     : LauncherSessionFailureCategory.Unauthorized;
             }

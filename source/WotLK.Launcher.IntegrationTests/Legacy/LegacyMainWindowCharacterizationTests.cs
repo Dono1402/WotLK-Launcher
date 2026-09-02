@@ -1003,6 +1003,8 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
 
     internal Func<string, string, string, CancellationToken, Task<LauncherAuthSession>>? RegisterHandler { get; set; }
 
+    internal Func<string, string, string, CancellationToken, Task<LauncherAuthSession>>? EnrollmentHandler { get; set; }
+
     internal Func<CancellationToken, Task<bool>>? EnsureFreshHandler { get; set; }
 
     internal Func<CancellationToken, Task<GameTicket>>? GameTicketHandler { get; set; }
@@ -1026,6 +1028,8 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
     internal int LoginCalls { get; private set; }
 
     internal int RegisterCalls { get; private set; }
+
+    internal int EnrollmentCalls { get; private set; }
 
     internal int CommitSessionCalls { get; private set; }
 
@@ -1112,6 +1116,17 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
     {
         RegisterCalls++;
         return RegisterHandler?.Invoke(username, email, password, cancellationToken)
+            ?? Task.FromResult(Session ?? CreateSession(username, email));
+    }
+
+    public Task<LauncherAuthSession> PrepareEnrollmentAsync(
+        string username,
+        string email,
+        string currentPassword,
+        CancellationToken cancellationToken = default)
+    {
+        EnrollmentCalls++;
+        return EnrollmentHandler?.Invoke(username, email, currentPassword, cancellationToken)
             ?? Task.FromResult(Session ?? CreateSession(username, email));
     }
 

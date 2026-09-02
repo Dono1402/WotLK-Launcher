@@ -18,4 +18,31 @@ internal static class AuthenticationEndpointResults
             _ => Results.Unauthorized()
         };
     }
+
+    internal static IResult FromEnrollment(AtlasEnrollmentResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        return result.Outcome switch
+        {
+            AtlasEnrollmentOutcome.Succeeded when result.Response is not null =>
+                Results.Ok(result.Response),
+            AtlasEnrollmentOutcome.AlreadyEnrolled => Results.Json(
+                new AtlasAuthErrorResponse(
+                    AtlasAuthErrorCodes.AlreadyEnrolledMessage,
+                    AtlasAuthErrorCodes.AlreadyEnrolled),
+                statusCode: StatusCodes.Status409Conflict),
+            AtlasEnrollmentOutcome.NotEligible => Results.Json(
+                new AtlasAuthErrorResponse(
+                    AtlasAuthErrorCodes.EnrollmentNotAllowedMessage,
+                    AtlasAuthErrorCodes.EnrollmentNotAllowed),
+                statusCode: StatusCodes.Status403Forbidden),
+            AtlasEnrollmentOutcome.EmailAlreadyUsed => Results.Json(
+                new AtlasAuthErrorResponse(
+                    AtlasAuthErrorCodes.EmailAlreadyUsedMessage,
+                    AtlasAuthErrorCodes.EmailAlreadyUsed),
+                statusCode: StatusCodes.Status409Conflict),
+            _ => Results.Unauthorized()
+        };
+    }
 }

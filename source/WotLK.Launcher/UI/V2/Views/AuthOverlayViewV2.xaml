@@ -89,6 +89,7 @@
                                 BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
                                 BorderThickness="1"
                                 CornerRadius="7"
+                                Visibility="{Binding State.IsModeSelectorVisible, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
                                 AutomationProperties.Name="Choix du formulaire d’authentification">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -135,6 +136,46 @@
                                 </Button>
                             </Grid>
                         </Border>
+
+                        <StackPanel x:Name="EnrollmentPrompt"
+                                    Margin="0,16,0,0"
+                                    Visibility="{Binding State.IsEnrollmentPromptVisible, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                            <TextBlock Text="COMPTE EXISTANT"
+                                       Style="{StaticResource AtlasV2.Text.Eyebrow}"
+                                       Foreground="{StaticResource AtlasV2.Brush.Gold}"/>
+                            <TextBlock Margin="0,8,0,0"
+                                       Text="Ton compte WoW existe déjà, mais il n’est pas encore associé à Atlas Launcher."
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource AtlasV2.Text.Body}"
+                                       FontWeight="SemiBold"/>
+                            <TextBlock Margin="0,8,0,0"
+                                       Text="Active Atlas pour profiter du launcher, de ton profil et des fonctionnalités sociales."
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource AtlasV2.Text.Caption}"
+                                       Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+                            <Grid Margin="0,20,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="BeginEnrollmentButton"
+                                        Grid.Column="0"
+                                        Height="44"
+                                        Content="Activer Atlas"
+                                        Command="{Binding State.BeginEnrollmentCommand, ElementName=Root}"
+                                        Style="{StaticResource AtlasV2.Button.Primary}"
+                                        KeyboardNavigation.TabIndex="2"
+                                        AutomationProperties.Name="Activer Atlas pour ce compte"/>
+                                <Button Grid.Column="2"
+                                        Height="44"
+                                        Content="Retour"
+                                        Command="{Binding State.ReturnCommand, ElementName=Root}"
+                                        Style="{StaticResource AtlasV2.Button.Secondary}"
+                                        KeyboardNavigation.TabIndex="3"
+                                        AutomationProperties.Name="Revenir à la connexion"/>
+                            </Grid>
+                        </StackPanel>
 
                         <Border x:Name="EmailWarningBanner"
                                 Margin="0,10,0,0"
@@ -367,7 +408,95 @@
                             </StackPanel>
                         </Grid>
 
-                        <Grid Margin="0,8,0,0">
+                        <Grid x:Name="EnrollmentForm" Margin="0,12,0,0"
+                              Visibility="{Binding State.IsEnrollmentFormVisible, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                            <StackPanel IsEnabled="{Binding State.IsFormEnabled, ElementName=Root}">
+                                <TextBlock Text="NOM DU COMPTE"
+                                           Style="{StaticResource AtlasV2.Text.Caption}"
+                                           FontWeight="SemiBold"/>
+                                <Border Height="40" Margin="0,5,0,8"
+                                        Style="{StaticResource AtlasV2.Field.Container}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="22"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Width="17" Height="17" VerticalAlignment="Center"
+                                              Data="{StaticResource AtlasV2.Icon.User}"
+                                              Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                        <TextBox x:Name="EnrollmentUsernameBox"
+                                                 Grid.Column="1"
+                                                 Margin="8,0,0,0"
+                                                 Text="{Binding State.EnrollmentUsername, ElementName=Root, Mode=OneWay}"
+                                                 IsReadOnly="True"
+                                                 IsTabStop="False"
+                                                 Style="{StaticResource AtlasV2.TextBox.Field}"
+                                                 AutomationProperties.Name="Nom du compte WoW"/>
+                                    </Grid>
+                                </Border>
+
+                                <TextBlock Text="ADRESSE E-MAIL"
+                                           Style="{StaticResource AtlasV2.Text.Caption}"
+                                           FontWeight="SemiBold"/>
+                                <Border Height="40" Margin="0,5,0,8"
+                                        Style="{StaticResource AtlasV2.Field.Container}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="22"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Width="17" Height="17" VerticalAlignment="Center"
+                                              Data="{StaticResource AtlasV2.Icon.Mail}"
+                                              Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                        <TextBox x:Name="EnrollmentEmailBox"
+                                                 Grid.Column="1"
+                                                 Margin="8,0,0,0"
+                                                 MaxLength="254"
+                                                 Text="{Binding State.EnrollmentEmail, ElementName=Root, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource AtlasV2.TextBox.Field}"
+                                                 KeyboardNavigation.TabIndex="2"
+                                                 AutomationProperties.Name="Adresse e-mail du profil Atlas"
+                                                 TextChanged="Input_Changed"/>
+                                    </Grid>
+                                </Border>
+
+                                <TextBlock Text="MOT DE PASSE ACTUEL"
+                                           Style="{StaticResource AtlasV2.Text.Caption}"
+                                           FontWeight="SemiBold"/>
+                                <Border Height="40" Margin="0,5,0,10"
+                                        Style="{StaticResource AtlasV2.Field.Container}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="22"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Width="17" Height="17" VerticalAlignment="Center"
+                                              Data="{StaticResource AtlasV2.Icon.Lock}"
+                                              Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                        <PasswordBox x:Name="EnrollmentPasswordBox"
+                                                     Grid.Column="1"
+                                                     Margin="8,0,0,0"
+                                                     MaxLength="128"
+                                                     Style="{StaticResource AtlasV2.PasswordBox.Field}"
+                                                     KeyboardNavigation.TabIndex="3"
+                                                     AutomationProperties.Name="Mot de passe actuel du compte WoW"
+                                                     PasswordChanged="Input_Changed"/>
+                                    </Grid>
+                                </Border>
+
+                                <Button Height="36"
+                                        HorizontalAlignment="Left"
+                                        Padding="14,0"
+                                        Content="Retour"
+                                        Command="{Binding State.ReturnCommand, ElementName=Root}"
+                                        Style="{StaticResource AtlasV2.Button.GhostCompact}"
+                                        KeyboardNavigation.TabIndex="4"
+                                        AutomationProperties.Name="Revenir à l’étape précédente"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,8,0,0"
+                              Visibility="{Binding State.IsPrimaryActionVisible, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                             <Button x:Name="PrimaryAuthButton"
                                     Height="46"
                                     Style="{StaticResource AtlasV2.Button.Primary}"

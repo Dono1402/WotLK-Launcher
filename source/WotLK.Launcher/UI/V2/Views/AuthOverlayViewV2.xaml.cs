@@ -15,6 +15,7 @@ public partial class AuthOverlayViewV2 : UserControl
 {
     private static readonly Duration TransitionDuration = new(TimeSpan.FromMilliseconds(160));
     private AuthUiState? _subscribedState;
+    private AuthMode? _observedMode;
     private bool _hasOpened;
     private bool _applyingPreview;
     private int _transitionVersion;
@@ -64,7 +65,8 @@ public partial class AuthOverlayViewV2 : UserControl
 
     internal bool ArePasswordFieldsEmpty => string.IsNullOrEmpty(LoginPasswordBox.Password)
         && string.IsNullOrEmpty(RegisterPasswordBox.Password)
-        && string.IsNullOrEmpty(RegisterPasswordConfirmBox.Password);
+        && string.IsNullOrEmpty(RegisterPasswordConfirmBox.Password)
+        && string.IsNullOrEmpty(EnrollmentPasswordBox.Password);
 
     internal void DetachFromShell()
     {
@@ -102,9 +104,13 @@ public partial class AuthOverlayViewV2 : UserControl
     {
         Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
-            () => Keyboard.Focus(State?.Mode == AuthMode.Register
-                ? RegisterUsernameBox
-                : LoginUsernameBox));
+            () => Keyboard.Focus(State?.Mode switch
+            {
+                AuthMode.Register => RegisterUsernameBox,
+                AuthMode.EnrollmentPrompt => BeginEnrollmentButton,
+                AuthMode.Enrollment => EnrollmentEmailBox,
+                _ => LoginUsernameBox
+            }));
     }
 
     internal void ValidateForPreview(bool showErrors)
@@ -115,9 +121,12 @@ public partial class AuthOverlayViewV2 : UserControl
             return;
         }
 
-        AuthFormValidation validation = state.Mode == AuthMode.Login
-            ? AuthPreviewValidation.Login(state.LoginUsername, !string.IsNullOrEmpty(LoginPasswordBox.Password))
-            : AuthPreviewValidation.Register(
+        AuthFormValidation validation = state.Mode switch
+        {
+            AuthMode.Login => AuthPreviewValidation.Login(
+                state.LoginUsername,
+                !string.IsNullOrEmpty(LoginPasswordBox.Password)),
+            AuthMode.Register => AuthPreviewValidation.Register(
                 state.RegisterUsername,
                 state.RegisterEmail,
                 RegisterPasswordBox.Password.Length,
@@ -125,7 +134,14 @@ public partial class AuthOverlayViewV2 : UserControl
                 string.Equals(
                     RegisterPasswordBox.Password,
                     RegisterPasswordConfirmBox.Password,
-                    StringComparison.Ordinal));
+                    StringComparison.Ordinal)),
+            AuthMode.Enrollment => AuthPreviewValidation.EnrollExisting(
+                state.EnrollmentUsername,
+                state.EnrollmentEmail,
+                !string.IsNullOrEmpty(EnrollmentPasswordBox.Password),
+                EnrollmentPasswordBox.Password.Length),
+            _ => new AuthFormValidation(false, string.Empty)
+        };
 
         state.SetFormValidity(validation.IsValid);
         if (showErrors && !validation.IsValid)
@@ -173,6 +189,7 @@ public partial class AuthOverlayViewV2 : UserControl
         }
 
         _subscribedState = newState;
+        _observedMode = newState?.Mode;
         if (newState is not null)
         {
             newState.PropertyChanged += State_PropertyChanged;
@@ -181,11 +198,13 @@ public partial class AuthOverlayViewV2 : UserControl
 
     private void State_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(AuthUiState.Mode))
+        AuthMode? currentMode = State?.Mode;
+        if (currentMode is null || currentMode == _observedMode)
         {
             return;
         }
 
+        _observedMode = currentMode;
         ClearPasswordFields();
         ValidateForPreview(showErrors: false);
         FocusFirstControl();
@@ -206,11 +225,16 @@ public partial class AuthOverlayViewV2 : UserControl
             state.LoginUsername = "Dono1402";
             state.RegisterUsername = "Dono1402";
             state.RegisterEmail = "dono1402@example.test";
+            state.EnrollmentUsername = "Dono1402";
+            state.EnrollmentEmail = scenario == AuthPreviewScenario.AtlasEnrollmentError
+                ? "dono1402@example.test"
+                : string.Empty;
             LoginPasswordBox.Password = previewPassword;
             RegisterPasswordBox.Password = previewPassword;
             RegisterPasswordConfirmBox.Password = scenario == AuthPreviewScenario.RegisterValidation
                 ? "atlas-preview-different"
                 : previewPassword;
+            EnrollmentPasswordBox.Password = previewPassword;
             ValidateForPreview(showErrors: false);
         }
         finally
@@ -275,15 +299,22 @@ public partial class AuthOverlayViewV2 : UserControl
             return;
         }
 
-        AuthSubmissionRequest request = state.Mode == AuthMode.Login
-            ? AuthSubmissionRequest.Login(
+        AuthSubmissionRequest request = state.Mode switch
+        {
+            AuthMode.Login => AuthSubmissionRequest.Login(
                 state.LoginUsername,
-                LoginPasswordBox.Password)
-            : AuthSubmissionRequest.Register(
+                LoginPasswordBox.Password),
+            AuthMode.Register => AuthSubmissionRequest.Register(
                 state.RegisterUsername,
                 state.RegisterEmail,
                 RegisterPasswordBox.Password,
-                RegisterPasswordConfirmBox.Password);
+                RegisterPasswordConfirmBox.Password),
+            AuthMode.Enrollment => AuthSubmissionRequest.Enrollment(
+                state.EnrollmentUsername,
+                state.EnrollmentEmail,
+                EnrollmentPasswordBox.Password),
+            _ => throw new InvalidOperationException("Le formulaire d’authentification actif ne peut pas être envoyé.")
+        };
         AuthSubmissionRequestedEventArgs args = new(request);
         SubmissionRequested.Invoke(this, args);
         if (args.StartStatus == LauncherSessionStartStatus.Started)
@@ -438,6 +469,9 @@ public partial class AuthOverlayViewV2 : UserControl
         RegisterEmailBox.Clear();
         RegisterPasswordBox.Clear();
         RegisterPasswordConfirmBox.Clear();
+        EnrollmentUsernameBox.Clear();
+        EnrollmentEmailBox.Clear();
+        EnrollmentPasswordBox.Clear();
     }
 
     private void ClearPasswordFields()
@@ -445,6 +479,7 @@ public partial class AuthOverlayViewV2 : UserControl
         LoginPasswordBox.Clear();
         RegisterPasswordBox.Clear();
         RegisterPasswordConfirmBox.Clear();
+        EnrollmentPasswordBox.Clear();
     }
 
     private static bool IsDescendantOf(DependencyObject child, DependencyObject ancestor)
@@ -516,6 +551,19 @@ internal sealed record AuthSubmissionRequest(
             email,
             password,
             passwordConfirmation);
+    }
+
+    internal static AuthSubmissionRequest Enrollment(
+        string username,
+        string email,
+        string currentPassword)
+    {
+        return new AuthSubmissionRequest(
+            AuthMode.Enrollment,
+            username,
+            email,
+            currentPassword,
+            string.Empty);
     }
 }
 

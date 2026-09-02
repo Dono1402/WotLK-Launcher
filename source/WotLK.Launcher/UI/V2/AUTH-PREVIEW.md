@@ -26,6 +26,15 @@ Le legacy ne propose dans cet overlay ni fournisseur externe, ni mot de passe ou
 
 L'authentification est prioritaire. Son ouverture ferme le drawer Amis. Une tentative d'ouverture des amis pendant l'authentification est refusée. Le shell conserve ainsi un seul voile et un seul piège de focus.
 
+## Activation Atlas d'un compte existant
+
+Les scénarios `atlas-enrollment` et `atlas-enrollment-error` couvrent l'état dédié présenté après `AtlasProfileRequired`. Ils réutilisent le nom de compte saisi, demandent l'adresse e-mail et le mot de passe actuel, puis simulent respectivement le formulaire initial et un refus contrôlé. Le simple login ne crée jamais de profil Atlas.
+
+```powershell
+WotLK.Launcher.exe --ui-v2 --preview-auth=atlas-enrollment
+WotLK.Launcher.exe --ui-v2 --preview-auth=atlas-enrollment-error
+```
+
 ## Isolation du preview
 
 `--ui-v2 --preview-auth[=<scenario>]` construit exclusivement des états de présentation fictifs. Il ne crée ni `LauncherRuntime`, ni `LauncherAuthService`, ni client HTTP, ni session, ni accès au client, ni timer, ni processus enfant.

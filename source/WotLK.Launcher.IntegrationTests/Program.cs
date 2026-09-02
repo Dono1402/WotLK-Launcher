@@ -44,6 +44,12 @@ if (args.Length == 1
 }
 
 if (args.Length == 1
+    && string.Equals(args[0], "--operation-activity-contracts", StringComparison.OrdinalIgnoreCase))
+{
+    return await LauncherOperationActivityContractTests.RunAsync();
+}
+
+if (args.Length == 1
     && string.Equals(args[0], "--game-maintenance", StringComparison.OrdinalIgnoreCase))
 {
     return await GameClientMaintenanceTests.RunAsync();

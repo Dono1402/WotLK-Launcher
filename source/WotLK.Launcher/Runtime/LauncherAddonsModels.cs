@@ -150,7 +150,8 @@ internal sealed record AddonsRuntimeSnapshot(
     bool IsClientPlayable,
     bool IsAuthenticated,
     bool CanMutate,
-    bool CanCancel)
+    bool CanCancel,
+    OperationTerminalResult? TerminalResult = null)
 {
     internal static AddonsRuntimeSnapshot Initial { get; } = new(
         Sequence: 0,
@@ -229,7 +230,8 @@ internal enum AddonsActionCompletionStatus
 
 internal sealed record AddonsActionCompletion(
     AddonsActionCompletionStatus Status,
-    AddonsRuntimeSnapshot Snapshot);
+    AddonsRuntimeSnapshot Snapshot,
+    OperationTerminalResult? TerminalResult = null);
 
 internal sealed record AddonsActionStartResult(
     AddonsActionStartStatus Status,

@@ -371,7 +371,8 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
 
         LauncherOperationStartResult operationStart = _operations.TryBegin(
             LauncherOperationKind.Addons,
-            canUserCancel);
+            canUserCancel,
+            operationType: ToOperationType(action));
         if (!operationStart.IsStarted)
         {
             return AddonsActionStartResult.Rejected(MapStartStatus(operationStart.Status));
@@ -415,7 +416,8 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                     Error = AddonsRuntimeError.None,
                     Notice = AddonsNoticeKind.None,
                     CanMutate = false,
-                    CanCancel = lease.CanUserCancel
+                    CanCancel = lease.CanUserCancel,
+                    TerminalResult = null
                 });
                 OperationPlan plan = new(
                     catalog,
@@ -564,6 +566,11 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
             AtlasRequestPreparationStatus preparation = await _session
                 .PrepareAuthenticatedRequestAsync(lease.CancellationToken)
                 .ConfigureAwait(false);
+            if (lease.CancellationReason != LauncherOperationCancellationReason.None)
+            {
+                return CompleteCancelled(lease, plan);
+            }
+
             if (preparation != AtlasRequestPreparationStatus.Ready)
             {
                 if (preparation is AtlasRequestPreparationStatus.Cancelled
@@ -623,6 +630,11 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
             }
 
             latestInspections ??= _service.Inspect(plan.Catalog, plan.InstallRoot);
+            if (lease.CancellationReason != LauncherOperationCancellationReason.None)
+            {
+                return CompleteCancelled(lease, plan);
+            }
+
             return CompleteSuccess(lease, plan, latestInspections);
         }
         catch (OperationCanceledException) when (lease.CancellationToken.IsCancellationRequested)
@@ -631,6 +643,11 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
         }
         catch (Exception exception)
         {
+            if (lease.CancellationReason != LauncherOperationCancellationReason.None)
+            {
+                return CompleteCancelled(lease, plan);
+            }
+
             AddonsErrorCategory category = ClassifyFailure(exception);
             if (category == AddonsErrorCategory.Unauthorized)
             {
@@ -813,10 +830,16 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
         IReadOnlyDictionary<string, AddonInspection> inspections)
     {
         AddonsRuntimeSnapshot? snapshot = null;
+        OperationTerminalResult? terminalResult = null;
+        bool publish = false;
         lock (_sync)
         {
-            if (IsCurrentUnsafe(lease) && !IsStoppingUnsafe())
+            if (OwnsLeaseUnsafe(lease))
             {
+                terminalResult = CreateTerminalResult(
+                    lease,
+                    plan,
+                    LauncherOperationOutcome.Succeeded);
                 ImmutableArray<string> completedIds = plan.Packages
                     .Select(package => package.Id)
                     .ToImmutableArray();
@@ -836,18 +859,21 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                     Error = AddonsRuntimeError.None,
                     Notice = ToNotice(plan.Action),
                     IsGameRunning = ReadGameRunningSafely(plan.InstallRoot),
-                    CanCancel = false
+                    CanCancel = false,
+                    TerminalResult = terminalResult
                 }));
+                publish = !IsStoppingUnsafe();
             }
         }
 
         WriteSuccessSafely(plan);
-        RaiseSnapshotChanged(snapshot);
+        RaiseSnapshotChanged(publish ? snapshot : null);
         return new AddonsActionCompletion(
             snapshot is null
                 ? AddonsActionCompletionStatus.Superseded
                 : AddonsActionCompletionStatus.Succeeded,
-            snapshot ?? CurrentSnapshot);
+            snapshot ?? CurrentSnapshot,
+            terminalResult);
     }
 
     private AddonsActionCompletion CompleteCancelled(
@@ -859,10 +885,17 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
             plan.InstallRoot,
             plan.Action);
         AddonsRuntimeSnapshot? snapshot = null;
+        OperationTerminalResult? terminalResult = null;
+        bool publish = false;
         lock (_sync)
         {
-            if (IsCurrentUnsafe(lease) && !IsStoppingUnsafe())
+            if (OwnsLeaseUnsafe(lease))
             {
+                terminalResult = CreateTerminalResult(
+                    lease,
+                    plan,
+                    LauncherOperationOutcome.Cancelled,
+                    cancellationReason: lease.CancellationReason);
                 snapshot = SetSnapshotUnsafe(RecalculateAvailabilityUnsafe(_currentSnapshot with
                 {
                     OperationId = null,
@@ -877,18 +910,21 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                     Error = AddonsRuntimeError.None,
                     Notice = AddonsNoticeKind.Cancelled,
                     IsGameRunning = ReadGameRunningSafely(plan.InstallRoot),
-                    CanCancel = false
+                    CanCancel = false,
+                    TerminalResult = terminalResult
                 }));
+                publish = !IsStoppingUnsafe();
             }
         }
 
         WriteCancellationSafely(plan.Action);
-        RaiseSnapshotChanged(snapshot);
+        RaiseSnapshotChanged(publish ? snapshot : null);
         return new AddonsActionCompletion(
             snapshot is null
                 ? AddonsActionCompletionStatus.Superseded
                 : AddonsActionCompletionStatus.Cancelled,
-            snapshot ?? CurrentSnapshot);
+            snapshot ?? CurrentSnapshot,
+            terminalResult);
     }
 
     private AddonsActionCompletion CompleteFailure(
@@ -904,10 +940,18 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
             plan.InstallRoot,
             plan.Action);
         AddonsRuntimeSnapshot? snapshot = null;
+        OperationTerminalResult? terminalResult = null;
+        bool publish = false;
         lock (_sync)
         {
-            if (IsCurrentUnsafe(lease) && !IsStoppingUnsafe())
+            if (OwnsLeaseUnsafe(lease))
             {
+                terminalResult = CreateTerminalResult(
+                    lease,
+                    plan,
+                    LauncherOperationOutcome.Failed,
+                    failedAddonId,
+                    category.ToString());
                 ImmutableArray<AddonRuntimeItem> items = inspections is null
                     ? ResetActiveOperations(_currentSnapshot.Items)
                     : BuildItems(plan.Catalog, inspections, preserveErrors: true);
@@ -929,8 +973,10 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                     Error = new AddonsRuntimeError(failedAddonId, failedAction, category),
                     Notice = AddonsNoticeKind.None,
                     IsGameRunning = ReadGameRunningSafely(plan.InstallRoot),
-                    CanCancel = false
+                    CanCancel = false,
+                    TerminalResult = terminalResult
                 }));
+                publish = !IsStoppingUnsafe();
             }
         }
 
@@ -938,12 +984,13 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
         {
             WriteFailureSafely(failedAddonId, failedAction, category, exception);
         }
-        RaiseSnapshotChanged(snapshot);
+        RaiseSnapshotChanged(publish ? snapshot : null);
         return new AddonsActionCompletion(
             snapshot is null
                 ? AddonsActionCompletionStatus.Superseded
                 : AddonsActionCompletionStatus.Failed,
-            snapshot ?? CurrentSnapshot);
+            snapshot ?? CurrentSnapshot,
+            terminalResult);
     }
 
     private void CompleteCatalogSuccess(
@@ -1301,9 +1348,13 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
             string.Equals(item.Id, addonId, StringComparison.OrdinalIgnoreCase));
 
     private bool IsCurrentUnsafe(LauncherOperationLease lease) =>
-        ReferenceEquals(_activeLease, lease)
+        OwnsLeaseUnsafe(lease)
         && _currentSnapshot.OperationId == lease.OperationId
         && lease.IsCurrent;
+
+    private bool OwnsLeaseUnsafe(LauncherOperationLease lease) =>
+        ReferenceEquals(_activeLease, lease)
+        && _currentSnapshot.OperationId == lease.OperationId;
 
     private bool IsCurrentCatalogLoadUnsafe(long generation) =>
         _catalogLoadCancellation is not null
@@ -1374,6 +1425,47 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
             AddonsRequestedAction.UpdateAll => AddonsOperationState.UpdatingAll,
             _ => AddonsOperationState.None
         };
+
+    private static LauncherOperationType ToOperationType(AddonsRequestedAction action) =>
+        action switch
+        {
+            AddonsRequestedAction.Install => LauncherOperationType.AddonInstall,
+            AddonsRequestedAction.Update => LauncherOperationType.AddonUpdate,
+            AddonsRequestedAction.Repair => LauncherOperationType.AddonRepair,
+            AddonsRequestedAction.Remove => LauncherOperationType.AddonRemove,
+            AddonsRequestedAction.UpdateAll => LauncherOperationType.AddonBatchUpdate,
+            _ => throw new ArgumentOutOfRangeException(nameof(action))
+        };
+
+    private OperationTerminalResult CreateTerminalResult(
+        LauncherOperationLease lease,
+        OperationPlan plan,
+        LauncherOperationOutcome outcome,
+        string? subjectId = null,
+        string? errorCategory = null,
+        LauncherOperationCancellationReason cancellationReason =
+            LauncherOperationCancellationReason.None)
+    {
+        AddonPackage? subject = subjectId is null
+            ? plan.Packages.Length == 1
+                ? plan.Packages[0]
+                : null
+            : plan.Packages.FirstOrDefault(package =>
+                string.Equals(package.Id, subjectId, StringComparison.OrdinalIgnoreCase));
+        LauncherOperationDisplayContext context = subject is not null
+            ? new LauncherOperationDisplayContext(subject.Id, subject.Name)
+            : new LauncherOperationDisplayContext(
+                "addon-batch",
+                $"{plan.Packages.Length} addons");
+        return new OperationTerminalResult(
+            lease.OperationId,
+            lease.OperationType,
+            outcome,
+            _timeProvider.GetUtcNow(),
+            cancellationReason,
+            errorCategory,
+            context);
+    }
 
     private static AddonsNoticeKind ToNotice(AddonsRequestedAction action) => action switch
     {

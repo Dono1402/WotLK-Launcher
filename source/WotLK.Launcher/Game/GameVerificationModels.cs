@@ -123,7 +123,8 @@ internal sealed record GameRuntimeSnapshot(
     GameLaunchPhase PlayLaunchPhase = GameLaunchPhase.Idle,
     bool IsPlayPendingAuthentication = false,
     GameLaunchFailureCategory? PlayFailureCategory = null,
-    GameLaunchOutcome? LastPlayOutcome = null)
+    GameLaunchOutcome? LastPlayOutcome = null,
+    OperationTerminalResult? TerminalResult = null)
 {
     internal GameViewMode ViewMode
     {

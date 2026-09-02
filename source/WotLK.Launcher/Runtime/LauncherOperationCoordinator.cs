@@ -41,13 +41,29 @@ internal sealed class LauncherOperationCoordinator : IDisposable
     private LauncherOperationLease? _maintenanceLease;
     private LauncherOperationLease? _playLease;
     private long _nextOperationId;
+    private long _activitySequence;
+    private LauncherOperationActivitySnapshot _activitySnapshot =
+        LauncherOperationActivitySnapshot.Initial;
     private bool _isShuttingDown;
     private int _disposeState;
     private int _shutdownCancellationDisposeState;
 
     internal event EventHandler? StateChanged;
 
+    internal event EventHandler<LauncherOperationActivitySnapshotEventArgs>? ActivityChanged;
+
     internal CancellationToken ShutdownToken => _shutdownCancellation.Token;
+
+    internal LauncherOperationActivitySnapshot CurrentActivitySnapshot
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _activitySnapshot;
+            }
+        }
+    }
 
     internal bool IsShuttingDown
     {
@@ -107,23 +123,36 @@ internal sealed class LauncherOperationCoordinator : IDisposable
     internal LauncherOperationStartResult TryBegin(
         LauncherOperationKind kind,
         bool canUserCancel,
-        bool clientIsPlayable = false)
+        bool clientIsPlayable = false,
+        LauncherOperationType? operationType = null)
     {
         LauncherOperationLease? lease = null;
+        LauncherOperationActivitySnapshot? activitySnapshot = null;
         LauncherOperationStartStatus status;
         lock (_sync)
         {
             status = GetMaintenanceStartStatusUnsafe(kind, clientIsPlayable);
+            LauncherOperationType resolvedType = operationType ?? ToDefaultOperationType(kind);
+            if (status == LauncherOperationStartStatus.Started
+                && !IsOperationTypeCompatible(kind, resolvedType))
+            {
+                status = LauncherOperationStartStatus.RejectedByCompatibility;
+            }
             if (status == LauncherOperationStartStatus.Started)
             {
-                lease = CreateLeaseUnsafe(kind, canUserCancel, isPlayLease: false);
+                lease = CreateLeaseUnsafe(
+                    kind,
+                    resolvedType,
+                    canUserCancel,
+                    isPlayLease: false);
                 _maintenanceLease = lease;
+                activitySnapshot = CaptureActivitySnapshotUnsafe();
             }
         }
 
         if (lease is not null)
         {
-            RaiseStateChanged();
+            RaiseStateChanged(activitySnapshot);
         }
 
         return new LauncherOperationStartResult(status, lease);
@@ -140,6 +169,7 @@ internal sealed class LauncherOperationCoordinator : IDisposable
             {
                 lease = CreateLeaseUnsafe(
                     LauncherOperationKind.Play,
+                    LauncherOperationType.Play,
                     canUserCancel: false,
                     isPlayLease: true);
                 _playLease = lease;
@@ -148,7 +178,7 @@ internal sealed class LauncherOperationCoordinator : IDisposable
 
         if (lease is not null)
         {
-            RaiseStateChanged();
+            RaiseStateChanged(activitySnapshot: null);
         }
 
         return new LauncherOperationStartResult(status, lease);
@@ -179,6 +209,7 @@ internal sealed class LauncherOperationCoordinator : IDisposable
         LauncherOperationLease? maintenanceLease;
         LauncherOperationLease? playLease;
         bool changed;
+        LauncherOperationActivitySnapshot? activitySnapshot = null;
         lock (_sync)
         {
             changed = !_isShuttingDown;
@@ -199,7 +230,11 @@ internal sealed class LauncherOperationCoordinator : IDisposable
 
             maintenanceLease?.CancelForShutdown();
             playLease?.CancelForShutdown();
-            RaiseStateChanged();
+            lock (_sync)
+            {
+                activitySnapshot = CaptureActivitySnapshotUnsafe();
+            }
+            RaiseStateChanged(activitySnapshot);
         }
 
         return changed && (maintenanceLease is not null || playLease is not null);
@@ -286,6 +321,8 @@ internal sealed class LauncherOperationCoordinator : IDisposable
 
     internal bool CancelLeaseFromUser(LauncherOperationLease lease)
     {
+        LauncherOperationActivitySnapshot? activitySnapshot = null;
+        bool cancelled;
         lock (_sync)
         {
             if (!IsCurrentUnsafe(lease) || !lease.CanUserCancel)
@@ -293,8 +330,18 @@ internal sealed class LauncherOperationCoordinator : IDisposable
                 return false;
             }
 
-            return lease.RequestCancellation();
+            cancelled = lease.RequestCancellation(LauncherOperationCancellationReason.User);
+            if (cancelled && !lease.IsPlayLease)
+            {
+                activitySnapshot = CaptureActivitySnapshotUnsafe();
+            }
         }
+
+        if (activitySnapshot is not null)
+        {
+            RaiseActivityChanged(activitySnapshot);
+        }
+        return cancelled;
     }
 
     internal bool CancelLeaseForShutdown(LauncherOperationLease lease)
@@ -306,13 +353,31 @@ internal sealed class LauncherOperationCoordinator : IDisposable
                 return false;
             }
 
-            return lease.RequestCancellation();
+            return lease.RequestCancellation(LauncherOperationCancellationReason.Shutdown);
+        }
+    }
+
+    internal void NotifyLeaseCancellationAvailabilityChanged(LauncherOperationLease lease)
+    {
+        LauncherOperationActivitySnapshot? activitySnapshot = null;
+        lock (_sync)
+        {
+            if (!lease.IsPlayLease && IsCurrentUnsafe(lease))
+            {
+                activitySnapshot = CaptureActivitySnapshotUnsafe();
+            }
+        }
+
+        if (activitySnapshot is not null)
+        {
+            RaiseActivityChanged(activitySnapshot);
         }
     }
 
     internal void Release(LauncherOperationLease lease)
     {
         bool released = false;
+        LauncherOperationActivitySnapshot? activitySnapshot = null;
         lock (_sync)
         {
             if (lease.IsPlayLease)
@@ -329,12 +394,13 @@ internal sealed class LauncherOperationCoordinator : IDisposable
             {
                 _maintenanceLease = null;
                 released = true;
+                activitySnapshot = CaptureActivitySnapshotUnsafe();
             }
         }
 
         if (released)
         {
-            RaiseStateChanged();
+            RaiseStateChanged(activitySnapshot);
             TryDisposeShutdownCancellation();
         }
     }
@@ -392,6 +458,7 @@ internal sealed class LauncherOperationCoordinator : IDisposable
 
     private LauncherOperationLease CreateLeaseUnsafe(
         LauncherOperationKind kind,
+        LauncherOperationType operationType,
         bool canUserCancel,
         bool isPlayLease)
     {
@@ -399,6 +466,7 @@ internal sealed class LauncherOperationCoordinator : IDisposable
             this,
             ++_nextOperationId,
             kind,
+            operationType,
             canUserCancel,
             isPlayLease,
             CancellationTokenSource.CreateLinkedTokenSource(_shutdownCancellation.Token));
@@ -428,7 +496,19 @@ internal sealed class LauncherOperationCoordinator : IDisposable
         return [_maintenanceLease?.Completion ?? _playLease!.Completion];
     }
 
-    private void RaiseStateChanged()
+    private LauncherOperationActivitySnapshot CaptureActivitySnapshotUnsafe()
+    {
+        _activitySnapshot = new LauncherOperationActivitySnapshot(
+            Sequence: ++_activitySequence,
+            OperationId: _maintenanceLease?.OperationId,
+            OperationType: _maintenanceLease?.OperationType,
+            IsActive: _maintenanceLease is not null,
+            CanUserCancel: _maintenanceLease?.CanUserCancel == true,
+            IsShuttingDown: _isShuttingDown);
+        return _activitySnapshot;
+    }
+
+    private void RaiseStateChanged(LauncherOperationActivitySnapshot? activitySnapshot)
     {
         try
         {
@@ -438,7 +518,80 @@ internal sealed class LauncherOperationCoordinator : IDisposable
         {
             // Operation ownership must not depend on presentation subscribers.
         }
+
+        RaiseActivityChanged(activitySnapshot);
     }
+
+    private void RaiseActivityChanged(LauncherOperationActivitySnapshot? activitySnapshot)
+    {
+        if (activitySnapshot is null)
+        {
+            return;
+        }
+
+        try
+        {
+            ActivityChanged?.Invoke(
+                this,
+                new LauncherOperationActivitySnapshotEventArgs(activitySnapshot));
+        }
+        catch
+        {
+            // Activity observers must not affect operation ownership.
+        }
+    }
+
+    private static LauncherOperationType ToDefaultOperationType(LauncherOperationKind kind) =>
+        kind switch
+        {
+            LauncherOperationKind.Verify => LauncherOperationType.GameVerify,
+            LauncherOperationKind.GameRepair => LauncherOperationType.GameRepair,
+            LauncherOperationKind.GameInstall => LauncherOperationType.GameInstall,
+            LauncherOperationKind.GameUpdate => LauncherOperationType.GameUpdate,
+            LauncherOperationKind.Addons => LauncherOperationType.AddonSynchronization,
+            LauncherOperationKind.LauncherAutoUpdate => LauncherOperationType.LauncherAutoUpdate,
+            LauncherOperationKind.AvatarUpload => LauncherOperationType.AvatarUpload,
+            LauncherOperationKind.AvatarDelete => LauncherOperationType.AvatarDelete,
+            LauncherOperationKind.AccountEmailChange => LauncherOperationType.AccountEmailChange,
+            LauncherOperationKind.AccountEmailVerification => LauncherOperationType.AccountEmailVerification,
+            LauncherOperationKind.AccountPasswordChange => LauncherOperationType.AccountPasswordChange,
+            LauncherOperationKind.AccountSessionRevoke => LauncherOperationType.AccountSessionRevoke,
+            LauncherOperationKind.Logout => LauncherOperationType.Logout,
+            LauncherOperationKind.Play => LauncherOperationType.Play,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind))
+        };
+
+    private static bool IsOperationTypeCompatible(
+        LauncherOperationKind kind,
+        LauncherOperationType operationType) => kind switch
+        {
+            LauncherOperationKind.Verify => operationType == LauncherOperationType.GameVerify,
+            LauncherOperationKind.GameRepair => operationType == LauncherOperationType.GameRepair,
+            LauncherOperationKind.GameInstall => operationType == LauncherOperationType.GameInstall,
+            LauncherOperationKind.GameUpdate => operationType == LauncherOperationType.GameUpdate,
+            LauncherOperationKind.Addons => operationType is
+                LauncherOperationType.AddonInstall
+                or LauncherOperationType.AddonUpdate
+                or LauncherOperationType.AddonRepair
+                or LauncherOperationType.AddonRemove
+                or LauncherOperationType.AddonBatchUpdate
+                or LauncherOperationType.AddonSynchronization,
+            LauncherOperationKind.LauncherAutoUpdate =>
+                operationType == LauncherOperationType.LauncherAutoUpdate,
+            LauncherOperationKind.AvatarUpload => operationType == LauncherOperationType.AvatarUpload,
+            LauncherOperationKind.AvatarDelete => operationType == LauncherOperationType.AvatarDelete,
+            LauncherOperationKind.AccountEmailChange =>
+                operationType == LauncherOperationType.AccountEmailChange,
+            LauncherOperationKind.AccountEmailVerification =>
+                operationType == LauncherOperationType.AccountEmailVerification,
+            LauncherOperationKind.AccountPasswordChange =>
+                operationType == LauncherOperationType.AccountPasswordChange,
+            LauncherOperationKind.AccountSessionRevoke =>
+                operationType == LauncherOperationType.AccountSessionRevoke,
+            LauncherOperationKind.Logout => operationType == LauncherOperationType.Logout,
+            LauncherOperationKind.Play => operationType == LauncherOperationType.Play,
+            _ => false
+        };
 
     private void TryDisposeShutdownCancellation()
     {
@@ -469,6 +622,7 @@ internal sealed class LauncherOperationLease : IDisposable
         LauncherOperationCoordinator owner,
         long operationId,
         LauncherOperationKind kind,
+        LauncherOperationType operationType,
         bool canUserCancel,
         bool isPlayLease,
         CancellationTokenSource cancellation)
@@ -476,6 +630,7 @@ internal sealed class LauncherOperationLease : IDisposable
         _owner = owner;
         OperationId = operationId;
         Kind = kind;
+        OperationType = operationType;
         _initiallyUserCancellable = canUserCancel;
         IsPlayLease = isPlayLease;
         _cancellation = cancellation;
@@ -485,8 +640,15 @@ internal sealed class LauncherOperationLease : IDisposable
 
     internal LauncherOperationKind Kind { get; }
 
+    internal LauncherOperationType OperationType { get; }
+
     internal bool CanUserCancel => _initiallyUserCancellable
-        && Volatile.Read(ref _userCancellationDisabled) == 0;
+        && Volatile.Read(ref _completionState) == 0
+        && Volatile.Read(ref _userCancellationDisabled) == 0
+        && Volatile.Read(ref _cancellationState) == 0;
+
+    internal LauncherOperationCancellationReason CancellationReason =>
+        (LauncherOperationCancellationReason)Volatile.Read(ref _cancellationState);
 
     internal CancellationToken CancellationToken => _cancellation.Token;
 
@@ -511,9 +673,15 @@ internal sealed class LauncherOperationLease : IDisposable
 
     internal bool DisableUserCancellation()
     {
-        return _initiallyUserCancellable
+        bool changed = _initiallyUserCancellable
             && Volatile.Read(ref _completionState) == 0
             && Interlocked.Exchange(ref _userCancellationDisabled, 1) == 0;
+        if (changed)
+        {
+            _owner.NotifyLeaseCancellationAvailabilityChanged(this);
+        }
+
+        return changed;
     }
 
     internal bool TryInvoke(Action callback)
@@ -544,9 +712,18 @@ internal sealed class LauncherOperationLease : IDisposable
         Complete();
     }
 
-    internal bool RequestCancellation()
+    internal bool RequestCancellation(LauncherOperationCancellationReason reason)
     {
-        if (Interlocked.Exchange(ref _cancellationState, 1) != 0)
+        if (reason == LauncherOperationCancellationReason.None)
+        {
+            throw new ArgumentOutOfRangeException(nameof(reason));
+        }
+
+        if (Interlocked.CompareExchange(
+                ref _cancellationState,
+                (int)reason,
+                (int)LauncherOperationCancellationReason.None)
+            != (int)LauncherOperationCancellationReason.None)
         {
             return false;
         }

@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using System.Windows.Input;
+using WotLK.Launcher.UI.V2.Commands;
 
 namespace WotLK.Launcher.UI.V2.Presentation;
 
@@ -17,7 +19,17 @@ public enum AddonVisualState
     Installing,
     Updating,
     Removing,
+    Repairing,
     Error
+}
+
+public enum AddonPrimaryActionKind
+{
+    None,
+    Install,
+    Update,
+    Repair,
+    Cancel
 }
 
 public sealed record AddonUiItem(
@@ -38,60 +50,123 @@ public sealed record AddonUiItem(
     bool IsIndeterminate,
     string ErrorMessage)
 {
-    public bool IsInstalled => !string.IsNullOrWhiteSpace(InstalledVersion)
+    public bool IsManagedByAtlas { get; init; }
+
+    public bool RequiresRepair { get; init; }
+
+    public bool IsDetectedUnmanaged { get; init; }
+
+    public string InstalledSha256 { get; init; } = string.Empty;
+
+    public DateTimeOffset? InstalledAtUtc { get; init; }
+
+    public AddonPrimaryActionKind PrimaryAction { get; init; }
+
+    public bool UsesExplicitPrimaryAction { get; init; }
+
+    public bool ActionsEnabled { get; init; } = true;
+
+    public bool CanCancelOperation { get; init; }
+
+    public string ProgressDetail { get; init; } = string.Empty;
+
+    public bool IsInstalled => IsManagedByAtlas
+        || !string.IsNullOrWhiteSpace(InstalledVersion)
         || VisualState is AddonVisualState.Installed
             or AddonVisualState.UpdateAvailable
             or AddonVisualState.Updating
-            or AddonVisualState.Removing;
+            or AddonVisualState.Removing
+            or AddonVisualState.Repairing;
 
     public bool NeedsUpdate => VisualState is AddonVisualState.UpdateAvailable
         or AddonVisualState.Updating
+        or AddonVisualState.Repairing
+        || RequiresRepair
         || VisualState == AddonVisualState.Error && IsInstalled;
 
     public bool IsBusy => VisualState is AddonVisualState.Installing
         or AddonVisualState.Updating
-        or AddonVisualState.Removing;
+        or AddonVisualState.Removing
+        or AddonVisualState.Repairing;
 
     public bool ShowsProgress => IsBusy;
 
     public bool ShowsProgressPercent => ProgressPercent.HasValue;
 
+    public bool ShowsProgressDetail => !string.IsNullOrWhiteSpace(ProgressDetail);
+
     public bool ShowsError => VisualState == AddonVisualState.Error
         && !string.IsNullOrWhiteSpace(ErrorMessage);
 
-    public bool ShowsAction => VisualState != AddonVisualState.Installed;
+    public AddonPrimaryActionKind EffectivePrimaryAction => UsesExplicitPrimaryAction
+        ? PrimaryAction
+        : RequiresRepair
+            ? AddonPrimaryActionKind.Repair
+            : VisualState switch
+            {
+                AddonVisualState.NotInstalled => AddonPrimaryActionKind.Install,
+                AddonVisualState.UpdateAvailable => AddonPrimaryActionKind.Update,
+                AddonVisualState.Error when IsInstalled => AddonPrimaryActionKind.Update,
+                AddonVisualState.Error => AddonPrimaryActionKind.Install,
+                _ => AddonPrimaryActionKind.None
+            };
 
-    public bool CanInvokePrimary => VisualState is AddonVisualState.NotInstalled
-        or AddonVisualState.UpdateAvailable
-        or AddonVisualState.Error;
+    public bool ShowsAction => IsBusy || EffectivePrimaryAction != AddonPrimaryActionKind.None;
 
-    public bool CanRemove => IsInstalled && !IsBusy;
+    public bool ShowsRowAction => ShowsAction && (!RequiresRepair || IsBusy);
+
+    public bool CanInvokePrimary => CanCancelOperation
+        || ActionsEnabled && !IsBusy && EffectivePrimaryAction is
+            AddonPrimaryActionKind.Install
+            or AddonPrimaryActionKind.Update
+            or AddonPrimaryActionKind.Repair;
+
+    public bool CanRemove => IsInstalled && !IsBusy && ActionsEnabled;
 
     public bool HasAuthor => !string.IsNullOrWhiteSpace(Author);
 
     public string StatusLabel => VisualState switch
     {
+        _ when RequiresRepair && VisualState == AddonVisualState.UpdateAvailable => "À réparer",
+        _ when IsDetectedUnmanaged && VisualState == AddonVisualState.NotInstalled => "Détecté (non géré)",
         AddonVisualState.Installed => "Installé",
         AddonVisualState.UpdateAvailable => "Mise à jour",
         AddonVisualState.Installing => "Installation",
         AddonVisualState.Updating => "Mise à jour",
         AddonVisualState.Removing => "Suppression",
+        AddonVisualState.Repairing => "Réparation",
         AddonVisualState.Error => "Erreur",
         _ => "Non installé"
     };
 
-    public string ActionLabel => VisualState switch
+    public string ActionLabel => CanCancelOperation
+        ? "Annuler"
+        : IsBusy
+            ? VisualState switch
+            {
+                AddonVisualState.Installing => "Installation…",
+                AddonVisualState.Updating => "Mise à jour…",
+                AddonVisualState.Removing => "Suppression…",
+                AddonVisualState.Repairing => "Réparation…",
+                _ => string.Empty
+            }
+            : EffectivePrimaryAction switch
     {
-        AddonVisualState.NotInstalled => "Installer",
-        AddonVisualState.UpdateAvailable => "Mettre à jour",
-        AddonVisualState.Installing => "Installation…",
-        AddonVisualState.Updating => "Mise à jour…",
-        AddonVisualState.Removing => "Suppression…",
-        AddonVisualState.Error => "Réessayer",
+        AddonPrimaryActionKind.Install => VisualState == AddonVisualState.Error
+            ? "Réessayer"
+            : "Installer",
+        AddonPrimaryActionKind.Update => VisualState == AddonVisualState.Error
+            ? "Réessayer"
+            : "Mettre à jour",
+        AddonPrimaryActionKind.Repair => VisualState == AddonVisualState.Error
+            ? "Réessayer"
+            : "Réparer",
         _ => string.Empty
     };
 
-    public string VersionSummary => IsInstalled
+    public string VersionSummary => IsDetectedUnmanaged && !IsManagedByAtlas
+        ? "Installation externe détectée"
+        : IsInstalled
         ? VisualState == AddonVisualState.UpdateAvailable
             ? $"{InstalledVersion}  →  {AvailableVersion}"
             : $"Version {InstalledVersion}"
@@ -130,7 +205,14 @@ public sealed record AddonsViewState(
     bool IsDeleteConfirmationOpen,
     bool IsGameRunning,
     string CatalogErrorMessage,
-    string NotificationMessage)
+    string NotificationMessage,
+    bool IsRuntimeConnected = false,
+    bool IsCatalogLoading = false,
+    bool CanMutate = false,
+    bool CanCancelCurrent = false,
+    bool IsBatchOperation = false,
+    string ActiveAddonId = "",
+    ImmutableArray<string> TemporarilyVisibleAddonIds = default)
 {
     public int TotalCount => Catalog.Length;
 
@@ -157,18 +239,30 @@ public sealed record AddonsViewState(
     public bool ShowsNotification => !string.IsNullOrWhiteSpace(NotificationMessage);
 
     public bool CanUpdateAll => IsPreview
-        && UpdateCount > 1
-        && Catalog.All(addon => !addon.IsBusy);
+        ? UpdateCount > 1 && Catalog.All(addon => !addon.IsBusy)
+        : IsBatchOperation && CanCancelCurrent
+            || CanMutate && UpdateCount > 1;
 
-    public bool IsInteractive => IsPreview;
+    public bool IsInteractive => IsPreview
+        || IsRuntimeConnected && !IsCatalogLoading && TotalCount > 0;
 
-    public string EmptyTitle => TotalCount == 0
-        ? "Aucun addon disponible"
-        : "Aucun résultat";
+    public string UpdateAllLabel => IsBatchOperation && CanCancelCurrent
+        ? "Annuler"
+        : "Tout mettre à jour";
 
-    public string EmptyDescription => TotalCount == 0
-        ? "Le catalogue ne contient actuellement aucun addon."
-        : "Modifie la recherche ou le filtre sélectionné.";
+    public string EmptyTitle => IsCatalogLoading
+        ? "Chargement du catalogue…"
+        : TotalCount == 0
+            ? "Aucun addon disponible"
+            : !string.IsNullOrWhiteSpace(SearchText)
+                ? $"Aucun addon trouvé pour “{SearchText}”"
+                : "Aucun addon ne correspond à ce filtre.";
+
+    public string EmptyDescription => IsCatalogLoading
+        ? "Atlas récupère les informations disponibles."
+        : TotalCount == 0
+            ? "Le catalogue ne contient actuellement aucun addon."
+            : "Modifie la recherche ou le filtre sélectionné.";
 }
 
 public sealed class AddonsUiState : BindableUiState
@@ -193,11 +287,17 @@ public sealed class AddonsUiState : BindableUiState
         CatalogErrorMessage: string.Empty,
         NotificationMessage: string.Empty);
 
+    public ICommand PrimaryCommand { get; private set; } = DisabledCommand.Instance;
+
+    public ICommand UpdateAllCommand { get; private set; } = DisabledCommand.Instance;
+
+    public ICommand RemoveCommand { get; private set; } = DisabledCommand.Instance;
+
     public AddonsViewState Current => _current;
 
     internal bool UpdateSearch(string? value)
     {
-        if (!_current.IsPreview)
+        if (!_current.IsInteractive)
         {
             return false;
         }
@@ -213,7 +313,7 @@ public sealed class AddonsUiState : BindableUiState
 
     internal bool SelectFilter(AddonCatalogFilter filter)
     {
-        if (!_current.IsPreview)
+        if (!_current.IsInteractive)
         {
             return false;
         }
@@ -228,7 +328,7 @@ public sealed class AddonsUiState : BindableUiState
 
     internal bool OpenDetails(string addonId)
     {
-        if (!_current.IsPreview)
+        if (!_current.IsPreview && !_current.IsRuntimeConnected)
         {
             return false;
         }
@@ -251,7 +351,7 @@ public sealed class AddonsUiState : BindableUiState
 
     internal void CloseDetails()
     {
-        if (!_current.IsPreview || !_current.IsDetailOpen)
+        if (!_current.IsDetailOpen)
         {
             return;
         }
@@ -266,7 +366,7 @@ public sealed class AddonsUiState : BindableUiState
 
     internal bool RequestRemoveSelected()
     {
-        if (!_current.IsPreview || _current.SelectedAddon?.CanRemove != true)
+        if (_current.SelectedAddon?.CanRemove != true)
         {
             return false;
         }
@@ -277,7 +377,7 @@ public sealed class AddonsUiState : BindableUiState
 
     internal void CancelRemove()
     {
-        if (_current.IsPreview && _current.IsDeleteConfirmationOpen)
+        if (_current.IsDeleteConfirmationOpen)
         {
             Publish(_current with { IsDeleteConfirmationOpen = false });
         }
@@ -285,9 +385,21 @@ public sealed class AddonsUiState : BindableUiState
 
     internal bool ConfirmRemove()
     {
-        if (!_current.IsPreview || _current.SelectedAddon is not AddonUiItem selected)
+        if (_current.SelectedAddon is not AddonUiItem selected)
         {
             return false;
+        }
+
+        if (!_current.IsPreview)
+        {
+            if (!RemoveCommand.CanExecute(selected.Id))
+            {
+                return false;
+            }
+
+            Publish(_current with { IsDeleteConfirmationOpen = false });
+            RemoveCommand.Execute(selected.Id);
+            return true;
         }
 
         AddonUiItem removing = selected with
@@ -308,7 +420,13 @@ public sealed class AddonsUiState : BindableUiState
     {
         if (!_current.IsPreview)
         {
-            return false;
+            if (!PrimaryCommand.CanExecute(addonId))
+            {
+                return false;
+            }
+
+            PrimaryCommand.Execute(addonId);
+            return true;
         }
 
         AddonUiItem? addon = _current.Catalog.FirstOrDefault(item =>
@@ -337,6 +455,17 @@ public sealed class AddonsUiState : BindableUiState
 
     internal bool UpdateAll()
     {
+        if (!_current.IsPreview)
+        {
+            if (!UpdateAllCommand.CanExecute(null))
+            {
+                return false;
+            }
+
+            UpdateAllCommand.Execute(null);
+            return true;
+        }
+
         if (!_current.CanUpdateAll)
         {
             return false;
@@ -383,6 +512,48 @@ public sealed class AddonsUiState : BindableUiState
         }
     }
 
+    internal void AttachCommands(
+        ICommand primary,
+        ICommand updateAll,
+        ICommand remove)
+    {
+        PrimaryCommand = primary ?? DisabledCommand.Instance;
+        UpdateAllCommand = updateAll ?? DisabledCommand.Instance;
+        RemoveCommand = remove ?? DisabledCommand.Instance;
+        RaisePropertyChanged(string.Empty);
+    }
+
+    internal void ApplyRuntimeView(AddonsViewState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        AddonUiItem? selected = FindSelected(state.Catalog, _current.SelectedAddon);
+        bool keepDetails = _current.IsDetailOpen && selected is not null;
+        AddonsViewState merged = state with
+        {
+            Filter = _current.Filter,
+            SearchText = _current.SearchText,
+            TemporarilyVisibleAddonIds = state.IsBatchOperation
+                ? _current.IsBatchOperation && !_current.TemporarilyVisibleAddonIds.IsDefault
+                    ? _current.TemporarilyVisibleAddonIds
+                    : state.Catalog
+                        .Where(addon => addon.NeedsUpdate)
+                        .Select(addon => addon.Id)
+                        .ToImmutableArray()
+                : ImmutableArray<string>.Empty,
+            SelectedAddon = keepDetails ? selected : null,
+            IsDetailOpen = keepDetails,
+            IsDeleteConfirmationOpen = keepDetails
+                && _current.IsDeleteConfirmationOpen
+                && selected?.CanRemove == true
+        };
+        Publish(ApplyFilter(merged));
+    }
+
+    internal void ShowLocalNotification(string message)
+    {
+        Publish(_current with { NotificationMessage = message ?? string.Empty });
+    }
+
     private void ReplaceAddon(
         AddonUiItem replacement,
         string notification,
@@ -410,7 +581,11 @@ public sealed class AddonsUiState : BindableUiState
             bool filterMatches = state.Filter switch
             {
                 AddonCatalogFilter.Installed => addon.IsInstalled,
-                AddonCatalogFilter.Updates => addon.NeedsUpdate,
+                AddonCatalogFilter.Updates => addon.NeedsUpdate
+                    || !state.TemporarilyVisibleAddonIds.IsDefaultOrEmpty
+                    && state.TemporarilyVisibleAddonIds.Contains(
+                        addon.Id,
+                        StringComparer.OrdinalIgnoreCase),
                 _ => true
             };
             bool searchMatches = string.IsNullOrWhiteSpace(state.SearchText)

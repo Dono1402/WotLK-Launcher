@@ -219,6 +219,8 @@ public partial class App : Application
 
         ShellUiState shellState = LauncherV2RuntimePresentation.CreateShell(runtime);
         GameUiState gameState = LauncherV2RuntimePresentation.CreateGame(runtime.LocalClient);
+        AddonsUiState addonsState = new(AddonsStateAdapter.Project(
+            runtime.Addons.CurrentSnapshot));
         DashboardUiState dashboardState = LauncherV2RuntimePresentation.CreateDashboard();
         ProfileUiState profileState = new();
         SettingsUiState settingsState = new(SettingsStateAdapter.CreateInitialView(
@@ -239,12 +241,23 @@ public partial class App : Application
         LauncherShellV2 window = new(
             shellState,
             gameState,
+            addonsState,
             dashboardState,
             friendsState,
             profileState,
             settingsState,
             accountState,
             avatarCropState);
+        AddonsCommands addonsCommands = new(
+            runtime.Addons,
+            addonsState,
+            window,
+            () => runtime.Settings.InstallPath);
+        window.AttachAddons(addonsCommands);
+        AddonsStateAdapter addonsStateAdapter = new(
+            addonsState,
+            runtime.Addons,
+            window.Dispatcher);
         GameVerificationCommand verificationCommand = new(runtime.Game);
         gameState.AttachVerifyCommand(verificationCommand.Command);
         SettingsCommands settingsCommands = new(
@@ -353,11 +366,13 @@ public partial class App : Application
             authStateAdapter.Dispose();
             profileStateAdapter.Dispose();
             friendsStateAdapter.Dispose();
+            addonsStateAdapter.Dispose();
             accountStateAdapter.Dispose();
             settingsStateAdapter.Dispose();
             settingsCommands.Dispose();
             authCommands.Dispose();
             friendsCommands.Dispose();
+            addonsCommands.Dispose();
             accountCommands.Dispose();
             logoutCommand.Dispose();
             primaryActionCommand.Dispose();

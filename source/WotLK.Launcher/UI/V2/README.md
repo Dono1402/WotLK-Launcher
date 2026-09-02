@@ -41,6 +41,50 @@ WotLK.Launcher.exe --ui-v2 --preview-addons=game-running
 
 Ces scénarios utilisent uniquement des états de présentation locaux de 0, 6, 20 ou 50 entrées. La recherche, les filtres, le panneau de détail et les transitions visuelles sont fictifs. Aucun catalogue distant, fichier `.atlas-addons.json`, téléchargement, processus ou timer n'est créé. Les logos proviennent exclusivement des ressources déjà documentées dans `Assets/Launcher/addon-icons/sources.json`; les entrées étendues sans ressource utilisent l'icône générique Atlas.
 
+## Addons V2 réels - checkpoint 04A.2
+
+En mode `--ui-v2`, la page Addons utilise le catalogue authentifié historique et délègue toutes les mutations à `AddonInstallServices` via `LegacyAddonManagementService`. Elle ne possède aucun téléchargeur, extracteur, calcul de hash, format d'état ou mécanisme de suppression propre.
+
+Caractérisation du comportement conservé :
+
+- `AddonInstallServices.LoadCatalogAsync` charge et valide le schéma 1 pour l'interface 30403 ; la recherche et les filtres restent ensuite entièrement locaux.
+- `AddonInstallServices.Inspect` est la seule source de l'état local. Un dossier seul est `DetectedUnmanaged`, jamais installé. Une entrée valide de `.atlas-addons.json` fournit version, hash, dossiers et date ; un dossier géré absent produit `MissingFiles`.
+- Installer, mettre à jour et réparer passent tous par `ApplySelectionAsync`. Chaque action V2 lui fournit un catalogue limité au package ciblé afin de ne pas modifier les autres addons.
+- Une mise à jour ne publie sa nouvelle version qu'après téléchargement, validation et application réussis. La transaction historique restaure les dossiers précédents si l'application échoue.
+- Supprimer passe par la même sélection avec `false` et ne retire que les dossiers enregistrés comme gérés. L'opération n'est pas présentée comme annulable, car la phase de déplacement/suppression legacy ne consulte pas de token interne.
+- Les composants supplémentaires sont téléchargés et extraits dans la même transaction que l'archive principale. `dependencies` est actuellement une métadonnée de catalogue : le pipeline historique ne résout pas automatiquement de graphe de dépendances.
+- La progression disponible est constituée des octets reçus et de la taille attendue par archive. La V2 en dérive pour l'affichage pourcentage, débit et estimation ; les phases sans mesure sont indéterminées. Les publications sont coalescées à 80 ms, sauf changement de phase et valeur terminale.
+- WoW ouvert n'interdit pas les mutations addon et n'est jamais fermé par ce pipeline. Après un succès, la V2 conseille `/reload` sans tenter de l'injecter dans le jeu.
+- Un `401` invalide la session par `LauncherSessionCoordinator`. Les erreurs réseau, disque, accès et fichier verrouillé restent attachées à la ligne concernée et les logs ne contiennent que l'identifiant, l'opération, la version, la phase, le résultat et la catégorie d'erreur.
+- Un rafraîchissement distant en échec conserve le catalogue déjà chargé en mémoire. Aucun nouveau cache persistant de catalogue n'est introduit.
+
+`Tout mettre à jour` est réel lorsque plusieurs mises à jour sont disponibles. Il conserve un seul bail global `Addons`, traite les packages un par un dans l'ordre alphabétique, enregistre chaque succès, s'arrête au premier échec et partage une annulation globale. Aucun téléchargement parallèle n'est lancé.
+
+Pendant ce batch, les compteurs suivent immédiatement les états réellement enregistrés, mais les lignes initialement visibles sous le filtre `Mises à jour` restent épinglées jusqu'à la fin de l'opération. Le filtre est alors réappliqué en une fois afin d'éviter des disparitions successives pendant le téléchargement.
+
+Matrice de concurrence effective :
+
+| Combinaison | Résultat |
+|---|---|
+| Install + Install | refus immédiat `Busy` |
+| Update + Update | refus immédiat `Busy` |
+| Install + Update | refus immédiat `Busy` |
+| Remove + Download | refus immédiat `Busy` |
+| Repair + Update | refus immédiat `Busy` |
+| Addons + GameInstall/GameUpdate/GameRepair | refus immédiat `Busy` |
+| Addons + Verify | refus immédiat `Busy` |
+| Addons + LauncherAutoUpdate | refus immédiat `Busy` |
+| Addons + Play | refus immédiat `RejectedByCompatibility` |
+| Play + Verify non mutante, client jouable | autorisé par le coordinateur global |
+
+`TryBegin` ne met aucune action en file d'attente. La présence d'un processus WoW déjà ouvert ne constitue pas un bail `Play` et reste donc compatible avec la gestion des addons.
+
+Le harnais déterministe associé se lance avec :
+
+```powershell
+& 'C:\Users\Dono\.dotnet\sdk-8.0.424\dotnet.exe' run --project 'source\WotLK.Launcher.IntegrationTests\WotLK.Launcher.IntegrationTests.csproj' -c Release --no-build -- --addons-runtime
+```
+
 Prévisualiser les états isolés du panneau Amis :
 
 ```powershell

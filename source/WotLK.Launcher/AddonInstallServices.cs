@@ -69,7 +69,9 @@ internal static partial class AddonInstallServices
 
             if (!allFoldersExist)
             {
-                result[package.Id] = new AddonInspection(AddonLocalStatus.MissingFiles, IsManaged: true);
+                result[package.Id] = CreateInspection(
+                    AddonLocalStatus.MissingFiles,
+                    installed);
                 continue;
             }
 
@@ -78,12 +80,25 @@ internal static partial class AddonInstallServices
                             package.Folders.OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
                                 .SequenceEqual(installed.Folders.OrderBy(value => value, StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
 
-            result[package.Id] = new AddonInspection(
+            result[package.Id] = CreateInspection(
                 isCurrent ? AddonLocalStatus.Installed : AddonLocalStatus.UpdateAvailable,
-                IsManaged: true);
+                installed);
         }
 
         return result;
+    }
+
+    private static AddonInspection CreateInspection(
+        AddonLocalStatus status,
+        InstalledAddonState installed)
+    {
+        return new AddonInspection(
+            status,
+            IsManaged: true,
+            installed.Version,
+            installed.Sha256,
+            installed.Folders.ToArray(),
+            installed.InstalledAtUtc);
     }
 
     internal static async Task ApplySelectionAsync(

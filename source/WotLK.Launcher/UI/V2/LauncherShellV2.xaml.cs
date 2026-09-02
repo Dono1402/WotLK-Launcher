@@ -23,6 +23,7 @@ public partial class LauncherShellV2 : Window
     private AuthCommands? _authCommands;
     private AccountCommands? _accountCommands;
     private FriendsCommands? _friendsCommands;
+    private AddonsCommands? _addonsCommands;
 
     public LauncherShellV2(GamePreviewScenario scenario = GamePreviewScenario.Ready)
         : this(
@@ -243,6 +244,34 @@ public partial class LauncherShellV2 : Window
     {
     }
 
+    internal LauncherShellV2(
+        ShellUiState shellState,
+        GameUiState gameState,
+        AddonsUiState addonsState,
+        DashboardUiState dashboardState,
+        FriendsUiState friendsState,
+        ProfileUiState profileState,
+        SettingsUiState settingsState,
+        AccountUiState accountState,
+        AvatarCropUiState avatarCropState)
+        : this(
+            shellState,
+            gameState,
+            addonsState,
+            dashboardState,
+            friendsState,
+            new AuthUiState(),
+            profileState,
+            settingsState,
+            accountState,
+            avatarCropState,
+            authPreviewScenario: null,
+            profilePreviewScenario: null,
+            isPreviewMode: false,
+            initialPage: LauncherShellPage.Game)
+    {
+    }
+
     private LauncherShellV2(
         ShellUiState shellState,
         GameUiState gameState,
@@ -291,6 +320,7 @@ public partial class LauncherShellV2 : Window
         PreviewMouseDown += LauncherShellV2_PreviewMouseDown;
         PreviewGotKeyboardFocus += LauncherShellV2_PreviewGotKeyboardFocus;
         AccountState.PropertyChanged += AccountState_PropertyChanged;
+        AddonsState.PropertyChanged += AddonsState_PropertyChanged;
         Loaded += LauncherShellV2_Loaded;
         Closed += LauncherShellV2_Closed;
     }
@@ -326,6 +356,8 @@ public partial class LauncherShellV2 : Window
     internal bool IsPreviewMode { get; }
 
     internal bool HasRealAuthenticationAttached => _authCommands is not null;
+
+    internal bool HasRealAddonsAttached => _addonsCommands is not null;
 
     internal ShellOverlayKind CurrentOverlay => _overlayCoordinator.Current;
 
@@ -383,6 +415,16 @@ public partial class LauncherShellV2 : Window
         }
 
         _friendsCommands = commands ?? throw new ArgumentNullException(nameof(commands));
+    }
+
+    internal void AttachAddons(AddonsCommands commands)
+    {
+        if (IsPreviewMode)
+        {
+            throw new InvalidOperationException("Le preview ne peut pas recevoir les commandes Addons réelles.");
+        }
+
+        _addonsCommands = commands ?? throw new ArgumentNullException(nameof(commands));
     }
 
     internal void OpenAuthenticationForPendingPlay()
@@ -493,11 +535,13 @@ public partial class LauncherShellV2 : Window
         PreviewMouseDown -= LauncherShellV2_PreviewMouseDown;
         PreviewGotKeyboardFocus -= LauncherShellV2_PreviewGotKeyboardFocus;
         AccountState.PropertyChanged -= AccountState_PropertyChanged;
+        AddonsState.PropertyChanged -= AddonsState_PropertyChanged;
         AuthOverlay.SubmissionRequested -= AuthOverlay_SubmissionRequested;
         ProfileMenu.ManageAccountRequested -= ProfileMenu_ManageAccountRequested;
         _authCommands = null;
         _accountCommands = null;
         _friendsCommands = null;
+        _addonsCommands = null;
         AccountView.DetachFromShell();
         AuthOverlay.DetachFromShell();
         AuthOverlay.State = null;
@@ -596,11 +640,25 @@ public partial class LauncherShellV2 : Window
 
     private void AddonsNavigationButton_Click(object sender, RoutedEventArgs e)
     {
-        if (ShellState.IsNavigationEnabled
-            && _overlayCoordinator.Current == ShellOverlayKind.None)
+        if (!ShellState.IsNavigationEnabled
+            || _overlayCoordinator.Current != ShellOverlayKind.None)
         {
-            NavigateTo(LauncherShellPage.Addons);
+            return;
         }
+        if (!IsPreviewMode && !ShellState.IsAuthenticated)
+        {
+            if (!ShellState.IsSessionRestoring && !AuthState.IsOpen)
+            {
+                _authFocusReturnTarget = AddonsNavigationButton;
+                AuthState.PrepareForOpen();
+                _overlayCoordinator.OpenAuthentication();
+                FriendsButton.Focusable = false;
+            }
+            return;
+        }
+
+        NavigateTo(LauncherShellPage.Addons);
+        _addonsCommands?.RefreshCatalog();
     }
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
@@ -986,6 +1044,16 @@ public partial class LauncherShellV2 : Window
         if (!IsPreviewMode
             && CurrentPage == LauncherShellPage.Account
             && !IsAccountNavigationEnabled)
+        {
+            NavigateTo(LauncherShellPage.Game);
+        }
+    }
+
+    private void AddonsState_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (!IsPreviewMode
+            && CurrentPage == LauncherShellPage.Addons
+            && !AddonsState.Current.IsRuntimeConnected)
         {
             NavigateTo(LauncherShellPage.Game);
         }

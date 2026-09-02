@@ -100,7 +100,13 @@ internal enum AddonLocalStatus
     DetectedUnmanaged
 }
 
-internal sealed record AddonInspection(AddonLocalStatus Status, bool IsManaged);
+internal sealed record AddonInspection(
+    AddonLocalStatus Status,
+    bool IsManaged,
+    string? InstalledVersion = null,
+    string? InstalledSha256 = null,
+    IReadOnlyList<string>? InstalledFolders = null,
+    DateTimeOffset? InstalledAtUtc = null);
 
 internal sealed record AddonTransferProgress(string AddonName, long BytesReceived, long TotalBytes);
 

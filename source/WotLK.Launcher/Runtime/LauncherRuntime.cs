@@ -66,6 +66,9 @@ internal sealed class LauncherRuntimeDependencies
                 new GameInstallPlatformAdapter());
         };
 
+    internal Func<HttpClient, IAddonManagementService> CreateAddonManagementService { get; init; } =
+        static httpClient => new LegacyAddonManagementService(httpClient);
+
     internal Func<IGameLaunchSession, IGameLaunchService> CreateGameLaunchService { get; init; } =
         static session => new GameLaunchService(
             session,
@@ -75,7 +78,12 @@ internal sealed class LauncherRuntimeDependencies
     internal Func<string, bool> HasPlayableClient { get; init; } =
         GameInstallServices.HasPlayableClient;
 
+    internal Func<string, bool> IsGameRunning { get; init; } =
+        GameInstallServices.IsGameRunning;
+
     internal TimeProvider VerificationTimeProvider { get; init; } = TimeProvider.System;
+
+    internal TimeProvider AddonsTimeProvider { get; init; } = TimeProvider.System;
 
     internal TimeProvider DashboardTimeProvider { get; init; } = TimeProvider.System;
 
@@ -185,6 +193,15 @@ internal sealed class LauncherRuntime : IDisposable
                 dependencies.GameClientStateReader);
         IGameLaunchService launchService = dependencies.CreateGameLaunchService(
             _sessionCoordinator);
+        Addons = new LauncherAddonsCoordinator(
+            dependencies.CreateAddonManagementService(_clientHttpClient),
+            new LauncherAddonsSessionContext(_sessionCoordinator),
+            Operations,
+            Settings,
+            dependencies.HasPlayableClient,
+            dependencies.IsGameRunning,
+            dependencies.WriteRuntimeLog,
+            dependencies.AddonsTimeProvider);
         Game = new GameRuntimeCoordinator(
             verificationService,
             Operations,
@@ -206,6 +223,10 @@ internal sealed class LauncherRuntime : IDisposable
             {
                 bool pathChanged = changeKind == LauncherSettingsChangeKind.InstallPath;
                 bool refreshed = Game.RefreshLocalSettings(pathChanged);
+                if (pathChanged)
+                {
+                    Addons.RefreshLocalState();
+                }
                 if (pathChanged && refreshed && _authentication.IsAuthenticated)
                 {
                     _ = Game.TryStartVerification();
@@ -259,6 +280,8 @@ internal sealed class LauncherRuntime : IDisposable
     internal LauncherOperationCoordinator Operations { get; }
 
     internal GameRuntimeCoordinator Game { get; }
+
+    internal LauncherAddonsCoordinator Addons { get; }
 
     internal LauncherDashboardCoordinator Dashboard { get; }
 
@@ -362,6 +385,7 @@ internal sealed class LauncherRuntime : IDisposable
             SettingsRuntime.BeginShutdown();
             Dashboard.BeginShutdown();
             _sessionCoordinator.BeginShutdown();
+            Addons.BeginShutdown();
             Game.BeginShutdown();
             Account.BeginShutdown();
             Friends.BeginShutdown();
@@ -374,6 +398,7 @@ internal sealed class LauncherRuntime : IDisposable
         Task<bool> operations = Operations.WaitForIdleAsync(timeout);
         Task<bool> dashboard = Dashboard.WaitForIdleAsync(timeout);
         Task<bool> session = _sessionCoordinator.WaitForIdleAsync(timeout);
+        Task<bool> addons = Addons.WaitForIdleAsync(timeout);
         Task<bool> profile = Profile.WaitForIdleAsync(timeout);
         Task<bool> account = Account.WaitForIdleAsync(timeout);
         Task<bool> friends = Friends.WaitForIdleAsync(timeout);
@@ -381,6 +406,7 @@ internal sealed class LauncherRuntime : IDisposable
             operations,
             dashboard,
             session,
+            addons,
             profile,
             account,
             friends).ConfigureAwait(false);
@@ -401,6 +427,7 @@ internal sealed class LauncherRuntime : IDisposable
             SettingsRuntime.BeginShutdown();
             Dashboard.BeginShutdown();
             _sessionCoordinator.BeginShutdown();
+            Addons.BeginShutdown();
             Game.BeginShutdown();
             Account.BeginShutdown();
             Friends.BeginShutdown();
@@ -409,6 +436,7 @@ internal sealed class LauncherRuntime : IDisposable
             Profile.Dispose();
             SettingsRuntime.Dispose();
             Dashboard.Dispose();
+            Addons.Dispose();
             Game.Dispose();
             _sessionCoordinator.Dispose();
             AvatarImages.Dispose();

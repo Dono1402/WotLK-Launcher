@@ -171,6 +171,16 @@ if (args.Length >= 1
     return await AddonsPreviewTests.RunAsync(captureDirectory);
 }
 
+if (args.Length >= 1
+    && string.Equals(args[0], "--addons-runtime", StringComparison.OrdinalIgnoreCase))
+{
+    string? captureDirectory = args.Length == 3
+        && string.Equals(args[1], "--capture-directory", StringComparison.OrdinalIgnoreCase)
+            ? args[2]
+            : null;
+    return await LauncherAddonsRuntimeTests.RunAsync(captureDirectory);
+}
+
 if (args.Length == 1
     && string.Equals(args[0], "--avatar-foundation", StringComparison.OrdinalIgnoreCase))
 {

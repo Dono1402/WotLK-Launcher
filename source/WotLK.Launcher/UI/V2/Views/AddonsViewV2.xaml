@@ -67,6 +67,10 @@
                     <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.CyanSurface}"/>
                     <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.CyanBorder}"/>
                 </DataTrigger>
+                <DataTrigger Binding="{Binding VisualState}" Value="{x:Static presentation:AddonVisualState.Repairing}">
+                    <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.CyanSurface}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.CyanBorder}"/>
+                </DataTrigger>
                 <DataTrigger Binding="{Binding VisualState}" Value="{x:Static presentation:AddonVisualState.Error}">
                     <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.DangerSurface}"/>
                     <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.DangerBorder}"/>
@@ -92,6 +96,9 @@
                     <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding VisualState}" Value="{x:Static presentation:AddonVisualState.Removing}">
+                    <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding VisualState}" Value="{x:Static presentation:AddonVisualState.Repairing}">
                     <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding VisualState}" Value="{x:Static presentation:AddonVisualState.Error}">
@@ -313,7 +320,7 @@
                               Data="{StaticResource AtlasV2.Icon.Download}"
                               Style="{StaticResource AtlasV2.Icon.Stroke}"
                               Stroke="#111318"/>
-                        <TextBlock Text="Tout mettre à jour"/>
+                        <TextBlock Text="{Binding State.Current.UpdateAllLabel, ElementName=AddonsRoot}"/>
                     </StackPanel>
                 </Button>
             </Grid>
@@ -443,6 +450,15 @@
                                                        FontSize="10"
                                                        Visibility="{Binding ShowsProgressPercent, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
                                         </Grid>
+                                        <TextBlock Margin="0,3,0,0"
+                                                   MaxWidth="310"
+                                                   HorizontalAlignment="Left"
+                                                   Text="{Binding ProgressDetail}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                                   FontSize="10"
+                                                   Foreground="{StaticResource AtlasV2.Brush.TextMuted}"
+                                                   Visibility="{Binding ShowsProgressDetail, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
                                         <TextBlock Margin="0,6,0,0"
                                                    Text="{Binding ErrorMessage}"
                                                    TextTrimming="CharacterEllipsis"
@@ -469,7 +485,7 @@
                                             VerticalAlignment="Center"
                                             Content="{Binding ActionLabel}"
                                             Style="{StaticResource AtlasV2.Addons.Action}"
-                                            Visibility="{Binding ShowsAction, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
+                                            Visibility="{Binding ShowsRowAction, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
                                             IsEnabled="{Binding CanInvokePrimary}"
                                             Click="AddonPrimaryButton_Click"/>
                                 </Grid>

@@ -41,6 +41,25 @@ WotLK.Launcher.exe --ui-v2 --preview-addons=game-running
 
 Ces scénarios utilisent uniquement des états de présentation locaux de 0, 6, 20 ou 50 entrées. La recherche, les filtres, le panneau de détail et les transitions visuelles sont fictifs. Aucun catalogue distant, fichier `.atlas-addons.json`, téléchargement, processus ou timer n'est créé. Les logos proviennent exclusivement des ressources déjà documentées dans `Assets/Launcher/addon-icons/sources.json`; les entrées étendues sans ressource utilisent l'icône générique Atlas.
 
+Prévisualiser le Centre d’activité Atlas :
+
+```powershell
+WotLK.Launcher.exe --ui-v2 --preview-activity=idle
+WotLK.Launcher.exe --ui-v2 --preview-activity=game-download
+WotLK.Launcher.exe --ui-v2 --preview-activity=game-install
+WotLK.Launcher.exe --ui-v2 --preview-activity=game-verify
+WotLK.Launcher.exe --ui-v2 --preview-activity=game-repair
+WotLK.Launcher.exe --ui-v2 --preview-activity=addon
+WotLK.Launcher.exe --ui-v2 --preview-activity=addon-batch
+WotLK.Launcher.exe --ui-v2 --preview-activity=addon-remove
+WotLK.Launcher.exe --ui-v2 --preview-activity=self-update
+WotLK.Launcher.exe --ui-v2 --preview-activity=error
+WotLK.Launcher.exe --ui-v2 --preview-activity=history
+WotLK.Launcher.exe --ui-v2 --preview-activity=many-history
+```
+
+Au checkpoint 04B.1, ces états sont exclusivement visuels et déterministes. Ils ne composent aucun `LauncherRuntime`, coordinateur métier, téléchargement, client HTTP, timer, token d’annulation, accès disque métier ou processus enfant. L’historique réel et la projection des opérations existantes appartiennent au checkpoint 04B.2.
+
 ## Addons V2 réels - checkpoint 04A.2
 
 En mode `--ui-v2`, la page Addons utilise le catalogue authentifié historique et délègue toutes les mutations à `AddonInstallServices` via `LegacyAddonManagementService`. Elle ne possède aucun téléchargeur, extracteur, calcul de hash, format d'état ou mécanisme de suppression propre.

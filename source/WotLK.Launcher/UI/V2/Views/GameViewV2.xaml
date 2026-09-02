@@ -285,7 +285,7 @@
                                             Opacity="0.52"
                                             IsHitTestVisible="False"
                                             Focusable="False"
-                                            ToolTip="La lecture complète sera disponible avec l’onglet Actualités">
+                                            ToolTip="La lecture complète sera disponible dans un panneau dédié">
                                     <TextBlock Text="Lire la note de mise à jour"
                                                VerticalAlignment="Center"
                                                Style="{StaticResource AtlasV2.Text.Body}"

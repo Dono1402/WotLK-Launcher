@@ -17,6 +17,7 @@ public partial class LauncherShellV2 : Window
     private readonly AuthPreviewScenario? _initialAuthPreviewScenario;
     private readonly ProfilePreviewScenario? _initialProfilePreviewScenario;
     private readonly bool _openFriendsOnLoad;
+    private readonly bool _openActivityOnLoad;
     private readonly LauncherShellPage _initialPage;
     private IInputElement? _authFocusReturnTarget;
     private IInputElement? _avatarCropFocusReturnTarget;
@@ -137,6 +138,27 @@ public partial class LauncherShellV2 : Window
             isPreviewMode: true,
             initialPage: LauncherShellPage.Game,
             openFriendsOnLoad: true)
+    {
+    }
+
+    public LauncherShellV2(GamePreviewScenario scenario, ActivityPreviewScenario activityScenario)
+        : this(
+            LauncherV2PreviewData.CreateShell(scenario),
+            LauncherV2PreviewData.CreateGame(scenario),
+            AddonsPreviewData.CreateRuntimePlaceholder(),
+            LauncherV2PreviewData.CreateDashboard(scenario),
+            LauncherV2PreviewData.CreateFriends(),
+            LauncherV2PreviewData.CreateAuth(),
+            LauncherV2PreviewData.CreateProfile(),
+            LauncherV2PreviewData.CreateSettings(),
+            LauncherV2PreviewData.CreateAccount(),
+            LauncherV2PreviewData.CreateAvatarCrop(),
+            authPreviewScenario: null,
+            profilePreviewScenario: null,
+            isPreviewMode: true,
+            initialPage: LauncherShellPage.Game,
+            activityState: ActivityPreviewData.Create(activityScenario),
+            openActivityOnLoad: true)
     {
     }
 
@@ -287,7 +309,9 @@ public partial class LauncherShellV2 : Window
         ProfilePreviewScenario? profilePreviewScenario,
         bool isPreviewMode,
         LauncherShellPage initialPage,
-        bool openFriendsOnLoad = false)
+        bool openFriendsOnLoad = false,
+        ActivityUiState? activityState = null,
+        bool openActivityOnLoad = false)
     {
         ShellState = shellState ?? throw new ArgumentNullException(nameof(shellState));
         GameState = gameState ?? throw new ArgumentNullException(nameof(gameState));
@@ -299,7 +323,9 @@ public partial class LauncherShellV2 : Window
         SettingsState = settingsState ?? throw new ArgumentNullException(nameof(settingsState));
         AccountState = accountState ?? throw new ArgumentNullException(nameof(accountState));
         AvatarCropState = avatarCropState ?? throw new ArgumentNullException(nameof(avatarCropState));
+        ActivityState = activityState ?? new ActivityUiState();
         _overlayCoordinator = new ShellOverlayCoordinator(
+            ActivityState,
             FriendsState,
             AuthState,
             ProfileState,
@@ -308,6 +334,7 @@ public partial class LauncherShellV2 : Window
         _initialProfilePreviewScenario = profilePreviewScenario;
         _initialPage = initialPage;
         _openFriendsOnLoad = openFriendsOnLoad;
+        _openActivityOnLoad = openActivityOnLoad;
         IsPreviewMode = isPreviewMode;
 
         InitializeComponent();
@@ -345,6 +372,8 @@ public partial class LauncherShellV2 : Window
 
     public AvatarCropUiState AvatarCropState { get; }
 
+    public ActivityUiState ActivityState { get; }
+
     public bool IsSettingsNavigationEnabled => IsPreviewMode || SettingsState.Current.IsRuntimeConnected;
 
     public bool IsAccountNavigationEnabled => IsPreviewMode
@@ -366,6 +395,8 @@ public partial class LauncherShellV2 : Window
     internal AuthOverlayViewV2 AuthenticationOverlay => AuthOverlay;
 
     internal FriendsDrawerV2 FriendsOverlay => FriendsDrawer;
+
+    internal ActivityCenterPanelV2 ActivityOverlay => ActivityCenter;
 
     internal ProfileMenuV2 ProfileOverlay => ProfileMenu;
 
@@ -487,6 +518,17 @@ public partial class LauncherShellV2 : Window
         OpenFriendsDrawerForPreview();
     }
 
+    internal void SetActivityCenterOpenForPreview()
+    {
+        if (!IsLoaded)
+        {
+            Loaded += OpenActivityCenterForPreviewOnLoaded;
+            return;
+        }
+
+        OpenActivityCenterForPreview();
+    }
+
     private void OpenFriendsDrawerForPreviewOnLoaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OpenFriendsDrawerForPreviewOnLoaded;
@@ -500,6 +542,19 @@ public partial class LauncherShellV2 : Window
             FriendsDrawer.IsOpen = true;
             FriendsButton.Focusable = false;
         }
+    }
+
+    private void OpenActivityCenterForPreviewOnLoaded(object sender, RoutedEventArgs e)
+    {
+        Loaded -= OpenActivityCenterForPreviewOnLoaded;
+        OpenActivityCenterForPreview();
+    }
+
+    private void OpenActivityCenterForPreview()
+    {
+        _overlayCoordinator.OpenActivityPreview();
+        ActivityCenter.IsOpen = true;
+        ActivityButton.Focusable = false;
     }
 
     private void LauncherShellV2_Loaded(object sender, RoutedEventArgs e)
@@ -517,6 +572,10 @@ public partial class LauncherShellV2 : Window
         else if (_openFriendsOnLoad)
         {
             OpenFriendsDrawerForPreview();
+        }
+        else if (_openActivityOnLoad)
+        {
+            OpenActivityCenterForPreview();
         }
 
         if (AvatarCropState.IsOpen)
@@ -549,6 +608,8 @@ public partial class LauncherShellV2 : Window
         ProfileMenu.DetachFromShell();
         ProfileMenu.State = null;
         ProfileMenu.IsOpen = false;
+        ActivityCenter.State = null;
+        ActivityCenter.IsOpen = false;
         FriendsDrawer.State = null;
         FriendsDrawer.IsOpen = false;
         AvatarCropOverlay.DetachFromShell();
@@ -629,6 +690,18 @@ public partial class LauncherShellV2 : Window
         }
     }
 
+    private void ActivityButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_overlayCoordinator.TryToggleActivity())
+        {
+            ActivityButton.Focusable = !ActivityState.IsOpen;
+            if (ActivityState.IsOpen)
+            {
+                ActivityCenter.FocusFirstControl();
+            }
+        }
+    }
+
     private void GameNavigationButton_Click(object sender, RoutedEventArgs e)
     {
         if (_overlayCoordinator.Current == ShellOverlayKind.None
@@ -672,6 +745,11 @@ public partial class LauncherShellV2 : Window
     private void FriendsDrawer_CloseRequested(object? sender, EventArgs e)
     {
         _overlayCoordinator.CloseFriends();
+    }
+
+    private void ActivityCenter_CloseRequested(object? sender, EventArgs e)
+    {
+        _overlayCoordinator.CloseActivity();
     }
 
     private void ProfileButton_Click(object sender, RoutedEventArgs e)
@@ -841,6 +919,17 @@ public partial class LauncherShellV2 : Window
         Keyboard.Focus(FriendsButton);
     }
 
+    private void ActivityCenter_Closed(object? sender, EventArgs e)
+    {
+        ActivityButton.Focusable = true;
+        if (ActivityState.IsOpen || _overlayCoordinator.Current != ShellOverlayKind.None)
+        {
+            return;
+        }
+
+        Keyboard.Focus(ActivityButton);
+    }
+
     private void ProfileMenu_Closed(object? sender, EventArgs e)
     {
         ProfileButton.Focusable = true;
@@ -899,6 +988,13 @@ public partial class LauncherShellV2 : Window
         if (e.Key == Key.Escape && FriendsState.IsOpen)
         {
             FriendsState.IsOpen = false;
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Escape && ActivityState.IsOpen)
+        {
+            _overlayCoordinator.CloseActivity();
             e.Handled = true;
             return;
         }
@@ -968,6 +1064,17 @@ public partial class LauncherShellV2 : Window
             {
                 e.Handled = true;
                 AuthOverlay.FocusFirstControl();
+            }
+
+            return;
+        }
+
+        if (ActivityState.IsOpen)
+        {
+            if (!ActivityCenter.ContainsKeyboardFocusTarget(e.NewFocus as DependencyObject))
+            {
+                e.Handled = true;
+                ActivityCenter.FocusFirstControl();
             }
 
             return;

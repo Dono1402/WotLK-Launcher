@@ -100,10 +100,6 @@
                                 IsEnabled="{Binding ShellState.IsNavigationEnabled}"
                                 Focusable="False"
                                 Click="AddonsNavigationButton_Click"/>
-                        <Button Style="{StaticResource AtlasV2.Button.Nav}"
-                                Content="Actualités"
-                                IsEnabled="{Binding ShellState.IsNavigationEnabled}"
-                                Focusable="False"/>
                     </StackPanel>
 
                     <StackPanel Grid.Column="3"
@@ -174,6 +170,85 @@
                                   Height="17"
                                   Data="{StaticResource AtlasV2.Icon.Refresh}"
                                   Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                        </Button>
+
+                        <Button x:Name="ActivityButton"
+                                Height="40"
+                                Margin="0,0,5,0"
+                                Padding="10,0"
+                                ToolTip="Activité"
+                                Focusable="True"
+                                AutomationProperties.Name="Ouvrir le centre d’activité"
+                                Click="ActivityButton_Click">
+                            <Button.Style>
+                                <Style TargetType="{x:Type Button}"
+                                       BasedOn="{StaticResource AtlasV2.Button.Base}">
+                                    <Setter Property="Width" Value="40"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ActivityState.Current.TopBarShowsPercent}" Value="True">
+                                            <Setter Property="Width" Value="68"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ActivityState.IsOpen}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfacePressed}"/>
+                                            <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.CyanBorder}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="18"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Path Width="17"
+                                      Height="17"
+                                      VerticalAlignment="Center"
+                                      Data="{StaticResource AtlasV2.Icon.Download}">
+                                    <Path.Style>
+                                        <Style TargetType="{x:Type Path}"
+                                               BasedOn="{StaticResource AtlasV2.Icon.Stroke}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ActivityState.Current.HasActiveOperation}" Value="True">
+                                                    <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding ActivityState.Current.TopBarIsIndeterminate}" Value="True">
+                                                    <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
+                                                    <DataTrigger.EnterActions>
+                                                        <BeginStoryboard x:Name="ActivityIndeterminateStoryboard">
+                                                            <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                                 From="0.45"
+                                                                                 To="1"
+                                                                                 Duration="0:0:0.7"/>
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </DataTrigger.EnterActions>
+                                                    <DataTrigger.ExitActions>
+                                                        <RemoveStoryboard BeginStoryboardName="ActivityIndeterminateStoryboard"/>
+                                                    </DataTrigger.ExitActions>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Path.Style>
+                                </Path>
+                                <TextBlock x:Name="ActivityPercentText"
+                                           Grid.Column="1"
+                                           Margin="6,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Text="{Binding ActivityState.Current.TopBarPercentText}"
+                                           Style="{StaticResource AtlasV2.Text.Caption}"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource AtlasV2.Brush.Cyan}"
+                                           Visibility="{Binding ActivityState.Current.TopBarShowsPercent, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+                                <Ellipse Grid.ColumnSpan="2"
+                                         Width="6"
+                                         Height="6"
+                                         Margin="0,-16,-20,0"
+                                         HorizontalAlignment="Right"
+                                         VerticalAlignment="Top"
+                                         Fill="{StaticResource AtlasV2.Brush.Danger}"
+                                         Visibility="{Binding ActivityState.Current.HasRecentFailure, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+                            </Grid>
                         </Button>
 
                         <Button x:Name="FriendsButton"
@@ -322,6 +397,12 @@
                                      ModifyAvatarRequested="AccountView_ModifyAvatarRequested"
                                      RemoveAvatarRequested="AccountView_RemoveAvatarRequested"
                                      ConfirmAvatarDeleteRequested="AccountView_ConfirmAvatarDeleteRequested"/>
+                <views:ActivityCenterPanelV2 x:Name="ActivityCenter"
+                                             Panel.ZIndex="50"
+                                             State="{Binding ActivityState}"
+                                             IsOpen="{Binding ActivityState.IsOpen, Mode=TwoWay}"
+                                             CloseRequested="ActivityCenter_CloseRequested"
+                                             Closed="ActivityCenter_Closed"/>
                 <views:FriendsDrawerV2 x:Name="FriendsDrawer"
                                        Panel.ZIndex="50"
                                        State="{Binding FriendsState}"

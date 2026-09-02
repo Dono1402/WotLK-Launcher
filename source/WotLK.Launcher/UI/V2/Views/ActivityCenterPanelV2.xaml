@@ -1,0 +1,419 @@
+<UserControl x:Class="WotLK.Launcher.UI.V2.Views.ActivityCenterPanelV2"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:presentation="clr-namespace:WotLK.Launcher.UI.V2.Presentation"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignWidth="1440"
+             d:DesignHeight="796"
+             Background="Transparent"
+             Visibility="Collapsed"
+             IsHitTestVisible="False"
+             Focusable="False">
+    <UserControl.Resources>
+        <DataTemplate x:Key="AtlasV2.Activity.ActiveOperation">
+            <Border Padding="14"
+                    BorderThickness="1"
+                    CornerRadius="7">
+                <Border.Style>
+                    <Style TargetType="{x:Type Border}">
+                        <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfaceRaised}"/>
+                        <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.CyanBorder}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.DangerSurface}"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.DangerBorder}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="44"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Width="38"
+                                Height="38"
+                                Padding="4"
+                                Background="{StaticResource AtlasV2.Brush.Field}"
+                                BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                            <Image Source="{Binding IconUri}"
+                                   Stretch="Uniform"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="10,0,8,0">
+                            <TextBlock Text="{Binding ProductName}"
+                                       TextTrimming="CharacterEllipsis"
+                                       Style="{StaticResource AtlasV2.Text.Body}"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                            <TextBlock Margin="0,2,0,0"
+                                       Text="{Binding ActionName}"
+                                       TextTrimming="CharacterEllipsis">
+                                <TextBlock.Style>
+                                    <Style TargetType="{x:Type TextBlock}"
+                                           BasedOn="{StaticResource AtlasV2.Text.Caption}">
+                                        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Danger}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsCancellationRequested}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                        <Border Grid.Column="2"
+                                Padding="8,4"
+                                VerticalAlignment="Top"
+                                Background="{StaticResource AtlasV2.Brush.CyanSurface}"
+                                BorderBrush="{StaticResource AtlasV2.Brush.CyanBorder}"
+                                BorderThickness="1"
+                                CornerRadius="5"
+                                Visibility="{Binding HasBatchPosition, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                            <TextBlock Text="{Binding BatchPosition}"
+                                       Style="{StaticResource AtlasV2.Text.Caption}"
+                                       Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
+                        </Border>
+                    </Grid>
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,13,0,0"
+                               Text="{Binding PhaseText}"
+                               TextWrapping="Wrap"
+                               Style="{StaticResource AtlasV2.Text.Body}"
+                               FontSize="13"
+                               Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"
+                               Visibility="{Binding HasPhaseText, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+
+                    <Grid Grid.Row="2"
+                          Margin="0,12,0,0"
+                          Visibility="{Binding IsDeterminate, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                        <ProgressBar Height="7"
+                                     Value="{Binding ProgressPercent}"
+                                     Style="{StaticResource AtlasV2.Progress.Compact}"/>
+                        <TextBlock Margin="0,-24,0,0"
+                                   HorizontalAlignment="Right"
+                                   Text="{Binding PercentText}"
+                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
+                    </Grid>
+
+                    <ProgressBar Grid.Row="2"
+                                 Height="7"
+                                 Margin="0,12,0,0"
+                                 IsIndeterminate="True"
+                                 Visibility="{Binding IsIndeterminate, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
+                                 Style="{StaticResource AtlasV2.Progress.Compact}"/>
+
+                    <Grid Grid.Row="3" Margin="0,10,0,0">
+                        <TextBlock Text="{Binding TransferText}"
+                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                   Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"
+                                   Visibility="{Binding HasTransferText, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+                        <TextBlock HorizontalAlignment="Right"
+                                   Text="{Binding RateAndEtaText}"
+                                   TextAlignment="Right"
+                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                   Visibility="{Binding HasRateAndEtaText, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+                    </Grid>
+
+                    <TextBlock Grid.Row="4"
+                               Margin="0,10,0,0"
+                               Text="{Binding DetailText}"
+                               Style="{StaticResource AtlasV2.Text.Caption}"
+                               Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"
+                               Visibility="{Binding HasDetailText, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+
+                    <Grid Grid.Row="5" Margin="0,12,0,0">
+                        <Border Padding="10,8"
+                                HorizontalAlignment="Stretch"
+                                Style="{StaticResource AtlasV2.Banner.Error}"
+                                Visibility="{Binding HasError, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                            <TextBlock Text="{Binding ErrorMessage}"
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource AtlasV2.Text.Caption}"
+                                       Foreground="{StaticResource AtlasV2.Brush.Danger}"/>
+                        </Border>
+                        <Button x:Name="CancelActivityButton"
+                                MinWidth="96"
+                                Height="34"
+                                Padding="14,0"
+                                HorizontalAlignment="Right"
+                                Style="{StaticResource AtlasV2.Button.GhostCompact}"
+                                Content="{Binding CancelActionLabel}"
+                                IsEnabled="{Binding CanUserCancel}"
+                                Visibility="{Binding ShowsCancelAction, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
+                                ToolTip="Annuler l’opération"
+                                AutomationProperties.Name="Annuler l’opération"
+                                Click="CancelActivityButton_Click"/>
+                    </Grid>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="AtlasV2.Activity.PendingOperation">
+            <Grid Margin="0,0,0,9">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="34"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Border Width="30"
+                        Height="30"
+                        Padding="3"
+                        Background="{StaticResource AtlasV2.Brush.Field}"
+                        CornerRadius="5">
+                    <Image Source="{Binding IconUri}" Stretch="Uniform" Opacity="0.72"/>
+                </Border>
+                <TextBlock Grid.Column="1"
+                           Margin="9,0,8,0"
+                           VerticalAlignment="Center"
+                           Text="{Binding ProductName}"
+                           TextTrimming="CharacterEllipsis"
+                           Style="{StaticResource AtlasV2.Text.Body}"
+                           FontSize="13"
+                           Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+                <TextBlock Grid.Column="2"
+                           VerticalAlignment="Center"
+                           Text="{Binding ActionName}"
+                           Style="{StaticResource AtlasV2.Text.Caption}"/>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="AtlasV2.Activity.RecentOperation">
+            <Border MinHeight="52"
+                    Margin="0,0,0,7"
+                    Padding="10,7"
+                    Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                    BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="22"/>
+                        <ColumnDefinition Width="32"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="18"/>
+                    </Grid.ColumnDefinitions>
+                    <Path Width="16"
+                          Height="16"
+                          VerticalAlignment="Center"
+                          Stretch="Uniform">
+                        <Path.Style>
+                            <Style TargetType="{x:Type Path}" BasedOn="{StaticResource AtlasV2.Icon.Stroke}">
+                                <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Minus}"/>
+                                <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Outcome}" Value="{x:Static presentation:ActivityRecentOutcome.Succeeded}">
+                                        <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Check}"/>
+                                        <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Success}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Outcome}" Value="{x:Static presentation:ActivityRecentOutcome.Failed}">
+                                        <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Close}"/>
+                                        <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Danger}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Path.Style>
+                    </Path>
+                    <Image Grid.Column="1"
+                           Width="26"
+                           Height="26"
+                           VerticalAlignment="Center"
+                           Source="{Binding IconUri}"
+                           Stretch="Uniform"
+                           Opacity="0.82"/>
+                    <StackPanel Grid.Column="2" Margin="7,0,8,0">
+                        <TextBlock Text="{Binding ProductName}"
+                                   TextTrimming="CharacterEllipsis"
+                                   Style="{StaticResource AtlasV2.Text.Body}"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                        <TextBlock Margin="0,1,0,0"
+                                   Text="{Binding ResultText}"
+                                   TextTrimming="CharacterEllipsis"
+                                   Style="{StaticResource AtlasV2.Text.Caption}"/>
+                    </StackPanel>
+                    <TextBlock Grid.Column="3"
+                               Margin="4,0,5,0"
+                               VerticalAlignment="Center"
+                               Text="{Binding CompletedAtText}"
+                               Style="{StaticResource AtlasV2.Text.Caption}"/>
+                    <Path Grid.Column="4"
+                          Width="13"
+                          Height="13"
+                          VerticalAlignment="Center"
+                          Data="{StaticResource AtlasV2.Icon.ArrowRight}"
+                          Style="{StaticResource AtlasV2.Icon.Stroke}"
+                          Stroke="{StaticResource AtlasV2.Brush.Gold}"
+                          Visibility="{Binding CanNavigate, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid x:Name="OverlayRoot">
+        <Border x:Name="Scrim"
+                Background="{StaticResource AtlasV2.Brush.Scrim}"
+                Opacity="0"
+                IsHitTestVisible="False"
+                MouseLeftButtonDown="Scrim_MouseLeftButtonDown"/>
+
+        <Border x:Name="ActivityPanel"
+                Width="412"
+                Margin="0,10,10,10"
+                Padding="18"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Stretch"
+                Background="#FC141A20"
+                BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Opacity="0"
+                KeyboardNavigation.TabNavigation="Cycle"
+                KeyboardNavigation.ControlTabNavigation="Cycle"
+                KeyboardNavigation.DirectionalNavigation="Contained">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="PanelTranslate" X="428"/>
+            </Border.RenderTransform>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="0,0,0,18">
+                    <StackPanel>
+                        <TextBlock Text="ATLAS LAUNCHER"
+                                   Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
+                        <TextBlock Margin="0,4,0,0"
+                                   Text="Activité"
+                                   Style="{StaticResource AtlasV2.Text.SectionTitle}"
+                                   FontSize="24"/>
+                    </StackPanel>
+                    <Button x:Name="CloseButton"
+                            Width="38"
+                            Height="38"
+                            Padding="10"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Style="{StaticResource AtlasV2.Button.Icon}"
+                            ToolTip="Fermer"
+                            AutomationProperties.Name="Fermer le centre d’activité"
+                            Click="CloseButton_Click">
+                        <Path Data="{StaticResource AtlasV2.Icon.Close}"
+                              Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                    </Button>
+                </Grid>
+
+                <StackPanel x:Name="ActiveSection"
+                            Grid.Row="1"
+                            Margin="0,0,0,16"
+                            Visibility="{Binding State.Current.HasActiveOperation, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                    <TextBlock Margin="0,0,0,8"
+                               Text="EN COURS"
+                               Style="{StaticResource AtlasV2.Text.Eyebrow}"
+                               Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
+                    <ContentControl Content="{Binding State.Current.ActiveOperation, ElementName=Root}"
+                                    ContentTemplate="{StaticResource AtlasV2.Activity.ActiveOperation}"/>
+                </StackPanel>
+
+                <StackPanel x:Name="PendingSection"
+                            Grid.Row="2"
+                            Margin="0,0,0,12"
+                            Visibility="{Binding State.Current.HasPendingOperations, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                    <TextBlock Margin="0,0,0,9"
+                               Text="EN ATTENTE"
+                               Style="{StaticResource AtlasV2.Text.Eyebrow}"
+                               Foreground="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                    <ItemsControl ItemsSource="{Binding State.Current.PendingOperations, ElementName=Root}"
+                                  ItemTemplate="{StaticResource AtlasV2.Activity.PendingOperation}"/>
+                </StackPanel>
+
+                <Grid Grid.Row="3">
+                    <Grid x:Name="RecentSection"
+                          Visibility="{Binding State.Current.HasRecentOperations, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Margin="0,0,0,9"
+                                   Text="RÉCENT"
+                                   Style="{StaticResource AtlasV2.Text.Eyebrow}"
+                                   Foreground="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                        <ScrollViewer x:Name="RecentScrollViewer"
+                                      Grid.Row="1"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <ScrollViewer.Resources>
+                                <Style TargetType="{x:Type ScrollBar}"
+                                       BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/>
+                            </ScrollViewer.Resources>
+                            <ItemsControl Margin="0,0,5,0"
+                                          ItemsSource="{Binding State.Current.RecentOperations, ElementName=Root}"
+                                          ItemTemplate="{StaticResource AtlasV2.Activity.RecentOperation}"/>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <StackPanel x:Name="EmptyState"
+                                Margin="24,50"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Top"
+                                Visibility="{Binding State.Current.ShowsEmptyState, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                        <Border Width="52"
+                                Height="52"
+                                Margin="0,0,0,14"
+                                Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                                BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                                BorderThickness="1"
+                                CornerRadius="7">
+                            <Path Width="23"
+                                  Height="23"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  Data="{StaticResource AtlasV2.Icon.Download}"
+                                  Style="{StaticResource AtlasV2.Icon.Stroke}"
+                                  Stroke="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                        </Border>
+                        <TextBlock HorizontalAlignment="Center"
+                                   Text="Aucune activité récente"
+                                   Style="{StaticResource AtlasV2.Text.Body}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                        <TextBlock Width="270"
+                                   Margin="0,7,0,0"
+                                   HorizontalAlignment="Center"
+                                   Text="Les installations, mises à jour et réparations apparaîtront ici."
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                   LineHeight="18"/>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

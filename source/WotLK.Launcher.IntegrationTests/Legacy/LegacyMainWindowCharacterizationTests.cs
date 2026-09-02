@@ -1025,6 +1025,14 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
 
     internal Func<string, CancellationToken, Task>? RevokeSessionHandler { get; set; }
 
+    internal Func<CancellationToken, Task<IReadOnlyList<LauncherFriend>>>? FriendsHandler { get; set; }
+
+    internal Func<string, CancellationToken, Task<string>>? SendFriendRequestHandler { get; set; }
+
+    internal Func<uint, CancellationToken, Task>? AcceptFriendHandler { get; set; }
+
+    internal Func<uint, CancellationToken, Task>? RemoveFriendHandler { get; set; }
+
     internal Func<CancellationToken, Task<string>>? ResendVerificationHandler { get; set; }
 
     public LauncherAuthSession? Session { get; set; }
@@ -1044,6 +1052,12 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
     internal int EnsureFreshCalls { get; private set; }
 
     internal int GetFriendsCalls { get; private set; }
+
+    internal int SendFriendRequestCalls { get; private set; }
+
+    internal int AcceptFriendCalls { get; private set; }
+
+    internal int RemoveFriendCalls { get; private set; }
 
     internal int GetStatusCalls { get; private set; }
 
@@ -1248,24 +1262,31 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
         CancellationToken cancellationToken = default)
     {
         GetFriendsCalls++;
-        return Task.FromResult<IReadOnlyList<LauncherFriend>>([]);
+        return FriendsHandler?.Invoke(cancellationToken)
+            ?? Task.FromResult<IReadOnlyList<LauncherFriend>>([]);
     }
 
     public Task<string> SendFriendRequestAsync(
         string username,
         CancellationToken cancellationToken = default)
     {
-        return Task.FromResult("OK");
+        SendFriendRequestCalls++;
+        return SendFriendRequestHandler?.Invoke(username, cancellationToken)
+            ?? Task.FromResult("OK");
     }
 
     public Task AcceptFriendAsync(uint accountId, CancellationToken cancellationToken = default)
     {
-        return Task.CompletedTask;
+        AcceptFriendCalls++;
+        return AcceptFriendHandler?.Invoke(accountId, cancellationToken)
+            ?? Task.CompletedTask;
     }
 
     public Task RemoveFriendAsync(uint accountId, CancellationToken cancellationToken = default)
     {
-        return Task.CompletedTask;
+        RemoveFriendCalls++;
+        return RemoveFriendHandler?.Invoke(accountId, cancellationToken)
+            ?? Task.CompletedTask;
     }
 
     public Task<LauncherServerStatus> GetStatusAsync(CancellationToken cancellationToken = default)
@@ -1316,6 +1337,9 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
     {
         EnsureFreshCalls = 0;
         GetFriendsCalls = 0;
+        SendFriendRequestCalls = 0;
+        AcceptFriendCalls = 0;
+        RemoveFriendCalls = 0;
         GetStatusCalls = 0;
         GetNewsCalls = 0;
         CreateGameTicketCalls = 0;

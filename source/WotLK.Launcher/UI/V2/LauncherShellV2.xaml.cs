@@ -16,11 +16,13 @@ public partial class LauncherShellV2 : Window
     private readonly ShellOverlayCoordinator _overlayCoordinator;
     private readonly AuthPreviewScenario? _initialAuthPreviewScenario;
     private readonly ProfilePreviewScenario? _initialProfilePreviewScenario;
+    private readonly bool _openFriendsOnLoad;
     private readonly LauncherShellPage _initialPage;
     private IInputElement? _authFocusReturnTarget;
     private IInputElement? _avatarCropFocusReturnTarget;
     private AuthCommands? _authCommands;
     private AccountCommands? _accountCommands;
+    private FriendsCommands? _friendsCommands;
 
     public LauncherShellV2(GamePreviewScenario scenario = GamePreviewScenario.Ready)
         : this(
@@ -91,6 +93,25 @@ public partial class LauncherShellV2 : Window
             profilePreviewScenario: null,
             isPreviewMode: true,
             initialPage: LauncherShellPage.Settings)
+    {
+    }
+
+    public LauncherShellV2(GamePreviewScenario scenario, FriendsPreviewScenario friendsScenario)
+        : this(
+            LauncherV2PreviewData.CreateShell(scenario),
+            LauncherV2PreviewData.CreateGame(scenario),
+            LauncherV2PreviewData.CreateDashboard(scenario),
+            LauncherV2PreviewData.CreateFriends(friendsScenario),
+            LauncherV2PreviewData.CreateAuth(),
+            LauncherV2PreviewData.CreateProfile(),
+            LauncherV2PreviewData.CreateSettings(),
+            LauncherV2PreviewData.CreateAccount(),
+            LauncherV2PreviewData.CreateAvatarCrop(),
+            authPreviewScenario: null,
+            profilePreviewScenario: null,
+            isPreviewMode: true,
+            initialPage: LauncherShellPage.Game,
+            openFriendsOnLoad: true)
     {
     }
 
@@ -209,7 +230,8 @@ public partial class LauncherShellV2 : Window
         AuthPreviewScenario? authPreviewScenario,
         ProfilePreviewScenario? profilePreviewScenario,
         bool isPreviewMode,
-        LauncherShellPage initialPage)
+        LauncherShellPage initialPage,
+        bool openFriendsOnLoad = false)
     {
         ShellState = shellState ?? throw new ArgumentNullException(nameof(shellState));
         GameState = gameState ?? throw new ArgumentNullException(nameof(gameState));
@@ -228,6 +250,7 @@ public partial class LauncherShellV2 : Window
         _initialAuthPreviewScenario = authPreviewScenario;
         _initialProfilePreviewScenario = profilePreviewScenario;
         _initialPage = initialPage;
+        _openFriendsOnLoad = openFriendsOnLoad;
         IsPreviewMode = isPreviewMode;
 
         InitializeComponent();
@@ -320,6 +343,16 @@ public partial class LauncherShellV2 : Window
         AccountView.AttachCommands(commands);
     }
 
+    internal void AttachFriends(FriendsCommands commands)
+    {
+        if (IsPreviewMode)
+        {
+            throw new InvalidOperationException("Le preview ne peut pas recevoir les commandes Amis réelles.");
+        }
+
+        _friendsCommands = commands ?? throw new ArgumentNullException(nameof(commands));
+    }
+
     internal void OpenAuthenticationForPendingPlay()
     {
         if (IsPreviewMode)
@@ -407,6 +440,10 @@ public partial class LauncherShellV2 : Window
         {
             OpenProfileForPreview(profileScenario);
         }
+        else if (_openFriendsOnLoad)
+        {
+            OpenFriendsDrawerForPreview();
+        }
 
         if (AvatarCropState.IsOpen)
         {
@@ -428,6 +465,7 @@ public partial class LauncherShellV2 : Window
         ProfileMenu.ManageAccountRequested -= ProfileMenu_ManageAccountRequested;
         _authCommands = null;
         _accountCommands = null;
+        _friendsCommands = null;
         AccountView.DetachFromShell();
         AuthOverlay.DetachFromShell();
         AuthOverlay.State = null;
@@ -435,6 +473,8 @@ public partial class LauncherShellV2 : Window
         ProfileMenu.DetachFromShell();
         ProfileMenu.State = null;
         ProfileMenu.IsOpen = false;
+        FriendsDrawer.State = null;
+        FriendsDrawer.IsOpen = false;
         AvatarCropOverlay.DetachFromShell();
         AvatarCropOverlay.State = null;
         AvatarCropOverlay.IsOpen = false;
@@ -505,6 +545,10 @@ public partial class LauncherShellV2 : Window
         if (_overlayCoordinator.TryToggleFriends())
         {
             FriendsButton.Focusable = !FriendsState.IsOpen;
+            if (FriendsState.IsOpen)
+            {
+                _friendsCommands?.Refresh();
+            }
         }
     }
 

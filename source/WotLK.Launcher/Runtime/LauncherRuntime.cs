@@ -235,6 +235,12 @@ internal sealed class LauncherRuntime : IDisposable
             () => _authentication.Session?.Profile,
             dependencies.WriteRuntimeLog,
             dependencies.AccountTimeProvider);
+        Friends = new LauncherFriendsCoordinator(
+            _sessionCoordinator,
+            _authentication,
+            Operations.ShutdownToken,
+            () => _authentication.Session?.Profile,
+            dependencies.WriteRuntimeLog);
     }
 
     internal LauncherSettings Settings { get; }
@@ -260,6 +266,8 @@ internal sealed class LauncherRuntime : IDisposable
     internal AvatarImageCache AvatarImages { get; }
 
     internal LauncherAccountCoordinator Account { get; }
+
+    internal LauncherFriendsCoordinator Friends { get; }
 
     internal LauncherSessionCoordinator Session => _sessionCoordinator;
 
@@ -353,6 +361,7 @@ internal sealed class LauncherRuntime : IDisposable
             _sessionCoordinator.BeginShutdown();
             Game.BeginShutdown();
             Account.BeginShutdown();
+            Friends.BeginShutdown();
         }
     }
 
@@ -364,12 +373,14 @@ internal sealed class LauncherRuntime : IDisposable
         Task<bool> session = _sessionCoordinator.WaitForIdleAsync(timeout);
         Task<bool> profile = Profile.WaitForIdleAsync(timeout);
         Task<bool> account = Account.WaitForIdleAsync(timeout);
+        Task<bool> friends = Friends.WaitForIdleAsync(timeout);
         bool[] results = await Task.WhenAll(
             operations,
             dashboard,
             session,
             profile,
-            account).ConfigureAwait(false);
+            account,
+            friends).ConfigureAwait(false);
         return results.All(result => result);
     }
 
@@ -389,6 +400,8 @@ internal sealed class LauncherRuntime : IDisposable
             _sessionCoordinator.BeginShutdown();
             Game.BeginShutdown();
             Account.BeginShutdown();
+            Friends.BeginShutdown();
+            Friends.Dispose();
             Account.Dispose();
             Profile.Dispose();
             SettingsRuntime.Dispose();

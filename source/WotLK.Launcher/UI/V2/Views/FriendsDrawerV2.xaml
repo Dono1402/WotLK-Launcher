@@ -2,6 +2,7 @@
              x:Name="Root"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:WotLK.Launcher.UI.V2.Views"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              mc:Ignorable="d"
@@ -11,6 +12,195 @@
              Visibility="Collapsed"
              IsHitTestVisible="False"
              Focusable="False">
+    <UserControl.Resources>
+        <DataTemplate x:Key="AtlasV2.Friends.Avatar">
+            <Grid Width="38" Height="38">
+                <Ellipse Fill="{Binding AvatarColor}"/>
+                <TextBlock HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Text="{Binding Initial}"
+                           FontFamily="{StaticResource AtlasV2.Font.Manrope}"
+                           FontSize="13"
+                           FontWeight="Bold"
+                           Foreground="#111318"/>
+                <Ellipse Stroke="{StaticResource AtlasV2.Brush.Border}"
+                         StrokeThickness="1"/>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="AtlasV2.Friends.IncomingItem">
+            <Border MinHeight="78"
+                    Margin="0,0,0,7"
+                    Padding="10"
+                    Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                    BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="38"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <ContentControl Content="{Binding}"
+                                    ContentTemplate="{StaticResource AtlasV2.Friends.Avatar}"/>
+                    <Grid Grid.Column="1" Margin="10,0,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="{Binding Username}"
+                                   TextTrimming="CharacterEllipsis"
+                                   Style="{StaticResource AtlasV2.Text.Body}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                        <TextBlock Grid.Row="1"
+                                   Margin="0,2,0,7"
+                                   Text="Demande reçue"
+                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                   Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
+                        <StackPanel Grid.Row="2" Orientation="Horizontal">
+                            <Button MinWidth="82"
+                                    Height="32"
+                                    Padding="10,0"
+                                    Style="{StaticResource AtlasV2.Button.GhostCompact}"
+                                    Command="{Binding State.AcceptRequestCommand, RelativeSource={RelativeSource AncestorType={x:Type views:FriendsDrawerV2}}}"
+                                    CommandParameter="{Binding AccountId}"
+                                    AutomationProperties.Name="Accepter la demande"
+                                    Content="Accepter"/>
+                            <Button Width="32"
+                                    Height="32"
+                                    Margin="6,0,0,0"
+                                    Padding="8"
+                                    Style="{StaticResource AtlasV2.Button.Icon}"
+                                    Command="{Binding State.RejectRequestCommand, RelativeSource={RelativeSource AncestorType={x:Type views:FriendsDrawerV2}}}"
+                                    CommandParameter="{Binding AccountId}"
+                                    ToolTip="Refuser"
+                                    AutomationProperties.Name="Refuser la demande">
+                                <Path Data="{StaticResource AtlasV2.Icon.Close}"
+                                      Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="AtlasV2.Friends.OutgoingItem">
+            <Border MinHeight="64"
+                    Margin="0,0,0,7"
+                    Padding="10"
+                    Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                    BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="38"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <ContentControl Content="{Binding}"
+                                    ContentTemplate="{StaticResource AtlasV2.Friends.Avatar}"/>
+                    <StackPanel Grid.Column="1" Margin="10,0,8,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Username}"
+                                   TextTrimming="CharacterEllipsis"
+                                   Style="{StaticResource AtlasV2.Text.Body}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                        <TextBlock Margin="0,2,0,0"
+                                   Text="En attente"
+                                   Style="{StaticResource AtlasV2.Text.Caption}"/>
+                    </StackPanel>
+                    <Button Grid.Column="2"
+                            Height="32"
+                            Padding="9,0"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource AtlasV2.Button.GhostCompact}"
+                            Command="{Binding State.CancelRequestCommand, RelativeSource={RelativeSource AncestorType={x:Type views:FriendsDrawerV2}}}"
+                            CommandParameter="{Binding AccountId}"
+                            Content="Annuler"/>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="AtlasV2.Friends.FriendItem">
+            <Border MinHeight="76"
+                    Margin="0,0,0,7"
+                    Padding="10"
+                    Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                    BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="38"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="32"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid>
+                        <ContentControl Content="{Binding}"
+                                        ContentTemplate="{StaticResource AtlasV2.Friends.Avatar}"/>
+                        <Ellipse Width="9"
+                                 Height="9"
+                                 Margin="0,0,-1,-1"
+                                 HorizontalAlignment="Right"
+                                 VerticalAlignment="Bottom"
+                                 Stroke="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                                 StrokeThickness="2">
+                            <Ellipse.Style>
+                                <Style TargetType="{x:Type Ellipse}">
+                                    <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsOnline}" Value="True">
+                                            <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Success}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                    </Grid>
+                    <StackPanel Grid.Column="1" Margin="10,0,7,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Username}"
+                                   TextTrimming="CharacterEllipsis"
+                                   Style="{StaticResource AtlasV2.Text.Body}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                        <TextBlock Margin="0,2,0,0"
+                                   Text="{Binding CharacterName}"
+                                   TextTrimming="CharacterEllipsis"
+                                   Visibility="{Binding HasCharacter, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
+                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                   Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
+                        <TextBlock Margin="0,2,0,0"
+                                   Text="{Binding CharacterDetails}"
+                                   TextTrimming="CharacterEllipsis"
+                                   Visibility="{Binding HasCharacter, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
+                                   Style="{StaticResource AtlasV2.Text.Caption}"/>
+                        <TextBlock Margin="0,2,0,0"
+                                   Text="{Binding PresenceText}"
+                                   TextTrimming="CharacterEllipsis"
+                                   Style="{StaticResource AtlasV2.Text.Caption}"/>
+                    </StackPanel>
+                    <Button Grid.Column="2"
+                            Width="32"
+                            Height="32"
+                            Padding="8"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource AtlasV2.Button.Icon}"
+                            CommandParameter="{Binding AccountId}"
+                            IsEnabled="{Binding CanRemove}"
+                            Click="RemoveFriendButton_Click"
+                            ToolTip="Retirer de mes amis"
+                            AutomationProperties.Name="Retirer de mes amis">
+                        <Path Data="{StaticResource AtlasV2.Icon.Trash}"
+                              Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                    </Button>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
     <Grid x:Name="OverlayRoot">
         <Border x:Name="Scrim"
                 Background="{StaticResource AtlasV2.Brush.Scrim}"
@@ -21,7 +211,7 @@
         <Border x:Name="DrawerPanel"
                 Width="360"
                 Margin="0,10,10,10"
-                Padding="22"
+                Padding="18"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Stretch"
                 Background="#FC141A20"
@@ -39,15 +229,16 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
                 <Grid Grid.Row="0">
                     <StackPanel>
                         <TextBlock Text="AMIS ATLAS"
                                    Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
-                        <TextBlock Margin="0,5,0,0"
+                        <TextBlock Margin="0,4,0,0"
                                    Text="Mes amis"
                                    Style="{StaticResource AtlasV2.Text.SectionTitle}"
                                    FontSize="24"/>
@@ -67,17 +258,20 @@
                     </Button>
                 </Grid>
 
-                <Grid Grid.Row="1" Margin="0,22,0,14">
-                    <TextBlock Style="{StaticResource AtlasV2.Text.Caption}">
-                        <Run Text="{Binding State.OnlineCount, ElementName=Root, Mode=OneWay}"/>
+                <Grid Grid.Row="1" Margin="0,18,0,12">
+                    <TextBlock VerticalAlignment="Center"
+                               Style="{StaticResource AtlasV2.Text.Caption}">
+                        <Run Text="{Binding State.Current.OnlineCount, ElementName=Root, Mode=OneWay}"/>
                         <Run Text=" en jeu sur "/>
-                        <Run Text="{Binding State.Friends.Count, ElementName=Root, Mode=OneWay}"/>
+                        <Run Text="{Binding State.Current.Friends.Count, ElementName=Root, Mode=OneWay}"/>
                     </TextBlock>
-                    <Button Width="34"
+                    <Button x:Name="RefreshFriendsButton"
+                            Width="34"
                             Height="34"
                             Padding="9"
                             HorizontalAlignment="Right"
                             Style="{StaticResource AtlasV2.Button.Icon}"
+                            Command="{Binding State.RefreshCommand, ElementName=Root}"
                             ToolTip="Actualiser"
                             AutomationProperties.Name="Actualiser les amis">
                         <Path Data="{StaticResource AtlasV2.Icon.Refresh}"
@@ -85,89 +279,136 @@
                     </Button>
                 </Grid>
 
-                <ScrollViewer Grid.Row="2"
+                <StackPanel Grid.Row="2" Margin="0,0,0,12">
+                    <TextBlock Margin="0,0,0,6"
+                               Text="Ajouter un ami"
+                               Style="{StaticResource AtlasV2.Text.Caption}"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+                    <Border Height="42"
+                            Background="{StaticResource AtlasV2.Brush.Field}"
+                            BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                            BorderThickness="1"
+                            CornerRadius="6">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="42"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="FriendSearchBox"
+                                     Margin="12,0,6,0"
+                                     MaxLength="32"
+                                     Text="{Binding State.SearchText, ElementName=Root, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding State.Current.CanSendRequest, ElementName=Root}"
+                                     Style="{StaticResource AtlasV2.TextBox.Field}"
+                                     AutomationProperties.Name="Nom d’utilisateur Atlas"
+                                     KeyDown="FriendSearchBox_KeyDown"/>
+                            <Button x:Name="SendFriendRequestButton"
+                                    Grid.Column="1"
+                                    Width="38"
+                                    Height="38"
+                                    Padding="10"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource AtlasV2.Button.Icon}"
+                                    Command="{Binding State.SendRequestCommand, ElementName=Root}"
+                                    ToolTip="Envoyer la demande"
+                                    AutomationProperties.Name="Envoyer la demande d’ami">
+                                <Path Data="{StaticResource AtlasV2.Icon.ArrowRight}"
+                                      Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                            </Button>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Grid.Row="3" Margin="0,0,0,10">
+                    <ProgressBar x:Name="FriendsBusyProgress"
+                                 Margin="0,0,0,8"
+                                 IsIndeterminate="True"
+                                 Visibility="{Binding State.Current.IsLoading, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
+                                 Style="{StaticResource AtlasV2.Progress.Compact}"/>
+                    <Border Margin="0,0,0,7"
+                            Style="{StaticResource AtlasV2.Banner.Error}"
+                            Visibility="{Binding State.Current.ShowsError, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                        <TextBlock Text="{Binding State.Current.ErrorMessage, ElementName=Root}"
+                                   TextWrapping="Wrap"
+                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                   Foreground="{StaticResource AtlasV2.Brush.Danger}"/>
+                    </Border>
+                    <Border Margin="0,0,0,7"
+                            Padding="12,9"
+                            Background="{StaticResource AtlasV2.Brush.SuccessSurface}"
+                            BorderBrush="{StaticResource AtlasV2.Brush.SuccessBorder}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Visibility="{Binding State.Current.ShowsNotice, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                        <TextBlock Text="{Binding State.Current.NoticeMessage, ElementName=Root}"
+                                   TextWrapping="Wrap"
+                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                   Foreground="{StaticResource AtlasV2.Brush.Success}"/>
+                    </Border>
+                    <TextBlock Text="{Binding State.Current.StatusMessage, ElementName=Root}"
+                               TextWrapping="Wrap"
+                               Style="{StaticResource AtlasV2.Text.Caption}"/>
+                </StackPanel>
+
+                <ScrollViewer x:Name="FriendsScrollViewer"
+                              Grid.Row="4"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <ScrollViewer.Resources>
                         <Style TargetType="{x:Type ScrollBar}"
                                BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/>
                     </ScrollViewer.Resources>
-                    <ItemsControl ItemsSource="{Binding State.Friends, ElementName=Root}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border Height="92"
-                                        Margin="0,0,0,8"
-                                        Padding="12"
-                                        Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
-                                        BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
-                                        BorderThickness="1"
-                                        CornerRadius="6">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="42"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Border Width="36"
-                                                Height="36"
-                                                HorizontalAlignment="Left"
-                                                VerticalAlignment="Center"
-                                                Background="#D6A94E"
-                                                CornerRadius="18">
-                                            <TextBlock HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       Text="{Binding Initial}"
-                                                       FontFamily="{StaticResource AtlasV2.Font.Manrope}"
-                                                       FontSize="14"
-                                                       FontWeight="Bold"
-                                                       Foreground="#111318"/>
-                                        </Border>
-                                        <StackPanel Grid.Column="1"
-                                                    Margin="10,0,10,0"
-                                                    VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Username}"
-                                                       Style="{StaticResource AtlasV2.Text.Body}"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{StaticResource AtlasV2.Brush.Text}"/>
-                                            <TextBlock Margin="0,2,0,0"
-                                                       Text="{Binding CharacterName}"
-                                                       Style="{StaticResource AtlasV2.Text.Caption}"
-                                                       Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
-                                            <TextBlock Margin="0,1,0,0"
-                                                       Text="{Binding CharacterDetails}"
-                                                       Style="{StaticResource AtlasV2.Text.Caption}"/>
-                                            <TextBlock Margin="0,3,0,0"
-                                                       Text="{Binding PresenceText}"
-                                                       Style="{StaticResource AtlasV2.Text.Caption}"/>
-                                        </StackPanel>
-                                        <Ellipse Grid.Column="2"
-                                                 Width="8"
-                                                 Height="8"
-                                                 VerticalAlignment="Top"
-                                                 Margin="0,5,0,0">
-                                            <Ellipse.Style>
-                                                <Style TargetType="{x:Type Ellipse}">
-                                                    <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsOnline}" Value="True">
-                                                            <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Success}"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Ellipse.Style>
-                                        </Ellipse>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
+                    <StackPanel Margin="0,0,5,0">
+                        <StackPanel x:Name="IncomingRequestsSection"
+                                    Margin="0,2,0,12"
+                                    Visibility="{Binding State.Current.HasIncomingRequests, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                            <TextBlock Margin="0,0,0,7"
+                                       Text="DEMANDES REÇUES"
+                                       Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
+                            <ItemsControl ItemsSource="{Binding State.Current.IncomingRequests, ElementName=Root}"
+                                          ItemTemplate="{StaticResource AtlasV2.Friends.IncomingItem}"/>
+                        </StackPanel>
 
-                <Button Grid.Row="3"
-                        Margin="0,12,0,0"
-                        Style="{StaticResource AtlasV2.Button.Secondary}"
-                        Content="Gérer mes amis"
-                        AutomationProperties.Name="Gérer mes amis"/>
+                        <StackPanel x:Name="OutgoingRequestsSection"
+                                    Margin="0,0,0,12"
+                                    Visibility="{Binding State.Current.HasOutgoingRequests, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                            <TextBlock Margin="0,0,0,7"
+                                       Text="DEMANDES ENVOYÉES"
+                                       Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
+                            <ItemsControl ItemsSource="{Binding State.Current.OutgoingRequests, ElementName=Root}"
+                                          ItemTemplate="{StaticResource AtlasV2.Friends.OutgoingItem}"/>
+                        </StackPanel>
+
+                        <StackPanel x:Name="FriendsListSection"
+                                    Visibility="{Binding State.Current.HasFriends, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                            <TextBlock Margin="0,0,0,7"
+                                       Text="AMIS"
+                                       Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
+                            <ItemsControl x:Name="FriendsItemsControl"
+                                          ItemsSource="{Binding State.Current.Friends, ElementName=Root}"
+                                          ItemTemplate="{StaticResource AtlasV2.Friends.FriendItem}"/>
+                        </StackPanel>
+
+                        <StackPanel x:Name="FriendsEmptyState"
+                                    Margin="12,42"
+                                    HorizontalAlignment="Center"
+                                    Visibility="{Binding State.Current.ShowsGlobalEmpty, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                            <Path Width="28"
+                                  Height="28"
+                                  Margin="0,0,0,10"
+                                  Data="{StaticResource AtlasV2.Icon.Users}"
+                                  Style="{StaticResource AtlasV2.Icon.Stroke}"
+                                  Stroke="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                            <TextBlock HorizontalAlignment="Center"
+                                       Text="Aucun ami pour le moment"
+                                       Style="{StaticResource AtlasV2.Text.Body}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
             </Grid>
         </Border>
     </Grid>

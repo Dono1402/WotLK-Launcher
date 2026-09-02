@@ -19,6 +19,7 @@ internal enum LauncherStartupMode
     UiV2AuthPreview,
     UiV2ProfilePreview,
     UiV2SettingsPreview,
+    UiV2FriendsPreview,
     UiV2AccountPreview,
     InvalidArguments,
     GrantGameDirectoryAccess,
@@ -49,6 +50,7 @@ public partial class App : Application
             or LauncherStartupMode.UiV2AuthPreview
             or LauncherStartupMode.UiV2ProfilePreview
             or LauncherStartupMode.UiV2SettingsPreview
+            or LauncherStartupMode.UiV2FriendsPreview
             or LauncherStartupMode.UiV2AccountPreview)
         {
             try
@@ -71,6 +73,7 @@ public partial class App : Application
                 or LauncherStartupMode.UiV2AuthPreview
                 or LauncherStartupMode.UiV2ProfilePreview
                 or LauncherStartupMode.UiV2SettingsPreview
+                or LauncherStartupMode.UiV2FriendsPreview
                 or LauncherStartupMode.UiV2AccountPreview)
             {
                 GamePreviewScenario previewScenario = LauncherV2PreviewData.ResolveScenario(e.Args);
@@ -85,6 +88,9 @@ public partial class App : Application
                     LauncherStartupMode.UiV2SettingsPreview => new LauncherShellV2(
                         previewScenario,
                         SettingsPreviewArguments.ResolveScenario(e.Args)),
+                    LauncherStartupMode.UiV2FriendsPreview => new LauncherShellV2(
+                        previewScenario,
+                        FriendsPreviewArguments.ResolveScenario(e.Args)),
                     LauncherStartupMode.UiV2AccountPreview => new LauncherShellV2(
                         previewScenario,
                         AccountPreviewArguments.ResolveScenario(e.Args)),
@@ -125,10 +131,12 @@ public partial class App : Application
         bool useAuthPreview = AuthPreviewArguments.IsRequested(args);
         bool useProfilePreview = ProfilePreviewArguments.IsRequested(args);
         bool useSettingsPreview = SettingsPreviewArguments.IsRequested(args);
+        bool useFriendsPreview = FriendsPreviewArguments.IsRequested(args);
         bool useAccountPreview = AccountPreviewArguments.IsRequested(args);
         int dedicatedPreviewCount = (useAuthPreview ? 1 : 0)
             + (useProfilePreview ? 1 : 0)
             + (useSettingsPreview ? 1 : 0)
+            + (useFriendsPreview ? 1 : 0)
             + (useAccountPreview ? 1 : 0);
         if ((dedicatedPreviewCount > 0 && !useUiV2)
             || dedicatedPreviewCount > 1)
@@ -151,6 +159,11 @@ public partial class App : Application
             if (useSettingsPreview)
             {
                 return LauncherStartupMode.UiV2SettingsPreview;
+            }
+
+            if (useFriendsPreview)
+            {
+                return LauncherStartupMode.UiV2FriendsPreview;
             }
 
             if (useAccountPreview)
@@ -204,6 +217,8 @@ public partial class App : Application
         AccountUiState accountState = new(AccountStateAdapter.Project(
             runtime.Account.CurrentSnapshot,
             avatarImage: null));
+        FriendsUiState friendsState = new(FriendsStateAdapter.Project(
+            runtime.Friends.CurrentSnapshot));
         AvatarCropUiState avatarCropState = new(AvatarCropUiState.Empty.Current);
         GameCommands gameCommands = LauncherV2RuntimePresentation.ConnectLocalActions(
             gameState,
@@ -212,7 +227,7 @@ public partial class App : Application
             shellState,
             gameState,
             dashboardState,
-            LauncherV2RuntimePresentation.CreateFriends(),
+            friendsState,
             profileState,
             settingsState,
             accountState,
@@ -237,6 +252,15 @@ public partial class App : Application
             window.Dispatcher);
         AuthCommands authCommands = new(runtime);
         window.AttachAuthentication(authCommands);
+        FriendsCommands friendsCommands = new(
+            runtime.Friends,
+            friendsState,
+            window.Dispatcher);
+        window.AttachFriends(friendsCommands);
+        FriendsStateAdapter friendsStateAdapter = new(
+            friendsState,
+            runtime.Friends,
+            window.Dispatcher);
         AccountStateAdapter accountStateAdapter = new(
             accountState,
             avatarCropState,
@@ -314,10 +338,12 @@ public partial class App : Application
             dashboardStateAdapter.Dispose();
             authStateAdapter.Dispose();
             profileStateAdapter.Dispose();
+            friendsStateAdapter.Dispose();
             accountStateAdapter.Dispose();
             settingsStateAdapter.Dispose();
             settingsCommands.Dispose();
             authCommands.Dispose();
+            friendsCommands.Dispose();
             accountCommands.Dispose();
             logoutCommand.Dispose();
             primaryActionCommand.Dispose();

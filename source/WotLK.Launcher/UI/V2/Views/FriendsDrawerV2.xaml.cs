@@ -48,6 +48,14 @@ public partial class FriendsDrawerV2 : UserControl
         set => SetValue(IsOpenProperty, value);
     }
 
+    internal bool IsFullyClosed => Visibility == Visibility.Collapsed
+        && !IsHitTestVisible
+        && !Scrim.IsHitTestVisible;
+
+    internal TextBox SearchInput => FriendSearchBox;
+
+    internal ScrollViewer ScrollHost => FriendsScrollViewer;
+
     public bool ContainsKeyboardFocusTarget(DependencyObject? target)
     {
         return target is not null && IsDescendantOf(target, DrawerPanel);
@@ -231,5 +239,45 @@ public partial class FriendsDrawerV2 : UserControl
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
         RequestClose();
+    }
+
+    private void FriendSearchBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || State is null)
+        {
+            return;
+        }
+
+        if (State.SendRequestCommand.CanExecute(null))
+        {
+            State.SendRequestCommand.Execute(null);
+        }
+        e.Handled = true;
+    }
+
+    private void RemoveFriendButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (State is null
+            || State.Current.IsPreview
+            || sender is not Button { DataContext: FriendUiItem friend })
+        {
+            return;
+        }
+
+        MessageBoxResult confirmation = MessageBox.Show(
+            Window.GetWindow(this),
+            $"Retirer {friend.Username} de tes amis Atlas ?",
+            "Retirer un ami",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (confirmation != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        if (State.RemoveFriendCommand.CanExecute(friend.AccountId))
+        {
+            State.RemoveFriendCommand.Execute(friend.AccountId);
+        }
     }
 }

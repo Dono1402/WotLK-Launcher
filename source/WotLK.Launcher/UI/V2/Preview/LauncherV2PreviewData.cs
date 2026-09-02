@@ -1,4 +1,5 @@
 using System.IO;
+using System.Collections.Immutable;
 using System.Windows;
 using WotLK.Launcher.Dashboard;
 using WotLK.Launcher.UI.V2.Presentation;
@@ -465,38 +466,143 @@ public static class LauncherV2PreviewData
         return state;
     }
 
-    public static FriendsUiState CreateFriends()
+    public static FriendsUiState CreateFriends(
+        FriendsPreviewScenario scenario = FriendsPreviewScenario.Populated)
     {
-        FriendsUiState state = new();
-        state.Friends.Add(new FriendUiItem(
-            "warthoon",
-            "Ophntfranck",
-            "Mage · Niveau 12",
-            "W",
-            true,
-            "En jeu sur Arthas"));
-        state.Friends.Add(new FriendUiItem(
-            "lyssara",
-            "Lyssara",
-            "Prêtresse · Niveau 32",
-            "L",
-            true,
-            "Dans les Tarides"));
-        state.Friends.Add(new FriendUiItem(
-            "kaelorn",
-            "Kaelorn",
-            "Paladin · Niveau 28",
-            "K",
-            false,
-            "Hors ligne · il y a 2 h"));
-        state.Friends.Add(new FriendUiItem(
-            "nerya",
-            "Nerya",
-            "Druide · Niveau 18",
-            "N",
-            false,
-            "Hors ligne · hier"));
+        ImmutableArray<FriendUiItem> populated =
+        [
+            Friend(2, "warthoon", "Ophntfranck", "Mage · niveau 12", true, "En jeu", "#DEB75A", true),
+            Friend(3, "lyssara", "Lyssara", "Prêtre · niveau 32", true, "En jeu", "#61D5E8", true),
+            Friend(4, "kaelorn", "Kaelorn", "Paladin · niveau 28", false, "Hors ligne · vu hier à 22:14", "#51D7A2", true),
+            Friend(5, "nerya-au-nom-particulièrement-long", "Nerya", "Druide · niveau 18", false, "Hors ligne", "#DEB75A", false),
+            Friend(6, "thalion", "Thalion", "Guerrier · niveau 44", false, "Hors ligne · vu le 29/08 à 18:02", "#EE6571", true),
+            Friend(7, "elyndra", "Elyndra", "Chasseur · niveau 26", false, "Hors ligne", "#61D5E8", true)
+        ];
+        ImmutableArray<FriendUiItem> incoming =
+        [
+            Request(12, "aelwen", "#61D5E8", accept: true),
+            Request(13, "franck", "#DEB75A", accept: true)
+        ];
+        ImmutableArray<FriendUiItem> outgoing =
+        [
+            Request(18, "valdyr", "#51D7A2", accept: false)
+        ];
+        FriendsViewState view = scenario switch
+        {
+            FriendsPreviewScenario.Empty => PreviewFriendsView(
+                ImmutableArray<FriendUiItem>.Empty,
+                ImmutableArray<FriendUiItem>.Empty,
+                ImmutableArray<FriendUiItem>.Empty,
+                string.Empty),
+            FriendsPreviewScenario.IncomingRequests => PreviewFriendsView(
+                populated[..2], incoming, ImmutableArray<FriendUiItem>.Empty, "2 amis Atlas"),
+            FriendsPreviewScenario.OutgoingRequests => PreviewFriendsView(
+                populated[..2], ImmutableArray<FriendUiItem>.Empty, outgoing, "2 amis Atlas"),
+            FriendsPreviewScenario.AddFriend => PreviewFriendsView(
+                populated[..3], ImmutableArray<FriendUiItem>.Empty, outgoing, "3 amis Atlas",
+                notice: "Demande d’ami envoyée."),
+            FriendsPreviewScenario.AddFriendError => PreviewFriendsView(
+                populated[..3], ImmutableArray<FriendUiItem>.Empty, ImmutableArray<FriendUiItem>.Empty,
+                "3 amis Atlas", error: "Aucun compte Atlas ne porte ce nom."),
+            FriendsPreviewScenario.AvatarFallback => PreviewFriendsView(
+                [Friend(23, "sansavatar", "", "", false, "Hors ligne", "#DEB75A", false)],
+                ImmutableArray<FriendUiItem>.Empty,
+                ImmutableArray<FriendUiItem>.Empty,
+                "1 ami Atlas"),
+            FriendsPreviewScenario.NetworkError => PreviewFriendsView(
+                ImmutableArray<FriendUiItem>.Empty,
+                ImmutableArray<FriendUiItem>.Empty,
+                ImmutableArray<FriendUiItem>.Empty,
+                string.Empty,
+                error: "Impossible de joindre Atlas pour le moment.",
+                loadState: FriendsViewLoadState.Failed),
+            _ => PreviewFriendsView(populated, incoming, outgoing, "6 amis Atlas")
+        };
+        FriendsUiState state = new(view)
+        {
+            SearchText = scenario is FriendsPreviewScenario.AddFriend
+                or FriendsPreviewScenario.AddFriendError
+                    ? "franck"
+                    : string.Empty
+        };
+        state.AttachPreviewCommands();
         return state;
+    }
+
+    private static FriendsViewState PreviewFriendsView(
+        ImmutableArray<FriendUiItem> friends,
+        ImmutableArray<FriendUiItem> incoming,
+        ImmutableArray<FriendUiItem> outgoing,
+        string status,
+        string error = "",
+        string notice = "",
+        FriendsViewLoadState loadState = FriendsViewLoadState.Loaded)
+    {
+        return new FriendsViewState(
+            IsPreview: true,
+            IsRuntimeConnected: true,
+            LoadState: loadState,
+            Friends: friends,
+            IncomingRequests: incoming,
+            OutgoingRequests: outgoing,
+            Operation: FriendsViewOperation.None,
+            StatusMessage: status,
+            ErrorMessage: error,
+            NoticeMessage: notice,
+            CanRefresh: true,
+            CanSendRequest: true);
+    }
+
+    private static FriendUiItem Friend(
+        uint accountId,
+        string username,
+        string character,
+        string details,
+        bool online,
+        string presence,
+        string color,
+        bool themed)
+    {
+        return new FriendUiItem(
+            accountId,
+            username,
+            username[..1].ToUpperInvariant(),
+            color,
+            themed,
+            online,
+            presence,
+            character,
+            details,
+            character.Length > 0,
+            IsBusy: false,
+            CanAccept: false,
+            CanReject: false,
+            CanCancel: false,
+            CanRemove: true);
+    }
+
+    private static FriendUiItem Request(
+        uint accountId,
+        string username,
+        string color,
+        bool accept)
+    {
+        return new FriendUiItem(
+            accountId,
+            username,
+            username[..1].ToUpperInvariant(),
+            color,
+            HasAvatarTheme: true,
+            IsOnline: false,
+            PresenceText: accept ? "Souhaite devenir votre ami" : "En attente",
+            CharacterName: string.Empty,
+            CharacterDetails: string.Empty,
+            HasCharacter: false,
+            IsBusy: false,
+            CanAccept: accept,
+            CanReject: accept,
+            CanCancel: !accept,
+            CanRemove: false);
     }
 }
 

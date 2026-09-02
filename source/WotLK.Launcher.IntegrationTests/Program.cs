@@ -146,6 +146,22 @@ if (args.Length >= 1
 }
 
 if (args.Length == 1
+    && string.Equals(args[0], "--friends-runtime", StringComparison.OrdinalIgnoreCase))
+{
+    return await LauncherFriendsTests.RunAsync();
+}
+
+if (args.Length >= 1
+    && string.Equals(args[0], "--friends-preview", StringComparison.OrdinalIgnoreCase))
+{
+    string? captureDirectory = args.Length == 3
+        && string.Equals(args[1], "--capture-directory", StringComparison.OrdinalIgnoreCase)
+            ? args[2]
+            : null;
+    return await FriendsDrawerWpfTests.RunAsync(captureDirectory);
+}
+
+if (args.Length == 1
     && string.Equals(args[0], "--avatar-foundation", StringComparison.OrdinalIgnoreCase))
 {
     return await AvatarFoundationTests.RunAsync();

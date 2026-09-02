@@ -1,12 +1,12 @@
 # Atlas Launcher UI V2 - Checkpoint Jeu
 
-Lancer la V2 réelle en lecture seule avec :
+Lancer la V2 réelle avec :
 
 ```powershell
 WotLK.Launcher.exe --ui-v2
 ```
 
-Ce mode lit le dossier, la langue et la version installée, puis tente une seule restauration de la session existante. Il ne démarre aucun téléchargement, timer, service d'amis, analyse de manifeste ou auto-update. Toutes les commandes mutantes restent désactivées au checkpoint 02A.
+Ce mode utilise la composition réelle unique du launcher. Au checkpoint 03B, le panneau Amis charge les relations Atlas existantes à son ouverture et permet les actions déjà exposées par l'API.
 
 Lancer une prévisualisation fictive déterministe avec :
 
@@ -25,6 +25,21 @@ WotLK.Launcher.exe --ui-v2 --preview-state=Ready --ui-v2-size=1080x680 --ui-v2-f
 ```
 
 Dans le mode preview uniquement, les statuts, l'actualité, l'installation et la liste d'amis sont fictifs. Seules les commandes de fenêtre et l'ouverture/fermeture du panneau Amis sont interactives.
+
+Prévisualiser les états isolés du panneau Amis :
+
+```powershell
+WotLK.Launcher.exe --ui-v2 --preview-friends=empty
+WotLK.Launcher.exe --ui-v2 --preview-friends=populated
+WotLK.Launcher.exe --ui-v2 --preview-friends=incoming-requests
+WotLK.Launcher.exe --ui-v2 --preview-friends=outgoing-requests
+WotLK.Launcher.exe --ui-v2 --preview-friends=add-friend
+WotLK.Launcher.exe --ui-v2 --preview-friends=add-friend-error
+WotLK.Launcher.exe --ui-v2 --preview-friends=avatar-fallback
+WotLK.Launcher.exe --ui-v2 --preview-friends=network-error
+```
+
+Ces scénarios ouvrent directement le drawer avec des données locales déterministes. Ils ne créent ni `LauncherRuntime`, ni service d'authentification, ni client HTTP, ni stockage, ni processus enfant.
 
 Prévisualiser l'overlay d'authentification fictif :
 

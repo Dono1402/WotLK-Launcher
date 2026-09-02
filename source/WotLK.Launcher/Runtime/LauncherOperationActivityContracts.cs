@@ -57,7 +57,9 @@ internal sealed record LauncherOperationActivitySnapshot(
     LauncherOperationType? OperationType,
     bool IsActive,
     bool CanUserCancel,
-    bool IsShuttingDown)
+    bool IsShuttingDown,
+    LauncherOperationCancellationReason CancellationReason =
+        LauncherOperationCancellationReason.None)
 {
     internal static LauncherOperationActivitySnapshot Initial { get; } = new(
         Sequence: 0,
@@ -65,7 +67,8 @@ internal sealed record LauncherOperationActivitySnapshot(
         OperationType: null,
         IsActive: false,
         CanUserCancel: false,
-        IsShuttingDown: false);
+        IsShuttingDown: false,
+        CancellationReason: LauncherOperationCancellationReason.None);
 }
 
 internal sealed class LauncherOperationActivitySnapshotEventArgs(

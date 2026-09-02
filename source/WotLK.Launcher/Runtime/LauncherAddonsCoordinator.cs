@@ -417,7 +417,11 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                     Notice = AddonsNoticeKind.None,
                     CanMutate = false,
                     CanCancel = lease.CanUserCancel,
-                    TerminalResult = null
+                    TerminalResult = null,
+                    ActiveAddonPosition = action == AddonsRequestedAction.UpdateAll ? 1 : null,
+                    ActiveAddonTotal = action == AddonsRequestedAction.UpdateAll
+                        ? targetIds.Length
+                        : null
                 });
                 OperationPlan plan = new(
                     catalog,
@@ -712,7 +716,13 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                     null,
                     null,
                     null),
-                CanCancel = lease.CanUserCancel
+                CanCancel = lease.CanUserCancel,
+                ActiveAddonPosition = plan.Action == AddonsRequestedAction.UpdateAll
+                    ? index + 1
+                    : null,
+                ActiveAddonTotal = plan.Action == AddonsRequestedAction.UpdateAll
+                    ? plan.Packages.Length
+                    : null
             });
         }
 
@@ -755,7 +765,9 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                     null,
                     null,
                     null,
-                    null)
+                    null),
+                ActiveAddonPosition = nextIndex + 1,
+                ActiveAddonTotal = plan.Packages.Length
             });
         }
 
@@ -860,7 +872,9 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                     Notice = ToNotice(plan.Action),
                     IsGameRunning = ReadGameRunningSafely(plan.InstallRoot),
                     CanCancel = false,
-                    TerminalResult = terminalResult
+                    TerminalResult = terminalResult,
+                    ActiveAddonPosition = null,
+                    ActiveAddonTotal = null
                 }));
                 publish = !IsStoppingUnsafe();
             }
@@ -911,7 +925,9 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                     Notice = AddonsNoticeKind.Cancelled,
                     IsGameRunning = ReadGameRunningSafely(plan.InstallRoot),
                     CanCancel = false,
-                    TerminalResult = terminalResult
+                    TerminalResult = terminalResult,
+                    ActiveAddonPosition = null,
+                    ActiveAddonTotal = null
                 }));
                 publish = !IsStoppingUnsafe();
             }
@@ -974,7 +990,9 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                     Notice = AddonsNoticeKind.None,
                     IsGameRunning = ReadGameRunningSafely(plan.InstallRoot),
                     CanCancel = false,
-                    TerminalResult = terminalResult
+                    TerminalResult = terminalResult,
+                    ActiveAddonPosition = null,
+                    ActiveAddonTotal = null
                 }));
                 publish = !IsStoppingUnsafe();
             }

@@ -151,7 +151,9 @@ internal sealed record AddonsRuntimeSnapshot(
     bool IsAuthenticated,
     bool CanMutate,
     bool CanCancel,
-    OperationTerminalResult? TerminalResult = null)
+    OperationTerminalResult? TerminalResult = null,
+    int? ActiveAddonPosition = null,
+    int? ActiveAddonTotal = null)
 {
     internal static AddonsRuntimeSnapshot Initial { get; } = new(
         Sequence: 0,

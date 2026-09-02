@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2.Commands;
 using WotLK.Launcher.UI.V2.Presentation;
@@ -25,6 +26,7 @@ public partial class LauncherShellV2 : Window
     private AccountCommands? _accountCommands;
     private FriendsCommands? _friendsCommands;
     private AddonsCommands? _addonsCommands;
+    private ActivityCancelCommand? _activityCancelCommand;
 
     public LauncherShellV2(GamePreviewScenario scenario = GamePreviewScenario.Ready)
         : this(
@@ -247,7 +249,8 @@ public partial class LauncherShellV2 : Window
         ProfileUiState profileState,
         SettingsUiState settingsState,
         AccountUiState accountState,
-        AvatarCropUiState avatarCropState)
+        AvatarCropUiState avatarCropState,
+        ActivityUiState? activityState = null)
         : this(
             shellState,
             gameState,
@@ -262,7 +265,8 @@ public partial class LauncherShellV2 : Window
             authPreviewScenario: null,
             profilePreviewScenario: null,
             isPreviewMode: false,
-            initialPage: LauncherShellPage.Game)
+            initialPage: LauncherShellPage.Game,
+            activityState: activityState)
     {
     }
 
@@ -275,7 +279,8 @@ public partial class LauncherShellV2 : Window
         ProfileUiState profileState,
         SettingsUiState settingsState,
         AccountUiState accountState,
-        AvatarCropUiState avatarCropState)
+        AvatarCropUiState avatarCropState,
+        ActivityUiState? activityState = null)
         : this(
             shellState,
             gameState,
@@ -290,7 +295,8 @@ public partial class LauncherShellV2 : Window
             authPreviewScenario: null,
             profilePreviewScenario: null,
             isPreviewMode: false,
-            initialPage: LauncherShellPage.Game)
+            initialPage: LauncherShellPage.Game,
+            activityState: activityState)
     {
     }
 
@@ -388,6 +394,8 @@ public partial class LauncherShellV2 : Window
 
     internal bool HasRealAddonsAttached => _addonsCommands is not null;
 
+    internal bool HasRealActivityAttached => _activityCancelCommand is not null;
+
     internal ShellOverlayKind CurrentOverlay => _overlayCoordinator.Current;
 
     internal LauncherShellPage CurrentPage { get; private set; } = LauncherShellPage.Game;
@@ -456,6 +464,16 @@ public partial class LauncherShellV2 : Window
         }
 
         _addonsCommands = commands ?? throw new ArgumentNullException(nameof(commands));
+    }
+
+    internal void AttachActivity(ActivityCancelCommand command)
+    {
+        if (IsPreviewMode)
+        {
+            throw new InvalidOperationException("Le preview ne peut pas recevoir les commandes Activité réelles.");
+        }
+
+        _activityCancelCommand = command ?? throw new ArgumentNullException(nameof(command));
     }
 
     internal void OpenAuthenticationForPendingPlay()
@@ -750,6 +768,45 @@ public partial class LauncherShellV2 : Window
     private void ActivityCenter_CloseRequested(object? sender, EventArgs e)
     {
         _overlayCoordinator.CloseActivity();
+    }
+
+    private void ActivityCenter_CancelRequested(object? sender, EventArgs e)
+    {
+        if (IsPreviewMode)
+        {
+            ActivityState.RequestPreviewCancellation();
+            return;
+        }
+
+        if (_activityCancelCommand?.CanExecute(null) == true)
+        {
+            _activityCancelCommand.Execute(null);
+        }
+    }
+
+    private void ActivityCenter_NavigationRequested(
+        object? sender,
+        ActivityNavigationRequestedEventArgs e)
+    {
+        _overlayCoordinator.CloseActivity();
+        if (e.Target == ActivityNavigationTarget.Game)
+        {
+            NavigateTo(LauncherShellPage.Game);
+            return;
+        }
+        if (e.Target != ActivityNavigationTarget.Addons)
+        {
+            return;
+        }
+
+        NavigateTo(LauncherShellPage.Addons);
+        if (!string.IsNullOrWhiteSpace(e.TargetId)
+            && !string.Equals(e.TargetId, "addon-batch", StringComparison.OrdinalIgnoreCase))
+        {
+            _ = Dispatcher.BeginInvoke(
+                DispatcherPriority.DataBind,
+                new Action(() => AddonsState.OpenDetails(e.TargetId)));
+        }
     }
 
     private void ProfileButton_Click(object sender, RoutedEventArgs e)

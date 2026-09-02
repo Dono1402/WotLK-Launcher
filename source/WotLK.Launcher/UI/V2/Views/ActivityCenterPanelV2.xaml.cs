@@ -8,6 +8,15 @@ using WotLK.Launcher.UI.V2.Presentation;
 
 namespace WotLK.Launcher.UI.V2.Views;
 
+public sealed class ActivityNavigationRequestedEventArgs(
+    ActivityNavigationTarget target,
+    string targetId) : EventArgs
+{
+    public ActivityNavigationTarget Target { get; } = target;
+
+    public string TargetId { get; } = targetId;
+}
+
 public partial class ActivityCenterPanelV2 : UserControl
 {
     private static readonly Duration TransitionDuration = new(TimeSpan.FromMilliseconds(180));
@@ -35,6 +44,10 @@ public partial class ActivityCenterPanelV2 : UserControl
     public event EventHandler? CloseRequested;
 
     public event EventHandler? Closed;
+
+    public event EventHandler? CancelRequested;
+
+    public event EventHandler<ActivityNavigationRequestedEventArgs>? NavigationRequested;
 
     public ActivityUiState? State
     {
@@ -234,6 +247,24 @@ public partial class ActivityCenterPanelV2 : UserControl
 
     private void CancelActivityButton_Click(object sender, RoutedEventArgs e)
     {
-        State?.RequestPreviewCancellation();
+        CancelRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RecentNavigationButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement
+            {
+                DataContext: ActivityRecentUiItem
+                {
+                    CanNavigate: true
+                } item
+            })
+        {
+            NavigationRequested?.Invoke(
+                this,
+                new ActivityNavigationRequestedEventArgs(
+                    item.NavigationTarget,
+                    item.TargetId));
+        }
     }
 }

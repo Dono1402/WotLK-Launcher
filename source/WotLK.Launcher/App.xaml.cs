@@ -247,6 +247,8 @@ public partial class App : Application
             avatarImage: null));
         FriendsUiState friendsState = new(FriendsStateAdapter.Project(
             runtime.Friends.CurrentSnapshot));
+        ActivityUiState activityState = new(ActivityStateAdapter.Project(
+            runtime.Activity.CurrentSnapshot));
         AvatarCropUiState avatarCropState = new(AvatarCropUiState.Empty.Current);
         GameCommands gameCommands = LauncherV2RuntimePresentation.ConnectLocalActions(
             gameState,
@@ -260,7 +262,8 @@ public partial class App : Application
             profileState,
             settingsState,
             accountState,
-            avatarCropState);
+            avatarCropState,
+            activityState);
         AddonsCommands addonsCommands = new(
             runtime.Addons,
             addonsState,
@@ -271,6 +274,14 @@ public partial class App : Application
             addonsState,
             runtime.Addons,
             window.Dispatcher);
+        ActivityStateAdapter activityStateAdapter = new(
+            activityState,
+            runtime.Activity,
+            window.Dispatcher);
+        ActivityCancelCommand activityCancelCommand = new(
+            runtime.Operations,
+            activityState);
+        window.AttachActivity(activityCancelCommand);
         GameVerificationCommand verificationCommand = new(runtime.Game);
         gameState.AttachVerifyCommand(verificationCommand.Command);
         SettingsCommands settingsCommands = new(
@@ -380,12 +391,14 @@ public partial class App : Application
             profileStateAdapter.Dispose();
             friendsStateAdapter.Dispose();
             addonsStateAdapter.Dispose();
+            activityStateAdapter.Dispose();
             accountStateAdapter.Dispose();
             settingsStateAdapter.Dispose();
             settingsCommands.Dispose();
             authCommands.Dispose();
             friendsCommands.Dispose();
             addonsCommands.Dispose();
+            activityCancelCommand.Dispose();
             accountCommands.Dispose();
             logoutCommand.Dispose();
             primaryActionCommand.Dispose();

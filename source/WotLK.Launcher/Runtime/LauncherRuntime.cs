@@ -215,6 +215,7 @@ internal sealed class LauncherRuntime : IDisposable
             () => dependencies.GameClientStateReader.Read(Settings),
             launchService,
             () => _sessionCoordinator.CurrentSnapshot.State);
+        Activity = new LauncherActivityCoordinator(Operations, Game, Addons);
         SettingsRuntime = new LauncherSettingsCoordinator(
             Settings,
             Operations,
@@ -282,6 +283,8 @@ internal sealed class LauncherRuntime : IDisposable
     internal GameRuntimeCoordinator Game { get; }
 
     internal LauncherAddonsCoordinator Addons { get; }
+
+    internal LauncherActivityCoordinator Activity { get; }
 
     internal LauncherDashboardCoordinator Dashboard { get; }
 
@@ -434,6 +437,7 @@ internal sealed class LauncherRuntime : IDisposable
             Friends.Dispose();
             Account.Dispose();
             Profile.Dispose();
+            Activity.Dispose();
             SettingsRuntime.Dispose();
             Dashboard.Dispose();
             Addons.Dispose();

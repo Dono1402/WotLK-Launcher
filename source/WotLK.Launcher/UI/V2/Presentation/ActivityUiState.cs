@@ -30,7 +30,10 @@ public sealed record ActivityOperationUiItem(
     bool CanUserCancel,
     bool IsCancellationRequested,
     string ErrorMessage,
-    string BatchPosition)
+    string BatchPosition,
+    long OperationId = 0,
+    string TargetId = "",
+    ActivityNavigationTarget NavigationTarget = ActivityNavigationTarget.None)
 {
     public bool IsDeterminate => ProgressPercent is not null && !IsIndeterminate;
 
@@ -59,7 +62,8 @@ public sealed record ActivityPendingUiItem(
     string ProductName,
     string ActionName,
     string IconUri,
-    bool HasIcon);
+    bool HasIcon,
+    string TargetId = "");
 
 public sealed record ActivityRecentUiItem(
     string ProductName,
@@ -68,7 +72,9 @@ public sealed record ActivityRecentUiItem(
     ActivityRecentOutcome Outcome,
     ActivityNavigationTarget NavigationTarget,
     string IconUri,
-    bool HasIcon)
+    bool HasIcon,
+    long OperationId = 0,
+    string TargetId = "")
 {
     public bool CanNavigate => NavigationTarget != ActivityNavigationTarget.None;
 }
@@ -144,5 +150,12 @@ public sealed class ActivityUiState : BindableUiState
         };
         RaisePropertyChanged(string.Empty);
         return true;
+    }
+
+    internal void ApplyRuntimeView(ActivityViewState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        _current = state;
+        RaisePropertyChanged(string.Empty);
     }
 }

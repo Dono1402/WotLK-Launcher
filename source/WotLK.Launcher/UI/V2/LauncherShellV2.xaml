@@ -402,6 +402,8 @@
                                              State="{Binding ActivityState}"
                                              IsOpen="{Binding ActivityState.IsOpen, Mode=TwoWay}"
                                              CloseRequested="ActivityCenter_CloseRequested"
+                                             CancelRequested="ActivityCenter_CancelRequested"
+                                             NavigationRequested="ActivityCenter_NavigationRequested"
                                              Closed="ActivityCenter_Closed"/>
                 <views:FriendsDrawerV2 x:Name="FriendsDrawer"
                                        Panel.ZIndex="50"

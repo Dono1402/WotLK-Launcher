@@ -133,6 +133,20 @@ internal static class LauncherRuntimeCompositionTests
             Equal(1, settingsLoads, "La V2 réelle doit charger les paramètres une fois.");
             Equal(1, authenticationCreations, "La V2 réelle doit créer une authentification.");
             Equal("v1.1.0-test", runtime.LauncherVersion, "La version du produit doit provenir de la composition.");
+            True(!runtime.Activity.CurrentSnapshot.HasActiveOperation,
+                "Le centre runtime doit commencer au repos sans inventer d'activité.");
+            LauncherOperationLease activityLease = runtime.Operations.TryBegin(
+                LauncherOperationKind.GameUpdate,
+                canUserCancel: true,
+                clientIsPlayable: true,
+                operationType: LauncherOperationType.GameUpdate).Lease
+                ?? throw new InvalidOperationException("Le bail témoin Activity était attendu.");
+            Equal(activityLease.OperationId,
+                runtime.Activity.CurrentSnapshot.ActiveOperation?.OperationId,
+                "LauncherRuntime doit relier son coordinateur global à l'agrégateur Activity.");
+            activityLease.Complete();
+            True(!runtime.Activity.CurrentSnapshot.HasActiveOperation,
+                "La libération du bail doit remettre immédiatement la top bar au repos.");
 
             ShellUiState shell = LauncherV2RuntimePresentation.CreateShell(runtime);
             GameUiState game = LauncherV2RuntimePresentation.CreateGame(runtime.LocalClient);

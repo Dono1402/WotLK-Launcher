@@ -504,7 +504,9 @@ internal sealed class LauncherOperationCoordinator : IDisposable
             OperationType: _maintenanceLease?.OperationType,
             IsActive: _maintenanceLease is not null,
             CanUserCancel: _maintenanceLease?.CanUserCancel == true,
-            IsShuttingDown: _isShuttingDown);
+            IsShuttingDown: _isShuttingDown,
+            CancellationReason: _maintenanceLease?.CancellationReason
+                ?? LauncherOperationCancellationReason.None);
         return _activitySnapshot;
     }
 

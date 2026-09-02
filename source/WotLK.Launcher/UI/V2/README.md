@@ -58,7 +58,22 @@ WotLK.Launcher.exe --ui-v2 --preview-activity=history
 WotLK.Launcher.exe --ui-v2 --preview-activity=many-history
 ```
 
-Au checkpoint 04B.1, ces états sont exclusivement visuels et déterministes. Ils ne composent aucun `LauncherRuntime`, coordinateur métier, téléchargement, client HTTP, timer, token d’annulation, accès disque métier ou processus enfant. L’historique réel et la projection des opérations existantes appartiennent au checkpoint 04B.2.
+Ces états restent exclusivement visuels et déterministes. Ils ne composent aucun `LauncherRuntime`, coordinateur métier, téléchargement, client HTTP, timer, token d’annulation, accès disque métier ou processus enfant.
+
+## Centre d’activité réel - checkpoint 04B.2
+
+En mode `--ui-v2`, `LauncherActivityCoordinator` agrège en lecture seule les snapshots déjà coalescés de `LauncherOperationCoordinator`, `GameRuntimeCoordinator` et `LauncherAddonsCoordinator`. Il n’acquiert aucun bail, ne crée aucune source d’annulation et ne recalcule ni débit ni estimation de durée.
+
+Le centre suit installation, mise à jour, vérification et réparation du client, ainsi que les installations, mises à jour, réparations, suppressions et batchs Addons. `Play`, les rafraîchissements de lecture et l’auto-update du launcher restent exclus. Un batch conserve un seul `OperationId`, expose l’addon courant et les identifiants encore en attente, sans fabriquer de pourcentage global.
+
+L’historique est limité aux dix derniers contrats terminaux explicites de la session, dédupliqués par `OperationId`. Il n’est pas persisté. Le bouton Annuler délègue directement à `LauncherOperationCoordinator.CancelFromUser`, et les liens de l’historique ouvrent Jeu ou Addons sans lancer d’opération.
+
+Les harnais déterministes associés se lancent avec :
+
+```powershell
+& 'C:\Users\Dono\.dotnet\sdk-8.0.424\dotnet.exe' run --project 'source\WotLK.Launcher.IntegrationTests\WotLK.Launcher.IntegrationTests.csproj' -c Release --no-build -- --activity-runtime
+& 'C:\Users\Dono\.dotnet\sdk-8.0.424\dotnet.exe' run --project 'source\WotLK.Launcher.IntegrationTests\WotLK.Launcher.IntegrationTests.csproj' -c Release --no-build -- --activity-runtime-wpf
+```
 
 ## Addons V2 réels - checkpoint 04A.2
 

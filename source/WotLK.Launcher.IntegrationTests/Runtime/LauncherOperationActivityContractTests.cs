@@ -80,6 +80,9 @@ internal static class LauncherOperationActivityContractTests
             "Le bail doit mémoriser l'origine utilisateur.");
         True(!operations.CurrentActivitySnapshot.CanUserCancel,
             "Une annulation déjà demandée ne doit plus être proposée.");
+        Equal(LauncherOperationCancellationReason.User,
+            operations.CurrentActivitySnapshot.CancellationReason,
+            "Le snapshot observable doit porter l'origine de l'annulation.");
         True(!firstLease.CancelFromUser(), "La double annulation doit être idempotente.");
         firstLease.Complete();
         True(!operations.CurrentActivitySnapshot.IsActive,
@@ -119,6 +122,8 @@ internal static class LauncherOperationActivityContractTests
         LauncherOperationActivitySnapshot shuttingDown = operations.CurrentActivitySnapshot;
         True(shuttingDown.IsShuttingDown, "La fermeture doit être observable.");
         True(!shuttingDown.CanUserCancel, "La fermeture ne doit pas exposer d'annulation utilisateur.");
+        Equal(LauncherOperationCancellationReason.Shutdown, shuttingDown.CancellationReason,
+            "Le snapshot observable doit distinguer une fermeture d'un clic Annuler.");
         Equal(LauncherOperationCancellationReason.Shutdown, shutdownLease.CancellationReason,
             "Le bail doit distinguer l'annulation de cycle de vie.");
         shutdownLease.Complete();

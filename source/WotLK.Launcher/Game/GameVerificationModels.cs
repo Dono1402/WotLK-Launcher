@@ -196,6 +196,28 @@ internal sealed record GameRuntimeSnapshot(
     internal bool CanPlay => Action == GameAction.Play
         && IsPlayable
         && CanPrimaryAction;
+
+    internal double? ProgressPercent
+    {
+        get
+        {
+            if (DownloadedBytes is long downloaded
+                && TotalBytes is long totalBytes
+                && totalBytes > 0)
+            {
+                return Math.Clamp((double)downloaded / totalBytes * 100d, 0d, 100d);
+            }
+
+            if (ProcessedFileCount is int processed
+                && TotalFileCount is int totalFiles
+                && totalFiles > 0)
+            {
+                return Math.Clamp((double)processed / totalFiles * 100d, 0d, 100d);
+            }
+
+            return null;
+        }
+    }
 }
 
 internal sealed class GameRuntimeSnapshotEventArgs(GameRuntimeSnapshot snapshot) : EventArgs

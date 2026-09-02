@@ -213,7 +213,7 @@
                         <ColumnDefinition Width="32"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="18"/>
+                        <ColumnDefinition Width="30"/>
                     </Grid.ColumnDefinitions>
                     <Path Width="16"
                           Height="16"
@@ -260,14 +260,20 @@
                                VerticalAlignment="Center"
                                Text="{Binding CompletedAtText}"
                                Style="{StaticResource AtlasV2.Text.Caption}"/>
-                    <Path Grid.Column="4"
-                          Width="13"
-                          Height="13"
-                          VerticalAlignment="Center"
-                          Data="{StaticResource AtlasV2.Icon.ArrowRight}"
-                          Style="{StaticResource AtlasV2.Icon.Stroke}"
-                          Stroke="{StaticResource AtlasV2.Brush.Gold}"
-                          Visibility="{Binding CanNavigate, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+                    <Button Grid.Column="4"
+                            Width="28"
+                            Height="32"
+                            Padding="7"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource AtlasV2.Button.Icon}"
+                            Visibility="{Binding CanNavigate, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
+                            ToolTip="Ouvrir"
+                            AutomationProperties.Name="Ouvrir l’élément associé"
+                            Click="RecentNavigationButton_Click">
+                        <Path Data="{StaticResource AtlasV2.Icon.ArrowRight}"
+                              Style="{StaticResource AtlasV2.Icon.Stroke}"
+                              Stroke="{StaticResource AtlasV2.Brush.Gold}"/>
+                    </Button>
                 </Grid>
             </Border>
         </DataTemplate>

@@ -1276,20 +1276,22 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
     internal static LauncherAuthSession CreateSession(
         string username = "Dono1402",
         string email = "dono@example.test",
-        bool emailVerified = true)
+        bool emailVerified = true,
+        WotLK.Launcher.Account.AvatarDescriptor? avatar = null)
     {
         return new LauncherAuthSession(
             "access-token",
             DateTimeOffset.UtcNow.AddHours(1),
             "refresh-token",
             DateTimeOffset.UtcNow.AddDays(1),
-            CreateProfile(username, email, emailVerified));
+            CreateProfile(username, email, emailVerified, avatar));
     }
 
     private static LauncherProfile CreateProfile(
         string username = "Dono1402",
         string email = "dono@example.test",
-        bool emailVerified = true)
+        bool emailVerified = true,
+        WotLK.Launcher.Account.AvatarDescriptor? avatar = null)
     {
         return new LauncherProfile(
             1,
@@ -1299,6 +1301,7 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
             "gold",
             false,
             false,
-            75);
+            75,
+            avatar);
     }
 }

@@ -35,19 +35,37 @@
                         <ColumnDefinition Width="34"/>
                     </Grid.ColumnDefinitions>
 
-                    <Border Width="42"
-                            Height="42"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Top"
-                            Background="{StaticResource AtlasV2.Brush.Gold}"
-                            CornerRadius="21">
+                    <Grid Width="42"
+                          Height="42"
+                          HorizontalAlignment="Left"
+                          VerticalAlignment="Top">
+                        <Ellipse Fill="{StaticResource AtlasV2.Brush.Gold}"/>
                         <TextBlock HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
                                    Text="{Binding Current.Initial}"
                                    FontSize="15"
                                    FontWeight="Bold"
                                    Foreground="#111318"/>
-                    </Border>
+                        <Ellipse x:Name="MenuProfileAvatarImage">
+                            <Ellipse.Fill>
+                                <ImageBrush ImageSource="{Binding AvatarImage}"
+                                            Stretch="UniformToFill"/>
+                            </Ellipse.Fill>
+                            <Ellipse.Style>
+                                <Style TargetType="{x:Type Ellipse}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasAvatar}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <Ellipse IsHitTestVisible="False"
+                                 Stroke="{StaticResource AtlasV2.Brush.GoldBorder}"
+                                 StrokeThickness="1.5"/>
+                    </Grid>
 
                     <StackPanel Grid.Column="1"
                                 Margin="2,0,8,0"

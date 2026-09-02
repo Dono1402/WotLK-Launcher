@@ -1,4 +1,5 @@
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
 using WotLK.Launcher.UI.V2.Commands;
 
 namespace WotLK.Launcher.UI.V2.Presentation;
@@ -32,8 +33,13 @@ public sealed class ProfileUiState : BindableUiState
 {
     private ProfileViewState _current = ProfileViewState.SignedOut;
     private bool _isOpen;
+    private BitmapSource? _avatarImage;
 
     public ProfileViewState Current => _current;
+
+    public BitmapSource? AvatarImage => _avatarImage;
+
+    public bool HasAvatar => _avatarImage is not null;
 
     public bool IsOpen
     {
@@ -49,9 +55,22 @@ public sealed class ProfileUiState : BindableUiState
         if (!state.IsAuthenticated)
         {
             _isOpen = false;
+            _avatarImage = null;
         }
 
         RaisePropertyChanged(string.Empty);
+    }
+
+    internal void ApplyAvatarImage(BitmapSource? image)
+    {
+        if (ReferenceEquals(_avatarImage, image))
+        {
+            return;
+        }
+
+        _avatarImage = image;
+        RaisePropertyChanged(nameof(AvatarImage));
+        RaisePropertyChanged(nameof(HasAvatar));
     }
 
     internal void AttachLogoutCommand(ICommand command)

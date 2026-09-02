@@ -240,6 +240,8 @@ public partial class App : Application
         AccountStateAdapter accountStateAdapter = new(
             accountState,
             avatarCropState,
+            shellState,
+            profileState,
             runtime.Account,
             runtime.AvatarImages,
             window.Dispatcher);

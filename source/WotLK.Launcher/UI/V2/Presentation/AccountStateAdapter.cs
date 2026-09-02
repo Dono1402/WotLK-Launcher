@@ -7,8 +7,12 @@ namespace WotLK.Launcher.UI.V2.Presentation;
 
 internal sealed class AccountStateAdapter : IDisposable
 {
+    internal const int ChromeAvatarPixelSize = 64;
+    internal const int AccountAvatarPixelSize = 256;
     private readonly AccountUiState _target;
     private readonly AvatarCropUiState _crop;
+    private readonly ShellUiState _shell;
+    private readonly ProfileUiState _profile;
     private readonly LauncherAccountCoordinator _runtime;
     private readonly AvatarImageCache _imageCache;
     private readonly Dispatcher _dispatcher;
@@ -20,12 +24,16 @@ internal sealed class AccountStateAdapter : IDisposable
     internal AccountStateAdapter(
         AccountUiState target,
         AvatarCropUiState crop,
+        ShellUiState shell,
+        ProfileUiState profile,
         LauncherAccountCoordinator runtime,
         AvatarImageCache imageCache,
         Dispatcher dispatcher)
     {
         _target = target ?? throw new ArgumentNullException(nameof(target));
         _crop = crop ?? throw new ArgumentNullException(nameof(crop));
+        _shell = shell ?? throw new ArgumentNullException(nameof(shell));
+        _profile = profile ?? throw new ArgumentNullException(nameof(profile));
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _imageCache = imageCache ?? throw new ArgumentNullException(nameof(imageCache));
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
@@ -141,30 +149,52 @@ internal sealed class AccountStateAdapter : IDisposable
 
         _latestSequence = snapshot.Sequence;
         long imageGeneration = ++_imageLoadGeneration;
-        BitmapSource? image = null;
+        BitmapSource? chromeImage = null;
+        BitmapSource? accountImage = null;
         if (snapshot.Avatar is not null)
         {
-            _imageCache.TryGetMemory(snapshot.Avatar, 128, out image);
+            _imageCache.TryGetMemory(
+                snapshot.Avatar,
+                ChromeAvatarPixelSize,
+                out chromeImage);
+            _imageCache.TryGetMemory(
+                snapshot.Avatar,
+                AccountAvatarPixelSize,
+                out accountImage);
         }
 
-        _target.ApplyRuntimeView(Project(snapshot, image));
+        ApplyAvatarProjection(snapshot, chromeImage, accountImage);
         ApplyCropOperation(snapshot);
-        if (snapshot.Avatar is not null && image is null)
+        if (snapshot.Avatar is not null && chromeImage is null)
         {
-            _ = LoadAvatarObservedAsync(snapshot, imageGeneration);
+            _ = LoadAvatarObservedAsync(
+                snapshot,
+                imageGeneration,
+                ChromeAvatarPixelSize,
+                AvatarProjectionTarget.Chrome);
+        }
+        if (snapshot.Avatar is not null && accountImage is null)
+        {
+            _ = LoadAvatarObservedAsync(
+                snapshot,
+                imageGeneration,
+                AccountAvatarPixelSize,
+                AvatarProjectionTarget.Account);
         }
     }
 
     private async Task LoadAvatarObservedAsync(
         AccountRuntimeSnapshot snapshot,
-        long generation)
+        long generation,
+        int pixelSize,
+        AvatarProjectionTarget target)
     {
         BitmapSource? image;
         try
         {
             image = await _imageCache.GetAsync(
                 snapshot.Avatar!,
-                128,
+                pixelSize,
                 _disposeCancellation.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -184,19 +214,54 @@ internal sealed class AccountStateAdapter : IDisposable
         {
             await _dispatcher.InvokeAsync(() =>
             {
-                if (Volatile.Read(ref _disposeState) != 0
-                    || generation != _imageLoadGeneration
-                    || snapshot.Avatar != _runtime.CurrentSnapshot.Avatar)
+                if (!IsCurrentProjection(snapshot, generation))
                 {
                     return;
                 }
 
-                _target.ApplyAvatarImage(image, descriptorPresent: true);
+                if (target == AvatarProjectionTarget.Chrome)
+                {
+                    _shell.ApplyProfileAvatar(image);
+                    _profile.ApplyAvatarImage(image);
+                }
+                else
+                {
+                    _target.ApplyAvatarImage(image, descriptorPresent: true);
+                }
             }, DispatcherPriority.DataBind);
         }
         catch (TaskCanceledException)
         {
         }
+    }
+
+    private void ApplyAvatarProjection(
+        AccountRuntimeSnapshot snapshot,
+        BitmapSource? chromeImage,
+        BitmapSource? accountImage)
+    {
+        _shell.ApplyProfileAvatar(chromeImage);
+        _profile.ApplyAvatarImage(chromeImage);
+        _target.ApplyRuntimeView(Project(snapshot, accountImage));
+    }
+
+    private bool IsCurrentProjection(AccountRuntimeSnapshot source, long generation)
+    {
+        if (Volatile.Read(ref _disposeState) != 0
+            || generation != _imageLoadGeneration
+            || source.Sequence != _latestSequence
+            || source.Avatar is null)
+        {
+            return false;
+        }
+
+        AccountRuntimeSnapshot current = _runtime.CurrentSnapshot;
+        return current.IsAuthenticated
+            && current.Sequence == source.Sequence
+            && string.Equals(current.Username, source.Username, StringComparison.OrdinalIgnoreCase)
+            && current.Avatar is { } avatar
+            && avatar.AvatarId == source.Avatar.AvatarId
+            && avatar.Version == source.Avatar.Version;
     }
 
     private void ApplyCropOperation(AccountRuntimeSnapshot snapshot)
@@ -256,5 +321,11 @@ internal sealed class AccountStateAdapter : IDisposable
                 "L’état de la photo n’a pas pu être confirmé. Actualise le profil.",
             _ => "La photo n’a pas pu être modifiée. Réessaie."
         };
+    }
+
+    private enum AvatarProjectionTarget
+    {
+        Chrome,
+        Account
     }
 }

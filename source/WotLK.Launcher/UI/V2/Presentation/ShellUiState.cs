@@ -1,5 +1,6 @@
 namespace WotLK.Launcher.UI.V2.Presentation;
 
+using System.Windows.Media.Imaging;
 using WotLK.Launcher.Runtime;
 
 public sealed class ShellUiState : BindableUiState
@@ -9,6 +10,7 @@ public sealed class ShellUiState : BindableUiState
     private bool _isAuthenticated = true;
     private bool _isSessionRestoring;
     private bool _isSessionLoggingOut;
+    private BitmapSource? _profileAvatarImage;
 
     public string ProductName { get; init; } = "Atlas Launcher";
 
@@ -36,6 +38,10 @@ public sealed class ShellUiState : BindableUiState
         ? "?"
         : Username[..1].ToUpperInvariant();
 
+    public BitmapSource? ProfileAvatarImage => _profileAvatarImage;
+
+    public bool HasProfileAvatar => _profileAvatarImage is not null;
+
     public string ProfileToolTip => IsSessionRestoring
         ? "Restauration de la session…"
         : IsAuthenticated
@@ -57,16 +63,35 @@ public sealed class ShellUiState : BindableUiState
         string normalizedUsername = string.IsNullOrWhiteSpace(username) ? "Compte" : username.Trim();
         bool usernameChanged = SetProperty(ref _username, normalizedUsername, nameof(Username));
         bool authenticationChanged = SetProperty(ref _isAuthenticated, true, nameof(IsAuthenticated));
+        if (usernameChanged)
+        {
+            _profileAvatarImage = null;
+        }
         if (usernameChanged || authenticationChanged)
         {
             RaisePropertyChanged(nameof(ProfileInitial));
             RaisePropertyChanged(nameof(ProfileToolTip));
+            RaisePropertyChanged(nameof(ProfileAvatarImage));
+            RaisePropertyChanged(nameof(HasProfileAvatar));
         }
+    }
+
+    internal void ApplyProfileAvatar(BitmapSource? image)
+    {
+        if (ReferenceEquals(_profileAvatarImage, image))
+        {
+            return;
+        }
+
+        _profileAvatarImage = image;
+        RaisePropertyChanged(nameof(ProfileAvatarImage));
+        RaisePropertyChanged(nameof(HasProfileAvatar));
     }
 
     internal void ApplySessionSnapshot(AuthSessionSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        string previousUsername = _username;
         _isSessionRestoring = snapshot.IsRestoring;
         _isSessionLoggingOut = snapshot.IsLoggingOut;
         bool hasAuthenticatedIdentity = snapshot.IsAuthenticated || snapshot.IsLoggingOut;
@@ -74,6 +99,11 @@ public sealed class ShellUiState : BindableUiState
         _username = hasAuthenticatedIdentity && !string.IsNullOrWhiteSpace(snapshot.Username)
             ? snapshot.Username.Trim()
             : "Compte";
+        if (!hasAuthenticatedIdentity
+            || !string.Equals(previousUsername, _username, StringComparison.OrdinalIgnoreCase))
+        {
+            _profileAvatarImage = null;
+        }
         RaisePropertyChanged(string.Empty);
     }
 }

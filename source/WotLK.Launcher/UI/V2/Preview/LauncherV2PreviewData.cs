@@ -12,6 +12,8 @@ public static class LauncherV2PreviewData
     private const string PreviewStatePrefix = "--preview-state=";
     private const string PreviewAvatarUri =
         "/WotLK.Launcher;component/Assets/Images/AtlasProfilePreview.png";
+    private const string ChangedPreviewAvatarUri =
+        "/WotLK.Launcher;component/Assets/AppIcon.png";
 
     public static GamePreviewScenario ResolveScenario(IEnumerable<string> arguments)
     {
@@ -67,6 +69,13 @@ public static class LauncherV2PreviewData
     internal static ProfileUiState CreateProfile(
         ProfilePreviewScenario scenario = ProfilePreviewScenario.SignedIn)
     {
+        return CreateProfile(scenario, avatarImage: null);
+    }
+
+    internal static ProfileUiState CreateProfile(
+        ProfilePreviewScenario scenario,
+        BitmapSource? avatarImage)
+    {
         bool verified = scenario != ProfilePreviewScenario.EmailUnverified;
         bool loggingOut = scenario == ProfilePreviewScenario.LoggingOut;
         ProfileUiState state = new();
@@ -88,6 +97,7 @@ public static class LauncherV2PreviewData
         state.AttachLogoutCommand(loggingOut
             ? DisabledCommand.Instance
             : PreviewCommand.Instance);
+        state.ApplyAvatarImage(avatarImage);
         return state;
     }
 
@@ -158,6 +168,13 @@ public static class LauncherV2PreviewData
     internal static AccountUiState CreateAccount(
         AccountPreviewScenario scenario = AccountPreviewScenario.Profile)
     {
+        return CreateAccount(scenario, ResolvePreviewAvatar(scenario));
+    }
+
+    internal static AccountUiState CreateAccount(
+        AccountPreviewScenario scenario,
+        BitmapSource? avatarImage)
+    {
         AccountSection section = scenario switch
         {
             AccountPreviewScenario.Security => AccountSection.Security,
@@ -165,6 +182,7 @@ public static class LauncherV2PreviewData
             _ => AccountSection.Profile
         };
         bool removing = scenario == AccountPreviewScenario.Removing;
+        bool hasAvatar = avatarImage is not null;
 
         return new AccountUiState(new AccountViewState(
             IsPreview: true,
@@ -174,10 +192,8 @@ public static class LauncherV2PreviewData
             Email: "dono1402@outlook.com",
             Initial: "D",
             IsEmailVerified: true,
-            HasProfileAvatar: scenario != AccountPreviewScenario.Fallback,
-            AvatarImage: scenario == AccountPreviewScenario.Fallback
-                ? null
-                : CreatePreviewAvatar(),
+            HasProfileAvatar: hasAvatar,
+            AvatarImage: avatarImage,
             AvatarOperation: removing
                 ? AvatarPreviewOperation.Removing
                 : AvatarPreviewOperation.None,
@@ -189,11 +205,25 @@ public static class LauncherV2PreviewData
             IsAvatarBackendChecking: false,
             AvatarAvailabilityMessage: string.Empty,
             CanModifyAvatar: !removing,
-            CanRemoveAvatar: scenario != AccountPreviewScenario.Fallback && !removing,
+            CanRemoveAvatar: hasAvatar && !removing,
             IsDeleteConfirmationOpen: false,
             MemberSince: "Membre Atlas depuis juillet 2026",
             LastPasswordChange: "Modifié il y a 18 jours",
             ActiveSessionCount: 2));
+    }
+
+    internal static AccountAvatarPreviewComposition CreateAccountAvatarComposition(
+        GamePreviewScenario gameScenario,
+        AccountPreviewScenario accountScenario)
+    {
+        BitmapSource? avatar = ResolvePreviewAvatar(accountScenario);
+        ShellUiState shell = CreateShell(gameScenario, isAuthenticated: true);
+        shell.ApplyProfileAvatar(avatar);
+        return new AccountAvatarPreviewComposition(
+            shell,
+            CreateProfile(ProfilePreviewScenario.SignedIn, avatar),
+            CreateAccount(accountScenario, avatar),
+            CreateAvatarCrop(accountScenario));
     }
 
     internal static AvatarCropUiState CreateAvatarCrop(
@@ -230,10 +260,20 @@ public static class LauncherV2PreviewData
             MaximumZoom: 2.4));
     }
 
-    private static BitmapImage CreatePreviewAvatar()
+    private static BitmapSource? ResolvePreviewAvatar(AccountPreviewScenario scenario)
+    {
+        return scenario switch
+        {
+            AccountPreviewScenario.Fallback or AccountPreviewScenario.AvatarDeleted => null,
+            AccountPreviewScenario.AvatarChanged => CreatePreviewAvatar(ChangedPreviewAvatarUri),
+            _ => CreatePreviewAvatar(PreviewAvatarUri)
+        };
+    }
+
+    private static BitmapImage CreatePreviewAvatar(string resourceUri = PreviewAvatarUri)
     {
         System.Windows.Resources.StreamResourceInfo resource = Application.GetResourceStream(
-            new Uri(PreviewAvatarUri, UriKind.Relative))
+            new Uri(resourceUri, UriKind.Relative))
             ?? throw new InvalidOperationException("La ressource avatar de prévisualisation est absente.");
         using Stream stream = resource.Stream;
         BitmapImage image = new();
@@ -416,3 +456,9 @@ public static class LauncherV2PreviewData
         return state;
     }
 }
+
+internal sealed record AccountAvatarPreviewComposition(
+    ShellUiState Shell,
+    ProfileUiState Profile,
+    AccountUiState Account,
+    AvatarCropUiState Crop);

@@ -4,6 +4,8 @@ public enum AccountPreviewScenario
 {
     Profile,
     Fallback,
+    AvatarChanged,
+    AvatarDeleted,
     Crop,
     Uploading,
     UploadError,
@@ -31,7 +33,10 @@ internal static class AccountPreviewArguments
 
         return value?.Trim().ToLowerInvariant() switch
         {
+            "avatar" => AccountPreviewScenario.Profile,
             "fallback" or "initial" => AccountPreviewScenario.Fallback,
+            "changed" or "avatar-changed" => AccountPreviewScenario.AvatarChanged,
+            "deleted" or "avatar-deleted" => AccountPreviewScenario.AvatarDeleted,
             "crop" or "recadrage" => AccountPreviewScenario.Crop,
             "uploading" or "upload" => AccountPreviewScenario.Uploading,
             "upload-error" or "error" => AccountPreviewScenario.UploadError,

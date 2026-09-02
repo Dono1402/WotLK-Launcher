@@ -442,10 +442,6 @@ internal sealed class LauncherAccountCoordinator : IDisposable
                 request,
                 progress,
                 lease.CancellationToken).ConfigureAwait(false);
-            _ = await _imageCache.GetAsync(
-                avatar,
-                128,
-                lease.CancellationToken).ConfigureAwait(false);
             return CompleteMutationSuccess(lease, avatar);
         }
         catch (OperationCanceledException) when (lease.CancellationToken.IsCancellationRequested)

@@ -144,9 +144,7 @@
                                            FontSize="48"
                                            FontWeight="ExtraBold"
                                            Foreground="#111318"/>
-                                <Ellipse x:Name="ProfileAvatarImage"
-                                         Stroke="{StaticResource AtlasV2.Brush.GoldBorder}"
-                                         StrokeThickness="2">
+                                <Ellipse x:Name="ProfileAvatarImage">
                                     <Ellipse.Fill>
                                         <ImageBrush ImageSource="{Binding Current.AvatarImage}"
                                                     Stretch="UniformToFill"/>
@@ -162,6 +160,9 @@
                                         </Style>
                                     </Ellipse.Style>
                                 </Ellipse>
+                                <Ellipse IsHitTestVisible="False"
+                                         Stroke="{StaticResource AtlasV2.Brush.GoldBorder}"
+                                         StrokeThickness="2"/>
                             </Grid>
 
                             <TextBlock Margin="0,17,0,0"

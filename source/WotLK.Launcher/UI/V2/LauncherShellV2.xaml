@@ -229,17 +229,34 @@
                                 Focusable="True"
                                 AutomationProperties.Name="{Binding ShellState.ProfileToolTip}"
                                 Click="ProfileButton_Click">
-                            <Border Width="34"
-                                    Height="34"
-                                    Background="{StaticResource AtlasV2.Brush.Gold}"
-                                    CornerRadius="17">
+                            <Grid Width="34" Height="34">
+                                <Ellipse Fill="{StaticResource AtlasV2.Brush.Gold}"/>
                                 <TextBlock HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
                                            Text="{Binding ShellState.ProfileInitial}"
                                            FontSize="14"
                                            FontWeight="Bold"
                                            Foreground="#111318"/>
-                            </Border>
+                                <Ellipse x:Name="ShellProfileAvatarImage">
+                                    <Ellipse.Fill>
+                                        <ImageBrush ImageSource="{Binding ShellState.ProfileAvatarImage}"
+                                                    Stretch="UniformToFill"/>
+                                    </Ellipse.Fill>
+                                    <Ellipse.Style>
+                                        <Style TargetType="{x:Type Ellipse}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShellState.HasProfileAvatar}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <Ellipse IsHitTestVisible="False"
+                                         Stroke="{StaticResource AtlasV2.Brush.GoldBorder}"
+                                         StrokeThickness="1.5"/>
+                            </Grid>
                         </Button>
 
                         <TextBlock x:Name="VersionText"

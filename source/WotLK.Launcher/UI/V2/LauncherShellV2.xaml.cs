@@ -95,15 +95,24 @@ public partial class LauncherShellV2 : Window
 
     public LauncherShellV2(GamePreviewScenario scenario, AccountPreviewScenario accountScenario)
         : this(
-            LauncherV2PreviewData.CreateShell(scenario, isAuthenticated: true),
+            scenario,
+            LauncherV2PreviewData.CreateAccountAvatarComposition(scenario, accountScenario))
+    {
+    }
+
+    private LauncherShellV2(
+        GamePreviewScenario scenario,
+        AccountAvatarPreviewComposition composition)
+        : this(
+            composition.Shell,
             LauncherV2PreviewData.CreateGame(scenario),
             LauncherV2PreviewData.CreateDashboard(scenario),
             LauncherV2PreviewData.CreateFriends(),
             LauncherV2PreviewData.CreateAuth(),
-            LauncherV2PreviewData.CreateProfile(),
+            composition.Profile,
             LauncherV2PreviewData.CreateSettings(),
-            LauncherV2PreviewData.CreateAccount(accountScenario),
-            LauncherV2PreviewData.CreateAvatarCrop(accountScenario),
+            composition.Account,
+            composition.Crop,
             authPreviewScenario: null,
             profilePreviewScenario: null,
             isPreviewMode: true,

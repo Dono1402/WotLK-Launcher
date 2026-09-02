@@ -335,11 +335,20 @@ internal static class AccountAvatarClientTests
                 using AvatarImageCache cache = new(delayed, dedupeRoot, lifetime.Token);
                 Task<BitmapSource?> one = cache.GetAsync(descriptor, 64, CancellationToken.None);
                 Task<BitmapSource?> two = cache.GetAsync(descriptor, 64, CancellationToken.None);
+                Task<BitmapSource?> accountVariant = cache.GetAsync(descriptor, 256, CancellationToken.None);
                 await delayed.DownloadEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-                Equal(1, delayed.DownloadCalls, "Deux demandes simultanées doivent partager un téléchargement.");
+                DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+                while (delayed.DownloadCalls < 2 && DateTime.UtcNow < deadline)
+                {
+                    await Task.Delay(10);
+                }
+                Equal(2, delayed.DownloadCalls,
+                    "Shell/Profile doivent partager 64 px tandis que Compte conserve sa variante 256 px.");
                 release.TrySetResult();
-                await Task.WhenAll(one, two);
+                await Task.WhenAll(one, two, accountVariant);
                 True(ReferenceEquals(one.Result, two.Result), "La déduplication doit publier la même image.");
+                False(ReferenceEquals(one.Result, accountVariant.Result),
+                    "Deux tailles doivent conserver des BitmapSource distincts.");
             }
             finally
             {
@@ -380,6 +389,16 @@ internal static class AccountAvatarClientTests
                         "401 média doit produire le fallback.");
                 }
                 Equal(1, unauthorized, "Le cache doit déléguer exactement une invalidation 401.");
+
+                StubAvatarMediaClient networkFailure = new()
+                {
+                    DownloadFailure = new AvatarMediaException(AvatarMediaFailureCategory.Network)
+                };
+                using (AvatarImageCache cache = new(networkFailure, statusRoot, lifetime.Token))
+                {
+                    True(await cache.GetAsync(descriptor with { Version = 3 }, 64, CancellationToken.None) is null,
+                        "Une erreur réseau média doit rester décorative et revenir au fallback.");
+                }
             }
             finally
             {
@@ -884,6 +903,7 @@ internal sealed class StubAvatarMediaClient : IAvatarMediaClient
     internal Task? ProfileGate { get; set; }
     internal byte[]? DownloadBytes { get; set; }
     internal AvatarMediaDownloadStatus DownloadStatus { get; set; } = AvatarMediaDownloadStatus.Success;
+    internal Exception? DownloadFailure { get; set; }
     internal Task? DownloadGate { get; set; }
     internal Task? UploadGate { get; set; }
     internal AvatarDescriptor UploadResult { get; set; } = AccountAvatarClientTests.Descriptor(2);
@@ -944,6 +964,10 @@ internal sealed class StubAvatarMediaClient : IAvatarMediaClient
         if (DownloadGate is not null)
         {
             await DownloadGate.WaitAsync(cancellationToken);
+        }
+        if (DownloadFailure is not null)
+        {
+            throw DownloadFailure;
         }
         return DownloadStatus switch
         {

@@ -18,7 +18,7 @@ internal static class AccountPreviewTests
         CharacterizeStartupIsolation();
         CharacterizePreviewStates();
         await ValidateWpfLayoutsInteractionsAndCapturesAsync(captureDirectory);
-        Console.WriteLine("Account WPF preview OK (03A.1, isolated presentation only).");
+        Console.WriteLine("Account WPF preview OK (03A.4 global avatar scenarios, isolated presentation only).");
         return 0;
     }
 
@@ -47,7 +47,10 @@ internal static class AccountPreviewTests
     private static void CharacterizePreviewStates()
     {
         Equal(AccountPreviewScenario.Profile, Resolve("--preview-account"), "Le scénario Compte par défaut est incorrect.");
+        Equal(AccountPreviewScenario.Profile, Resolve("--preview-account=avatar"), "Le scénario avatar est absent.");
         Equal(AccountPreviewScenario.Fallback, Resolve("--preview-account=fallback"), "Le fallback est absent.");
+        Equal(AccountPreviewScenario.AvatarChanged, Resolve("--preview-account=changed"), "Le changement d'avatar est absent.");
+        Equal(AccountPreviewScenario.AvatarDeleted, Resolve("--preview-account=deleted"), "Le scénario après suppression est absent.");
         Equal(AccountPreviewScenario.Crop, Resolve("--preview-account=crop"), "Le recadrage est absent.");
         Equal(AccountPreviewScenario.Uploading, Resolve("--preview-account=uploading"), "L'envoi est absent.");
         Equal(AccountPreviewScenario.UploadError, Resolve("--preview-account=upload-error"), "L'erreur d'envoi est absente.");
@@ -183,6 +186,8 @@ internal static class AccountPreviewTests
         [
             (AccountPreviewScenario.Profile, 1440, 860, "01-account-profile-1440x860.png"),
             (AccountPreviewScenario.Fallback, 1080, 680, "02-account-fallback-1080x680.png"),
+            (AccountPreviewScenario.AvatarChanged, 1440, 860, "02b-account-avatar-changed-1440x860.png"),
+            (AccountPreviewScenario.AvatarDeleted, 1440, 860, "02c-account-avatar-deleted-1440x860.png"),
             (AccountPreviewScenario.Security, 1440, 860, "03-account-security-1440x860.png"),
             (AccountPreviewScenario.Sessions, 1440, 860, "04-account-sessions-1440x860.png"),
             (AccountPreviewScenario.Crop, 1440, 860, "05-account-crop-1440x860.png"),
@@ -299,7 +304,27 @@ internal static class AccountPreviewTests
             True(saveBounds.Bottom <= window.ActualHeight + 0.5, "L'action principale du crop doit rester visible.");
         }
 
-        if (scenario == AccountPreviewScenario.Fallback)
+        bool expectsAvatar = scenario is not (
+            AccountPreviewScenario.Fallback or AccountPreviewScenario.AvatarDeleted);
+        Equal(expectsAvatar, window.ShellState.HasProfileAvatar,
+            "La barre supérieure doit suivre le scénario avatar isolé.");
+        Equal(expectsAvatar, window.ProfileState.HasAvatar,
+            "ProfileMenu doit suivre le scénario avatar isolé.");
+        Equal(expectsAvatar, window.AccountState.Current.HasProfileAvatar,
+            "AccountView doit suivre le scénario avatar isolé.");
+        if (expectsAvatar)
+        {
+            True(ReferenceEquals(
+                    window.ShellState.ProfileAvatarImage,
+                    window.ProfileState.AvatarImage),
+                "Le preview doit partager la même ImageSource locale entre Shell et ProfileMenu.");
+            True(ReferenceEquals(
+                    window.ShellState.ProfileAvatarImage,
+                    window.AccountState.Current.AvatarImage),
+                "Le preview isolé doit projeter une seule ressource locale dans les trois vues.");
+        }
+
+        if (scenario is AccountPreviewScenario.Fallback or AccountPreviewScenario.AvatarDeleted)
         {
             Equal(Visibility.Collapsed, Required<System.Windows.Shapes.Ellipse>(window.AccountPage, "ProfileAvatarImage").Visibility, "Le fallback doit masquer la photo.");
             True(!Required<Button>(window.AccountPage, "RemoveAvatarButton").IsEnabled, "Le fallback ne doit pas proposer de suppression.");

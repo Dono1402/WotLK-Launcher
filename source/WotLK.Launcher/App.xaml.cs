@@ -260,7 +260,8 @@ public partial class App : Application
         FriendsStateAdapter friendsStateAdapter = new(
             friendsState,
             runtime.Friends,
-            window.Dispatcher);
+            window.Dispatcher,
+            runtime.AvatarImages);
         AccountStateAdapter accountStateAdapter = new(
             accountState,
             avatarCropState,

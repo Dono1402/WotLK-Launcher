@@ -81,6 +81,8 @@ internal sealed class LauncherRuntimeDependencies
 
     internal TimeProvider AccountTimeProvider { get; init; } = TimeProvider.System;
 
+    internal TimeProvider FriendsTimeProvider { get; init; } = TimeProvider.System;
+
     internal Uri AvatarApiBaseUri { get; init; } = AtlasNetwork.LauncherApiBaseUri;
 
     internal Func<string> GetAvatarCacheRoot { get; init; } = static () => Path.Combine(
@@ -240,7 +242,8 @@ internal sealed class LauncherRuntime : IDisposable
             _authentication,
             Operations.ShutdownToken,
             () => _authentication.Session?.Profile,
-            dependencies.WriteRuntimeLog);
+            dependencies.WriteRuntimeLog,
+            dependencies.FriendsTimeProvider);
     }
 
     internal LauncherSettings Settings { get; }

@@ -602,7 +602,8 @@ internal sealed record LauncherFriend(
     byte? Level,
     byte? ClassId,
     uint? ZoneId,
-    DateTimeOffset? LastSeenAt)
+    DateTimeOffset? LastSeenAt,
+    Account.AvatarDescriptor? Avatar = null)
 {
     public string Initial => string.IsNullOrWhiteSpace(Username)
         ? "?"

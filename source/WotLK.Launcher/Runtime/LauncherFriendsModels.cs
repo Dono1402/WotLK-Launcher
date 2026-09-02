@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using WotLK.Launcher.Account;
 
 namespace WotLK.Launcher.Runtime;
 
@@ -70,6 +71,7 @@ internal sealed record FriendRuntimeItem(
     uint AccountId,
     string Username,
     string? AvatarKey,
+    AvatarDescriptor? Avatar,
     FriendRelationship Relationship,
     bool IsOnline,
     string? CharacterName,
@@ -101,7 +103,9 @@ internal sealed record FriendsRuntimeSnapshot(
     uint? TargetAccountId,
     string TargetUsername,
     FriendsRuntimeError ErrorState,
-    FriendsNoticeKind Notice)
+    FriendsNoticeKind Notice,
+    bool IsAutomaticRefresh,
+    bool IsStale)
 {
     internal static FriendsRuntimeSnapshot SignedOut { get; } = new(
         Sequence: 0,
@@ -117,7 +121,9 @@ internal sealed record FriendsRuntimeSnapshot(
         TargetAccountId: null,
         TargetUsername: string.Empty,
         ErrorState: FriendsRuntimeError.None,
-        Notice: FriendsNoticeKind.None);
+        Notice: FriendsNoticeKind.None,
+        IsAutomaticRefresh: false,
+        IsStale: false);
 
     internal bool IsBusy => OperationState != FriendsOperationState.None;
 }

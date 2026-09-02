@@ -6,6 +6,8 @@ namespace WotLK.Launcher.Runtime;
 
 internal sealed class LauncherFriendsCoordinator : IDisposable
 {
+    internal static readonly TimeSpan AutomaticRefreshInterval = TimeSpan.FromSeconds(15);
+
     private readonly object _sync = new();
     private readonly LauncherSessionCoordinator _session;
     private readonly ILauncherAuthService _authentication;
@@ -13,6 +15,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
     private readonly Func<LauncherProfile?> _getCurrentProfile;
     private readonly Action<string> _writeLog;
     private readonly CancellationTokenRegistration _lifetimeRegistration;
+    private readonly ITimer _automaticRefreshTimer;
     private readonly HashSet<Task> _inFlightTasks = [];
     private FriendsRuntimeSnapshot _currentSnapshot;
     private CancellationTokenSource? _activeCancellation;
@@ -20,6 +23,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
     private long _nextOperationId;
     private long _sequence;
     private bool _isShuttingDown;
+    private bool _isAutomaticRefreshEnabled;
     private int _disposeState;
 
     internal LauncherFriendsCoordinator(
@@ -27,7 +31,8 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
         ILauncherAuthService authentication,
         CancellationToken lifetimeToken,
         Func<LauncherProfile?> getCurrentProfile,
-        Action<string> writeLog)
+        Action<string> writeLog,
+        TimeProvider? refreshTimeProvider = null)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _authentication = authentication ?? throw new ArgumentNullException(nameof(authentication));
@@ -35,8 +40,14 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
         _getCurrentProfile = getCurrentProfile ?? throw new ArgumentNullException(nameof(getCurrentProfile));
         _writeLog = writeLog ?? throw new ArgumentNullException(nameof(writeLog));
         _currentSnapshot = CreateSessionSnapshot(_session.CurrentSnapshot, _getCurrentProfile());
+        _automaticRefreshTimer = (refreshTimeProvider ?? TimeProvider.System).CreateTimer(
+            static state => ((LauncherFriendsCoordinator)state!).AutomaticRefreshTimer_Tick(),
+            this,
+            Timeout.InfiniteTimeSpan,
+            Timeout.InfiniteTimeSpan);
         _session.SnapshotChanged += Session_SnapshotChanged;
         _lifetimeRegistration = lifetimeToken.Register(BeginShutdown);
+        UpdateAutomaticRefreshState();
     }
 
     internal event EventHandler<FriendsRuntimeSnapshotEventArgs>? SnapshotChanged;
@@ -54,7 +65,11 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
 
     internal FriendsActionStartResult TryRefresh()
     {
-        return TryStart(FriendsOperationState.Refreshing, null, string.Empty);
+        return TryStart(
+            FriendsOperationState.Refreshing,
+            null,
+            string.Empty,
+            isAutomaticRefresh: false);
     }
 
     internal FriendsActionStartResult TrySendRequest(string username)
@@ -110,6 +125,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
             cancellation = _activeCancellation;
         }
 
+        UpdateAutomaticRefreshState();
         TryCancel(cancellation);
     }
 
@@ -151,12 +167,14 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
         _session.SnapshotChanged -= Session_SnapshotChanged;
         BeginShutdown();
         _lifetimeRegistration.Dispose();
+        _automaticRefreshTimer.Dispose();
     }
 
     private FriendsActionStartResult TryStart(
         FriendsOperationState operation,
         uint? targetAccountId,
-        string targetUsername)
+        string targetUsername,
+        bool isAutomaticRefresh = false)
     {
         FriendsRuntimeSnapshot snapshot;
         CancellationTokenSource cancellation;
@@ -186,6 +204,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
             {
                 OperationId = operationId,
                 LoadState = operation == FriendsOperationState.Refreshing
+                    && (!isAutomaticRefresh || _currentSnapshot.LoadState != FriendsLoadState.Loaded)
                     ? FriendsLoadState.Loading
                     : _currentSnapshot.LoadState,
                 SearchState = operation == FriendsOperationState.SendingRequest
@@ -195,7 +214,9 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
                 TargetAccountId = targetAccountId,
                 TargetUsername = targetUsername,
                 ErrorState = FriendsRuntimeError.None,
-                Notice = FriendsNoticeKind.None
+                Notice = FriendsNoticeKind.None,
+                IsAutomaticRefresh = operation == FriendsOperationState.Refreshing
+                    && isAutomaticRefresh
             });
             startGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             completion = RunAfterGateAsync(
@@ -204,6 +225,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
                 operation,
                 targetAccountId,
                 targetUsername,
+                isAutomaticRefresh,
                 cancellation);
             _inFlightTasks.Add(completion);
             _ = completion.ContinueWith(
@@ -227,6 +249,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
         FriendsOperationState operation,
         uint? targetAccountId,
         string targetUsername,
+        bool isAutomaticRefresh,
         CancellationTokenSource cancellation)
     {
         await gate.ConfigureAwait(false);
@@ -235,6 +258,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
             operation,
             targetAccountId,
             targetUsername,
+            isAutomaticRefresh,
             cancellation).ConfigureAwait(false);
     }
 
@@ -243,6 +267,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
         FriendsOperationState operation,
         uint? targetAccountId,
         string targetUsername,
+        bool isAutomaticRefresh,
         CancellationTokenSource cancellation)
     {
         try
@@ -261,6 +286,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
                         preparation == AtlasRequestPreparationStatus.AuthenticationRequired
                             ? FriendsErrorCategory.Unauthorized
                             : FriendsErrorCategory.ServiceUnavailable,
+                        isAutomaticRefresh,
                         cancellation);
             }
 
@@ -268,6 +294,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
             {
                 FriendsOperationState.Refreshing => await RefreshAsync(
                     operationId,
+                    isAutomaticRefresh,
                     cancellation).ConfigureAwait(false),
                 FriendsOperationState.SendingRequest => await SendRequestAsync(
                     operationId,
@@ -288,6 +315,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
                     operationId,
                     operation,
                     FriendsErrorCategory.Unknown,
+                    isAutomaticRefresh,
                     cancellation)
             };
         }
@@ -302,6 +330,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
                 operationId,
                 operation,
                 FriendsErrorCategory.Timeout,
+                isAutomaticRefresh,
                 cancellation);
         }
         catch (LauncherAuthException exception)
@@ -312,13 +341,23 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
             {
                 _session.NotifyAuthenticatedRequestUnauthorized();
             }
-            return CompleteFailure(operationId, operation, category, cancellation);
+            return CompleteFailure(
+                operationId,
+                operation,
+                category,
+                isAutomaticRefresh,
+                cancellation);
         }
         catch (HttpRequestException exception)
         {
             FriendsErrorCategory category = MapHttpFailure(exception.StatusCode);
             WriteFailureSafely(operation, category, exception);
-            return CompleteFailure(operationId, operation, category, cancellation);
+            return CompleteFailure(
+                operationId,
+                operation,
+                category,
+                isAutomaticRefresh,
+                cancellation);
         }
         catch (TimeoutException exception)
         {
@@ -327,6 +366,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
                 operationId,
                 operation,
                 FriendsErrorCategory.Timeout,
+                isAutomaticRefresh,
                 cancellation);
         }
         catch (Exception exception)
@@ -336,25 +376,29 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
                 operationId,
                 operation,
                 FriendsErrorCategory.Unknown,
+                isAutomaticRefresh,
                 cancellation);
         }
     }
 
     private async Task<FriendsActionCompletion> RefreshAsync(
         long operationId,
+        bool isAutomaticRefresh,
         CancellationTokenSource cancellation)
     {
         IReadOnlyList<LauncherFriend> result = await _authentication
             .GetFriendsAsync(cancellation.Token)
             .ConfigureAwait(false);
-        FriendLists lists = Split(result);
+        FriendLists lists = Split(result, CurrentSnapshot.CurrentUserId);
         return CompleteSuccess(
             operationId,
             cancellation,
             snapshot => ApplyLists(snapshot, lists) with
             {
                 LoadState = FriendsLoadState.Loaded,
-                SearchState = FriendsSearchState.Idle
+                SearchState = FriendsSearchState.Idle,
+                IsAutomaticRefresh = false,
+                IsStale = false
             });
     }
 
@@ -369,7 +413,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
         IReadOnlyList<LauncherFriend> result = await _authentication
             .GetFriendsAsync(cancellation.Token)
             .ConfigureAwait(false);
-        FriendLists lists = Split(result);
+        FriendLists lists = Split(result, CurrentSnapshot.CurrentUserId);
         bool accepted = lists.Friends.Any(friend =>
             string.Equals(friend.Username, targetUsername, StringComparison.OrdinalIgnoreCase));
         return CompleteSuccess(
@@ -440,7 +484,8 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
                     OperationState = FriendsOperationState.None,
                     TargetAccountId = null,
                     TargetUsername = string.Empty,
-                    ErrorState = FriendsRuntimeError.None
+                    ErrorState = FriendsRuntimeError.None,
+                    IsAutomaticRefresh = false
                 });
                 current = published;
                 ReleaseOperationUnsafe(operationId);
@@ -460,6 +505,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
         long operationId,
         FriendsOperationState operation,
         FriendsErrorCategory category,
+        bool isAutomaticRefresh,
         CancellationTokenSource cancellation)
     {
         FriendsRuntimeSnapshot? published = null;
@@ -472,20 +518,30 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
             }
             else
             {
+                bool quietAutomaticFailure = operation == FriendsOperationState.Refreshing
+                    && isAutomaticRefresh;
                 published = SetSnapshotUnsafe(_currentSnapshot with
                 {
                     OperationId = null,
-                    LoadState = operation == FriendsOperationState.Refreshing
-                        ? FriendsLoadState.Failed
-                        : _currentSnapshot.LoadState,
+                    LoadState = quietAutomaticFailure
+                        ? _currentSnapshot.LoadState == FriendsLoadState.Loading
+                            ? FriendsLoadState.Idle
+                            : _currentSnapshot.LoadState
+                        : operation == FriendsOperationState.Refreshing
+                            ? FriendsLoadState.Failed
+                            : _currentSnapshot.LoadState,
                     SearchState = operation == FriendsOperationState.SendingRequest
                         ? FriendsSearchState.Failed
                         : _currentSnapshot.SearchState,
                     OperationState = FriendsOperationState.None,
                     TargetAccountId = null,
                     TargetUsername = string.Empty,
-                    ErrorState = new FriendsRuntimeError(operation, category),
-                    Notice = FriendsNoticeKind.None
+                    ErrorState = quietAutomaticFailure
+                        ? FriendsRuntimeError.None
+                        : new FriendsRuntimeError(operation, category),
+                    Notice = FriendsNoticeKind.None,
+                    IsAutomaticRefresh = false,
+                    IsStale = quietAutomaticFailure || _currentSnapshot.IsStale
                 });
                 current = published;
                 ReleaseOperationUnsafe(operationId);
@@ -522,7 +578,8 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
                     TargetAccountId = null,
                     TargetUsername = string.Empty,
                     ErrorState = FriendsRuntimeError.None,
-                    Notice = FriendsNoticeKind.None
+                    Notice = FriendsNoticeKind.None,
+                    IsAutomaticRefresh = false
                 });
                 ReleaseOperationUnsafe(operationId);
             }
@@ -557,6 +614,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
         }
 
         TryCancel(cancellation);
+        UpdateAutomaticRefreshState();
         RaiseSnapshotChanged(snapshot);
     }
 
@@ -705,13 +763,20 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
         };
     }
 
-    private static FriendLists Split(IReadOnlyList<LauncherFriend> source)
+    private static FriendLists Split(
+        IReadOnlyList<LauncherFriend> source,
+        uint? currentUserId)
     {
         List<FriendRuntimeItem> friends = [];
         List<FriendRuntimeItem> incoming = [];
         List<FriendRuntimeItem> outgoing = [];
         foreach (LauncherFriend item in source)
         {
+            if (currentUserId is uint ownAccountId && item.AccountId == ownAccountId)
+            {
+                continue;
+            }
+
             FriendRelationship? relationship = ParseRelationship(item.Relationship);
             if (relationship is null)
             {
@@ -722,6 +787,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
                 item.AccountId,
                 item.Username,
                 item.AvatarKey,
+                item.Avatar,
                 relationship.Value,
                 item.Online,
                 item.CharacterName,
@@ -846,6 +912,43 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
         }
         catch (ObjectDisposedException)
         {
+        }
+    }
+
+    private void AutomaticRefreshTimer_Tick()
+    {
+        if (Volatile.Read(ref _disposeState) != 0)
+        {
+            return;
+        }
+
+        _ = TryStart(
+            FriendsOperationState.Refreshing,
+            null,
+            string.Empty,
+            isAutomaticRefresh: true);
+    }
+
+    private void UpdateAutomaticRefreshState()
+    {
+        lock (_sync)
+        {
+            bool enabled = _currentSnapshot.IsAuthenticated && !IsStoppingUnsafe();
+            if (_isAutomaticRefreshEnabled == enabled)
+            {
+                return;
+            }
+
+            _isAutomaticRefreshEnabled = enabled;
+            try
+            {
+                _automaticRefreshTimer.Change(
+                    enabled ? AutomaticRefreshInterval : Timeout.InfiniteTimeSpan,
+                    enabled ? AutomaticRefreshInterval : Timeout.InfiniteTimeSpan);
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         }
     }
 

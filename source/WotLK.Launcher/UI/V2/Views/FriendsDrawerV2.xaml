@@ -23,8 +23,35 @@
                            FontSize="13"
                            FontWeight="Bold"
                            Foreground="#111318"/>
-                <Ellipse Stroke="{StaticResource AtlasV2.Brush.Border}"
-                         StrokeThickness="1"/>
+                <Ellipse AutomationProperties.Name="Photo de profil Atlas">
+                    <Ellipse.Fill>
+                        <ImageBrush ImageSource="{Binding AvatarImage}"
+                                    Stretch="UniformToFill"/>
+                    </Ellipse.Fill>
+                    <Ellipse.Style>
+                        <Style TargetType="{x:Type Ellipse}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasAvatarImage}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Ellipse.Style>
+                </Ellipse>
+                <Ellipse StrokeThickness="1">
+                    <Ellipse.Style>
+                        <Style TargetType="{x:Type Ellipse}">
+                            <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Border}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasAvatarImage}" Value="True">
+                                    <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+                                    <Setter Property="Opacity" Value="0.82"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Ellipse.Style>
+                </Ellipse>
             </Grid>
         </DataTemplate>
 

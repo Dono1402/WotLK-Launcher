@@ -1,4 +1,5 @@
 using System.IO;
+using System.Collections.Concurrent;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -7,12 +8,14 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using WotLK.Launcher;
+using WotLK.Launcher.Account;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2;
 using WotLK.Launcher.UI.V2.Commands;
 using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Preview;
 using WotLK.Launcher.UI.V2.Views;
+using Ellipse = System.Windows.Shapes.Ellipse;
 
 internal static class FriendsDrawerWpfTests
 {
@@ -21,7 +24,7 @@ internal static class FriendsDrawerWpfTests
         CharacterizePreviewIsolation();
         CharacterizePreviewData();
         await ValidateWpfLayoutsInteractionsAndCapturesAsync(captureDirectory);
-        Console.WriteLine("Atlas friends drawer WPF preview OK (03B, isolated presentation only).");
+        Console.WriteLine("Atlas friends drawer WPF preview OK (03B.1, isolated presentation only).");
         return 0;
     }
 
@@ -55,6 +58,11 @@ internal static class FriendsDrawerWpfTests
         Equal(FriendsPreviewScenario.AddFriendError, Resolve("--preview-friends=add-friend-error"), "L’erreur d’ajout est absente.");
         Equal(FriendsPreviewScenario.AvatarFallback, Resolve("--preview-friends=avatar-fallback"), "Le fallback avatar est absent.");
         Equal(FriendsPreviewScenario.NetworkError, Resolve("--preview-friends=network-error"), "L’erreur réseau est absente.");
+        Equal(FriendsPreviewScenario.Avatars, Resolve("--preview-friends=avatars"), "Le scénario avatars est absent.");
+        Equal(FriendsPreviewScenario.MixedAvatars, Resolve("--preview-friends=mixed"), "Le scénario mixte est absent.");
+        Equal(FriendsPreviewScenario.AvatarChanged, Resolve("--preview-friends=avatar-changed"), "Le changement d’avatar est absent.");
+        Equal(FriendsPreviewScenario.NetworkStale, Resolve("--preview-friends=network-stale"), "Le réseau obsolète est absent.");
+        Equal(FriendsPreviewScenario.ManyFriends, Resolve("--preview-friends=100"), "Le scénario 100 amis est absent.");
 
         FriendsUiState populated = LauncherV2PreviewData.CreateFriends(FriendsPreviewScenario.Populated);
         True(populated.Current.IsPreview, "Les données fictives doivent être marquées preview.");
@@ -63,12 +71,20 @@ internal static class FriendsDrawerWpfTests
             "Les deux types de demandes doivent être représentés.");
         True(populated.Current.Friends.Any(friend => !friend.HasAvatarTheme),
             "Le scénario doit couvrir l’absence d’avatar.");
+        True(populated.Current.Friends.Any(friend => friend.HasAvatarImage)
+            && populated.Current.Friends.Any(friend => !friend.HasAvatarImage),
+            "Le scénario peuplé doit mélanger photos synchronisées et fallback.");
 
         FriendsUiState empty = LauncherV2PreviewData.CreateFriends(FriendsPreviewScenario.Empty);
         True(empty.Current.ShowsGlobalEmpty, "L’état vide doit être explicite.");
         FriendsUiState network = LauncherV2PreviewData.CreateFriends(FriendsPreviewScenario.NetworkError);
         True(network.Current.ShowsError && network.Current.LoadState == FriendsViewLoadState.Failed,
             "L’erreur réseau fictive doit être contrôlée.");
+        FriendsUiState stale = LauncherV2PreviewData.CreateFriends(FriendsPreviewScenario.NetworkStale);
+        True(stale.Current.IsStale && !stale.Current.ShowsError && stale.Current.HasFriends,
+            "Un échec périodique doit conserver les données sans grande erreur.");
+        Equal(100, LauncherV2PreviewData.CreateFriends(FriendsPreviewScenario.ManyFriends).Current.Friends.Length,
+            "Le scénario de charge doit contenir 100 amis.");
 
         FriendsViewState before = populated.Current;
         populated.RefreshCommand.Execute(null);
@@ -131,6 +147,8 @@ internal static class FriendsDrawerWpfTests
                 await ValidateScenariosAndCapturesAsync(captureDirectory);
                 await ValidateFocusAndClosureAsync();
                 await ValidateBusyRequestSurvivesDrawerClosureAsync();
+                await ValidateSingleTimerAcrossRepeatedDrawerOpeningsAsync();
+                await ValidateSharedAvatarCacheAndStaleCompletionAsync();
             }
             catch (Exception exception)
             {
@@ -148,11 +166,12 @@ internal static class FriendsDrawerWpfTests
     {
         (FriendsPreviewScenario Scenario, double Width, double Height, string FileName)[] scenarios =
         [
-            (FriendsPreviewScenario.Populated, 1440, 860, "01-friends-populated-1440x860.png"),
-            (FriendsPreviewScenario.IncomingRequests, 1080, 680, "02-friends-incoming-1080x680.png"),
-            (FriendsPreviewScenario.Empty, 1440, 860, "03-friends-empty-1440x860.png"),
-            (FriendsPreviewScenario.NetworkError, 1440, 860, "04-friends-network-error-1440x860.png"),
-            (FriendsPreviewScenario.AvatarFallback, 1080, 680, "05-friends-avatar-fallback-1080x680.png")
+            (FriendsPreviewScenario.Avatars, 1440, 860, "01-friends-avatars-1440x860.png"),
+            (FriendsPreviewScenario.MixedAvatars, 1080, 680, "02-friends-mixed-1080x680.png"),
+            (FriendsPreviewScenario.IncomingRequests, 1440, 860, "03-friends-requests-1440x860.png"),
+            (FriendsPreviewScenario.AvatarChanged, 1080, 680, "04-friends-avatar-changed-1080x680.png"),
+            (FriendsPreviewScenario.NetworkStale, 1440, 860, "05-friends-network-stale-1440x860.png"),
+            (FriendsPreviewScenario.ManyFriends, 1440, 860, "06-friends-100-1440x860.png")
         ];
         if (!string.IsNullOrWhiteSpace(captureDirectory))
         {
@@ -166,6 +185,13 @@ internal static class FriendsDrawerWpfTests
             try
             {
                 await DelayAndPumpAsync(240);
+                if (scenario == FriendsPreviewScenario.Avatars)
+                {
+                    DpiScale dpi = VisualTreeHelper.GetDpi(window);
+                    Console.WriteLine(
+                        $"Friends WPF DPI observed: {dpi.PixelsPerInchX:0} x {dpi.PixelsPerInchY:0} "
+                        + $"({dpi.DpiScaleX * 100:0}% x {dpi.DpiScaleY * 100:0}%).");
+                }
                 ValidateCommonContract(window, scenario);
                 if (!string.IsNullOrWhiteSpace(captureDirectory))
                 {
@@ -221,6 +247,22 @@ internal static class FriendsDrawerWpfTests
                     && button.IsEnabled),
                 "Le retrait d’ami doit rester disponible via la confirmation locale.");
         }
+        if (scenario is FriendsPreviewScenario.Avatars
+            or FriendsPreviewScenario.MixedAvatars
+            or FriendsPreviewScenario.AvatarChanged)
+        {
+            True(Descendants<Ellipse>(drawer).Any(ellipse =>
+                    AutomationProperties.GetName(ellipse) == "Photo de profil Atlas"
+                    && ellipse.Visibility == Visibility.Visible
+                    && ellipse.Fill is ImageBrush { ImageSource: not null }),
+                "Une vraie photo circulaire doit être rendue par le drawer.");
+        }
+        if (scenario == FriendsPreviewScenario.MixedAvatars)
+        {
+            True(window.FriendsState.Current.Friends.Any(friend => friend.HasAvatarImage)
+                && window.FriendsState.Current.Friends.Any(friend => !friend.HasAvatarImage),
+                "Le rendu mixte doit conserver le fallback par initiale.");
+        }
         if (scenario == FriendsPreviewScenario.IncomingRequests)
         {
             Equal(Visibility.Visible, Required<StackPanel>(drawer, "IncomingRequestsSection").Visibility,
@@ -229,6 +271,8 @@ internal static class FriendsDrawerWpfTests
                     string.Equals(AutomationProperties.GetName(button), "Accepter la demande", StringComparison.Ordinal)
                     && button.Command is not null),
                 "Le bouton Accepter doit être lié.");
+            True(window.FriendsState.Current.IncomingRequests.Any(request => request.HasAvatarImage),
+                "Les demandes reçues doivent également afficher les photos disponibles.");
         }
         if (scenario == FriendsPreviewScenario.Empty)
         {
@@ -240,6 +284,20 @@ internal static class FriendsDrawerWpfTests
             True(Descendants<TextBlock>(drawer).Any(text =>
                     text.Text == "Impossible de joindre Atlas pour le moment."),
                 "L’erreur réseau contrôlée doit être visible.");
+        }
+        if (scenario == FriendsPreviewScenario.NetworkStale)
+        {
+            True(window.FriendsState.Current.IsStale
+                && !window.FriendsState.Current.ShowsError
+                && window.FriendsState.Current.HasFriends,
+                "Le réseau périodique indisponible doit conserver les données connues.");
+        }
+        if (scenario == FriendsPreviewScenario.ManyFriends)
+        {
+            Equal(100, window.FriendsState.Current.Friends.Length,
+                "Les 100 amis fictifs doivent être présents.");
+            True(drawer.ScrollHost.ScrollableHeight > 0,
+                "La liste de 100 amis doit défiler sans compression.");
         }
         if (window.Width <= 1080)
         {
@@ -405,6 +463,311 @@ internal static class FriendsDrawerWpfTests
         }
     }
 
+    private static async Task ValidateSingleTimerAcrossRepeatedDrawerOpeningsAsync()
+    {
+        FakeLauncherAuthService authentication = new()
+        {
+            RestoreResult = true,
+            Session = FakeLauncherAuthService.CreateSession(),
+            EnsureFreshHandler = _ => Task.FromResult(true),
+            FriendsHandler = _ => Task.FromResult<IReadOnlyList<LauncherFriend>>([])
+        };
+        CountingFriendsTimeProvider time = new();
+        using CancellationTokenSource lifetime = new();
+        using LauncherSessionCoordinator session = new(authentication, lifetime.Token, _ => { });
+        using LauncherFriendsCoordinator runtime = new(
+            session,
+            authentication,
+            lifetime.Token,
+            () => authentication.Session?.Profile,
+            _ => { },
+            time);
+        FriendsUiState friendsState = new(FriendsStateAdapter.Project(runtime.CurrentSnapshot));
+        LauncherShellV2 window = CreateRuntimeWindow(friendsState);
+        using FriendsStateAdapter adapter = new(friendsState, runtime, window.Dispatcher);
+        using FriendsCommands commands = new(runtime, friendsState, window.Dispatcher);
+        window.AttachFriends(commands);
+        window.Show();
+        try
+        {
+            Equal(LauncherSessionRestoreStatus.Restored, (await session.RestoreOnceAsync()).Status,
+                "La session du test timer doit être restaurée.");
+            await PumpAsync(DispatcherPriority.DataBind);
+            Equal(1, time.CreateTimerCalls,
+                "LauncherFriendsCoordinator doit créer un seul timer social.");
+            True(time.Timer.IsEnabled,
+                "Le timer doit être actif pendant la session authentifiée.");
+
+            Button friendsButton = Required<Button>(window, "FriendsButton");
+            for (int index = 0; index < 10; index++)
+            {
+                RaiseClick(friendsButton);
+                await WaitForAsync(() => friendsState.IsOpen);
+                RaisePreviewKey(window, Key.Escape);
+                await DelayAndPumpAsync(190);
+                True(window.FriendsOverlay.IsFullyClosed,
+                    "Chaque fermeture répétée doit finir proprement.");
+            }
+
+            Equal(1, time.CreateTimerCalls,
+                "Dix ouvertures du drawer ne doivent jamais créer un autre timer.");
+            int beforeTick = authentication.GetFriendsCalls;
+            time.Timer.Fire();
+            await runtime.WaitForIdleAsync(TimeSpan.FromSeconds(1));
+            Equal(beforeTick + 1, authentication.GetFriendsCalls,
+                "Le timer unique doit réutiliser le pipeline de rafraîchissement.");
+        }
+        finally
+        {
+            runtime.BeginShutdown();
+            session.BeginShutdown();
+            lifetime.Cancel();
+            await runtime.WaitForIdleAsync(TimeSpan.FromSeconds(1));
+            window.Close();
+            await PumpAsync(DispatcherPriority.Background);
+        }
+    }
+
+    private static async Task ValidateSharedAvatarCacheAndStaleCompletionAsync()
+    {
+        byte[] oldImageBytes = CreateSolidPng(Color.FromRgb(0xD9, 0x55, 0x62));
+        byte[] currentImageBytes = CreateSolidPng(Color.FromRgb(0x51, 0xD7, 0xA2));
+        Guid avatarId = Guid.Parse("58ca8a4d-f5a4-4e72-b1f8-8f4aeec6ab31");
+        AvatarDescriptor oldAvatar = Descriptor(avatarId, 1);
+        AvatarDescriptor currentAvatar = Descriptor(avatarId, 2);
+        AvatarDescriptor missingAvatar = Descriptor(
+            Guid.Parse("d57388e8-096d-4f4e-8d24-c86cbdf35ca6"),
+            1);
+        TaskCompletionSource oldDownloadStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource releaseOldDownload = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        SocialAvatarMediaClient media = new()
+        {
+            DownloadHandler = async (descriptor, _, _) =>
+            {
+                if (descriptor.AvatarId == missingAvatar.AvatarId)
+                {
+                    return AvatarMediaDownloadResult.NotFound;
+                }
+                if (descriptor.Version == 1)
+                {
+                    oldDownloadStarted.TrySetResult();
+                    await releaseOldDownload.Task.ConfigureAwait(false);
+                    return AvatarMediaDownloadResult.Success(oldImageBytes);
+                }
+                return AvatarMediaDownloadResult.Success(currentImageBytes);
+            }
+        };
+        FakeLauncherAuthService authentication = new()
+        {
+            RestoreResult = true,
+            Session = FakeLauncherAuthService.CreateSession(),
+            EnsureFreshHandler = _ => Task.FromResult(true)
+        };
+        IReadOnlyList<LauncherFriend> currentFriends = BuildAvatarFriends(oldAvatar, missingAvatar);
+        authentication.FriendsHandler = _ => Task.FromResult(currentFriends);
+        CountingFriendsTimeProvider time = new();
+        using CancellationTokenSource lifetime = new();
+        using LauncherSessionCoordinator session = new(authentication, lifetime.Token, _ => { });
+        using LauncherFriendsCoordinator runtime = new(
+            session,
+            authentication,
+            lifetime.Token,
+            () => authentication.Session?.Profile,
+            _ => { },
+            time);
+        string cacheRoot = Path.Combine(
+            Path.GetTempPath(),
+            "AtlasFriendsAvatarCacheTest",
+            Guid.NewGuid().ToString("N"));
+        using AvatarImageCache avatarImages = new(
+            media,
+            cacheRoot,
+            lifetime.Token,
+            session.NotifyAuthenticatedRequestUnauthorized);
+        FriendsUiState friendsState = new(FriendsStateAdapter.Project(runtime.CurrentSnapshot));
+        LauncherShellV2 window = CreateRuntimeWindow(friendsState);
+        using FriendsStateAdapter adapter = new(
+            friendsState,
+            runtime,
+            window.Dispatcher,
+            avatarImages);
+        using FriendsCommands commands = new(runtime, friendsState, window.Dispatcher);
+        window.AttachFriends(commands);
+        window.Show();
+        try
+        {
+            Equal(LauncherSessionRestoreStatus.Restored, (await session.RestoreOnceAsync()).Status,
+                "La session du test avatar doit être restaurée.");
+            RaiseClick(Required<Button>(window, "FriendsButton"));
+            await WaitForAsync(() => friendsState.Current.LoadState == FriendsViewLoadState.Loaded);
+            await oldDownloadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            FriendUiItem loading = friendsState.Current.Friends.Single(friend => friend.AccountId == 2);
+            True(!loading.HasAvatarImage && loading.Initial == "A",
+                "L’initiale doit être visible immédiatement pendant le chargement.");
+
+            FriendsDrawerV2 drawer = window.FriendsOverlay;
+            drawer.ScrollHost.ScrollToVerticalOffset(180);
+            await PumpAsync(DispatcherPriority.Render);
+            double scrollOffset = drawer.ScrollHost.VerticalOffset;
+            True(scrollOffset > 0,
+                "Le scénario avatar doit être assez long pour vérifier le scroll.");
+
+            currentFriends = BuildAvatarFriends(currentAvatar, missingAvatar);
+            await RequiredFriendsCompletion(runtime.TryRefresh());
+            await WaitForAsync(() =>
+                friendsState.Current.Friends.Single(friend => friend.AccountId == 2).HasAvatarImage);
+            FriendUiItem updated = friendsState.Current.Friends.Single(friend => friend.AccountId == 2);
+            ImageSource currentImage = updated.AvatarImage
+                ?? throw new InvalidOperationException("La variante avatar courante n’a pas été appliquée.");
+            Equal(2UL, updated.AvatarVersion,
+                "La nouvelle version avatar doit être la seule publiée.");
+            True(Math.Abs(drawer.ScrollHost.VerticalOffset - scrollOffset) <= 1,
+                "Une mise à jour d’avatar ne doit pas réinitialiser le scroll.");
+
+            int requestsBeforeUnchangedRefresh = media.RequestedSizes.Count;
+            await RequiredFriendsCompletion(runtime.TryRefresh());
+            await DelayAndPumpAsync(80);
+            Equal(requestsBeforeUnchangedRefresh, media.RequestedSizes.Count,
+                "Un AvatarId/version inchangé, y compris après 404, ne doit pas être rechargé.");
+
+            releaseOldDownload.TrySetResult();
+            await DelayAndPumpAsync(180);
+            FriendUiItem afterLateDownload = friendsState.Current.Friends.Single(friend => friend.AccountId == 2);
+            Equal(2UL, afterLateDownload.AvatarVersion,
+                "Un ancien téléchargement ne doit pas rétablir une version obsolète.");
+            True(ReferenceEquals(currentImage, afterLateDownload.AvatarImage),
+                "Le callback obsolète ne doit pas remplacer l’image courante.");
+            True(!friendsState.Current.Friends.Single(friend => friend.AccountId == 3).HasAvatarImage,
+                "Un 404 média doit conserver silencieusement le fallback.");
+            True(media.RequestedSizes.Count > 0
+                && media.RequestedSizes.All(size => size == FriendsStateAdapter.SocialAvatarSize),
+                "Le drawer doit demander exclusivement la variante 64 px.");
+
+            await RequiredFriendsCompletion(runtime.TryRemoveFriend(2));
+            await PumpAsync(DispatcherPriority.DataBind);
+            True(friendsState.Current.Friends.All(friend => friend.AccountId != 2),
+                "Un ami retiré ne doit plus rester lié au snapshot social.");
+        }
+        finally
+        {
+            releaseOldDownload.TrySetResult();
+            runtime.BeginShutdown();
+            session.BeginShutdown();
+            lifetime.Cancel();
+            await runtime.WaitForIdleAsync(TimeSpan.FromSeconds(1));
+            window.Close();
+            await PumpAsync(DispatcherPriority.Background);
+            TryDeleteDirectory(cacheRoot);
+        }
+    }
+
+    private static LauncherShellV2 CreateRuntimeWindow(FriendsUiState friendsState)
+    {
+        return new LauncherShellV2(
+            LauncherV2PreviewData.CreateShell(GamePreviewScenario.Ready),
+            LauncherV2PreviewData.CreateGame(GamePreviewScenario.Ready),
+            LauncherV2PreviewData.CreateDashboard(GamePreviewScenario.Ready),
+            friendsState,
+            LauncherV2PreviewData.CreateProfile(),
+            LauncherV2PreviewData.CreateSettings(),
+            LauncherV2PreviewData.CreateAccount(),
+            LauncherV2PreviewData.CreateAvatarCrop())
+        {
+            Width = 1080,
+            Height = 680,
+            Left = -20000,
+            Top = -20000,
+            WindowStartupLocation = WindowStartupLocation.Manual,
+            ShowInTaskbar = false,
+            ShowActivated = false
+        };
+    }
+
+    private static IReadOnlyList<LauncherFriend> BuildAvatarFriends(
+        AvatarDescriptor current,
+        AvatarDescriptor missing)
+    {
+        List<LauncherFriend> result =
+        [
+            new LauncherFriend(2, "avatarfriend", "ice", "accepted", true, "PhotoMage", 80, 8, 1, null, current),
+            new LauncherFriend(3, "missingphoto", null, "accepted", false, null, null, null, null, null, missing)
+        ];
+        result.AddRange(Enumerable.Range(4, 38).Select(index => new LauncherFriend(
+            (uint)index,
+            $"friend{index:00}",
+            index % 2 == 0 ? "emerald" : null,
+            "accepted",
+            false,
+            $"Character{index:00}",
+            40,
+            1,
+            1,
+            null)));
+        return result;
+    }
+
+    private static AvatarDescriptor Descriptor(Guid avatarId, ulong version)
+    {
+        string root = $"/media/avatars/{avatarId:N}/{version}";
+        return new AvatarDescriptor(
+            avatarId,
+            version,
+            $"{root}/32.png",
+            $"{root}/64.png",
+            $"{root}/128.png",
+            $"{root}/256.png");
+    }
+
+    private static byte[] CreateSolidPng(Color color)
+    {
+        const int size = 64;
+        byte[] pixels = new byte[size * size * 4];
+        for (int index = 0; index < pixels.Length; index += 4)
+        {
+            pixels[index] = color.B;
+            pixels[index + 1] = color.G;
+            pixels[index + 2] = color.R;
+            pixels[index + 3] = 255;
+        }
+
+        BitmapSource bitmap = BitmapSource.Create(
+            size,
+            size,
+            96,
+            96,
+            PixelFormats.Bgra32,
+            null,
+            pixels,
+            size * 4);
+        PngBitmapEncoder encoder = new();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using MemoryStream stream = new();
+        encoder.Save(stream);
+        return stream.ToArray();
+    }
+
+    private static async Task<FriendsActionCompletion> RequiredFriendsCompletion(
+        FriendsActionStartResult start)
+    {
+        True(start.IsStarted && start.Completion is not null,
+            $"L’opération Amis devait démarrer, statut={start.Status}.");
+        return await start.Completion!.WaitAsync(TimeSpan.FromSeconds(3));
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
     private static LauncherShellV2 CreateWindow(
         FriendsPreviewScenario scenario,
         double width,
@@ -539,6 +902,108 @@ internal static class FriendsDrawerWpfTests
         if (!EqualityComparer<T>.Default.Equals(expected, actual))
         {
             throw new InvalidOperationException($"{message} Attendu={expected}; Actuel={actual}.");
+        }
+    }
+
+    private sealed class SocialAvatarMediaClient : IAvatarMediaClient
+    {
+        internal Func<AvatarDescriptor, int, CancellationToken, Task<AvatarMediaDownloadResult>>?
+            DownloadHandler { get; init; }
+
+        internal ConcurrentBag<int> RequestedSizes { get; } = [];
+
+        public Task<AvatarProfileReadResult> GetProfileAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<AvatarDescriptor> UploadAvatarAsync(
+            AvatarUploadRequest upload,
+            IProgress<AvatarUploadTransferProgress>? progress,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task DeleteAvatarAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<AvatarMediaDownloadResult> DownloadAvatarAsync(
+            AvatarDescriptor descriptor,
+            int size,
+            CancellationToken cancellationToken)
+        {
+            RequestedSizes.Add(size);
+            return DownloadHandler?.Invoke(descriptor, size, cancellationToken)
+                ?? Task.FromResult(AvatarMediaDownloadResult.NotFound);
+        }
+    }
+
+    private sealed class CountingFriendsTimeProvider : TimeProvider
+    {
+        internal int CreateTimerCalls { get; private set; }
+
+        internal CountingFriendsTimer Timer { get; private set; } = null!;
+
+        public override ITimer CreateTimer(
+            TimerCallback callback,
+            object? state,
+            TimeSpan dueTime,
+            TimeSpan period)
+        {
+            CreateTimerCalls++;
+            Timer = new CountingFriendsTimer(callback, state, dueTime, period);
+            return Timer;
+        }
+    }
+
+    private sealed class CountingFriendsTimer : ITimer
+    {
+        private readonly TimerCallback _callback;
+        private readonly object? _state;
+        private bool _isDisposed;
+
+        internal CountingFriendsTimer(
+            TimerCallback callback,
+            object? state,
+            TimeSpan dueTime,
+            TimeSpan period)
+        {
+            _callback = callback;
+            _state = state;
+            DueTime = dueTime;
+            Period = period;
+        }
+
+        internal TimeSpan DueTime { get; private set; }
+
+        internal TimeSpan Period { get; private set; }
+
+        internal bool IsEnabled => !_isDisposed && DueTime != Timeout.InfiniteTimeSpan;
+
+        public bool Change(TimeSpan dueTime, TimeSpan period)
+        {
+            ObjectDisposedException.ThrowIf(_isDisposed, this);
+            DueTime = dueTime;
+            Period = period;
+            return true;
+        }
+
+        internal void Fire()
+        {
+            if (IsEnabled)
+            {
+                _callback(_state);
+            }
+        }
+
+        public void Dispose()
+        {
+            _isDisposed = true;
+            DueTime = Timeout.InfiniteTimeSpan;
+            Period = Timeout.InfiniteTimeSpan;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Dispose();
+            return ValueTask.CompletedTask;
         }
     }
 }

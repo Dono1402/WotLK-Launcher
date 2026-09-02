@@ -232,6 +232,9 @@ internal static partial class AvatarBackendTests
         Equal(registered.Profile.AccountId, pending.OwnerAccountId, "L'avatar doit appartenir au profil Atlas.");
 
         AuthResponse friend = await RegisterIdentityAccountAsync(database, "ATLASFRIEND");
+        AvatarDescriptor friendAvatar = await PublishIdentityAvatarAsync(
+            options,
+            friend.Profile.AccountId);
         FriendRequestResult request = await database.SendFriendRequestAsync(
             registered.Profile.AccountId,
             friend.Profile.Username,
@@ -240,9 +243,81 @@ internal static partial class AvatarBackendTests
         IReadOnlyList<WotLK.Launcher.Server.LauncherFriend> friends = await database.ListFriendsAsync(
             registered.Profile.AccountId,
             CancellationToken.None);
-        True(
-            friends.Any(item => item.AccountId == friend.Profile.AccountId),
-            "Le profil inscrit doit apparaitre dans la liste d'amis Atlas.");
+        WotLK.Launcher.Server.LauncherFriend outgoing = friends.Single(
+            item => item.AccountId == friend.Profile.AccountId);
+        Equal("outgoing", outgoing.Relationship,
+            "Une demande envoyee doit conserver sa relation.");
+        Equal(friendAvatar, outgoing.Avatar,
+            "Une demande envoyee doit contenir le descripteur avatar actif.");
+
+        True(await database.AcceptFriendAsync(
+                friend.Profile.AccountId,
+                registered.Profile.AccountId,
+                CancellationToken.None),
+            "Le destinataire doit pouvoir accepter la demande.");
+        WotLK.Launcher.Server.LauncherFriend accepted = (await database.ListFriendsAsync(
+                registered.Profile.AccountId,
+                CancellationToken.None))
+            .Single(item => item.AccountId == friend.Profile.AccountId);
+        Equal("accepted", accepted.Relationship,
+            "La relation acceptee doit rejoindre les amis.");
+        Equal(friendAvatar, accepted.Avatar,
+            "L'ami accepte doit conserver la meme identite avatar sans requete individuelle.");
+
+        AuthResponse incomingAccount = await RegisterIdentityAccountAsync(database, "ATLASINCOMING");
+        AvatarDescriptor incomingAvatar = await PublishIdentityAvatarAsync(
+            options,
+            incomingAccount.Profile.AccountId);
+        Equal(
+            FriendRequestOutcome.Requested,
+            (await database.SendFriendRequestAsync(
+                incomingAccount.Profile.AccountId,
+                registered.Profile.Username,
+                CancellationToken.None)).Outcome,
+            "La demande entrante de fixture doit etre creee.");
+        WotLK.Launcher.Server.LauncherFriend incoming = (await database.ListFriendsAsync(
+                registered.Profile.AccountId,
+                CancellationToken.None))
+            .Single(item => item.AccountId == incomingAccount.Profile.AccountId);
+        Equal("incoming", incoming.Relationship,
+            "Une demande recue doit conserver sa relation.");
+        Equal(incomingAvatar, incoming.Avatar,
+            "Une demande recue doit contenir le descripteur avatar actif.");
+
+        AuthResponse withoutAvatar = await RegisterIdentityAccountAsync(database, "ATLASNOAVATAR");
+        _ = await database.SendFriendRequestAsync(
+            registered.Profile.AccountId,
+            withoutAvatar.Profile.Username,
+            CancellationToken.None);
+        WotLK.Launcher.Server.LauncherFriend fallback = (await database.ListFriendsAsync(
+                registered.Profile.AccountId,
+                CancellationToken.None))
+            .Single(item => item.AccountId == withoutAvatar.Profile.AccountId);
+        True(fallback.Avatar is null,
+            "Un profil Atlas sans photo doit renvoyer Avatar=null.");
+    }
+
+    private static async Task<AvatarDescriptor> PublishIdentityAvatarAsync(
+        LauncherServerOptions options,
+        uint accountId)
+    {
+        AvatarRepository repository = new(options);
+        AvatarAssetRecord pending = await repository.CreatePendingAsync(
+            accountId,
+            CancellationToken.None);
+        AvatarStoredVariant[] variants = AvatarVariantSizes.All
+            .Select(size => new AvatarStoredVariant(
+                size,
+                "image/png",
+                size,
+                SHA256.HashData(BitConverter.GetBytes(size))))
+            .ToArray();
+        AvatarPublicationResult publication = await repository.PublishReadyAsync(
+            accountId,
+            pending,
+            variants,
+            CancellationToken.None);
+        return publication.Current;
     }
 
     private static async Task ValidateRegistrationAtomicityAsync(LauncherServerOptions options)

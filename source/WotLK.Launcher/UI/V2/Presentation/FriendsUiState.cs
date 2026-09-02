@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Windows.Input;
+using System.Windows.Media;
 using WotLK.Launcher.UI.V2.Commands;
 
 namespace WotLK.Launcher.UI.V2.Presentation;
@@ -30,6 +31,10 @@ public sealed record FriendUiItem(
     string Initial,
     string AvatarColor,
     bool HasAvatarTheme,
+    Guid? AvatarId,
+    ulong? AvatarVersion,
+    ImageSource? AvatarImage,
+    bool HasAvatarImage,
     bool IsOnline,
     string PresenceText,
     string CharacterName,
@@ -53,7 +58,8 @@ public sealed record FriendsViewState(
     string ErrorMessage,
     string NoticeMessage,
     bool CanRefresh,
-    bool CanSendRequest)
+    bool CanSendRequest,
+    bool IsStale)
 {
     public int OnlineCount => Friends.Count(friend => friend.IsOnline);
 
@@ -98,7 +104,8 @@ public sealed class FriendsUiState : BindableUiState
         ErrorMessage: string.Empty,
         NoticeMessage: string.Empty,
         CanRefresh: false,
-        CanSendRequest: false);
+        CanSendRequest: false,
+        IsStale: false);
 
     public FriendsViewState Current => _current;
 
@@ -181,5 +188,32 @@ public sealed class FriendsUiState : BindableUiState
             NoticeMessage = string.Empty
         };
         RaisePropertyChanged(string.Empty);
+    }
+
+    internal void ApplyAvatarImage(
+        uint accountId,
+        Guid avatarId,
+        ulong version,
+        ImageSource image)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        _current = _current with
+        {
+            Friends = ApplyAvatar(_current.Friends),
+            IncomingRequests = ApplyAvatar(_current.IncomingRequests),
+            OutgoingRequests = ApplyAvatar(_current.OutgoingRequests)
+        };
+        RaisePropertyChanged(string.Empty);
+
+        ImmutableArray<FriendUiItem> ApplyAvatar(ImmutableArray<FriendUiItem> source)
+        {
+            return source
+                .Select(item => item.AccountId == accountId
+                    && item.AvatarId == avatarId
+                    && item.AvatarVersion == version
+                        ? item with { AvatarImage = image, HasAvatarImage = true }
+                        : item)
+                .ToImmutableArray();
+        }
     }
 }

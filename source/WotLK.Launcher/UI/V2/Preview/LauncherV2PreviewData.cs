@@ -469,24 +469,49 @@ public static class LauncherV2PreviewData
     public static FriendsUiState CreateFriends(
         FriendsPreviewScenario scenario = FriendsPreviewScenario.Populated)
     {
+        BitmapSource avatar = CreatePreviewAvatar();
+        BitmapSource changedAvatar = CreatePreviewAvatar(ChangedPreviewAvatarUri);
         ImmutableArray<FriendUiItem> populated =
         [
-            Friend(2, "warthoon", "Ophntfranck", "Mage · niveau 12", true, "En jeu", "#DEB75A", true),
-            Friend(3, "lyssara", "Lyssara", "Prêtre · niveau 32", true, "En jeu", "#61D5E8", true),
-            Friend(4, "kaelorn", "Kaelorn", "Paladin · niveau 28", false, "Hors ligne · vu hier à 22:14", "#51D7A2", true),
+            Friend(2, "warthoon", "Ophntfranck", "Mage · niveau 12", true, "En jeu", "#DEB75A", true, avatar),
+            Friend(3, "lyssara", "Lyssara", "Prêtre · niveau 32", true, "En jeu", "#61D5E8", true, avatar),
+            Friend(4, "kaelorn", "Kaelorn", "Paladin · niveau 28", false, "Hors ligne · vu hier à 22:14", "#51D7A2", true, avatar),
             Friend(5, "nerya-au-nom-particulièrement-long", "Nerya", "Druide · niveau 18", false, "Hors ligne", "#DEB75A", false),
-            Friend(6, "thalion", "Thalion", "Guerrier · niveau 44", false, "Hors ligne · vu le 29/08 à 18:02", "#EE6571", true),
+            Friend(6, "thalion", "Thalion", "Guerrier · niveau 44", false, "Hors ligne · vu le 29/08 à 18:02", "#EE6571", true, avatar),
             Friend(7, "elyndra", "Elyndra", "Chasseur · niveau 26", false, "Hors ligne", "#61D5E8", true)
         ];
         ImmutableArray<FriendUiItem> incoming =
         [
-            Request(12, "aelwen", "#61D5E8", accept: true),
-            Request(13, "franck", "#DEB75A", accept: true)
+            Request(12, "aelwen", "#61D5E8", accept: true, avatar),
+            Request(13, "franck", "#DEB75A", accept: true, avatar: null)
         ];
         ImmutableArray<FriendUiItem> outgoing =
         [
-            Request(18, "valdyr", "#51D7A2", accept: false)
+            Request(18, "valdyr", "#51D7A2", accept: false, avatar)
         ];
+        ImmutableArray<FriendUiItem> avatarOnly = populated
+            .Select(item => item.HasAvatarImage
+                ? item
+                : item with
+                {
+                    AvatarId = PreviewAvatarId(item.AccountId),
+                    AvatarVersion = 1,
+                    AvatarImage = avatar,
+                    HasAvatarImage = true
+                })
+            .ToImmutableArray();
+        ImmutableArray<FriendUiItem> manyFriends = Enumerable.Range(1, 100)
+            .Select(index => Friend(
+                (uint)(1000 + index),
+                $"aventurier{index:000}",
+                $"Personnage{index:000}",
+                $"{(index % 2 == 0 ? "Mage" : "Paladin")} · niveau {(index % 80) + 1}",
+                online: index <= 14,
+                presence: index <= 14 ? "En jeu" : "Hors ligne",
+                color: index % 2 == 0 ? "#61D5E8" : "#DEB75A",
+                themed: index % 3 != 0,
+                avatar: index % 3 == 0 ? null : avatar))
+            .ToImmutableArray();
         FriendsViewState view = scenario switch
         {
             FriendsPreviewScenario.Empty => PreviewFriendsView(
@@ -516,6 +541,39 @@ public static class LauncherV2PreviewData
                 string.Empty,
                 error: "Impossible de joindre Atlas pour le moment.",
                 loadState: FriendsViewLoadState.Failed),
+            FriendsPreviewScenario.Avatars => PreviewFriendsView(
+                avatarOnly,
+                incoming.Select(item => item with
+                {
+                    AvatarId = PreviewAvatarId(item.AccountId),
+                    AvatarVersion = 1,
+                    AvatarImage = avatar,
+                    HasAvatarImage = true
+                }).ToImmutableArray(),
+                outgoing,
+                "6 amis Atlas"),
+            FriendsPreviewScenario.MixedAvatars => PreviewFriendsView(
+                populated,
+                incoming,
+                outgoing,
+                "6 amis Atlas"),
+            FriendsPreviewScenario.AvatarChanged => PreviewFriendsView(
+                [Friend(2, "warthoon", "Ophntfranck", "Mage · niveau 12", true, "En jeu", "#DEB75A", true, changedAvatar, avatarVersion: 2)],
+                ImmutableArray<FriendUiItem>.Empty,
+                ImmutableArray<FriendUiItem>.Empty,
+                "1 ami Atlas",
+                notice: "Photo de profil actualisée."),
+            FriendsPreviewScenario.NetworkStale => PreviewFriendsView(
+                populated[..3],
+                incoming[..1],
+                ImmutableArray<FriendUiItem>.Empty,
+                "3 amis Atlas · actualisation indisponible",
+                isStale: true),
+            FriendsPreviewScenario.ManyFriends => PreviewFriendsView(
+                manyFriends,
+                incoming,
+                outgoing,
+                "100 amis Atlas"),
             _ => PreviewFriendsView(populated, incoming, outgoing, "6 amis Atlas")
         };
         FriendsUiState state = new(view)
@@ -536,7 +594,8 @@ public static class LauncherV2PreviewData
         string status,
         string error = "",
         string notice = "",
-        FriendsViewLoadState loadState = FriendsViewLoadState.Loaded)
+        FriendsViewLoadState loadState = FriendsViewLoadState.Loaded,
+        bool isStale = false)
     {
         return new FriendsViewState(
             IsPreview: true,
@@ -550,7 +609,8 @@ public static class LauncherV2PreviewData
             ErrorMessage: error,
             NoticeMessage: notice,
             CanRefresh: true,
-            CanSendRequest: true);
+            CanSendRequest: true,
+            IsStale: isStale);
     }
 
     private static FriendUiItem Friend(
@@ -561,7 +621,9 @@ public static class LauncherV2PreviewData
         bool online,
         string presence,
         string color,
-        bool themed)
+        bool themed,
+        BitmapSource? avatar = null,
+        ulong avatarVersion = 1)
     {
         return new FriendUiItem(
             accountId,
@@ -569,6 +631,10 @@ public static class LauncherV2PreviewData
             username[..1].ToUpperInvariant(),
             color,
             themed,
+            avatar is null ? null : PreviewAvatarId(accountId),
+            avatar is null ? null : avatarVersion,
+            avatar,
+            avatar is not null,
             online,
             presence,
             character,
@@ -585,7 +651,8 @@ public static class LauncherV2PreviewData
         uint accountId,
         string username,
         string color,
-        bool accept)
+        bool accept,
+        BitmapSource? avatar)
     {
         return new FriendUiItem(
             accountId,
@@ -593,6 +660,10 @@ public static class LauncherV2PreviewData
             username[..1].ToUpperInvariant(),
             color,
             HasAvatarTheme: true,
+            AvatarId: avatar is null ? null : PreviewAvatarId(accountId),
+            AvatarVersion: avatar is null ? null : 1,
+            AvatarImage: avatar,
+            HasAvatarImage: avatar is not null,
             IsOnline: false,
             PresenceText: accept ? "Souhaite devenir votre ami" : "En attente",
             CharacterName: string.Empty,
@@ -604,6 +675,9 @@ public static class LauncherV2PreviewData
             CanCancel: !accept,
             CanRemove: false);
     }
+
+    private static Guid PreviewAvatarId(uint accountId) =>
+        Guid.Parse($"00000000-0000-0000-0000-{accountId:000000000000}");
 }
 
 internal sealed record AccountAvatarPreviewComposition(

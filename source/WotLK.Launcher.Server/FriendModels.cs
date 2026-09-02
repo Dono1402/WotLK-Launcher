@@ -12,7 +12,8 @@ public sealed record LauncherFriend(
     byte? Level,
     byte? ClassId,
     uint? ZoneId,
-    DateTimeOffset? LastSeenAt);
+    DateTimeOffset? LastSeenAt,
+    Avatars.AvatarDescriptor? Avatar = null);
 
 public enum FriendRequestOutcome
 {

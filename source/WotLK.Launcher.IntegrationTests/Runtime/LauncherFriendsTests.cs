@@ -2,7 +2,9 @@ using System.Collections.Immutable;
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
+using System.Text.Json;
 using WotLK.Launcher;
+using WotLK.Launcher.Account;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2.Presentation;
 
@@ -11,14 +13,77 @@ internal static class LauncherFriendsTests
     internal static async Task<int> RunAsync()
     {
         CharacterizeSecretFreeImmutableState();
+        CharacterizeSocialAvatarContractAndQueryShape();
         await RestoreAndLoadRealRelationshipsAsync();
+        await RefreshFromOneSessionAwareTimerAsync();
+        await CoalesceTimerAndManualRefreshAsync();
+        await PreserveKnownDataAfterAutomaticFailureAsync();
+        await InvalidateSessionAfterAutomaticUnauthorizedAsync();
         await ExecuteSupportedActionsAsync();
         await RejectConcurrentOperationsImmediatelyAsync();
         await MapActionFailuresAsync();
         await MapFailuresAndProtectSessionAsync();
         await IgnoreLateCompletionAfterShutdownAsync();
-        Console.WriteLine("Atlas friends runtime integration OK (03B).\n");
+        Console.WriteLine("Atlas friends runtime integration OK (03B.1).\n");
         return 0;
+    }
+
+    private static void CharacterizeSocialAvatarContractAndQueryShape()
+    {
+        Guid avatarId = Guid.Parse("f47ac10b-58cc-4372-a567-0e02b2c3d479");
+        WotLK.Launcher.Server.Avatars.AvatarDescriptor serverAvatar =
+            WotLK.Launcher.Server.Avatars.AvatarDescriptor.Create(avatarId, 7);
+        WotLK.Launcher.Server.LauncherFriend serverFriend = new(
+            42,
+            "atlasfriend",
+            "ice",
+            "accepted",
+            true,
+            "Arthasfriend",
+            80,
+            8,
+            210,
+            null,
+            serverAvatar);
+        JsonSerializerOptions json = new(JsonSerializerDefaults.Web);
+        string payload = JsonSerializer.Serialize(serverFriend, json);
+        WotLK.Launcher.LauncherFriend client = JsonSerializer.Deserialize<WotLK.Launcher.LauncherFriend>(
+            payload,
+            json)
+            ?? throw new InvalidOperationException("Le DTO ami enrichi est illisible côté launcher.");
+        Equal(avatarId, client.Avatar?.AvatarId,
+            "Le descripteur avatar public doit traverser le contrat Friends.");
+        Equal(7UL, client.Avatar?.Version,
+            "La version avatar doit rester exacte dans le contrat Friends.");
+        True(client.Avatar?.Url64.EndsWith("/64.png", StringComparison.Ordinal) == true,
+            "Le contrat social doit fournir la variante 64 px.");
+
+        const string oldPayload = """
+            {"accountId":9,"username":"legacy","avatarKey":"gold","relationship":"accepted","online":false,"characterName":null,"level":null,"classId":null,"zoneId":null,"lastSeenAt":null}
+            """;
+        WotLK.Launcher.LauncherFriend oldClient = JsonSerializer.Deserialize<WotLK.Launcher.LauncherFriend>(
+            oldPayload,
+            json)
+            ?? throw new InvalidOperationException("L’ancien contrat ami est illisible.");
+        True(oldClient.Avatar is null,
+            "Un ancien serveur sans propriété Avatar doit conserver le fallback.");
+        LegacyFriendContract legacyClient = JsonSerializer.Deserialize<LegacyFriendContract>(payload, json)
+            ?? throw new InvalidOperationException("Le contrat enrichi est illisible par un ancien client.");
+        Equal("atlasfriend", legacyClient.Username,
+            "Un ancien client doit ignorer la propriété Avatar ajoutée.");
+
+        Equal(2, WotLK.Launcher.Server.LauncherDatabase.FriendListMaximumQueryCount,
+            "La liste sociale doit utiliser au plus une requête profil/avatar et une requête personnages groupée.");
+        True(WotLK.Launcher.Server.LauncherDatabase.FriendAccountsQuery.Contains(
+                "INNER JOIN atlas_launcher_profile",
+                StringComparison.Ordinal)
+            && WotLK.Launcher.Server.LauncherDatabase.FriendAccountsQuery.Contains(
+                "LEFT JOIN atlas_launcher_profile_avatar",
+                StringComparison.Ordinal)
+            && WotLK.Launcher.Server.LauncherDatabase.FriendAccountsQuery.Contains(
+                "LEFT JOIN atlas_launcher_avatar_asset",
+                StringComparison.Ordinal),
+            "Les profils Atlas et leurs avatars doivent être chargés par la requête sociale groupée.");
     }
 
     private static void CharacterizeSecretFreeImmutableState()
@@ -97,6 +162,160 @@ internal static class LauncherFriendsTests
         True(!view.IncomingRequests[0].HasCharacter, "Une demande sans personnage doit rester sans détail fictif.");
         True(!view.OutgoingRequests[0].HasAvatarTheme,
             "L’absence d’avatar doit utiliser le fallback par initiale.");
+    }
+
+    private static async Task RefreshFromOneSessionAwareTimerAsync()
+    {
+        ManualFriendsTimeProvider time = new();
+        await using FriendsEnvironment environment = await FriendsEnvironment.CreateAsync(
+            timeProvider: time,
+            authenticated: false);
+        Equal(1, time.CreateTimerCalls,
+            "Un coordinateur Amis doit posséder exactement un timer.");
+        True(!time.Timer.IsEnabled,
+            "Le timer social doit rester inactif sans session Atlas.");
+        time.Timer.Fire();
+        Equal(0, environment.Authentication.GetFriendsCalls,
+            "Aucun tick ne doit appeler Friends sans session.");
+
+        LauncherSessionStartResult login = environment.Session.TryLogin("Dono1402", "password");
+        await RequiredSessionCompletion(login);
+        True(time.Timer.IsEnabled,
+            "Le timer social doit démarrer après connexion.");
+        Equal(LauncherFriendsCoordinator.AutomaticRefreshInterval, time.Timer.DueTime,
+            "Le premier tick doit être planifié à 15 secondes.");
+        Equal(LauncherFriendsCoordinator.AutomaticRefreshInterval, time.Timer.Period,
+            "La cadence sociale doit être exactement de 15 secondes.");
+
+        time.Timer.Fire();
+        True(await environment.Friends.WaitForIdleAsync(TimeSpan.FromSeconds(1)),
+            "Le rafraîchissement automatique doit être observé.");
+        Equal(1, environment.Authentication.GetFriendsCalls,
+            "Un tick doit produire exactement un GET Friends.");
+
+        LauncherSessionStartResult logout = environment.Session.TryLogout(CancellationToken.None);
+        await RequiredSessionCompletion(logout);
+        True(!time.Timer.IsEnabled,
+            "Le timer social doit s’arrêter après déconnexion.");
+        time.Timer.Fire();
+        Equal(1, environment.Authentication.GetFriendsCalls,
+            "Aucun appel ne doit partir après déconnexion.");
+
+        LauncherSessionStartResult secondLogin = environment.Session.TryLogin("Dono1402", "password");
+        await RequiredSessionCompletion(secondLogin);
+        Equal(1, time.CreateTimerCalls,
+            "Une reconnexion doit réutiliser le timer existant.");
+        time.Timer.Fire();
+        True(await environment.Friends.WaitForIdleAsync(TimeSpan.FromSeconds(1)),
+            "Le timer doit reprendre après reconnexion.");
+        Equal(2, environment.Authentication.GetFriendsCalls,
+            "La reconnexion doit réactiver un seul flux périodique.");
+
+        environment.Friends.BeginShutdown();
+        True(!time.Timer.IsEnabled,
+            "Le timer doit être arrêté avant la libération du runtime.");
+        time.Timer.Fire();
+        Equal(2, environment.Authentication.GetFriendsCalls,
+            "La fermeture ne doit produire aucun tick tardif.");
+    }
+
+    private static async Task CoalesceTimerAndManualRefreshAsync()
+    {
+        ManualFriendsTimeProvider time = new();
+        await using FriendsEnvironment environment = await FriendsEnvironment.CreateAsync(
+            timeProvider: time);
+        TaskCompletionSource<IReadOnlyList<WotLK.Launcher.LauncherFriend>> release = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        environment.Authentication.FriendsHandler = _ => release.Task;
+
+        FriendsActionStartResult manual = environment.Friends.TryRefresh();
+        await WaitForAsync(() => environment.Authentication.GetFriendsCalls == 1);
+        time.Timer.Fire();
+        Equal(1, environment.Authentication.GetFriendsCalls,
+            "Un tick ne doit pas doubler un rafraîchissement manuel actif.");
+        release.TrySetResult([]);
+        await RequiredCompletion(manual);
+
+        TaskCompletionSource<IReadOnlyList<WotLK.Launcher.LauncherFriend>> automaticRelease = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        environment.Authentication.FriendsHandler = _ => automaticRelease.Task;
+        time.Timer.Fire();
+        await WaitForAsync(() => environment.Authentication.GetFriendsCalls == 2);
+        Equal(FriendsActionStartStatus.Busy, environment.Friends.TryRefresh().Status,
+            "Un clic manuel pendant le tick doit être refusé immédiatement.");
+        automaticRelease.TrySetResult([]);
+        True(await environment.Friends.WaitForIdleAsync(TimeSpan.FromSeconds(1)),
+            "Le tick actif doit se terminer sans file d’attente.");
+        Equal(2, environment.Authentication.GetFriendsCalls,
+            "Aucun rafraîchissement différé ne doit être ajouté.");
+    }
+
+    private static async Task PreserveKnownDataAfterAutomaticFailureAsync()
+    {
+        ManualFriendsTimeProvider time = new();
+        await using FriendsEnvironment environment = await FriendsEnvironment.CreateAsync(
+            timeProvider: time);
+        AvatarDescriptor firstAvatar = Avatar(4, 1);
+        environment.Authentication.FriendsHandler = _ =>
+            Task.FromResult<IReadOnlyList<WotLK.Launcher.LauncherFriend>>(
+            [
+                Friend(4, "known", "accepted", avatar: firstAvatar),
+                Friend(1, "self", "accepted")
+            ]);
+        await RequiredCompletion(environment.Friends.TryRefresh());
+        Equal(1, environment.Friends.CurrentSnapshot.Friends.Length,
+            "Le compte courant ne doit jamais être publié dans sa propre liste.");
+        Equal(firstAvatar, environment.Friends.CurrentSnapshot.Friends[0].Avatar,
+            "Le descripteur avatar doit rejoindre le snapshot social.");
+
+        environment.Authentication.FriendsHandler = _ =>
+            Task.FromException<IReadOnlyList<WotLK.Launcher.LauncherFriend>>(
+                new HttpRequestException("network unavailable"));
+        time.Timer.Fire();
+        True(await environment.Friends.WaitForIdleAsync(TimeSpan.FromSeconds(1)),
+            "L’échec automatique doit rester observé.");
+        FriendsRuntimeSnapshot stale = environment.Friends.CurrentSnapshot;
+        Equal(FriendsLoadState.Loaded, stale.LoadState,
+            "Un échec automatique ne doit pas remplacer l’état chargé.");
+        Equal("known", stale.Friends.Single().Username,
+            "Les dernières données connues doivent être conservées.");
+        True(stale.IsStale && stale.ErrorState == FriendsRuntimeError.None,
+            "L’échec automatique doit être discret et marquer les données obsolètes.");
+        FriendsViewState view = FriendsStateAdapter.Project(stale);
+        True(view.IsStale && !view.ShowsError,
+            "La présentation ne doit pas afficher une grande erreur rouge à chaque tick.");
+
+        AvatarDescriptor changedAvatar = Avatar(4, 2);
+        environment.Authentication.FriendsHandler = _ =>
+            Task.FromResult<IReadOnlyList<WotLK.Launcher.LauncherFriend>>(
+            [
+                Friend(4, "known", "accepted", avatar: changedAvatar)
+            ]);
+        time.Timer.Fire();
+        True(await environment.Friends.WaitForIdleAsync(TimeSpan.FromSeconds(1)),
+            "Le tick suivant doit pouvoir reprendre normalement.");
+        Equal(changedAvatar, environment.Friends.CurrentSnapshot.Friends.Single().Avatar,
+            "Une nouvelle version d’avatar doit remplacer le descripteur précédent.");
+        True(!environment.Friends.CurrentSnapshot.IsStale,
+            "Un rafraîchissement réussi doit retirer l’indicateur obsolète.");
+    }
+
+    private static async Task InvalidateSessionAfterAutomaticUnauthorizedAsync()
+    {
+        ManualFriendsTimeProvider time = new();
+        await using FriendsEnvironment environment = await FriendsEnvironment.CreateAsync(
+            timeProvider: time);
+        environment.Authentication.FriendsHandler = _ =>
+            Task.FromException<IReadOnlyList<WotLK.Launcher.LauncherFriend>>(
+                new LauncherAuthException("raw unauthorized", HttpStatusCode.Unauthorized));
+
+        time.Timer.Fire();
+        True(await environment.Friends.WaitForIdleAsync(TimeSpan.FromSeconds(1)),
+            "Le 401 automatique doit rester observé.");
+        True(!environment.Friends.CurrentSnapshot.IsAuthenticated,
+            "Un 401 doit être délégué au coordinateur de session.");
+        True(!time.Timer.IsEnabled,
+            "Le timer social doit être désactivé après invalidation de session.");
     }
 
     private static async Task ExecuteSupportedActionsAsync()
@@ -285,9 +504,23 @@ internal static class LauncherFriendsTests
         string? characterName = null,
         byte? level = null,
         byte? classId = null,
-        DateTimeOffset? lastSeenAt = null) =>
+        DateTimeOffset? lastSeenAt = null,
+        AvatarDescriptor? avatar = null) =>
         new(accountId, username, accountId % 2 == 0 ? "ice" : null, relationship,
-            online, characterName, level, classId, 1, lastSeenAt);
+            online, characterName, level, classId, 1, lastSeenAt, avatar);
+
+    private static AvatarDescriptor Avatar(uint accountId, ulong version)
+    {
+        Guid id = Guid.Parse($"00000000-0000-0000-0000-{accountId:000000000000}");
+        string root = $"/media/avatars/{id:N}/{version}";
+        return new AvatarDescriptor(
+            id,
+            version,
+            $"{root}/32.png",
+            $"{root}/64.png",
+            $"{root}/128.png",
+            $"{root}/256.png");
+    }
 
     private static async Task<FriendsActionCompletion> RequiredCompletion(
         FriendsActionStartResult start)
@@ -295,6 +528,29 @@ internal static class LauncherFriendsTests
         True(start.IsStarted && start.Completion is not null,
             $"L’opération Amis devait démarrer, statut={start.Status}.");
         return await start.Completion!.WaitAsync(TimeSpan.FromSeconds(3));
+    }
+
+    private static async Task RequiredSessionCompletion(LauncherSessionStartResult start)
+    {
+        True(start.IsStarted && start.Completion is not null,
+            $"L’opération de session devait démarrer, statut={start.Status}.");
+        LauncherSessionCompletion completion = await start.Completion!.WaitAsync(TimeSpan.FromSeconds(3));
+        Equal(LauncherSessionCompletionStatus.Succeeded, completion.Status,
+            "L’opération de session doit réussir dans le harnais Amis.");
+    }
+
+    private static async Task WaitForAsync(Func<bool> condition)
+    {
+        DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+        while (!condition())
+        {
+            if (DateTimeOffset.UtcNow >= deadline)
+            {
+                throw new TimeoutException("Le scénario Amis n’a pas atteint l’état attendu.");
+            }
+
+            await Task.Delay(10);
+        }
     }
 
     private static void True(bool condition, string message)
@@ -334,12 +590,17 @@ internal static class LauncherFriendsTests
 
         internal LauncherFriendsCoordinator Friends { get; }
 
-        internal static async Task<FriendsEnvironment> CreateAsync(Action<string>? log = null)
+        internal LauncherSessionCoordinator Session => _session;
+
+        internal static async Task<FriendsEnvironment> CreateAsync(
+            Action<string>? log = null,
+            TimeProvider? timeProvider = null,
+            bool authenticated = true)
         {
             FakeLauncherAuthService authentication = new()
             {
-                RestoreResult = true,
-                Session = FakeLauncherAuthService.CreateSession(),
+                RestoreResult = authenticated,
+                Session = authenticated ? FakeLauncherAuthService.CreateSession() : null,
                 EnsureFreshHandler = _ => Task.FromResult(true)
             };
             CancellationTokenSource lifetime = new();
@@ -349,12 +610,17 @@ internal static class LauncherFriendsTests
                 authentication,
                 lifetime.Token,
                 () => authentication.Session?.Profile,
-                log ?? (_ => { }));
+                log ?? (_ => { }),
+                timeProvider);
             FriendsEnvironment environment = new(authentication, lifetime, session, friends);
             LauncherSessionRestoreResult restore = await session.RestoreOnceAsync();
-            Equal(LauncherSessionRestoreStatus.Restored, restore.Status,
-                "La session du harnais Amis doit être restaurée.");
-            True(friends.CurrentSnapshot.IsAuthenticated,
+            Equal(
+                authenticated
+                    ? LauncherSessionRestoreStatus.Restored
+                    : LauncherSessionRestoreStatus.NoSession,
+                restore.Status,
+                "Le harnais Amis doit refléter la session demandée.");
+            Equal(authenticated, friends.CurrentSnapshot.IsAuthenticated,
                 "Le coordinateur Amis doit suivre la restauration de session.");
             return environment;
         }
@@ -368,6 +634,92 @@ internal static class LauncherFriendsTests
             Friends.Dispose();
             _session.Dispose();
             _lifetime.Dispose();
+        }
+    }
+
+    private sealed record LegacyFriendContract(uint AccountId, string Username);
+
+    private sealed class ManualFriendsTimeProvider : TimeProvider
+    {
+        internal int CreateTimerCalls { get; private set; }
+
+        internal ManualFriendsTimer Timer { get; private set; } = null!;
+
+        public override ITimer CreateTimer(
+            TimerCallback callback,
+            object? state,
+            TimeSpan dueTime,
+            TimeSpan period)
+        {
+            CreateTimerCalls++;
+            Timer = new ManualFriendsTimer(callback, state, dueTime, period);
+            return Timer;
+        }
+    }
+
+    private sealed class ManualFriendsTimer : ITimer
+    {
+        private readonly object _sync = new();
+        private readonly TimerCallback _callback;
+        private readonly object? _state;
+        private bool _isDisposed;
+
+        internal ManualFriendsTimer(
+            TimerCallback callback,
+            object? state,
+            TimeSpan dueTime,
+            TimeSpan period)
+        {
+            _callback = callback;
+            _state = state;
+            DueTime = dueTime;
+            Period = period;
+        }
+
+        internal TimeSpan DueTime { get; private set; }
+
+        internal TimeSpan Period { get; private set; }
+
+        internal bool IsEnabled => !_isDisposed && DueTime != Timeout.InfiniteTimeSpan;
+
+        public bool Change(TimeSpan dueTime, TimeSpan period)
+        {
+            lock (_sync)
+            {
+                ObjectDisposedException.ThrowIf(_isDisposed, this);
+                DueTime = dueTime;
+                Period = period;
+                return true;
+            }
+        }
+
+        internal void Fire()
+        {
+            lock (_sync)
+            {
+                if (!IsEnabled)
+                {
+                    return;
+                }
+            }
+
+            _callback(_state);
+        }
+
+        public void Dispose()
+        {
+            lock (_sync)
+            {
+                _isDisposed = true;
+                DueTime = Timeout.InfiniteTimeSpan;
+                Period = Timeout.InfiniteTimeSpan;
+            }
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Dispose();
+            return ValueTask.CompletedTask;
         }
     }
 }

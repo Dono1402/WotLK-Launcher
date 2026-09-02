@@ -6,7 +6,7 @@ Lancer la V2 réelle avec :
 WotLK.Launcher.exe --ui-v2
 ```
 
-Ce mode utilise la composition réelle unique du launcher. Au checkpoint 03B, le panneau Amis charge les relations Atlas existantes à son ouverture et permet les actions déjà exposées par l'API.
+Ce mode utilise la composition réelle unique du launcher. Au checkpoint 03B.1, le panneau Amis charge les relations Atlas existantes, résout leurs photos 64 px via l'`AvatarImageCache` partagé et utilise un unique rafraîchissement social de 15 secondes pendant la session authentifiée.
 
 Lancer une prévisualisation fictive déterministe avec :
 
@@ -37,6 +37,11 @@ WotLK.Launcher.exe --ui-v2 --preview-friends=add-friend
 WotLK.Launcher.exe --ui-v2 --preview-friends=add-friend-error
 WotLK.Launcher.exe --ui-v2 --preview-friends=avatar-fallback
 WotLK.Launcher.exe --ui-v2 --preview-friends=network-error
+WotLK.Launcher.exe --ui-v2 --preview-friends=avatars
+WotLK.Launcher.exe --ui-v2 --preview-friends=mixed-avatars
+WotLK.Launcher.exe --ui-v2 --preview-friends=avatar-changed
+WotLK.Launcher.exe --ui-v2 --preview-friends=network-stale
+WotLK.Launcher.exe --ui-v2 --preview-friends=100
 ```
 
 Ces scénarios ouvrent directement le drawer avec des données locales déterministes. Ils ne créent ni `LauncherRuntime`, ni service d'authentification, ni client HTTP, ni stockage, ni processus enfant.

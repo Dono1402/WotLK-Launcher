@@ -9,7 +9,12 @@ public enum FriendsPreviewScenario
     AddFriend,
     AddFriendError,
     AvatarFallback,
-    NetworkError
+    NetworkError,
+    Avatars,
+    MixedAvatars,
+    AvatarChanged,
+    NetworkStale,
+    ManyFriends
 }
 
 internal static class FriendsPreviewArguments
@@ -41,6 +46,11 @@ internal static class FriendsPreviewArguments
             "add-error" or "add-friend-error" => FriendsPreviewScenario.AddFriendError,
             "fallback" or "avatar-fallback" => FriendsPreviewScenario.AvatarFallback,
             "network" or "network-error" => FriendsPreviewScenario.NetworkError,
+            "avatars" => FriendsPreviewScenario.Avatars,
+            "mixed" or "mixed-avatars" => FriendsPreviewScenario.MixedAvatars,
+            "avatar-changed" or "avatar-change" => FriendsPreviewScenario.AvatarChanged,
+            "stale" or "network-stale" => FriendsPreviewScenario.NetworkStale,
+            "many" or "many-friends" or "100" => FriendsPreviewScenario.ManyFriends,
             _ => FriendsPreviewScenario.Populated
         };
     }

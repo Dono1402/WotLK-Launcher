@@ -5,6 +5,7 @@ using System.Text;
 using WotLK.Launcher.Account;
 using WotLK.Launcher.Dashboard;
 using WotLK.Launcher.Game;
+using WotLK.Launcher.Updater;
 
 namespace WotLK.Launcher.Runtime;
 
@@ -69,6 +70,19 @@ internal sealed class LauncherRuntimeDependencies
     internal Func<HttpClient, IAddonManagementService> CreateAddonManagementService { get; init; } =
         static httpClient => new LegacyAddonManagementService(httpClient);
 
+    internal Func<TimeSpan, ILauncherSelfUpdateTimer> CreateLauncherSelfUpdateTimer { get; init; } =
+        static interval => new DispatcherLauncherSelfUpdateTimer(interval);
+
+    internal Func<HttpClient, ILauncherSelfUpdateClient> CreateLauncherSelfUpdateClient { get; init; } =
+        static httpClient => new LauncherSelfUpdateHttpClient(httpClient);
+
+    internal ILauncherSelfUpdateFinalizer LauncherSelfUpdateFinalizer { get; init; } =
+        WotLK.Launcher.Updater.LauncherSelfUpdateFinalizer.CreateProduction();
+
+    internal Action RequestApplicationShutdown { get; init; } = RequestProductionShutdown;
+
+    internal bool SelfUpdateRecoveryOccurred { get; init; }
+
     internal Func<IGameLaunchSession, IGameLaunchService> CreateGameLaunchService { get; init; } =
         static session => new GameLaunchService(
             session,
@@ -107,7 +121,8 @@ internal sealed class LauncherRuntimeDependencies
         static (mediaClient, root, lifetimeToken, onUnauthorized) =>
             new AvatarImageCache(mediaClient, root, lifetimeToken, onUnauthorized);
 
-    internal static LauncherRuntimeDependencies CreateProduction()
+    internal static LauncherRuntimeDependencies CreateProduction(
+        bool selfUpdateRecoveryOccurred = false)
     {
         return new LauncherRuntimeDependencies
         {
@@ -118,6 +133,7 @@ internal sealed class LauncherRuntimeDependencies
             WriteRuntimeLog = WriteProductionLog,
             WriteLocalActionLog = WriteProductionLog,
             LocalShellService = LauncherShellService.CreateProduction(),
+            SelfUpdateRecoveryOccurred = selfUpdateRecoveryOccurred,
             CreateAuthorizedHttpClient = static accessTokenProvider => new HttpClient(
                 new AtlasAuthorizationHandler(accessTokenProvider))
             {
@@ -129,6 +145,18 @@ internal sealed class LauncherRuntimeDependencies
                 return "v" + (version?.ToString(3) ?? "0.0.0");
             }
         };
+    }
+
+    private static void RequestProductionShutdown()
+    {
+        System.Windows.Application application = System.Windows.Application.Current;
+        if (application.Dispatcher.CheckAccess())
+        {
+            application.Shutdown();
+            return;
+        }
+
+        _ = application.Dispatcher.BeginInvoke(new Action(application.Shutdown));
     }
 
     private static void WriteProductionLog(string message)
@@ -215,7 +243,18 @@ internal sealed class LauncherRuntime : IDisposable
             () => dependencies.GameClientStateReader.Read(Settings),
             launchService,
             () => _sessionCoordinator.CurrentSnapshot.State);
-        Activity = new LauncherActivityCoordinator(Operations, Game, Addons);
+        SelfUpdate = new LauncherSelfUpdateCoordinator(
+            Operations,
+            dependencies.CreateLauncherSelfUpdateClient(_clientHttpClient),
+            dependencies.LauncherSelfUpdateFinalizer,
+            dependencies.CreateLauncherSelfUpdateTimer(
+                LauncherSelfUpdateCoordinator.CheckInterval),
+            Settings.AutomaticLauncherUpdates,
+            LauncherVersion,
+            dependencies.SelfUpdateRecoveryOccurred,
+            writeLog: dependencies.WriteRuntimeLog,
+            requestShutdown: dependencies.RequestApplicationShutdown);
+        Activity = new LauncherActivityCoordinator(Operations, Game, Addons, SelfUpdate);
         SettingsRuntime = new LauncherSettingsCoordinator(
             Settings,
             Operations,
@@ -266,6 +305,8 @@ internal sealed class LauncherRuntime : IDisposable
             () => _authentication.Session?.Profile,
             dependencies.WriteRuntimeLog,
             dependencies.FriendsTimeProvider);
+        SelfUpdate.ScheduleInitialCheck();
+        SelfUpdate.StartPeriodicChecks();
     }
 
     internal LauncherSettings Settings { get; }
@@ -283,6 +324,8 @@ internal sealed class LauncherRuntime : IDisposable
     internal GameRuntimeCoordinator Game { get; }
 
     internal LauncherAddonsCoordinator Addons { get; }
+
+    internal LauncherSelfUpdateCoordinator SelfUpdate { get; }
 
     internal LauncherActivityCoordinator Activity { get; }
 
@@ -314,9 +357,10 @@ internal sealed class LauncherRuntime : IDisposable
 
     internal bool IsDisposed => Volatile.Read(ref _disposeState) != 0;
 
-    internal static LauncherRuntime CreateProduction()
+    internal static LauncherRuntime CreateProduction(bool selfUpdateRecoveryOccurred = false)
     {
-        return new LauncherRuntime(LauncherRuntimeDependencies.CreateProduction());
+        return new LauncherRuntime(
+            LauncherRuntimeDependencies.CreateProduction(selfUpdateRecoveryOccurred));
     }
 
     internal Task<LauncherSessionRestoreResult> InitializeAsync()
@@ -385,6 +429,7 @@ internal sealed class LauncherRuntime : IDisposable
             }
 
             LocalActions.BeginShutdown();
+            SelfUpdate.BeginShutdown();
             SettingsRuntime.BeginShutdown();
             Dashboard.BeginShutdown();
             _sessionCoordinator.BeginShutdown();
@@ -399,6 +444,7 @@ internal sealed class LauncherRuntime : IDisposable
     {
         BeginShutdown();
         Task<bool> operations = Operations.WaitForIdleAsync(timeout);
+        Task<bool> selfUpdate = SelfUpdate.WaitForIdleAsync(timeout);
         Task<bool> dashboard = Dashboard.WaitForIdleAsync(timeout);
         Task<bool> session = _sessionCoordinator.WaitForIdleAsync(timeout);
         Task<bool> addons = Addons.WaitForIdleAsync(timeout);
@@ -407,6 +453,7 @@ internal sealed class LauncherRuntime : IDisposable
         Task<bool> friends = Friends.WaitForIdleAsync(timeout);
         bool[] results = await Task.WhenAll(
             operations,
+            selfUpdate,
             dashboard,
             session,
             addons,
@@ -427,6 +474,7 @@ internal sealed class LauncherRuntime : IDisposable
 
             Volatile.Write(ref _disposeState, 1);
             LocalActions.BeginShutdown();
+            SelfUpdate.BeginShutdown();
             SettingsRuntime.BeginShutdown();
             Dashboard.BeginShutdown();
             _sessionCoordinator.BeginShutdown();
@@ -438,6 +486,7 @@ internal sealed class LauncherRuntime : IDisposable
             Account.Dispose();
             Profile.Dispose();
             Activity.Dispose();
+            SelfUpdate.Dispose();
             SettingsRuntime.Dispose();
             Dashboard.Dispose();
             Addons.Dispose();

@@ -55,17 +55,8 @@ internal sealed class NullLegacyStartupObserver : ILegacyStartupObserver
     }
 }
 
-internal interface ILegacyDispatcherTimer
+internal interface ILegacyDispatcherTimer : ILauncherSelfUpdateTimer
 {
-    event EventHandler? Tick;
-
-    TimeSpan Interval { get; }
-
-    bool IsEnabled { get; }
-
-    void Start();
-
-    void Stop();
 }
 
 internal sealed class LegacyDispatcherTimer : ILegacyDispatcherTimer
@@ -128,11 +119,17 @@ internal sealed class LegacyMainWindowDependencies
     internal ILauncherSelfUpdateFinalizer LauncherSelfUpdateFinalizer { get; init; } =
         WotLK.Launcher.Updater.LauncherSelfUpdateFinalizer.CreateProduction();
 
+    internal Action RequestApplicationShutdown { get; init; } =
+        RequestProductionShutdown;
+
+    internal bool SelfUpdateRecoveryOccurred { get; init; }
+
     internal LauncherOperationCoordinator OperationCoordinator { get; init; } = new();
 
     internal ILegacyStartupObserver StartupObserver { get; init; } = NullLegacyStartupObserver.Instance;
 
-    internal static LegacyMainWindowDependencies CreateProduction()
+    internal static LegacyMainWindowDependencies CreateProduction(
+        bool selfUpdateRecoveryOccurred = false)
     {
         return new LegacyMainWindowDependencies
         {
@@ -151,6 +148,7 @@ internal sealed class LegacyMainWindowDependencies
             WriteGameSingleSignOn = GameSingleSignOn.Write,
             StartGameProcess = Process.Start,
             CreateTimer = static (interval, priority) => new LegacyDispatcherTimer(interval, priority),
+            SelfUpdateRecoveryOccurred = selfUpdateRecoveryOccurred,
             PersistLogLine = static line =>
             {
                 Directory.CreateDirectory(LauncherSettings.SettingsDirectory);
@@ -160,6 +158,18 @@ internal sealed class LegacyMainWindowDependencies
                     new UTF8Encoding(false));
             }
         };
+    }
+
+    private static void RequestProductionShutdown()
+    {
+        System.Windows.Application application = System.Windows.Application.Current;
+        if (application.Dispatcher.CheckAccess())
+        {
+            application.Shutdown();
+            return;
+        }
+
+        _ = application.Dispatcher.BeginInvoke(new Action(application.Shutdown));
     }
 }
 
@@ -173,6 +183,8 @@ internal sealed record LegacyMainWindowSnapshot(
     bool VerifyButtonEnabled,
     bool AddonsNavigationEnabled,
     bool LauncherSelfUpdateEnabled,
+    bool LauncherSelfUpdateVisible,
+    string LauncherSelfUpdateToolTip,
     double Progress,
     string ProgressText,
     bool HasActiveOperation,

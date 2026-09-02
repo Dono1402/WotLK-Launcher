@@ -120,10 +120,13 @@ internal sealed class SettingsCommands : IDisposable
     private readonly ISettingsFolderPicker _folderPicker;
     private readonly ISettingsGameLocaleApplier _localeApplier;
     private readonly ISettingsGameConfigAccess _gameConfigAccess;
+    private readonly ILauncherSelfUpdateRuntime? _selfUpdate;
     private readonly Action<string> _writeLog;
     private readonly DelegateCommand _browseInstallPath;
     private readonly DelegateCommand _openGameFolder;
     private readonly DelegateCommand _openLogs;
+    private readonly DelegateCommand _checkLauncherUpdate;
+    private readonly DelegateCommand _startLauncherUpdate;
     private int _disposeState;
 
     internal SettingsCommands(
@@ -136,7 +139,8 @@ internal sealed class SettingsCommands : IDisposable
         ISettingsGameLocaleApplier? localeApplier = null,
         ISettingsGameConfigAccess? gameConfigAccess = null,
         ICommand? verifyRepairCommand = null,
-        Action? showGameForRepair = null)
+        Action? showGameForRepair = null,
+        ILauncherSelfUpdateRuntime? selfUpdate = null)
     {
         _state = state ?? throw new ArgumentNullException(nameof(state));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -146,6 +150,7 @@ internal sealed class SettingsCommands : IDisposable
         _folderPicker = folderPicker ?? new SettingsFolderPicker();
         _localeApplier = localeApplier ?? new SettingsGameLocaleApplier();
         _gameConfigAccess = gameConfigAccess ?? new SettingsGameConfigAccess();
+        _selfUpdate = selfUpdate;
         _browseInstallPath = new DelegateCommand(
             BrowseInstallPath,
             () => _settings.CurrentSnapshot.CanChangeInstallPath);
@@ -155,13 +160,25 @@ internal sealed class SettingsCommands : IDisposable
         _openLogs = new DelegateCommand(
             OpenLogs,
             () => _localActions.CanOpenDiagnostic);
+        _checkLauncherUpdate = new DelegateCommand(
+            CheckLauncherUpdate,
+            () => _selfUpdate?.CanCheck == true);
+        _startLauncherUpdate = new DelegateCommand(
+            StartLauncherUpdate,
+            () => _selfUpdate?.CanStartUpdate == true);
         _settings.AvailabilityChanged += Settings_AvailabilityChanged;
         _localActions.AvailabilityChanged += LocalActions_AvailabilityChanged;
+        if (_selfUpdate is not null)
+        {
+            _selfUpdate.AvailabilityChanged += SelfUpdate_AvailabilityChanged;
+        }
         _state.AttachRuntimeActions(
             _browseInstallPath,
             _openGameFolder,
             _openLogs,
             verifyRepairCommand ?? DisabledCommand.Instance,
+            _checkLauncherUpdate,
+            _startLauncherUpdate,
             showGameForRepair ?? (static () => { }),
             ChangeGameLocale,
             ChangeCloseAfterLaunch,
@@ -183,9 +200,15 @@ internal sealed class SettingsCommands : IDisposable
 
         _settings.AvailabilityChanged -= Settings_AvailabilityChanged;
         _localActions.AvailabilityChanged -= LocalActions_AvailabilityChanged;
+        if (_selfUpdate is not null)
+        {
+            _selfUpdate.AvailabilityChanged -= SelfUpdate_AvailabilityChanged;
+        }
         _browseInstallPath.Dispose();
         _openGameFolder.Dispose();
         _openLogs.Dispose();
+        _checkLauncherUpdate.Dispose();
+        _startLauncherUpdate.Dispose();
     }
 
     private void BrowseInstallPath()
@@ -275,6 +298,68 @@ internal sealed class SettingsCommands : IDisposable
         PublishLocalActionResult(_localActions.OpenDiagnostic());
     }
 
+    private void CheckLauncherUpdate()
+    {
+        if (_selfUpdate is not null)
+        {
+            _ = ObserveLauncherUpdateCheckAsync(_selfUpdate.CheckAsync());
+        }
+    }
+
+    private async Task ObserveLauncherUpdateCheckAsync(
+        Task<LauncherSelfUpdateCheckResult> check)
+    {
+        LauncherSelfUpdateCheckResult result = await check.ConfigureAwait(true);
+        if (Volatile.Read(ref _disposeState) != 0)
+        {
+            return;
+        }
+        if (result.Outcome == LauncherSelfUpdateCheckOutcome.Failed
+            && result.ErrorCategory is LauncherSelfUpdateErrorCategory category)
+        {
+            _state.ShowRuntimeActionFailure(
+                LauncherSelfUpdateCoordinator.GetUserMessage(category));
+        }
+    }
+
+    private void StartLauncherUpdate()
+    {
+        if (_selfUpdate is null)
+        {
+            return;
+        }
+
+        LauncherSelfUpdateStartResult start = _selfUpdate.TryStartUpdate();
+        if (!start.IsStarted)
+        {
+            if (start.Status is LauncherSelfUpdateStartStatus.Busy
+                or LauncherSelfUpdateStartStatus.RejectedByCompatibility)
+            {
+                _state.ShowRuntimeActionFailure(
+                    "Une autre opération Atlas est déjà en cours.");
+            }
+            return;
+        }
+
+        _ = ObserveLauncherUpdateAsync(start.Completion!);
+    }
+
+    private async Task ObserveLauncherUpdateAsync(
+        Task<LauncherSelfUpdateCompletion> completion)
+    {
+        LauncherSelfUpdateCompletion result = await completion.ConfigureAwait(true);
+        if (Volatile.Read(ref _disposeState) != 0)
+        {
+            return;
+        }
+        if (result.Outcome == LauncherOperationOutcome.Failed
+            && result.ErrorCategory is LauncherSelfUpdateErrorCategory category)
+        {
+            _state.ShowRuntimeActionFailure(
+                LauncherSelfUpdateCoordinator.GetUserMessage(category));
+        }
+    }
+
     private void PublishLocalActionResult(LauncherLocalActionResult result)
     {
         if (result.Status is (LauncherLocalActionStatus.Failed
@@ -294,6 +379,12 @@ internal sealed class SettingsCommands : IDisposable
     {
         _openGameFolder.RaiseCanExecuteChanged();
         _openLogs.RaiseCanExecuteChanged();
+    }
+
+    private void SelfUpdate_AvailabilityChanged(object? sender, EventArgs e)
+    {
+        _checkLauncherUpdate.RaiseCanExecuteChanged();
+        _startLauncherUpdate.RaiseCanExecuteChanged();
     }
 
     private void WriteLocaleFailureSafely(string? failureCategory)

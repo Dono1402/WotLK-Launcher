@@ -175,6 +175,8 @@ internal sealed class ActivityStateAdapter : IDisposable
             LauncherActivityPhase.Cleaning => "Nettoyage des anciens fichiers…",
             LauncherActivityPhase.Downloading => operation.OperationType switch
             {
+                LauncherOperationType.LauncherAutoUpdate =>
+                    "Téléchargement d’Atlas Launcher…",
                 LauncherOperationType.AddonInstall
                     or LauncherOperationType.AddonUpdate
                     or LauncherOperationType.AddonRepair
@@ -182,8 +184,14 @@ internal sealed class ActivityStateAdapter : IDisposable
                     "Téléchargement de l’addon",
                 _ => "Téléchargement des fichiers du client"
             },
-            LauncherActivityPhase.Applying => "Application des fichiers réparés…",
-            LauncherActivityPhase.Finalizing => "Finalisation de l’installation…",
+            LauncherActivityPhase.Applying =>
+                operation.OperationType == LauncherOperationType.LauncherAutoUpdate
+                    ? "Validation de la mise à jour…"
+                    : "Application des fichiers réparés…",
+            LauncherActivityPhase.Finalizing =>
+                operation.OperationType == LauncherOperationType.LauncherAutoUpdate
+                    ? "Préparation du redémarrage…"
+                    : "Finalisation de l’installation…",
             LauncherActivityPhase.Removing => "Suppression des fichiers gérés…",
             _ => "Préparation de l’opération…"
         };

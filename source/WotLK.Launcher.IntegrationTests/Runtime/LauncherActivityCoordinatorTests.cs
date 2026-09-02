@@ -522,23 +522,11 @@ internal static class LauncherActivityCoordinatorTests
         harness.Operations.Publish(Operation(
             2,
             2,
-            LauncherOperationType.LauncherAutoUpdate,
+            LauncherOperationType.AvatarUpload,
             true,
             true));
         True(harness.Coordinator.CurrentSnapshot.ActiveOperation is null,
-            "L'auto-update doit rester preview-only pendant 04B.2.");
-        harness.Game.Publish(Game(
-            2,
-            2,
-            LauncherOperationKind.LauncherAutoUpdate,
-            terminal: Terminal(
-                2,
-                LauncherOperationType.LauncherAutoUpdate,
-                LauncherOperationOutcome.Succeeded,
-                "atlas-launcher",
-                "Atlas Launcher")));
-        True(harness.Coordinator.CurrentSnapshot.RecentItems.IsEmpty,
-            "L'auto-update réel ne doit pas être connecté prématurément à l'historique.");
+            "Les opérations de compte restent exclues du centre d’activité.");
     }
 
     private static void StopObservingAfterDispose()

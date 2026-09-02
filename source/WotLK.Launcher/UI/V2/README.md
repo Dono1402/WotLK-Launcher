@@ -62,11 +62,17 @@ Ces états restent exclusivement visuels et déterministes. Ils ne composent auc
 
 ## Centre d’activité réel - checkpoint 04B.2
 
-En mode `--ui-v2`, `LauncherActivityCoordinator` agrège en lecture seule les snapshots déjà coalescés de `LauncherOperationCoordinator`, `GameRuntimeCoordinator` et `LauncherAddonsCoordinator`. Il n’acquiert aucun bail, ne crée aucune source d’annulation et ne recalcule ni débit ni estimation de durée.
+En mode `--ui-v2`, `LauncherActivityCoordinator` agrège en lecture seule les snapshots déjà coalescés de `LauncherOperationCoordinator`, `GameRuntimeCoordinator`, `LauncherAddonsCoordinator` et `LauncherSelfUpdateCoordinator`. Il n’acquiert aucun bail, ne crée aucune source d’annulation et ne recalcule ni débit ni estimation de durée.
 
-Le centre suit installation, mise à jour, vérification et réparation du client, ainsi que les installations, mises à jour, réparations, suppressions et batchs Addons. `Play`, les rafraîchissements de lecture et l’auto-update du launcher restent exclus. Un batch conserve un seul `OperationId`, expose l’addon courant et les identifiants encore en attente, sans fabriquer de pourcentage global.
+Le centre suit installation, mise à jour, vérification et réparation du client, les installations, mises à jour, réparations, suppressions et batchs Addons, ainsi que le téléchargement réel d’une mise à jour d’Atlas Launcher. `Play`, les rafraîchissements de lecture et les simples recherches de version restent exclus. Un batch conserve un seul `OperationId`, expose l’addon courant et les identifiants encore en attente, sans fabriquer de pourcentage global.
 
 L’historique est limité aux dix derniers contrats terminaux explicites de la session, dédupliqués par `OperationId`. Il n’est pas persisté. Le bouton Annuler délègue directement à `LauncherOperationCoordinator.CancelFromUser`, et les liens de l’historique ouvrent Jeu ou Addons sans lancer d’opération.
+
+## Auto-update réel - checkpoint 04B.3b
+
+`LauncherRuntime` compose une seule instance de `LauncherSelfUpdateCoordinator` et un seul timer de 30 secondes. Les vues Paramètres et Activité observent cette instance et ne possèdent ni timer, ni client HTTP, ni pipeline de téléchargement. Paramètres affiche le réglage automatique existant en lecture seule, les versions installée/disponible, la dernière comparaison exploitable et les commandes de recherche puis de mise à jour.
+
+Une recherche est coalescée et ne crée aucune Activity. Seul un téléchargement ayant obtenu le bail global `LauncherAutoUpdate` apparaît sous le nom `Atlas Launcher`; ses octets, pourcentage, débit et ETA viennent directement du downloader extrait du legacy. Après validation, l’annulation est fermée et le coordinateur délègue exclusivement au mécanisme atomique de 04B.3a. En cas de récupération d’une transaction interrompue, les retries automatiques sont neutralisés pour le lancement courant afin d’éviter une boucle de rollback.
 
 Les harnais déterministes associés se lancent avec :
 

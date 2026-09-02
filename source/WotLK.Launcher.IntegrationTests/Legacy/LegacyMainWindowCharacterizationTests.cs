@@ -1,12 +1,14 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Windows.Threading;
 using WotLK.Launcher;
 using WotLK.Launcher.Game;
 using WotLK.Launcher.Runtime;
+using WotLK.Launcher.Updater;
 
 internal static class LegacyMainWindowCharacterizationTests
 {
@@ -56,6 +58,9 @@ internal static class LegacyMainWindowCharacterizationTests
         CharacterizeTransferFormatting();
         await CharacterizeRestoreBeforeInitialAnalysisAsync();
         await CharacterizeTimerResponsibilitiesAsync();
+        await CharacterizeLauncherUpdateChecksAsync();
+        await CharacterizeLauncherUpdateDownloadAndHandoffAsync();
+        await CharacterizeLauncherUpdateCancellationAndFailureAsync();
         await CharacterizeLegacyCompatibilityMatrixAsync();
         await CharacterizeLegacyPlayFlowAsync();
         await CharacterizeSharedMaintenanceDelegationAsync();
@@ -296,6 +301,183 @@ internal static class LegacyMainWindowCharacterizationTests
         Equal(1, environment.Observer.Count(LegacyStartupEvent.LauncherUpdateTimerTick), "Un tick 30 s doit être unique.");
         Equal(1, environment.Observer.Count(LegacyStartupEvent.FriendRefreshTimerTick), "Un tick 15 s doit être unique.");
         window.Close();
+    }
+
+    private static async Task CharacterizeLauncherUpdateChecksAsync()
+    {
+        using LegacyTestEnvironment environment = new(initialPlayableClient: true);
+        string currentExecutable = Environment.ProcessPath
+            ?? throw new InvalidOperationException("Exécutable de test introuvable.");
+        string currentHash = Convert.ToHexString(await SHA256.HashDataAsync(
+            File.OpenRead(currentExecutable)));
+        MainWindow window = new(environment.CreateDependencies());
+
+        environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
+            RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
+            {
+                Version = "1.1.0",
+                Url = "https://atlas.test/launcher.exe",
+                Size = new FileInfo(currentExecutable).Length,
+                Sha256 = currentHash
+            }));
+        await window.CheckLauncherUpdateForCharacterizationAsync();
+        LegacyMainWindowSnapshot snapshot = window.CaptureCharacterizationSnapshot();
+        True(!snapshot.LauncherSelfUpdateVisible,
+            "Un manifeste identique ne doit pas afficher le bouton self-update legacy.");
+
+        byte[] candidate = Encoding.UTF8.GetBytes("atlas-launcher-candidate");
+        string candidateHash = Convert.ToHexString(SHA256.HashData(candidate));
+        environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
+            RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
+            {
+                Version = "1.1.0",
+                Url = "https://atlas.test/launcher.exe",
+                Size = candidate.Length,
+                Sha256 = candidateHash
+            }));
+        await window.CheckLauncherUpdateForCharacterizationAsync();
+        snapshot = window.CaptureCharacterizationSnapshot();
+        LauncherSelfUpdateSnapshot updater =
+            window.CaptureLauncherSelfUpdateForCharacterization();
+        True(snapshot.LauncherSelfUpdateVisible,
+            "Une version égale avec un hash différent reste éligible dans le legacy. "
+            + $"Updater={updater}; Log={snapshot.LogText}");
+        Equal("Mise a jour launcher disponible: 1.1.0", snapshot.LauncherSelfUpdateToolTip,
+            "Le texte historique du bouton doit rester stable.");
+
+        environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
+            RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
+            {
+                Version = "0.9.0",
+                Url = "https://atlas.test/launcher.exe",
+                Size = candidate.Length,
+                Sha256 = candidateHash
+            }));
+        await window.CheckLauncherUpdateForCharacterizationAsync();
+        True(!window.CaptureCharacterizationSnapshot().LauncherSelfUpdateVisible,
+            "Une version distante plus ancienne doit être ignorée.");
+
+        TaskCompletionSource<HttpResponseMessage> release = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        environment.Http.LauncherUpdateResponder = (_, _) => release.Task;
+        int before = environment.Http.LauncherUpdateRequests;
+        Task first = window.CheckLauncherUpdateForCharacterizationAsync();
+        await WaitUntilAsync(
+            () => environment.Http.LauncherUpdateRequests == before + 1,
+            "Le check self-update témoin n'a pas démarré.");
+        Task second = window.CheckLauncherUpdateForCharacterizationAsync();
+        Equal(before + 1, environment.Http.LauncherUpdateRequests,
+            "Deux checks simultanés doivent produire une seule requête legacy.");
+        release.SetResult(RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
+        {
+            Version = "1.1.0",
+            Url = "https://atlas.test/launcher.exe",
+            Size = candidate.Length,
+            Sha256 = candidateHash
+        }));
+        await Task.WhenAll(first, second);
+        window.Close();
+    }
+
+    private static async Task CharacterizeLauncherUpdateDownloadAndHandoffAsync()
+    {
+        byte[] candidate = Encoding.UTF8.GetBytes("atlas-launcher-candidate-for-handoff");
+        string candidateHash = Convert.ToHexString(SHA256.HashData(candidate));
+        using LegacyTestEnvironment environment = new(initialPlayableClient: true);
+        environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
+            RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
+            {
+                Version = "1.1.0",
+                Url = "https://atlas.test/launcher.exe",
+                Size = candidate.Length,
+                Sha256 = candidateHash
+            }));
+        environment.Http.LauncherBinaryResponder = (_, _) => Task.FromResult(
+            RecordingHttpHandler.BinaryResponse(candidate));
+        MainWindow window = new(environment.CreateDependencies());
+        await window.CheckLauncherUpdateForCharacterizationAsync();
+        await window.RunLauncherSelfUpdateForCharacterizationAsync();
+
+        Equal(1, environment.Http.LauncherBinaryRequests,
+            "Le clic legacy doit télécharger exactement un candidat.");
+        Equal(1, environment.SelfUpdateFinalizer.Calls,
+            "Le pipeline legacy doit déléguer exactement une fois au finalizer 04B.3a.");
+        Equal(candidateHash, environment.SelfUpdateFinalizer.ExpectedSha256,
+            "Le hash du manifeste doit être transmis sans transformation au finalizer.");
+        Equal(1, environment.ShutdownRequests,
+            "Le launcher ne doit demander sa fermeture qu'après acceptation du helper.");
+        LegacyMainWindowSnapshot snapshot = window.CaptureCharacterizationSnapshot();
+        Equal(100d, snapshot.Progress,
+            "Le téléchargement terminé doit conserver la progression legacy à 100 %.");
+        True(snapshot.LogText.Contains("Application de la mise à jour", StringComparison.Ordinal),
+            "La passation au helper doit rester visible dans le journal legacy.");
+        True(!snapshot.HasActiveOperation,
+            "Le bail self-update doit être libéré après la passation.");
+        window.Close();
+    }
+
+    private static async Task CharacterizeLauncherUpdateCancellationAndFailureAsync()
+    {
+        byte[] candidate = new byte[256 * 1024];
+        string candidateHash = Convert.ToHexString(SHA256.HashData(candidate));
+        using (LegacyTestEnvironment environment = new(initialPlayableClient: true))
+        {
+            environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
+                RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
+                {
+                    Version = "1.1.0",
+                    Url = "https://atlas.test/launcher.exe",
+                    Size = candidate.Length,
+                    Sha256 = candidateHash
+                }));
+            TaskCompletionSource<HttpResponseMessage> releaseDownload = new(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            environment.Http.LauncherBinaryResponder = (_, _) => releaseDownload.Task;
+            MainWindow window = new(environment.CreateDependencies());
+            await window.CheckLauncherUpdateForCharacterizationAsync();
+            Task update = window.RunLauncherSelfUpdateForCharacterizationAsync();
+            await WaitUntilAsync(
+                () => environment.Http.LauncherBinaryRequests == 1,
+                "Le téléchargement annulable n'a pas démarré.");
+            True(environment.Operations.CancelFromUser(),
+                "Le téléchargement launcher doit être annulable par l'utilisateur.");
+            releaseDownload.TrySetCanceled(environment.Operations.ShutdownToken);
+            await update;
+            LegacyMainWindowSnapshot cancelled = window.CaptureCharacterizationSnapshot();
+            Equal("Annulé", cancelled.StatusText,
+                "L'annulation doit conserver le statut legacy.");
+            Equal(0, environment.SelfUpdateFinalizer.Calls,
+                "Un téléchargement annulé ne doit jamais atteindre le finalizer.");
+            Equal(0, environment.ShutdownRequests,
+                "Une annulation ne doit pas fermer le launcher.");
+            window.Close();
+        }
+
+        using (LegacyTestEnvironment environment = new(initialPlayableClient: true))
+        {
+            environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
+                RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
+                {
+                    Version = "1.1.0",
+                    Url = "https://atlas.test/launcher.exe",
+                    Size = candidate.Length,
+                    Sha256 = candidateHash
+                }));
+            environment.Http.LauncherBinaryResponder = (_, _) => Task.FromResult(
+                RecordingHttpHandler.BinaryResponse(candidate));
+            environment.SelfUpdateFinalizer.Failure = new InvalidOperationException("helper-refused");
+            MainWindow window = new(environment.CreateDependencies());
+            await window.CheckLauncherUpdateForCharacterizationAsync();
+            await window.RunLauncherSelfUpdateForCharacterizationAsync();
+            LegacyMainWindowSnapshot failed = window.CaptureCharacterizationSnapshot();
+            Equal("Erreur", failed.StatusText,
+                "Un refus du helper doit conserver le statut d'erreur legacy.");
+            True(failed.IsToastVisible,
+                "Un refus du helper doit conserver le toast legacy.");
+            Equal(0, environment.ShutdownRequests,
+                "Le launcher doit rester ouvert lorsque le helper refuse la transaction.");
+            window.Close();
+        }
     }
 
     private static async Task CharacterizeLegacyCompatibilityMatrixAsync()
@@ -630,6 +812,12 @@ internal sealed class LegacyTestEnvironment : IDisposable
 
     internal RecordingHttpHandler Http { get; }
 
+    internal LauncherOperationCoordinator Operations { get; } = new();
+
+    internal RecordingSelfUpdateFinalizer SelfUpdateFinalizer { get; } = new();
+
+    internal int ShutdownRequests { get; private set; }
+
     internal List<FakeLegacyTimer> Timers { get; } = [];
 
     internal int AuthenticationFactoryCalls { get; private set; }
@@ -708,6 +896,9 @@ internal sealed class LegacyTestEnvironment : IDisposable
             },
             PersistLogLine = _ => { },
             GameClientMaintenanceService = GameClientMaintenanceService,
+            LauncherSelfUpdateFinalizer = SelfUpdateFinalizer,
+            OperationCoordinator = Operations,
+            RequestApplicationShutdown = () => ShutdownRequests++,
             StartupObserver = Observer
         };
     }
@@ -933,9 +1124,15 @@ internal sealed class RecordingHttpHandler(RecordingStartupObserver observer) : 
 {
     internal Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? ManifestResponder { get; set; }
 
+    internal Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? LauncherUpdateResponder { get; set; }
+
+    internal Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? LauncherBinaryResponder { get; set; }
+
     internal int LauncherUpdateRequests { get; private set; }
 
     internal int ManifestRequests { get; private set; }
+
+    internal int LauncherBinaryRequests { get; private set; }
 
     internal int FirstManifestRequestEventIndex { get; private set; } = int.MaxValue;
 
@@ -943,6 +1140,7 @@ internal sealed class RecordingHttpHandler(RecordingStartupObserver observer) : 
     {
         LauncherUpdateRequests = 0;
         ManifestRequests = 0;
+        LauncherBinaryRequests = 0;
         FirstManifestRequestEventIndex = int.MaxValue;
     }
 
@@ -954,7 +1152,19 @@ internal sealed class RecordingHttpHandler(RecordingStartupObserver observer) : 
         if (absoluteUri.Contains("launcher-update.json", StringComparison.OrdinalIgnoreCase))
         {
             LauncherUpdateRequests++;
+            if (LauncherUpdateResponder is not null)
+            {
+                return LauncherUpdateResponder(request, cancellationToken);
+            }
+
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+        }
+
+        if (string.Equals(absoluteUri, "https://atlas.test/launcher.exe", StringComparison.OrdinalIgnoreCase))
+        {
+            LauncherBinaryRequests++;
+            return LauncherBinaryResponder?.Invoke(request, cancellationToken)
+                ?? Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
         }
 
         if (absoluteUri.Contains("manifest.json", StringComparison.OrdinalIgnoreCase))
@@ -988,6 +1198,41 @@ internal sealed class RecordingHttpHandler(RecordingStartupObserver observer) : 
                 Encoding.UTF8,
                 "application/json")
         };
+    }
+
+    internal static HttpResponseMessage BinaryResponse(byte[] value)
+    {
+        return new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(value)
+        };
+    }
+}
+
+internal sealed class RecordingSelfUpdateFinalizer : ILauncherSelfUpdateFinalizer
+{
+    internal int Calls { get; private set; }
+
+    internal string? ExpectedSha256 { get; private set; }
+
+    internal Exception? Failure { get; set; }
+
+    public Task<LauncherUpdateTransaction> PrepareAndLaunchAsync(
+        string targetPath,
+        string downloadedCandidatePath,
+        long expectedSize,
+        string expectedSha256,
+        int parentProcessId,
+        CancellationToken cancellationToken)
+    {
+        Calls++;
+        ExpectedSha256 = expectedSha256;
+        if (Failure is not null)
+        {
+            return Task.FromException<LauncherUpdateTransaction>(Failure);
+        }
+
+        return Task.FromResult<LauncherUpdateTransaction>(null!);
     }
 }
 

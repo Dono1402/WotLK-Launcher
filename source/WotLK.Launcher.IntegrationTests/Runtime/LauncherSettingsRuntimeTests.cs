@@ -25,7 +25,7 @@ internal static class LauncherSettingsRuntimeTests
         CharacterizeInstantQuestTextConfigFile();
         CharacterizeInstantQuestTextRuntimePersistence();
         await ValidateConnectedWpfSettingsAsync(captureDirectory);
-        Console.WriteLine("Settings runtime integration OK (02G.2.1).");
+        Console.WriteLine("Settings runtime integration OK (02G.2.1 + 04B.3b).");
         return 0;
     }
 
@@ -362,12 +362,14 @@ internal static class LauncherSettingsRuntimeTests
             });
         SettingsGameRuntimeStub gameRuntime = new(settings.InstallPath, settings.GameLocale);
         SettingsDashboardRuntimeStub dashboardRuntime = new();
+        SettingsSelfUpdateRuntimeStub selfUpdateRuntime = new();
         SettingsUiState settingsState = new(SettingsStateAdapter.CreateInitialView(
             settingsRuntime.CurrentSnapshot,
             gameRuntime.CurrentSnapshot,
             dashboardRuntime.CurrentSnapshot,
             "v1.1.0",
-            @"C:\Users\Dono\AppData\Local\WotLK Launcher\launcher.log"));
+            @"C:\Users\Dono\AppData\Local\WotLK Launcher\launcher.log",
+            selfUpdate: selfUpdateRuntime.CurrentSnapshot));
         ShellUiState shellState = new()
         {
             LauncherVersion = "v1.1.0",
@@ -416,7 +418,8 @@ internal static class LauncherSettingsRuntimeTests
             localeApplier,
             gameConfigAccess,
             verificationCommand.Command,
-            window.ShowGamePageForSettingsOperation);
+            window.ShowGamePageForSettingsOperation,
+            selfUpdateRuntime);
         using GameStateAdapter gameAdapter = new(
             gameState,
             gameRuntime,
@@ -428,7 +431,8 @@ internal static class LauncherSettingsRuntimeTests
             dashboardRuntime,
             "v1.1.0",
             @"C:\Users\Dono\AppData\Local\WotLK Launcher\launcher.log",
-            window.Dispatcher);
+            window.Dispatcher,
+            selfUpdateRuntime);
 
         window.Show();
         try
@@ -447,7 +451,11 @@ internal static class LauncherSettingsRuntimeTests
             Button repair = Required<Button>(view, "VerifyRepairButton");
             True(repair.IsHitTestVisible && repair.IsEnabled, "Réparer doit partager le CanExecute réel de la page Jeu.");
             True(ReferenceEquals(gameState.VerifyCommand, settingsState.VerifyRepairCommand), "Jeu et Paramètres doivent exposer exactement le même ICommand.");
-            True(!Required<ToggleButton>(view, "AutomaticUpdatesToggle").IsEnabled, "L'auto-update doit être visuellement désactivé jusqu'à 02H.2.");
+            ToggleButton automaticUpdates = Required<ToggleButton>(view, "AutomaticUpdatesToggle");
+            True(automaticUpdates.IsChecked == true,
+                "Settings doit refléter la recherche automatique activée dans le réglage legacy.");
+            True(!automaticUpdates.IsEnabled,
+                "Le réglage automatique doit refléter le legacy en lecture seule tant que sa mutation V2 n'est pas reconnectée.");
             True(!Required<ToggleButton>(view, "StartWithWindowsToggle").IsEnabled, "Le démarrage Windows doit être désactivé.");
             True(!Required<Border>(view, "InterfaceLanguageControl").IsEnabled, "La langue du launcher doit être désactivée.");
             True(!Required<Border>(view, "WindowCloseBehaviorControl").IsEnabled, "Le comportement du bouton Fermer doit être désactivé.");
@@ -459,6 +467,74 @@ internal static class LauncherSettingsRuntimeTests
             True(!Required<Button>(view, "OpenLauncherFolderButton").IsEnabled, "Le dossier du launcher non raccordé doit être désactivé.");
             True(!Required<Border>(view, "ResetInterfaceCard").IsEnabled, "La réinitialisation doit être désactivée.");
             Equal(Visibility.Collapsed, Required<Border>(view, "SettingsActionBar").Visibility, "La barre de sauvegarde différée doit être absente en mode réel.");
+
+            view.SelectCategory(SettingsCategory.Updates);
+            await PumpAsync(DispatcherPriority.DataBind);
+            Equal("v1.1.0", Required<TextBlock>(view, "LauncherVersionText").Text,
+                "Settings doit afficher la version installée du coordinateur.");
+            Equal("v1.2.0", Required<TextBlock>(view, "AvailableLauncherVersionText").Text,
+                "Settings doit afficher la version réellement disponible.");
+            True(Required<TextBlock>(view, "LastLauncherUpdateCheckText").Text.Contains("2026", StringComparison.Ordinal),
+                "La dernière vérification exploitable doit être visible.");
+            Equal("Mise à jour disponible", Required<TextBlock>(view, "LauncherUpdateStatusText").Text,
+                "Le statut disponible doit être explicite.");
+            Button checkLauncherUpdate = Required<Button>(view, "CheckLauncherUpdateButton");
+            Button startLauncherUpdate = Required<Button>(view, "StartLauncherUpdateButton");
+            True(checkLauncherUpdate.IsEnabled, "La recherche manuelle doit être reconnectée.");
+            True(startLauncherUpdate.IsEnabled, "Une version disponible doit rendre l'action réelle accessible.");
+
+            if (!string.IsNullOrWhiteSpace(captureDirectory))
+            {
+                Directory.CreateDirectory(captureDirectory);
+                SavePng(window, Path.Combine(captureDirectory, "03-settings-runtime-updates-1440x860.png"));
+            }
+
+            settingsState.CheckLauncherUpdateCommand.Execute(null);
+            await PumpAsync(DispatcherPriority.DataBind);
+            Equal(1, selfUpdateRuntime.CheckCalls,
+                "Le bouton doit déléguer une seule fois au coordinateur partagé.");
+            Equal("Recherche en cours", Required<TextBlock>(view, "LauncherUpdateStatusText").Text,
+                "L'état Checking doit être projeté sans créer une opération Activity.");
+            True(!checkLauncherUpdate.IsEnabled,
+                "Un deuxième check manuel doit être refusé pendant la requête active.");
+            selfUpdateRuntime.CompleteCheck();
+            await PumpAsync(DispatcherPriority.DataBind);
+            True(checkLauncherUpdate.IsEnabled,
+                "La commande doit redevenir disponible après le check coalescé.");
+
+            selfUpdateRuntime.PublishError(LauncherSelfUpdateErrorCategory.ManifestUnavailable);
+            await PumpAsync(DispatcherPriority.DataBind);
+            True(Required<TextBlock>(view, "LauncherUpdateStatusText").Text.Contains(
+                    "temporairement indisponible",
+                    StringComparison.OrdinalIgnoreCase),
+                "Une erreur réseau doit rester courte et contrôlée dans Settings.");
+
+            window.Width = 1080;
+            window.Height = 680;
+            await DelayAndPumpAsync(120);
+            view.SelectCategory(SettingsCategory.Updates);
+            view.ScrollHost.ScrollToTop();
+            await PumpAsync(DispatcherPriority.ApplicationIdle);
+            True(view.ScrollHost.HorizontalScrollBarVisibility == ScrollBarVisibility.Disabled,
+                "Settings ne doit jamais afficher de barre horizontale à 1080x680.");
+            True(view.ScrollHost.ExtentWidth <= view.ScrollHost.ViewportWidth + 1,
+                "Le contenu Updates ne doit pas être coupé horizontalement à 1080x680.");
+            checkLauncherUpdate.BringIntoView();
+            await PumpAsync(DispatcherPriority.ApplicationIdle);
+            Rect checkBounds = checkLauncherUpdate.TransformToAncestor(view)
+                .TransformBounds(new Rect(checkLauncherUpdate.RenderSize));
+            True(checkBounds.Left >= 0 && checkBounds.Right <= view.ActualWidth + 1,
+                "Les actions du self-update doivent rester accessibles à 1080x680.");
+            if (!string.IsNullOrWhiteSpace(captureDirectory))
+            {
+                SavePng(window, Path.Combine(captureDirectory, "04-settings-runtime-updates-1080x680.png"));
+            }
+
+            window.Width = 1440;
+            window.Height = 860;
+            await DelayAndPumpAsync(80);
+            view.SelectCategory(SettingsCategory.General);
+            await PumpAsync(DispatcherPriority.ApplicationIdle);
 
             if (!string.IsNullOrWhiteSpace(captureDirectory))
             {
@@ -726,6 +802,96 @@ internal sealed class SettingsDashboardRuntimeStub : ILauncherDashboardRuntime
     };
     public bool CanRefresh => false;
     public DashboardRefreshStartStatus TryRefresh() => DashboardRefreshStartStatus.Busy;
+}
+
+internal sealed class SettingsSelfUpdateRuntimeStub : ILauncherSelfUpdateRuntime
+{
+    private TaskCompletionSource<LauncherSelfUpdateCheckResult>? _activeCheck;
+
+    internal SettingsSelfUpdateRuntimeStub()
+    {
+        CurrentSnapshot = new LauncherSelfUpdateSnapshot(
+            Sequence: 1,
+            IsChecking: false,
+            InstalledVersion: "v1.1.0",
+            AvailableVersion: "v1.2.0",
+            IsUpdateAvailable: true,
+            IsUpdating: false,
+            Phase: LauncherSelfUpdatePhase.None,
+            Percent: null,
+            BytesProcessed: null,
+            BytesTotal: null,
+            Speed: null,
+            Eta: null,
+            CanUserCancel: false,
+            ErrorCategory: null,
+            LastCheckedAt: new DateTimeOffset(2026, 9, 2, 12, 30, 0, TimeSpan.Zero));
+    }
+
+    public event EventHandler<LauncherSelfUpdateSnapshotEventArgs>? SnapshotChanged;
+    public event EventHandler? AvailabilityChanged;
+    public LauncherSelfUpdateSnapshot CurrentSnapshot { get; private set; }
+    public long? CurrentOperationId => null;
+    public bool CanCheck => _activeCheck is null && !CurrentSnapshot.IsUpdating;
+    public bool CanStartUpdate => _activeCheck is null
+        && CurrentSnapshot.IsUpdateAvailable
+        && !CurrentSnapshot.IsUpdating;
+    internal int CheckCalls { get; private set; }
+
+    public Task<LauncherSelfUpdateCheckResult> CheckAsync()
+    {
+        if (_activeCheck is not null)
+        {
+            return _activeCheck.Task;
+        }
+
+        CheckCalls++;
+        _activeCheck = new TaskCompletionSource<LauncherSelfUpdateCheckResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        Publish(CurrentSnapshot with
+        {
+            Sequence = CurrentSnapshot.Sequence + 1,
+            IsChecking = true,
+            ErrorCategory = null
+        });
+        return _activeCheck.Task;
+    }
+
+    public LauncherSelfUpdateStartResult TryStartUpdate() =>
+        new(LauncherSelfUpdateStartStatus.Busy, null);
+
+    internal void CompleteCheck()
+    {
+        TaskCompletionSource<LauncherSelfUpdateCheckResult>? completion = _activeCheck;
+        _activeCheck = null;
+        Publish(CurrentSnapshot with
+        {
+            Sequence = CurrentSnapshot.Sequence + 1,
+            IsChecking = false,
+            LastCheckedAt = CurrentSnapshot.LastCheckedAt?.AddMinutes(1)
+        });
+        completion?.TrySetResult(new LauncherSelfUpdateCheckResult(
+            LauncherSelfUpdateCheckOutcome.Completed));
+    }
+
+    internal void PublishError(LauncherSelfUpdateErrorCategory errorCategory)
+    {
+        Publish(CurrentSnapshot with
+        {
+            Sequence = CurrentSnapshot.Sequence + 1,
+            IsChecking = false,
+            AvailableVersion = null,
+            IsUpdateAvailable = false,
+            ErrorCategory = errorCategory
+        });
+    }
+
+    private void Publish(LauncherSelfUpdateSnapshot snapshot)
+    {
+        CurrentSnapshot = snapshot;
+        SnapshotChanged?.Invoke(this, new LauncherSelfUpdateSnapshotEventArgs(snapshot));
+        AvailabilityChanged?.Invoke(this, EventArgs.Empty);
+    }
 }
 
 internal sealed class FakeSettingsLocalActions : ILauncherLocalActions

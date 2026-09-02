@@ -152,7 +152,9 @@ public partial class App : Application
             return;
         }
 
-        var window = new MainWindow();
+        var window = new MainWindow(
+            LegacyMainWindowDependencies.CreateProduction(
+                updateStartup?.RecoveryOccurred == true));
         MainWindow = window;
         window.Show();
         ScheduleUpdateReadyConfirmation(window, updateStartup);
@@ -240,7 +242,8 @@ public partial class App : Application
         LauncherRuntime runtime;
         try
         {
-            runtime = LauncherRuntime.CreateProduction();
+            runtime = LauncherRuntime.CreateProduction(
+                updateStartup?.RecoveryOccurred == true);
         }
         catch (Exception ex)
         {
@@ -264,7 +267,8 @@ public partial class App : Application
             runtime.Game.CurrentSnapshot,
             runtime.Dashboard.CurrentSnapshot,
             runtime.LauncherVersion,
-            LauncherSettings.LauncherLogPath));
+            LauncherSettings.LauncherLogPath,
+            selfUpdate: runtime.SelfUpdate.CurrentSnapshot));
         AccountUiState accountState = new(AccountStateAdapter.Project(
             runtime.Account.CurrentSnapshot,
             avatarImage: null));
@@ -314,7 +318,8 @@ public partial class App : Application
             window,
             runtime.WriteRuntimeDiagnostic,
             verifyRepairCommand: verificationCommand.Command,
-            showGameForRepair: window.ShowGamePageForSettingsOperation);
+            showGameForRepair: window.ShowGamePageForSettingsOperation,
+            selfUpdate: runtime.SelfUpdate);
         SettingsStateAdapter settingsStateAdapter = new(
             settingsState,
             runtime.SettingsRuntime,
@@ -322,7 +327,8 @@ public partial class App : Application
             runtime.Dashboard,
             runtime.LauncherVersion,
             LauncherSettings.LauncherLogPath,
-            window.Dispatcher);
+            window.Dispatcher,
+            runtime.SelfUpdate);
         AuthCommands authCommands = new(runtime);
         window.AttachAuthentication(authCommands);
         FriendsCommands friendsCommands = new(

@@ -42,7 +42,13 @@ public sealed record UpdateSettingsViewState(
     string ReleaseChannel,
     string LastUpdateCheck,
     string InstalledLauncherVersion,
-    string AvailableLauncherVersion);
+    string AvailableLauncherVersion,
+    bool IsChecking = false,
+    bool IsUpdateAvailable = false,
+    bool IsUpdating = false,
+    bool CanCheck = false,
+    bool CanStartUpdate = false,
+    string StatusMessage = "Non vérifié");
 
 public sealed record NotificationSettingsViewState(
     bool UpdateCompleted,
@@ -91,6 +97,8 @@ public sealed class SettingsUiState : BindableUiState
     private ICommand _openGameFolderCommand = DisabledCommand.Instance;
     private ICommand _openLogsCommand = DisabledCommand.Instance;
     private ICommand _verifyRepairCommand = DisabledCommand.Instance;
+    private ICommand _checkLauncherUpdateCommand = DisabledCommand.Instance;
+    private ICommand _startLauncherUpdateCommand = DisabledCommand.Instance;
     private Func<string, bool> _changeGameLocale = static _ => false;
     private Func<bool, bool> _changeCloseAfterLaunch = static _ => false;
     private Func<bool, bool> _changeInstantQuestText = static _ => false;
@@ -147,6 +155,18 @@ public sealed class SettingsUiState : BindableUiState
         private set => SetProperty(ref _verifyRepairCommand, value);
     }
 
+    public ICommand CheckLauncherUpdateCommand
+    {
+        get => _checkLauncherUpdateCommand;
+        private set => SetProperty(ref _checkLauncherUpdateCommand, value);
+    }
+
+    public ICommand StartLauncherUpdateCommand
+    {
+        get => _startLauncherUpdateCommand;
+        private set => SetProperty(ref _startLauncherUpdateCommand, value);
+    }
+
     internal void ApplyRuntimeView(SettingsViewState viewState)
     {
         Current = viewState ?? throw new ArgumentNullException(nameof(viewState));
@@ -157,6 +177,8 @@ public sealed class SettingsUiState : BindableUiState
         ICommand openGameFolderCommand,
         ICommand openLogsCommand,
         ICommand verifyRepairCommand,
+        ICommand checkLauncherUpdateCommand,
+        ICommand startLauncherUpdateCommand,
         Action showGameForRepair,
         Func<string, bool> changeGameLocale,
         Func<bool, bool> changeCloseAfterLaunch,
@@ -170,6 +192,10 @@ public sealed class SettingsUiState : BindableUiState
             ?? throw new ArgumentNullException(nameof(openLogsCommand));
         VerifyRepairCommand = verifyRepairCommand
             ?? throw new ArgumentNullException(nameof(verifyRepairCommand));
+        CheckLauncherUpdateCommand = checkLauncherUpdateCommand
+            ?? throw new ArgumentNullException(nameof(checkLauncherUpdateCommand));
+        StartLauncherUpdateCommand = startLauncherUpdateCommand
+            ?? throw new ArgumentNullException(nameof(startLauncherUpdateCommand));
         _showGameForRepair = showGameForRepair
             ?? throw new ArgumentNullException(nameof(showGameForRepair));
         _changeGameLocale = changeGameLocale
@@ -186,6 +212,8 @@ public sealed class SettingsUiState : BindableUiState
         OpenGameFolderCommand = PreviewCommand.Instance;
         OpenLogsCommand = PreviewCommand.Instance;
         VerifyRepairCommand = PreviewCommand.Instance;
+        CheckLauncherUpdateCommand = PreviewCommand.Instance;
+        StartLauncherUpdateCommand = PreviewCommand.Instance;
         _showGameForRepair = static () => { };
         _changeGameLocale = static _ => false;
         _changeCloseAfterLaunch = static _ => false;

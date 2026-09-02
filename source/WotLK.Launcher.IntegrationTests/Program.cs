@@ -209,6 +209,12 @@ if (args.Length == 1
     return await LauncherSelfUpdateAtomicReplacementTests.RunAsync();
 }
 
+if (args.Length == 1
+    && string.Equals(args[0], "--launcher-self-update-runtime", StringComparison.OrdinalIgnoreCase))
+{
+    return await LauncherSelfUpdateCoordinatorTests.RunAsync();
+}
+
 if (args.Length >= 1
     && string.Equals(args[0], "--activity-runtime-wpf", StringComparison.OrdinalIgnoreCase))
 {

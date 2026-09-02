@@ -24,6 +24,17 @@ internal interface IAddonsActivitySource
     AddonsRuntimeSnapshot CurrentSnapshot { get; }
 }
 
+internal interface ILauncherSelfUpdateActivitySource
+{
+    event EventHandler<LauncherSelfUpdateSnapshotEventArgs>? SnapshotChanged;
+
+    event EventHandler<LauncherSelfUpdateTerminalEventArgs>? OperationTerminated;
+
+    LauncherSelfUpdateSnapshot CurrentSnapshot { get; }
+
+    long? CurrentOperationId { get; }
+}
+
 internal sealed class LauncherActivityCoordinator : IDisposable
 {
     private const string GameTargetId = "wotlk-classic";
@@ -33,26 +44,33 @@ internal sealed class LauncherActivityCoordinator : IDisposable
     private readonly ILauncherOperationActivitySource _operations;
     private readonly IGameActivitySource _game;
     private readonly IAddonsActivitySource _addons;
+    private readonly ILauncherSelfUpdateActivitySource _selfUpdate;
     private readonly Dictionary<long, LauncherActivityRecentItem> _recentByOperation = [];
     private LauncherOperationActivitySnapshot _operationSnapshot =
         LauncherOperationActivitySnapshot.Initial;
     private GameRuntimeSnapshot? _gameSnapshot;
     private AddonsRuntimeSnapshot _addonsSnapshot = AddonsRuntimeSnapshot.Initial;
+    private LauncherSelfUpdateSnapshot _selfUpdateSnapshot =
+        NullSelfUpdateActivitySource.InitialSnapshot;
+    private long? _selfUpdateOperationId;
     private LauncherActivitySnapshot _currentSnapshot = LauncherActivitySnapshot.Initial;
     private long _latestOperationSequence = -1;
     private long _latestGameSequence = -1;
     private long _latestAddonsSequence = -1;
+    private long _latestSelfUpdateSequence = -1;
     private long _nextSequence;
     private int _disposeState;
 
     internal LauncherActivityCoordinator(
         LauncherOperationCoordinator operations,
         GameRuntimeCoordinator game,
-        LauncherAddonsCoordinator addons)
+        LauncherAddonsCoordinator addons,
+        LauncherSelfUpdateCoordinator selfUpdate)
         : this(
             new OperationActivitySource(operations),
             new GameActivitySource(game),
-            new AddonsActivitySource(addons))
+            new AddonsActivitySource(addons),
+            new SelfUpdateActivitySource(selfUpdate))
     {
     }
 
@@ -60,18 +78,31 @@ internal sealed class LauncherActivityCoordinator : IDisposable
         ILauncherOperationActivitySource operations,
         IGameActivitySource game,
         IAddonsActivitySource addons)
+        : this(operations, game, addons, NullSelfUpdateActivitySource.Instance)
+    {
+    }
+
+    internal LauncherActivityCoordinator(
+        ILauncherOperationActivitySource operations,
+        IGameActivitySource game,
+        IAddonsActivitySource addons,
+        ILauncherSelfUpdateActivitySource selfUpdate)
     {
         _operations = operations ?? throw new ArgumentNullException(nameof(operations));
         _game = game ?? throw new ArgumentNullException(nameof(game));
         _addons = addons ?? throw new ArgumentNullException(nameof(addons));
+        _selfUpdate = selfUpdate ?? throw new ArgumentNullException(nameof(selfUpdate));
 
         _operations.SnapshotChanged += Operations_SnapshotChanged;
         _game.SnapshotChanged += Game_SnapshotChanged;
         _addons.SnapshotChanged += Addons_SnapshotChanged;
+        _selfUpdate.SnapshotChanged += SelfUpdate_SnapshotChanged;
+        _selfUpdate.OperationTerminated += SelfUpdate_OperationTerminated;
 
         ApplyOperationSnapshot(_operations.CurrentSnapshot);
         ApplyGameSnapshot(_game.CurrentSnapshot);
         ApplyAddonsSnapshot(_addons.CurrentSnapshot);
+        ApplySelfUpdateSnapshot(_selfUpdate.CurrentSnapshot, _selfUpdate.CurrentOperationId);
     }
 
     internal event EventHandler<LauncherActivitySnapshotEventArgs>? SnapshotChanged;
@@ -97,6 +128,8 @@ internal sealed class LauncherActivityCoordinator : IDisposable
         _operations.SnapshotChanged -= Operations_SnapshotChanged;
         _game.SnapshotChanged -= Game_SnapshotChanged;
         _addons.SnapshotChanged -= Addons_SnapshotChanged;
+        _selfUpdate.SnapshotChanged -= SelfUpdate_SnapshotChanged;
+        _selfUpdate.OperationTerminated -= SelfUpdate_OperationTerminated;
         lock (_sync)
         {
             SnapshotChanged = null;
@@ -117,6 +150,30 @@ internal sealed class LauncherActivityCoordinator : IDisposable
         object? sender,
         AddonsRuntimeSnapshotEventArgs eventArgs) =>
         ApplyAddonsSnapshot(eventArgs.Snapshot);
+
+    private void SelfUpdate_SnapshotChanged(
+        object? sender,
+        LauncherSelfUpdateSnapshotEventArgs eventArgs) =>
+        ApplySelfUpdateSnapshot(eventArgs.Snapshot, _selfUpdate.CurrentOperationId);
+
+    private void SelfUpdate_OperationTerminated(
+        object? sender,
+        LauncherSelfUpdateTerminalEventArgs eventArgs)
+    {
+        LauncherActivitySnapshot? published;
+        lock (_sync)
+        {
+            if (IsDisposed)
+            {
+                return;
+            }
+
+            AddTerminalUnsafe(eventArgs.TerminalResult);
+            published = RebuildUnsafe();
+        }
+
+        Publish(published);
+    }
 
     private void ApplyOperationSnapshot(LauncherOperationActivitySnapshot snapshot)
     {
@@ -174,6 +231,27 @@ internal sealed class LauncherActivityCoordinator : IDisposable
             {
                 _addonsSnapshot = snapshot;
             }
+            published = RebuildUnsafe();
+        }
+
+        Publish(published);
+    }
+
+    private void ApplySelfUpdateSnapshot(
+        LauncherSelfUpdateSnapshot snapshot,
+        long? operationId)
+    {
+        LauncherActivitySnapshot? published;
+        lock (_sync)
+        {
+            if (IsDisposed || snapshot.Sequence <= _latestSelfUpdateSequence)
+            {
+                return;
+            }
+
+            _latestSelfUpdateSequence = snapshot.Sequence;
+            _selfUpdateSnapshot = snapshot;
+            _selfUpdateOperationId = operationId;
             published = RebuildUnsafe();
         }
 
@@ -271,6 +349,13 @@ internal sealed class LauncherActivityCoordinator : IDisposable
                 operationType,
                 _addonsSnapshot,
                 cancellationRequested);
+        }
+
+        if (operationType == LauncherOperationType.LauncherAutoUpdate
+            && _selfUpdateOperationId == operationId
+            && _selfUpdateSnapshot.IsUpdating)
+        {
+            return ProjectSelfUpdateOperation(operationId, cancellationRequested);
         }
 
         LauncherActivityNavigationTarget navigation = GetNavigationTarget(operationType);
@@ -387,6 +472,40 @@ internal sealed class LauncherActivityCoordinator : IDisposable
             LauncherActivityNavigationTarget.Addons);
     }
 
+    private LauncherActivityOperationSnapshot ProjectSelfUpdateOperation(
+        long operationId,
+        bool cancellationRequested)
+    {
+        double? percent = _selfUpdateSnapshot.Phase == LauncherSelfUpdatePhase.Downloading
+            ? _selfUpdateSnapshot.Percent
+            : null;
+        return new LauncherActivityOperationSnapshot(
+            operationId,
+            LauncherOperationType.LauncherAutoUpdate,
+            "atlas-launcher",
+            "Atlas Launcher",
+            "Atlas Launcher",
+            cancellationRequested
+                ? LauncherActivityPhase.Cancelling
+                : MapSelfUpdatePhase(_selfUpdateSnapshot.Phase),
+            percent is null
+                ? LauncherActivityProgressMode.Indeterminate
+                : LauncherActivityProgressMode.Determinate,
+            percent,
+            _selfUpdateSnapshot.BytesProcessed,
+            _selfUpdateSnapshot.BytesTotal,
+            _selfUpdateSnapshot.Speed,
+            _selfUpdateSnapshot.Eta,
+            FilesProcessed: null,
+            FilesTotal: null,
+            _selfUpdateSnapshot.CanUserCancel && _operationSnapshot.CanUserCancel,
+            cancellationRequested,
+            AddonPosition: null,
+            AddonTotal: null,
+            _selfUpdateSnapshot.ErrorCategory?.ToString(),
+            LauncherActivityNavigationTarget.None);
+    }
+
     private ImmutableArray<LauncherActivityPendingItem> ProjectPendingUnsafe(
         LauncherActivityOperationSnapshot? active)
     {
@@ -469,6 +588,16 @@ internal sealed class LauncherActivityCoordinator : IDisposable
             _ => LauncherActivityPhase.Preparing
         };
 
+    private static LauncherActivityPhase MapSelfUpdatePhase(
+        LauncherSelfUpdatePhase phase) => phase switch
+        {
+            LauncherSelfUpdatePhase.Downloading => LauncherActivityPhase.Downloading,
+            LauncherSelfUpdatePhase.Validating => LauncherActivityPhase.Applying,
+            LauncherSelfUpdatePhase.WaitingForApply => LauncherActivityPhase.Finalizing,
+            LauncherSelfUpdatePhase.Restarting => LauncherActivityPhase.Finalizing,
+            _ => LauncherActivityPhase.Preparing
+        };
+
     private static bool IsGameOperation(LauncherOperationType operationType) =>
         operationType is LauncherOperationType.GameInstall
             or LauncherOperationType.GameUpdate
@@ -483,7 +612,9 @@ internal sealed class LauncherActivityCoordinator : IDisposable
             or LauncherOperationType.AddonBatchUpdate;
 
     private static bool IsConnectedOperation(LauncherOperationType operationType) =>
-        IsGameOperation(operationType) || IsAddonOperation(operationType);
+        IsGameOperation(operationType)
+        || IsAddonOperation(operationType)
+        || operationType == LauncherOperationType.LauncherAutoUpdate;
 
     private static LauncherActivityNavigationTarget GetNavigationTarget(
         LauncherOperationType operationType) => IsGameOperation(operationType)
@@ -560,5 +691,63 @@ internal sealed class LauncherActivityCoordinator : IDisposable
         }
 
         public AddonsRuntimeSnapshot CurrentSnapshot => source.CurrentSnapshot;
+    }
+
+    private sealed class SelfUpdateActivitySource(
+        LauncherSelfUpdateCoordinator source) : ILauncherSelfUpdateActivitySource
+    {
+        public event EventHandler<LauncherSelfUpdateSnapshotEventArgs>? SnapshotChanged
+        {
+            add => source.SnapshotChanged += value;
+            remove => source.SnapshotChanged -= value;
+        }
+
+        public event EventHandler<LauncherSelfUpdateTerminalEventArgs>? OperationTerminated
+        {
+            add => source.OperationTerminated += value;
+            remove => source.OperationTerminated -= value;
+        }
+
+        public LauncherSelfUpdateSnapshot CurrentSnapshot => source.CurrentSnapshot;
+
+        public long? CurrentOperationId => source.CurrentOperationId;
+    }
+
+    private sealed class NullSelfUpdateActivitySource : ILauncherSelfUpdateActivitySource
+    {
+        internal static NullSelfUpdateActivitySource Instance { get; } = new();
+
+        internal static LauncherSelfUpdateSnapshot InitialSnapshot { get; } = new(
+            Sequence: 0,
+            IsChecking: false,
+            InstalledVersion: string.Empty,
+            AvailableVersion: null,
+            IsUpdateAvailable: false,
+            IsUpdating: false,
+            Phase: LauncherSelfUpdatePhase.None,
+            Percent: null,
+            BytesProcessed: null,
+            BytesTotal: null,
+            Speed: null,
+            Eta: null,
+            CanUserCancel: false,
+            ErrorCategory: null,
+            LastCheckedAt: null);
+
+        public event EventHandler<LauncherSelfUpdateSnapshotEventArgs>? SnapshotChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public event EventHandler<LauncherSelfUpdateTerminalEventArgs>? OperationTerminated
+        {
+            add { }
+            remove { }
+        }
+
+        public LauncherSelfUpdateSnapshot CurrentSnapshot => InitialSnapshot;
+
+        public long? CurrentOperationId => null;
     }
 }

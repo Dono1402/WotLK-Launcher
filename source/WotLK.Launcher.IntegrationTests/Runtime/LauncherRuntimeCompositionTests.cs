@@ -5,6 +5,7 @@ using WotLK.Launcher.Game;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Preview;
+using WotLK.Launcher.Updater;
 
 internal static class LauncherRuntimeCompositionTests
 {
@@ -111,6 +112,10 @@ internal static class LauncherRuntimeCompositionTests
         };
         int settingsLoads = 0;
         int authenticationCreations = 0;
+        int selfUpdateTimerCreations = 0;
+        int selfUpdateClientCreations = 0;
+        RuntimeCompositionSelfUpdateTimer selfUpdateTimer = new(
+            LauncherSelfUpdateCoordinator.CheckInterval);
         LauncherRuntimeDependencies dependencies = new()
         {
             LoadSettings = () =>
@@ -124,7 +129,22 @@ internal static class LauncherRuntimeCompositionTests
                 return authentication;
             },
             GameClientStateReader = new GameClientStateReader(),
-            GetLauncherVersion = () => "v1.1.0-test"
+            GetLauncherVersion = () => "v1.1.0-test",
+            CreateLauncherSelfUpdateTimer = interval =>
+            {
+                selfUpdateTimerCreations++;
+                Equal(LauncherSelfUpdateCoordinator.CheckInterval, interval,
+                    "La composition doit demander l'unique cadence 30 secondes.");
+                return selfUpdateTimer;
+            },
+            CreateLauncherSelfUpdateClient = _ =>
+            {
+                selfUpdateClientCreations++;
+                return new RuntimeCompositionSelfUpdateClient();
+            },
+            LauncherSelfUpdateFinalizer = new RuntimeCompositionSelfUpdateFinalizer(),
+            RequestApplicationShutdown = static () =>
+                throw new InvalidOperationException("Le runtime read-only ne doit pas demander de shutdown.")
         };
 
         LauncherRuntime runtime = new(dependencies);
@@ -132,6 +152,12 @@ internal static class LauncherRuntimeCompositionTests
         {
             Equal(1, settingsLoads, "La V2 réelle doit charger les paramètres une fois.");
             Equal(1, authenticationCreations, "La V2 réelle doit créer une authentification.");
+            Equal(1, selfUpdateTimerCreations,
+                "LauncherRuntime doit posséder un seul timer self-update.");
+            Equal(1, selfUpdateClientCreations,
+                "LauncherRuntime doit posséder un seul coordinateur/client self-update.");
+            Equal(0, selfUpdateTimer.StartCalls,
+                "Le réglage automatique désactivé ne doit pas armer le timer.");
             Equal("v1.1.0-test", runtime.LauncherVersion, "La version du produit doit provenir de la composition.");
             True(!runtime.Activity.CurrentSnapshot.HasActiveOperation,
                 "Le centre runtime doit commencer au repos sans inventer d'activité.");
@@ -189,6 +215,8 @@ internal static class LauncherRuntimeCompositionTests
         }
 
         Equal(1, authentication.DisposeCalls, "Le runtime doit libérer l'authentification une seule fois.");
+        Equal(1, selfUpdateTimer.StopCalls,
+            "La fermeture du runtime doit arrêter son unique timer.");
     }
 
     private static async Task CharacterizeRuntimeShutdownDuringRestoreAsync()
@@ -232,6 +260,56 @@ internal static class LauncherRuntimeCompositionTests
             throw new InvalidOperationException(message);
         }
     }
+}
+
+internal sealed class RuntimeCompositionSelfUpdateTimer(TimeSpan interval)
+    : ILauncherSelfUpdateTimer
+{
+    public event EventHandler? Tick;
+    public TimeSpan Interval { get; } = interval;
+    public bool IsEnabled { get; private set; }
+    internal int StartCalls { get; private set; }
+    internal int StopCalls { get; private set; }
+
+    public void Start()
+    {
+        StartCalls++;
+        IsEnabled = true;
+    }
+
+    public void Stop()
+    {
+        StopCalls++;
+        IsEnabled = false;
+    }
+
+    internal void Fire() => Tick?.Invoke(this, EventArgs.Empty);
+}
+
+internal sealed class RuntimeCompositionSelfUpdateClient : ILauncherSelfUpdateClient
+{
+    public Task<LauncherUpdateManifest> LoadManifestAsync(CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("Aucun check self-update n'est attendu dans ce scénario.");
+
+    public Task DownloadAsync(
+        Uri uri,
+        string targetPath,
+        long expectedSize,
+        Action<LauncherSelfUpdateTransferProgress> reportProgress,
+        CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("Aucun téléchargement self-update n'est attendu.");
+}
+
+internal sealed class RuntimeCompositionSelfUpdateFinalizer : ILauncherSelfUpdateFinalizer
+{
+    public Task<LauncherUpdateTransaction> PrepareAndLaunchAsync(
+        string targetPath,
+        string downloadedCandidatePath,
+        long expectedSize,
+        string expectedSha256,
+        int parentProcessId,
+        CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("Aucun handoff self-update n'est attendu.");
 }
 
 internal sealed class TemporaryClient : IDisposable

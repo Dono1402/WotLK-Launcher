@@ -763,7 +763,8 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="Dernière recherche"
                                                    Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
-                                        <TextBlock Grid.Column="1"
+                                        <TextBlock x:Name="LastLauncherUpdateCheckText"
+                                                   Grid.Column="1"
                                                    Text="{Binding State.Current.Updates.LastUpdateCheck, ElementName=SettingsRoot}"
                                                    Style="{StaticResource AtlasV2.Text.Body}"/>
                                     </Grid>
@@ -799,12 +800,46 @@
                                                 <TextBlock Text="VERSION DISPONIBLE"
                                                            Style="{StaticResource AtlasV2.Text.Caption}"
                                                            FontWeight="Bold"/>
-                                                <TextBlock Margin="0,5,0,0"
+                                                <TextBlock x:Name="AvailableLauncherVersionText"
+                                                           Margin="0,5,0,0"
                                                            Text="{Binding State.Current.Updates.AvailableLauncherVersion, ElementName=SettingsRoot}"
                                                            Style="{StaticResource AtlasV2.Settings.OptionTitle}"
-                                                           Foreground="{StaticResource AtlasV2.Brush.Success}"/>
+                                                           Foreground="{StaticResource AtlasV2.Brush.Gold}"/>
                                             </StackPanel>
                                         </Border>
+                                    </Grid>
+
+                                    <Border Style="{StaticResource AtlasV2.Settings.Separator}"/>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,20,0" VerticalAlignment="Center">
+                                            <TextBlock Text="État de la mise à jour"
+                                                       Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
+                                            <TextBlock x:Name="LauncherUpdateStatusText"
+                                                       Margin="0,3,0,0"
+                                                       Text="{Binding State.Current.Updates.StatusMessage, ElementName=SettingsRoot}"
+                                                       TextWrapping="Wrap"
+                                                       Style="{StaticResource AtlasV2.Text.Caption}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1"
+                                                    Orientation="Horizontal"
+                                                    VerticalAlignment="Center">
+                                            <Button x:Name="CheckLauncherUpdateButton"
+                                                    MinWidth="196"
+                                                    Content="Rechercher les mises à jour"
+                                                    Command="{Binding State.CheckLauncherUpdateCommand, ElementName=SettingsRoot}"
+                                                    Style="{StaticResource AtlasV2.Settings.Action}"/>
+                                            <Button x:Name="StartLauncherUpdateButton"
+                                                    MinWidth="132"
+                                                    Margin="10,0,0,0"
+                                                    Content="Mettre à jour"
+                                                    Command="{Binding State.StartLauncherUpdateCommand, ElementName=SettingsRoot}"
+                                                    Style="{StaticResource AtlasV2.Button.Primary}"/>
+                                        </StackPanel>
                                     </Grid>
                                 </StackPanel>
                             </Border>

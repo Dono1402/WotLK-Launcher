@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Windows.Threading;
 using WotLK.Launcher.Dashboard;
@@ -12,12 +13,14 @@ internal sealed class SettingsStateAdapter : IDisposable
     private readonly ILauncherSettingsRuntime _settings;
     private readonly IGamePrimaryActionRuntime _game;
     private readonly ILauncherDashboardRuntime _dashboard;
+    private readonly ILauncherSelfUpdateRuntime? _selfUpdate;
     private readonly string _launcherVersion;
     private readonly string _launcherLogPath;
     private readonly Dispatcher _dispatcher;
     private long _lastSettingsSequence = -1;
     private long _lastGameSequence = -1;
     private long _lastDashboardSequence = -1;
+    private long _lastSelfUpdateSequence = -1;
     private int _disposeState;
 
     internal SettingsStateAdapter(
@@ -27,12 +30,14 @@ internal sealed class SettingsStateAdapter : IDisposable
         ILauncherDashboardRuntime dashboard,
         string launcherVersion,
         string launcherLogPath,
-        Dispatcher dispatcher)
+        Dispatcher dispatcher,
+        ILauncherSelfUpdateRuntime? selfUpdate = null)
     {
         _state = state ?? throw new ArgumentNullException(nameof(state));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _game = game ?? throw new ArgumentNullException(nameof(game));
         _dashboard = dashboard ?? throw new ArgumentNullException(nameof(dashboard));
+        _selfUpdate = selfUpdate;
         _launcherVersion = launcherVersion ?? throw new ArgumentNullException(nameof(launcherVersion));
         _launcherLogPath = launcherLogPath ?? throw new ArgumentNullException(nameof(launcherLogPath));
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
@@ -40,6 +45,10 @@ internal sealed class SettingsStateAdapter : IDisposable
         _settings.SnapshotChanged += Settings_SnapshotChanged;
         _game.SnapshotChanged += Game_SnapshotChanged;
         _dashboard.SnapshotChanged += Dashboard_SnapshotChanged;
+        if (_selfUpdate is not null)
+        {
+            _selfUpdate.SnapshotChanged += SelfUpdate_SnapshotChanged;
+        }
         ApplyLatest();
     }
 
@@ -49,13 +58,14 @@ internal sealed class SettingsStateAdapter : IDisposable
         DashboardSnapshot dashboard,
         string launcherVersion,
         string launcherLogPath,
-        SettingsCategory initialCategory = SettingsCategory.General)
+        SettingsCategory initialCategory = SettingsCategory.General,
+        LauncherSelfUpdateSnapshot? selfUpdate = null)
     {
         string installedClientVersion = string.IsNullOrWhiteSpace(game.InstalledVersion)
             ? "Inconnue"
             : game.InstalledVersion;
         string gameLanguage = settings.GameLocale == "enUS" ? "English" : "Français";
-        string updateStatus = game.UpdateKnowledge switch
+        string legacyUpdateStatus = game.UpdateKnowledge switch
         {
             GameUpdateKnowledge.Checking => "Vérification en cours",
             GameUpdateKnowledge.Known => game.Action == GameAction.Update
@@ -74,6 +84,26 @@ internal sealed class SettingsStateAdapter : IDisposable
         string? runtimeNotice = settings.SaveStatus == LauncherSettingsSaveStatus.Error
             ? settings.StatusMessage
             : null;
+        string updateStatus = selfUpdate is null
+            ? legacyUpdateStatus
+            : FormatSelfUpdateStatus(selfUpdate);
+        string lastUpdateCheck = selfUpdate is null
+            ? legacyUpdateStatus
+            : selfUpdate.IsChecking
+                ? "Vérification en cours…"
+                : selfUpdate.LastCheckedAt is DateTimeOffset checkedAt
+                    ? checkedAt.ToLocalTime().ToString(
+                        "dd/MM/yyyy HH:mm",
+                        CultureInfo.CurrentCulture)
+                    : "Jamais";
+        string availableLauncherVersion = selfUpdate is null
+            ? "Non vérifiée"
+            : selfUpdate.AvailableVersion
+                ?? (selfUpdate.IsUpdateAvailable
+                    ? "Disponible"
+                    : selfUpdate.ErrorCategory is null
+                        ? "Aucune"
+                        : "Indisponible");
 
         return new SettingsViewState(
             initialCategory,
@@ -94,9 +124,16 @@ internal sealed class SettingsStateAdapter : IDisposable
                 AutomaticLauncherUpdates: settings.AutomaticLauncherUpdates,
                 ClientUpdateBehavior: "Depuis la page Jeu",
                 ReleaseChannel: "Stable",
-                LastUpdateCheck: updateStatus,
-                InstalledLauncherVersion: launcherVersion,
-                AvailableLauncherVersion: "Non vérifiée"),
+                LastUpdateCheck: lastUpdateCheck,
+                InstalledLauncherVersion: selfUpdate?.InstalledVersion ?? launcherVersion,
+                AvailableLauncherVersion: availableLauncherVersion,
+                IsChecking: selfUpdate?.IsChecking == true,
+                IsUpdateAvailable: selfUpdate?.IsUpdateAvailable == true,
+                IsUpdating: selfUpdate?.IsUpdating == true,
+                CanCheck: selfUpdate is { IsChecking: false, IsUpdating: false },
+                CanStartUpdate: selfUpdate is
+                    { IsUpdateAvailable: true, IsChecking: false, IsUpdating: false },
+                StatusMessage: updateStatus),
             new NotificationSettingsViewState(
                 UpdateCompleted: true,
                 Errors: true,
@@ -137,6 +174,10 @@ internal sealed class SettingsStateAdapter : IDisposable
         _settings.SnapshotChanged -= Settings_SnapshotChanged;
         _game.SnapshotChanged -= Game_SnapshotChanged;
         _dashboard.SnapshotChanged -= Dashboard_SnapshotChanged;
+        if (_selfUpdate is not null)
+        {
+            _selfUpdate.SnapshotChanged -= SelfUpdate_SnapshotChanged;
+        }
     }
 
     private void Settings_SnapshotChanged(object? sender, LauncherSettingsSnapshotEventArgs e)
@@ -150,6 +191,13 @@ internal sealed class SettingsStateAdapter : IDisposable
     }
 
     private void Dashboard_SnapshotChanged(object? sender, DashboardSnapshotEventArgs e)
+    {
+        QueueApply();
+    }
+
+    private void SelfUpdate_SnapshotChanged(
+        object? sender,
+        LauncherSelfUpdateSnapshotEventArgs e)
     {
         QueueApply();
     }
@@ -184,9 +232,14 @@ internal sealed class SettingsStateAdapter : IDisposable
         LauncherSettingsSnapshot settings = _settings.CurrentSnapshot;
         GameRuntimeSnapshot game = _game.CurrentSnapshot;
         DashboardSnapshot dashboard = _dashboard.CurrentSnapshot;
+        LauncherSelfUpdateSnapshot? selfUpdate = _selfUpdate?.CurrentSnapshot;
         if (settings.Sequence < _lastSettingsSequence
             || game.Sequence < _lastGameSequence
             || dashboard.Sequence < _lastDashboardSequence)
+        {
+            return;
+        }
+        if (selfUpdate is not null && selfUpdate.Sequence < _lastSelfUpdateSequence)
         {
             return;
         }
@@ -198,10 +251,43 @@ internal sealed class SettingsStateAdapter : IDisposable
             dashboard,
             _launcherVersion,
             _launcherLogPath,
-            category);
+            category,
+            selfUpdate);
         _lastSettingsSequence = settings.Sequence;
         _lastGameSequence = game.Sequence;
         _lastDashboardSequence = dashboard.Sequence;
+        if (selfUpdate is not null)
+        {
+            _lastSelfUpdateSequence = selfUpdate.Sequence;
+        }
         _state.ApplyRuntimeView(view);
+    }
+
+    private static string FormatSelfUpdateStatus(LauncherSelfUpdateSnapshot snapshot)
+    {
+        if (snapshot.IsUpdating)
+        {
+            return snapshot.Phase switch
+            {
+                LauncherSelfUpdatePhase.Downloading => "Téléchargement en cours",
+                LauncherSelfUpdatePhase.Validating => "Validation en cours",
+                LauncherSelfUpdatePhase.WaitingForApply => "Préparation du redémarrage",
+                LauncherSelfUpdatePhase.Restarting => "Redémarrage en cours",
+                _ => "Mise à jour en cours"
+            };
+        }
+        if (snapshot.IsChecking)
+        {
+            return "Recherche en cours";
+        }
+        if (snapshot.IsUpdateAvailable)
+        {
+            return "Mise à jour disponible";
+        }
+        if (snapshot.ErrorCategory is not null)
+        {
+            return LauncherSelfUpdateCoordinator.GetUserMessage(snapshot.ErrorCategory.Value);
+        }
+        return snapshot.LastCheckedAt is null ? "Non vérifié" : "À jour";
     }
 }

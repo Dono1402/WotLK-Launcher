@@ -518,7 +518,11 @@ internal sealed class LocalActionEnvironment : IDisposable
         GameFolder = Path.Combine(Root, "Game Client With Spaces");
         LogDirectory = Path.Combine(Root, "Launcher Logs With Spaces");
         LogPath = Path.Combine(LogDirectory, "launcher log.txt");
-        Settings = new LauncherSettings { InstallPath = GameFolder };
+        Settings = new LauncherSettings
+        {
+            InstallPath = GameFolder,
+            AutomaticLauncherUpdates = false
+        };
     }
 
     internal string Root { get; }

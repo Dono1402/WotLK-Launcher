@@ -5,7 +5,6 @@ using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Win32;
@@ -41,11 +40,7 @@ public partial class MainWindow : Window
         Settings
     }
 
-    private const string LauncherUpdateManifestUrl = "http://152.228.225.7/launcher/launcher-update.json";
     private const string AddonCatalogUrl = "https://animeclub.fr/wotlk/addons/catalog.json";
-    private const string LauncherUpdateRequestHeader = "X-WotLK-Launcher-Update";
-    private const string LauncherUpdateRequestMarker = "1";
-    private static readonly TimeSpan LauncherUpdateCheckInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan OperationShutdownTimeout = TimeSpan.FromSeconds(3);
     private static readonly StringComparer AddonNameComparer =
         StringComparer.Create(CultureInfo.GetCultureInfo("fr-FR"), ignoreCase: true);
@@ -65,12 +60,11 @@ public partial class MainWindow : Window
     private readonly IGameInstallPlatform _gameInstallPlatform;
     private readonly IGameClientMaintenanceService _gameClientMaintenanceService;
     private readonly IGameLaunchService _gameLaunchService;
-    private readonly ILauncherSelfUpdateFinalizer _launcherSelfUpdateFinalizer;
+    private readonly LauncherSelfUpdateCoordinator _launcherSelfUpdate;
     private readonly LauncherOperationCoordinator _operations;
     private readonly ILauncherAuthService _auth;
     private readonly HttpClient _http;
     private readonly LauncherSettings _settings;
-    private readonly ILegacyDispatcherTimer _launcherUpdateTimer;
     private readonly ILegacyDispatcherTimer _friendRefreshTimer;
     private readonly ILegacyDispatcherTimer _toastTimer;
     private readonly ObservableCollection<AddonSelectionItem> _addonItems = [];
@@ -80,7 +74,6 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<LauncherFriend> _incomingFriendItems = [];
     private readonly ObservableCollection<LauncherFriend> _outgoingFriendItems = [];
     private readonly List<AddonSelectionItem> _allAddonItems = [];
-    private LauncherUpdateManifest? _launcherUpdate;
     private AddonCatalog? _addonCatalog;
     private GameAction _gameAction = GameAction.Install;
     private bool _isLoadingAddonCatalog;
@@ -94,7 +87,6 @@ public partial class MainWindow : Window
     private string _selectedAddonView = "Catalog";
     private string _selectedAddonSort = "Name";
     private LauncherPage _currentPage = LauncherPage.Game;
-    private string? _announcedLauncherUpdateHash;
     private string? _announcedGameUpdateVersion;
     private bool _shutdownStarted;
     private bool _allowClose;
@@ -112,7 +104,6 @@ public partial class MainWindow : Window
         _dependencies = dependencies ?? throw new ArgumentNullException(nameof(dependencies));
         _startupObserver = dependencies.StartupObserver;
         _operations = dependencies.OperationCoordinator;
-        _launcherSelfUpdateFinalizer = dependencies.LauncherSelfUpdateFinalizer;
         _gameClientStateReader = new GameClientStateReader(dependencies.HasPlayableClient);
         InitializeComponent();
         _startupObserver.Record(LegacyStartupEvent.ComponentsInitialized);
@@ -177,11 +168,23 @@ public partial class MainWindow : Window
         CloseOnGameStartCheckBox.IsChecked = _settings.CloseLauncherOnGameStart;
         _isInitializingUi = false;
 
-        _launcherUpdateTimer = dependencies.CreateTimer(
-            LauncherUpdateCheckInterval,
+        ILegacyDispatcherTimer launcherUpdateTimer = dependencies.CreateTimer(
+            LauncherSelfUpdateCoordinator.CheckInterval,
             DispatcherPriority.Background);
         _startupObserver.Record(LegacyStartupEvent.LauncherUpdateTimerCreated);
-        _launcherUpdateTimer.Tick += LauncherUpdateTimer_Tick;
+        _launcherSelfUpdate = new LauncherSelfUpdateCoordinator(
+            _operations,
+            new LauncherSelfUpdateHttpClient(_http),
+            dependencies.LauncherSelfUpdateFinalizer,
+            launcherUpdateTimer,
+            _settings.AutomaticLauncherUpdates,
+            GetLauncherVersionText(),
+            dependencies.SelfUpdateRecoveryOccurred,
+            writeLog: AppendLauncherSelfUpdateLog,
+            requestShutdown: dependencies.RequestApplicationShutdown);
+        _launcherSelfUpdate.SnapshotChanged += LauncherSelfUpdate_SnapshotChanged;
+        _launcherSelfUpdate.PeriodicTickStarted += LauncherSelfUpdate_PeriodicTickStarted;
+        _launcherSelfUpdate.PeriodicCheckCompleted += LauncherSelfUpdate_PeriodicCheckCompleted;
         _friendRefreshTimer = dependencies.CreateTimer(
             TimeSpan.FromSeconds(15),
             DispatcherPriority.Background);
@@ -201,13 +204,13 @@ public partial class MainWindow : Window
         if (_settings.AutomaticLauncherUpdates)
         {
             _startupObserver.Record(LegacyStartupEvent.LauncherUpdateCheckScheduled);
-            _ = CheckLauncherUpdateAsync();
+            _launcherSelfUpdate.ScheduleInitialCheck();
         }
         Loaded += MainWindow_Loaded;
         _startupObserver.Record(LegacyStartupEvent.LoadedSubscribed);
         if (_settings.AutomaticLauncherUpdates)
         {
-            _launcherUpdateTimer.Start();
+            _launcherSelfUpdate.StartPeriodicChecks();
             _startupObserver.Record(LegacyStartupEvent.LauncherUpdateTimerStarted);
         }
         _friendRefreshTimer.Start();
@@ -223,7 +226,7 @@ public partial class MainWindow : Window
         }
 
         BeginLegacyShutdown();
-        if (_operations.IsIdle)
+        if (_operations.IsIdle && _launcherSelfUpdate.IsIdle)
         {
             _allowClose = true;
             base.OnClosing(e);
@@ -238,10 +241,13 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _isClosed = true;
-        _launcherUpdateTimer.Tick -= LauncherUpdateTimer_Tick;
+        _launcherSelfUpdate.SnapshotChanged -= LauncherSelfUpdate_SnapshotChanged;
+        _launcherSelfUpdate.PeriodicTickStarted -= LauncherSelfUpdate_PeriodicTickStarted;
+        _launcherSelfUpdate.PeriodicCheckCompleted -= LauncherSelfUpdate_PeriodicCheckCompleted;
         _friendRefreshTimer.Tick -= FriendRefreshTimer_Tick;
         _toastTimer.Tick -= ToastTimer_Tick;
         Loaded -= MainWindow_Loaded;
+        _launcherSelfUpdate.Dispose();
         _http.Dispose();
         _auth.Dispose();
         _operations.Dispose();
@@ -258,7 +264,7 @@ public partial class MainWindow : Window
 
         _shutdownStarted = true;
         _startupObserver.Record(LegacyStartupEvent.WindowClosing);
-        _launcherUpdateTimer.Stop();
+        _launcherSelfUpdate.BeginShutdown();
         _friendRefreshTimer.Stop();
         _toastTimer.Stop();
         DisableControlsForShutdown();
@@ -270,7 +276,9 @@ public partial class MainWindow : Window
 
     private async Task FinishLegacyShutdownAsync()
     {
-        await _operations.WaitForIdleAsync(OperationShutdownTimeout);
+        await Task.WhenAll(
+            _operations.WaitForIdleAsync(OperationShutdownTimeout),
+            _launcherSelfUpdate.WaitForIdleAsync(OperationShutdownTimeout));
         if (_isClosed)
         {
             return;
@@ -332,43 +340,39 @@ public partial class MainWindow : Window
 
     private async void LauncherSelfUpdateButton_Click(object sender, RoutedEventArgs e)
     {
-        LauncherOperationStartResult start = _operations.TryBegin(
-            LauncherOperationKind.LauncherAutoUpdate,
-            canUserCancel: true);
+        await RunLauncherSelfUpdateAsync();
+    }
+
+    private async Task RunLauncherSelfUpdateAsync()
+    {
+        LauncherSelfUpdateStartResult start = _launcherSelfUpdate.TryStartUpdate();
         if (!start.IsStarted)
         {
             return;
         }
 
-        using LauncherOperationLease operation = start.Lease!;
         SetBusy(true);
-
         try
         {
-            var manifest = _launcherUpdate
-                ?? await LoadLauncherUpdateManifestAsync(operation.CancellationToken);
-            await UpdateLauncherAsync(manifest, operation);
-        }
-        catch (OperationCanceledException)
-        {
-            operation.TryInvoke(() =>
+            LauncherSelfUpdateCompletion result = await start.Completion!;
+            switch (result.Outcome)
             {
-                SetStatus("Annulé.");
-                AppendLog("Mise à jour du launcher annulée.");
-            });
-        }
-        catch (Exception ex)
-        {
-            operation.TryInvoke(() =>
-            {
-                SetStatus("Erreur.");
-                AppendLog("Erreur mise à jour launcher: " + ex.Message);
-                ShowToast("Mise à jour du launcher", ex.Message, ToastKind.Error);
-            });
+                case LauncherOperationOutcome.Cancelled:
+                    SetStatus("Annulé.");
+                    break;
+                case LauncherOperationOutcome.Failed:
+                    SetStatus("Erreur.");
+                    ShowToast(
+                        "Mise à jour du launcher",
+                        LauncherSelfUpdateCoordinator.GetUserMessage(
+                            result.ErrorCategory
+                            ?? LauncherSelfUpdateErrorCategory.ReplacementFailed),
+                        ToastKind.Error);
+                    break;
+            }
         }
         finally
         {
-            operation.Complete();
             SetBusy(false);
         }
     }
@@ -1952,188 +1956,109 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void LauncherUpdateTimer_Tick(object? sender, EventArgs e)
+    private void LauncherSelfUpdate_PeriodicTickStarted(object? sender, EventArgs e)
     {
         _startupObserver.Record(LegacyStartupEvent.LauncherUpdateTimerTick);
-        if (!_settings.AutomaticLauncherUpdates)
+    }
+
+    private async void LauncherSelfUpdate_PeriodicCheckCompleted(object? sender, EventArgs e)
+    {
+        if (_isClosed || _shutdownStarted)
         {
             return;
         }
 
-        await CheckLauncherUpdateAsync();
         if (_auth.Session is not null && await _auth.EnsureFreshAsync())
         {
             await RefreshGameActionAsync(silentWhenUpToDate: true);
         }
     }
 
-    private async Task CheckLauncherUpdateAsync()
+    private void LauncherSelfUpdate_SnapshotChanged(
+        object? sender,
+        LauncherSelfUpdateSnapshotEventArgs eventArgs)
     {
-        LauncherOperationStartResult start = _operations.TryBegin(
-            LauncherOperationKind.LauncherAutoUpdate,
-            canUserCancel: false);
-        if (!start.IsStarted)
+        if (_isClosed || Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
         {
             return;
         }
 
-        using LauncherOperationLease operation = start.Lease!;
-        try
+        if (Dispatcher.CheckAccess())
         {
-            var manifest = await LoadLauncherUpdateManifestAsync(operation.CancellationToken);
-            var currentExe = Environment.ProcessPath;
-            if (string.IsNullOrWhiteSpace(currentExe) || !File.Exists(currentExe))
-            {
-                return;
-            }
+            ApplyLauncherSelfUpdateSnapshot(eventArgs.Snapshot);
+            return;
+        }
 
-            var currentHash = await ComputeSha256Async(
-                currentExe,
-                operation.CancellationToken);
-            operation.TryInvoke(() => ApplyLauncherUpdateCheck(manifest, currentHash));
-        }
-        catch (OperationCanceledException) when (operation.CancellationToken.IsCancellationRequested)
-        {
-        }
-        catch (Exception ex)
-        {
-            operation.TryInvoke(() =>
-            {
-                if (_launcherUpdate is null)
-                {
-                    LauncherSelfUpdateButton.Visibility = Visibility.Collapsed;
-                }
-
-                if (string.IsNullOrWhiteSpace(_announcedLauncherUpdateHash))
-                {
-                    AppendLog("Verification launcher ignoree: " + ex.Message);
-                }
-            });
-        }
-        finally
-        {
-            operation.Complete();
-        }
+        _ = Dispatcher.BeginInvoke(
+            DispatcherPriority.DataBind,
+            new Action(() => ApplyLauncherSelfUpdateSnapshot(eventArgs.Snapshot)));
     }
 
-    private void ApplyLauncherUpdateCheck(
-        LauncherUpdateManifest manifest,
-        string currentHash)
+    private void AppendLauncherSelfUpdateLog(string message)
     {
-        if (!string.IsNullOrWhiteSpace(manifest.Sha256)
-            && !string.Equals(currentHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase)
-            && IsLauncherManifestVersionEligible(manifest.Version))
+        if (_isClosed || Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
         {
-            _launcherUpdate = manifest;
-            LauncherSelfUpdateButton.Visibility = Visibility.Visible;
-            LauncherSelfUpdateButton.ToolTip = string.IsNullOrWhiteSpace(manifest.Version)
-                ? "Une mise a jour du launcher est disponible."
-                : "Mise a jour launcher disponible: " + manifest.Version;
+            return;
+        }
+        if (Dispatcher.CheckAccess())
+        {
+            AppendLog(message);
+            return;
+        }
 
-            if (!string.Equals(
-                    _announcedLauncherUpdateHash,
-                    manifest.Sha256,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                _announcedLauncherUpdateHash = manifest.Sha256;
-                AppendLog(string.IsNullOrWhiteSpace(manifest.Version)
-                    ? "Mise a jour launcher disponible."
-                    : "Mise a jour launcher disponible: " + manifest.Version);
-            }
-        }
-        else
-        {
-            LauncherSelfUpdateButton.Visibility = Visibility.Collapsed;
-            _launcherUpdate = null;
-            _announcedLauncherUpdateHash = null;
-        }
+        Dispatcher.Invoke(() => AppendLog(message), DispatcherPriority.Background);
     }
 
-    private static bool IsLauncherManifestVersionEligible(string manifestVersion)
+    private void ApplyLauncherSelfUpdateSnapshot(LauncherSelfUpdateSnapshot snapshot)
     {
-        if (!Version.TryParse(manifestVersion, out var remoteVersion))
+        if (_isClosed)
         {
-            return true;
+            return;
         }
 
-        var currentVersion = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0, 0, 0);
-        return NormalizeVersion(remoteVersion) >= NormalizeVersion(currentVersion);
-    }
+        LauncherSelfUpdateButton.Visibility = snapshot.IsUpdateAvailable
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        LauncherSelfUpdateButton.ToolTip = string.IsNullOrWhiteSpace(snapshot.AvailableVersion)
+            ? "Une mise a jour du launcher est disponible."
+            : "Mise a jour launcher disponible: " + snapshot.AvailableVersion;
 
-    private static Version NormalizeVersion(Version version)
-    {
-        return new Version(
-            Math.Max(version.Major, 0),
-            Math.Max(version.Minor, 0),
-            Math.Max(version.Build, 0),
-            Math.Max(version.Revision, 0));
-    }
-
-    private async Task UpdateLauncherAsync(
-        LauncherUpdateManifest manifest,
-        LauncherOperationLease operation)
-    {
-        CancellationToken cancellationToken = operation.CancellationToken;
-        var currentExe = Environment.ProcessPath;
-        if (string.IsNullOrWhiteSpace(currentExe) || !File.Exists(currentExe))
+        if (!snapshot.IsUpdating || snapshot.Phase != LauncherSelfUpdatePhase.Downloading)
         {
-            throw new InvalidOperationException("Impossible de retrouver l'exécutable du launcher actuel.");
+            return;
         }
 
-        if (string.IsNullOrWhiteSpace(manifest.Url))
-        {
-            throw new InvalidOperationException("Le manifeste de mise à jour launcher ne contient pas d'URL.");
-        }
-
-        var updateDirectory = Path.Combine(Path.GetTempPath(), "WotLKLauncherUpdate", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(updateDirectory);
-
-        var downloadedExe = Path.Combine(updateDirectory, Path.GetFileName(currentExe));
-        var updateUri = BuildLauncherUpdateUri(manifest.Url);
-
-        MainProgress.Value = 0;
-        ProgressText.Text = "";
         SetStatus("Mise à jour du launcher...");
-        AppendLog("Téléchargement de la mise à jour launcher...");
+        MainProgress.Value = snapshot.Percent ?? 0;
+        ProgressText.Text = FormatLauncherSelfUpdateProgress(snapshot);
+    }
 
-        await DownloadLauncherBinaryAsync(
-            updateUri,
-            downloadedExe,
-            manifest.Size,
-            operation);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        if (manifest.Size > 0 && new FileInfo(downloadedExe).Length != manifest.Size)
+    private static string FormatLauncherSelfUpdateProgress(LauncherSelfUpdateSnapshot snapshot)
+    {
+        if (snapshot.BytesProcessed is not long processed)
         {
-            File.Delete(downloadedExe);
-            throw new InvalidOperationException("Taille invalide pour la mise à jour launcher.");
+            return string.Empty;
         }
 
-        if (!string.IsNullOrWhiteSpace(manifest.Sha256))
+        string transfer = snapshot.BytesTotal is long total
+            ? $"{FormatBytes(processed)} / {FormatBytes(total)}"
+            : FormatBytes(processed);
+        List<string> details = [transfer];
+        if (snapshot.Speed is > 0)
         {
-            var downloadedHash = await ComputeSha256Async(downloadedExe, cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!string.Equals(downloadedHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase))
-            {
-                File.Delete(downloadedExe);
-                throw new InvalidOperationException("Hash invalide pour la mise à jour launcher.");
-            }
+            details.Add($"{FormatBytes((long)snapshot.Speed.Value)}/s");
         }
-
-        cancellationToken.ThrowIfCancellationRequested();
-        operation.DisableUserCancellation();
-        await _launcherSelfUpdateFinalizer.PrepareAndLaunchAsync(
-            currentExe,
-            downloadedExe,
-            manifest.Size,
-            manifest.Sha256,
-            Process.GetCurrentProcess().Id,
-            cancellationToken);
-        operation.TryInvoke(() =>
+        if (snapshot.Eta is TimeSpan remaining && remaining > TimeSpan.Zero)
         {
-            AppendLog("Application de la mise à jour. Une validation administrateur peut être demandée.");
-            System.Windows.Application.Current.Shutdown();
-        });
+            details.Add(FormatRemainingTime(remaining));
+        }
+        return string.Join(" | ", details);
+    }
+
+    private async Task CheckLauncherUpdateAsync()
+    {
+        await _launcherSelfUpdate.CheckAsync();
+        ApplyLauncherSelfUpdateSnapshot(_launcherSelfUpdate.CurrentSnapshot);
     }
 
     private void SetInitialGameActionFromDisk()
@@ -2458,88 +2383,6 @@ public partial class MainWindow : Window
         AppendLog("Application Windows WotLK Client enregistree: " + registration.UninstallerPath);
     }
 
-    private async Task<LauncherUpdateManifest> LoadLauncherUpdateManifestAsync(CancellationToken cancellationToken)
-    {
-        using var response = await _http.GetAsync(LauncherUpdateManifestUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        return await JsonSerializer.DeserializeAsync<LauncherUpdateManifest>(stream, JsonOptions, cancellationToken)
-            ?? throw new InvalidOperationException("Impossible de lire le manifeste de mise à jour launcher.");
-    }
-
-    private async Task DownloadLauncherBinaryAsync(
-        Uri uri,
-        string targetPath,
-        long expectedSize,
-        LauncherOperationLease operation)
-    {
-        CancellationToken cancellationToken = operation.CancellationToken;
-        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
-        request.Headers.TryAddWithoutValidation(LauncherUpdateRequestHeader, LauncherUpdateRequestMarker);
-
-        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        var responseSize = response.Content.Headers.ContentLength;
-        var totalSize = expectedSize > 0 ? expectedSize : responseSize;
-        await using var remote = await response.Content.ReadAsStreamAsync(cancellationToken);
-        await using var local = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 128, useAsync: true);
-
-        var buffer = new byte[1024 * 128];
-        long written = 0;
-        var downloadStopwatch = Stopwatch.StartNew();
-
-        while (true)
-        {
-            var read = await remote.ReadAsync(buffer, cancellationToken);
-            if (read == 0)
-            {
-                break;
-            }
-
-            await local.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-            written += read;
-
-            operation.TryInvoke(() =>
-            {
-                if (totalSize is > 0)
-                {
-                    MainProgress.Value = Math.Clamp((double)written / totalSize.Value * 100, 0, 100);
-                    ProgressText.Text = FormatTransferProgress(written, totalSize.Value, downloadStopwatch.Elapsed);
-                }
-                else
-                {
-                    ProgressText.Text = FormatTransferProgress(written, null, downloadStopwatch.Elapsed);
-                }
-            });
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-        operation.TryInvoke(() =>
-        {
-            MainProgress.Value = 100;
-            ProgressText.Text = totalSize is > 0
-                ? $"{FormatBytes(written)} / {FormatBytes(totalSize.Value)}"
-                : FormatBytes(written);
-        });
-    }
-
-    private static async Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken)
-    {
-        return await GameFileVerifier.ComputeSha256Async(path, cancellationToken);
-    }
-
-    private static Uri BuildLauncherUpdateUri(string url)
-    {
-        if (Uri.TryCreate(url, UriKind.Absolute, out var absoluteUri))
-        {
-            return absoluteUri;
-        }
-
-        return new Uri(new Uri(LauncherUpdateManifestUrl), url);
-    }
-
     private void SaveSettingsFromUi()
     {
         _settings.InstallPath = LauncherSettings.NormalizeInstallPath(InstallPathBox.Text);
@@ -2591,15 +2434,8 @@ public partial class MainWindow : Window
         }
 
         SaveSettingsFromUi();
-        if (_settings.AutomaticLauncherUpdates)
-        {
-            _launcherUpdateTimer.Start();
-            _ = CheckLauncherUpdateAsync();
-        }
-        else
-        {
-            _launcherUpdateTimer.Stop();
-        }
+        _launcherSelfUpdate.SetAutomaticChecksEnabled(
+            _settings.AutomaticLauncherUpdates);
     }
 
     private void OpenLogsButton_Click(object sender, RoutedEventArgs e)
@@ -2831,6 +2667,21 @@ public partial class MainWindow : Window
         return ExecuteGameActionAsync();
     }
 
+    internal Task CheckLauncherUpdateForCharacterizationAsync()
+    {
+        return CheckLauncherUpdateAsync();
+    }
+
+    internal Task RunLauncherSelfUpdateForCharacterizationAsync()
+    {
+        return RunLauncherSelfUpdateAsync();
+    }
+
+    internal LauncherSelfUpdateSnapshot CaptureLauncherSelfUpdateForCharacterization()
+    {
+        return _launcherSelfUpdate.CurrentSnapshot;
+    }
+
     internal static string FormatTransferProgressForCharacterization(
         long received,
         long? total,
@@ -2911,6 +2762,8 @@ public partial class MainWindow : Window
             VerifyClientButton.IsEnabled,
             AddonsTabButton.IsEnabled,
             LauncherSelfUpdateButton.IsEnabled,
+            LauncherSelfUpdateButton.Visibility == Visibility.Visible,
+            LauncherSelfUpdateButton.ToolTip?.ToString() ?? string.Empty,
             MainProgress.Value,
             ProgressText.Text,
             _operations.HasActiveUserCancellableOperation,

@@ -196,6 +196,8 @@ internal sealed class LauncherUpdateStartupSession
     private readonly IReadOnlyList<LauncherUpdateTransaction> _interruptedTransactions;
     private int _completionState;
 
+    internal bool RecoveryOccurred => _interruptedTransactions.Count > 0;
+
     private LauncherUpdateStartupSession(
         LauncherUpdateTransactionStore store,
         ILauncherUpdateHelperLauncher helperLauncher,

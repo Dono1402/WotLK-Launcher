@@ -52,19 +52,27 @@ separate single-flight lease and is excluded from activity history.
 04B.0 defines the limit only: ten terminal results, memory-only, discarded on process exit.
 No activity coordinator, database, JSON file, or disk persistence is introduced here.
 
-## Legacy launcher auto-update characterization
+## Launcher self-update runtime
 
 - Startup creates one 30-second dispatcher timer. It starts only when automatic launcher
   updates are enabled. A startup check is also scheduled under that setting.
-- Periodic checks acquire `LauncherAutoUpdate` with user cancellation disabled, then load
-  the manifest and hash the current executable. Errors are logged and suppressed.
-- A manual update acquires the same compatibility lease with user cancellation enabled.
-  It downloads one executable, exposes received bytes, optional total bytes, percentage,
-  speed, and ETA directly to the legacy progress controls, validates size and SHA-256,
-  writes the replacement script, starts it elevated, and shuts down the application.
-- The shared lease makes checks/downloads mutually exclusive with game and addon
-  maintenance and incompatible with Play. A busy attempt returns immediately.
-- Legacy auto-update has no shared phase snapshot or explicit terminal result today.
-  04B.3 must extract one `LauncherSelfUpdateCoordinator` that reuses this flow and exposes
-  check/download/validation/application phases plus the shared terminal contract. It must
-  keep a single 30-second timer and must publish success before application shutdown.
+- Startup, timer and manual checks are coalesced by `LauncherSelfUpdateCoordinator`. A
+  simple manifest comparison takes no maintenance lease and creates no active or recent
+  Activity item. `LastCheckedAt` advances only after an exploitable manifest response and
+  local comparison.
+- Discovering a version publishes availability only. The historical product policy does
+  not automatically begin the download.
+- A real download acquires the global `LauncherAutoUpdate` lease immediately or is refused;
+  it is never queued behind game or addon maintenance. The updater snapshot is the sole
+  source of received bytes, total bytes, percentage, speed, ETA and phase for both legacy
+  controls and V2 Activity.
+- Download and candidate validation remain user-cancellable. Cancellation is disabled
+  before the critical handoff. `LauncherSelfUpdateCoordinator` validates the candidate,
+  then delegates transaction creation and helper launch to the 04B.3a
+  `ILauncherSelfUpdateFinalizer`; it owns no swap, handshake or rollback logic.
+- The current launcher requests shutdown only after the finalizer has accepted the
+  transaction. A helper refusal keeps the process open, releases the lease and publishes a
+  controlled failed terminal result. Terminal history remains memory-only.
+- If startup recovery found an interrupted transaction, automatic checks and the 30-second
+  timer are suppressed for that process lifetime. An explicit manual check remains possible;
+  no version is permanently blacklisted.

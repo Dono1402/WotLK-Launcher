@@ -78,7 +78,6 @@ internal static partial class AvatarBackendTests
 
             await ValidateLoginBoundariesAsync(options);
             await ValidateRegistrationAtomicityAsync(options);
-            await ValidateEnrollmentBoundariesAsync(options);
 
             Console.WriteLine(
                 $"Atlas identity MySQL 8.4 OK: accounts={before.AccountCount}, "
@@ -110,9 +109,9 @@ internal static partial class AvatarBackendTests
             new LoginRequest(playerUsername, IdentityPassword, "identity-player"),
             CancellationToken.None);
         Equal(
-            AtlasLoginOutcome.AtlasProfileRequired,
+            AtlasLoginOutcome.AtlasAccountUnavailable,
             playerLogin.Outcome,
-            "Un joueur AzerothCore sans profil doit recevoir AtlasProfileRequired.");
+            "Un joueur AzerothCore sans profil doit recevoir un refus Atlas controle.");
         True(playerLogin.Response is null, "Le joueur sans profil ne doit recevoir aucun jeton.");
 
         AtlasLoginResult wrongPassword = await database.LoginAsync(
@@ -127,7 +126,7 @@ internal static partial class AvatarBackendTests
             new LoginRequest(technicalUsername, IdentityPassword, "identity-technical"),
             CancellationToken.None);
         Equal(
-            AtlasLoginOutcome.AtlasProfileRequired,
+            AtlasLoginOutcome.AtlasAccountUnavailable,
             technicalLogin.Outcome,
             "La frontiere technique doit etre identique sans creer de profil.");
 
@@ -335,8 +334,16 @@ internal static partial class AvatarBackendTests
                 new LoginRequest(noProfileUsername, IdentityPassword, "identity-http"));
             Equal(HttpStatusCode.Forbidden, boundary.StatusCode, "Le compte sans profil doit recevoir 403.");
             AtlasAuthErrorResponse? error = await boundary.Content.ReadFromJsonAsync<AtlasAuthErrorResponse>();
-            Equal(AtlasAuthErrorCodes.ProfileRequired, error?.Code, "Le code d'erreur Atlas doit etre stable.");
-            Equal(AtlasAuthErrorCodes.ProfileRequiredMessage, error?.Error, "Le message doit rester non technique.");
+            Equal(AtlasAuthErrorCodes.AccountUnavailable, error?.Code, "Le code d'erreur Atlas doit etre stable.");
+            Equal(AtlasAuthErrorCodes.AccountUnavailableMessage, error?.Error, "Le message doit rester non technique.");
+            True(
+                error is not null
+                && !error.Error.Contains("profil", StringComparison.OrdinalIgnoreCase)
+                && !error.Error.Contains("bot", StringComparison.OrdinalIgnoreCase)
+                && !error.Error.Contains("rndbot", StringComparison.OrdinalIgnoreCase)
+                && !error.Error.Contains("technique", StringComparison.OrdinalIgnoreCase)
+                && !error.Error.Contains("table", StringComparison.OrdinalIgnoreCase),
+                "Le refus public ne doit exposer aucune raison interne.");
 
             using HttpResponseMessage invalid = await client.PostAsJsonAsync(
                 "/api/v1/auth/login",

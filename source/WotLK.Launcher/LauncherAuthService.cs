@@ -14,23 +14,12 @@ internal sealed class LauncherAuthService : ILauncherAuthService
         PropertyNameCaseInsensitive = true
     };
 
-    private readonly HttpClient _http;
+    private readonly HttpClient _http = new(AtlasNetwork.CreateHandler())
+    {
+        BaseAddress = ApiBaseUri,
+        Timeout = TimeSpan.FromSeconds(20)
+    };
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
-
-    internal LauncherAuthService()
-        : this(AtlasNetwork.CreateHandler())
-    {
-    }
-
-    internal LauncherAuthService(HttpMessageHandler handler)
-    {
-        ArgumentNullException.ThrowIfNull(handler);
-        _http = new HttpClient(handler, disposeHandler: true)
-        {
-            BaseAddress = ApiBaseUri,
-            Timeout = TimeSpan.FromSeconds(20)
-        };
-    }
 
     public LauncherAuthSession? Session { get; private set; }
 
@@ -194,30 +183,6 @@ internal sealed class LauncherAuthService : ILauncherAuthService
             password,
             clearGameSingleSignOnBeforeReadingResponse: false,
             cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<LauncherAuthSession> PrepareEnrollmentAsync(
-        string username,
-        string email,
-        string currentPassword,
-        CancellationToken cancellationToken = default)
-    {
-        using HttpRequestMessage request = new(HttpMethod.Post, "auth/enroll-existing")
-        {
-            Content = JsonContent.Create(new { username, email, currentPassword })
-        };
-        request.Headers.Add("X-Atlas-Device", Environment.MachineName);
-        using HttpResponseMessage response = await _http
-            .SendAsync(request, cancellationToken)
-            .ConfigureAwait(false);
-        if (response.StatusCode == HttpStatusCode.Unauthorized)
-        {
-            throw new LauncherAuthException(
-                "Nom d'utilisateur ou mot de passe incorrect.",
-                response.StatusCode);
-        }
-
-        return await ReadAuthSessionAsync(response, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<LauncherAuthSession> SendRegistrationAsync(

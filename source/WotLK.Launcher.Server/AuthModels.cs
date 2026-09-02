@@ -4,10 +4,6 @@ namespace WotLK.Launcher.Server;
 
 public sealed record RegisterRequest(string Username, string Email, string Password);
 public sealed record LoginRequest(string Username, string Password, string? DeviceName);
-public sealed record EnrollExistingAccountRequest(
-    string Username,
-    string CurrentPassword,
-    string Email);
 public sealed record RefreshRequest(string RefreshToken);
 public sealed record ChangeEmailRequest(string Email);
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
@@ -80,42 +76,20 @@ public enum AtlasLoginOutcome
 {
     Succeeded,
     InvalidCredentials,
-    AtlasProfileRequired
+    AtlasAccountUnavailable
 }
 
 public sealed record AtlasLoginResult(
     AtlasLoginOutcome Outcome,
     AuthResponse? Response);
 
-public enum AtlasEnrollmentOutcome
-{
-    Succeeded,
-    InvalidCredentials,
-    AlreadyEnrolled,
-    NotEligible,
-    EmailAlreadyUsed
-}
-
-public sealed record AtlasEnrollmentResult(
-    AtlasEnrollmentOutcome Outcome,
-    AuthResponse? Response);
-
 public sealed record AtlasAuthErrorResponse(string Error, string Code);
 
 public static class AtlasAuthErrorCodes
 {
-    public const string ProfileRequired = "AtlasProfileRequired";
-    public const string ProfileRequiredMessage =
-        "Ce compte n’est pas encore inscrit dans Atlas Launcher.";
-    public const string EnrollmentNotAllowed = "AtlasEnrollmentNotAllowed";
-    public const string EnrollmentNotAllowedMessage =
-        "Ce compte ne peut pas être associé à Atlas.";
-    public const string AlreadyEnrolled = "AtlasAlreadyEnrolled";
-    public const string AlreadyEnrolledMessage =
-        "Ce compte est déjà associé à Atlas.";
-    public const string EmailAlreadyUsed = "AtlasEmailAlreadyUsed";
-    public const string EmailAlreadyUsedMessage =
-        "Cette adresse e-mail est déjà utilisée.";
+    public const string AccountUnavailable = "AtlasAccountUnavailable";
+    public const string AccountUnavailableMessage =
+        "Ce compte n'est pas disponible dans Atlas Launcher.";
 }
 
 public sealed record GameTicketResponse(

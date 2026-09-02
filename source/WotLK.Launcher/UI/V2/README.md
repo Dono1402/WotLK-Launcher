@@ -37,8 +37,6 @@ WotLK.Launcher.exe --ui-v2 --preview-auth=register-error
 WotLK.Launcher.exe --ui-v2 --preview-auth=register-validation
 WotLK.Launcher.exe --ui-v2 --preview-auth=email-warning
 WotLK.Launcher.exe --ui-v2 --preview-auth=service-unavailable
-WotLK.Launcher.exe --ui-v2 --preview-auth=atlas-enrollment
-WotLK.Launcher.exe --ui-v2 --preview-auth=atlas-enrollment-error
 ```
 
 Prévisualiser la page Compte et le recadrage fictifs :
@@ -56,6 +54,6 @@ WotLK.Launcher.exe --ui-v2 --preview-account=sessions
 
 Les scénarios Compte utilisent exclusivement des états de présentation locaux. Ils ne composent aucun service de compte, client HTTP, sélecteur de fichier ou stockage.
 
-`--preview-auth` sans valeur ouvre la connexion. Les scénarios `atlas-enrollment` et `atlas-enrollment-error` présentent le parcours volontaire d'activation Atlas pour un compte WoW existant, avec des données entièrement fictives. Cet argument sans `--ui-v2` est refusé avant toute composition de service. Le preview d'authentification ne crée ni authentification réelle, ni client HTTP, ni session, ni accès au client WotLK, ni timer, ni processus enfant.
+`--preview-auth` sans valeur ouvre la connexion. Cet argument sans `--ui-v2` est refusé avant toute composition de service. Le preview d'authentification ne crée ni authentification réelle, ni client HTTP, ni session, ni accès au client WotLK, ni timer, ni processus enfant.
 
 Le manifeste v1.1.0 ne déclare pas explicitement de mode DPI. Le processus observé sous Windows est `PROCESS_SYSTEM_DPI_AWARE`. Ce checkpoint conserve volontairement ce comportement ; le passage à PerMonitorV2 est hors périmètre.

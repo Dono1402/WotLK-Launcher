@@ -117,7 +117,7 @@ internal static partial class AvatarBackendTests
             new LoginRequest(username, password, "technical-account-test"),
             CancellationToken.None);
         Equal(
-            AtlasLoginOutcome.AtlasProfileRequired,
+            AtlasLoginOutcome.AtlasAccountUnavailable,
             login.Outcome,
             "Un compte AzerothCore valide sans profil doit recevoir la frontiere Atlas controlee.");
         True(login.Response is null, "Un compte sans profil ne doit pas ouvrir de session Atlas.");

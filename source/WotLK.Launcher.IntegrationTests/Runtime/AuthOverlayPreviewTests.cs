@@ -91,9 +91,7 @@ internal static class AuthOverlayPreviewTests
             ["--preview-auth=register-error"] = AuthPreviewScenario.RegisterError,
             ["--preview-auth=register-validation"] = AuthPreviewScenario.RegisterValidation,
             ["--preview-auth=email-warning"] = AuthPreviewScenario.EmailWarning,
-            ["--preview-auth=service-unavailable"] = AuthPreviewScenario.ServiceUnavailable,
-            ["--preview-auth=atlas-enrollment"] = AuthPreviewScenario.AtlasEnrollment,
-            ["--preview-auth=atlas-enrollment-error"] = AuthPreviewScenario.AtlasEnrollmentError
+            ["--preview-auth=service-unavailable"] = AuthPreviewScenario.ServiceUnavailable
         };
 
         foreach ((string argument, AuthPreviewScenario expected) in scenarios)
@@ -173,22 +171,6 @@ internal static class AuthOverlayPreviewTests
         using AuthUiState unavailable = LauncherV2PreviewData.CreateAuth(AuthPreviewScenario.ServiceUnavailable);
         Equal(AuthErrorKind.ServiceUnavailable, unavailable.ErrorKind, "L'indisponibilité doit rester distincte des identifiants incorrects.");
         True(!unavailable.ErrorMessage.Contains("exception", StringComparison.OrdinalIgnoreCase), "Aucune exception ne doit être affichée.");
-
-        using AuthUiState enrollment = LauncherV2PreviewData.CreateAuth(AuthPreviewScenario.AtlasEnrollment);
-        Equal(AuthMode.EnrollmentPrompt, enrollment.Mode, "Le preview doit ouvrir l'état d'enrolement dedie.");
-        Equal(AuthErrorKind.None, enrollment.ErrorKind, "L'enrolement requis ne doit pas etre une erreur rouge.");
-        True(enrollment.BeginEnrollmentCommand.CanExecute(null), "L'activation explicite doit etre disponible.");
-        enrollment.BeginEnrollmentCommand.Execute(null);
-        Equal(AuthMode.Enrollment, enrollment.Mode, "Activer Atlas doit ouvrir le formulaire dedie.");
-        Equal("Dono1402", enrollment.EnrollmentUsername, "Le nom saisi doit etre reutilise.");
-        enrollment.ReturnCommand.Execute(null);
-        Equal(AuthMode.EnrollmentPrompt, enrollment.Mode, "Retour depuis le formulaire doit revenir a l'explication.");
-        enrollment.ReturnCommand.Execute(null);
-        Equal(AuthMode.Login, enrollment.Mode, "Retour depuis l'explication doit revenir a la connexion.");
-
-        using AuthUiState enrollmentError = LauncherV2PreviewData.CreateAuth(AuthPreviewScenario.AtlasEnrollmentError);
-        Equal(AuthMode.Enrollment, enrollmentError.Mode, "L'erreur preview doit rester dans le formulaire d'activation.");
-        Equal(AuthErrorKind.EmailAlreadyExists, enrollmentError.ErrorKind, "L'e-mail utilise doit etre distingue.");
     }
 
     private static async Task ValidateWpfInteractionResponsiveLayoutAndCapturesAsync(string? captureDirectory)
@@ -238,7 +220,6 @@ internal static class AuthOverlayPreviewTests
                 };
                 LoadV2Resources(application);
                 await ValidateKeyboardLifecycleAndOverlayExclusionAsync();
-                await ValidateEnrollmentPreviewInteractionAsync();
                 await ValidateAllRequestedLayoutsAndCaptureAsync(captureDirectory);
                 await ValidateMaximizedLayoutAsync();
             }
@@ -336,52 +317,6 @@ internal static class AuthOverlayPreviewTests
         }
     }
 
-    private static async Task ValidateEnrollmentPreviewInteractionAsync()
-    {
-        LauncherShellV2 window = CreateWindow(
-            AuthPreviewScenario.AtlasEnrollment,
-            1440,
-            860,
-            activate: true);
-        try
-        {
-            await ShowAndSettleAsync(window);
-            AuthOverlayViewV2 overlay = window.AuthenticationOverlay;
-            Button begin = Required<Button>(overlay, "BeginEnrollmentButton");
-            Equal(AuthMode.EnrollmentPrompt, window.AuthState.Mode, "Le preview doit afficher l'explication dediee.");
-            overlay.FocusFirstControl();
-            await PumpAsync(DispatcherPriority.Input);
-            Equal(begin, Keyboard.FocusedElement, "Le focus initial du parcours doit viser Activer Atlas.");
-
-            begin.Command.Execute(begin.CommandParameter);
-            await PumpAsync(DispatcherPriority.Input);
-            Equal(AuthMode.Enrollment, window.AuthState.Mode, "Activer Atlas doit ouvrir le formulaire preview.");
-            TextBox username = Required<TextBox>(overlay, "EnrollmentUsernameBox");
-            TextBox email = Required<TextBox>(overlay, "EnrollmentEmailBox");
-            PasswordBox password = Required<PasswordBox>(overlay, "EnrollmentPasswordBox");
-            True(username.IsReadOnly && !username.IsTabStop, "Le nom deja valide doit etre en lecture seule.");
-            Equal(email, Keyboard.FocusedElement, "Le focus doit viser l'e-mail.");
-
-            email.Text = "preview@example.test";
-            password.Password = "preview-password";
-            overlay.ValidateForPreview(showErrors: true);
-            True(window.AuthState.SubmitCommand.CanExecute(null), "Le formulaire preview complet doit etre validable.");
-            window.AuthState.ReturnCommand.Execute(null);
-            await PumpAsync(DispatcherPriority.Input);
-            Equal(AuthMode.EnrollmentPrompt, window.AuthState.Mode, "Retour doit revenir a l'explication.");
-
-            RaisePreviewKey(overlay, Key.Escape);
-            await DelayAndPumpAsync(220);
-            True(overlay.IsFullyClosed, "Echap doit fermer le parcours d'enrolement.");
-            True(overlay.ArePasswordFieldsEmpty, "Le mot de passe d'enrolement doit etre efface.");
-        }
-        finally
-        {
-            window.Close();
-            await PumpAsync(DispatcherPriority.Background);
-        }
-    }
-
     private static async Task ValidateAllRequestedLayoutsAndCaptureAsync(string? captureDirectory)
     {
         (string FileName, AuthPreviewScenario Scenario, int Width, int Height)[] cases =
@@ -391,9 +326,7 @@ internal static class AuthOverlayPreviewTests
             ("03-connexion-chargement-1440x860.png", AuthPreviewScenario.Loading, 1440, 860),
             ("04-identifiants-incorrects-1440x860.png", AuthPreviewScenario.LoginError, 1440, 860),
             ("05-email-non-verifie-1920x1080.png", AuthPreviewScenario.EmailWarning, 1920, 1080),
-            ("06-validation-inscription-1080x680.png", AuthPreviewScenario.RegisterValidation, 1080, 680),
-            ("07-activation-atlas-1440x860.png", AuthPreviewScenario.AtlasEnrollment, 1440, 860),
-            ("08-activation-atlas-erreur-1440x860.png", AuthPreviewScenario.AtlasEnrollmentError, 1440, 860)
+            ("06-validation-inscription-1080x680.png", AuthPreviewScenario.RegisterValidation, 1080, 680)
         ];
 
         if (!string.IsNullOrWhiteSpace(captureDirectory))
@@ -485,7 +418,6 @@ internal static class AuthOverlayPreviewTests
     {
         AuthOverlayViewV2 overlay = window.AuthenticationOverlay;
         Border card = Required<Border>(overlay, "AuthCard");
-        Border errorBanner = Required<Border>(overlay, "ErrorBanner");
         ScrollViewer scroll = Required<ScrollViewer>(overlay, "AuthScrollViewer");
         Button primary = Required<Button>(overlay, "PrimaryAuthButton");
         Button overlayClose = Required<Button>(overlay, "CloseButton");
@@ -497,22 +429,15 @@ internal static class AuthOverlayPreviewTests
         Equal((double)expectedHeight, window.ActualHeight, "La hauteur WPF demandée doit être respectée.");
         True(card.ActualWidth is >= 420 and <= 501, "La carte doit rester entre 420 et 500 DIPs.");
         True(card.ActualHeight <= window.ActualHeight - 64 - 24, "La carte ne doit pas être coupée par le viewport.");
-        Button beginEnrollment = Required<Button>(overlay, "BeginEnrollmentButton");
-        bool enrollmentPrompt = scenario == AuthPreviewScenario.AtlasEnrollment;
-        True(
-            enrollmentPrompt
-                ? beginEnrollment.IsVisible && beginEnrollment.ActualHeight >= 43
-                : primary.IsVisible && primary.ActualHeight >= 45,
-            "L'action principale du scenario doit rester visible.");
+        True(primary.IsVisible && primary.ActualHeight >= 45, "L'action principale doit rester visible.");
         True(overlayClose.IsVisible && overlayClose.IsHitTestVisible, "La fermeture de l'overlay doit rester accessible.");
         True(minimize.IsVisible && maximize.IsVisible && windowClose.IsVisible, "Les commandes de fenêtre doivent rester visibles.");
         True(scroll.ComputedHorizontalScrollBarVisibility == Visibility.Collapsed, "Aucune barre horizontale ne doit apparaître.");
         True(scroll.ExtentWidth <= scroll.ViewportWidth + 1, "Le contenu ne doit pas déborder horizontalement.");
         AssertCentered(window, card);
 
-        FrameworkElement visiblePrimary = enrollmentPrompt ? beginEnrollment : primary;
-        GeneralTransform primaryTransform = visiblePrimary.TransformToAncestor(card);
-        Rect primaryBounds = primaryTransform.TransformBounds(new Rect(visiblePrimary.RenderSize));
+        GeneralTransform primaryTransform = primary.TransformToAncestor(card);
+        Rect primaryBounds = primaryTransform.TransformBounds(new Rect(primary.RenderSize));
         True(
             primaryBounds.Top >= -0.5 && primaryBounds.Bottom <= card.ActualHeight + 0.5,
             $"L'action principale doit être visible sans défilement initial ({scenario}, "
@@ -534,12 +459,6 @@ internal static class AuthOverlayPreviewTests
         if (scenario == AuthPreviewScenario.RegisterValidation)
         {
             Equal(AuthErrorKind.Validation, window.AuthState.ErrorKind, "L'erreur de validation doit rester distincte.");
-        }
-
-        if (scenario == AuthPreviewScenario.AtlasEnrollmentError)
-        {
-            Equal(AuthErrorKind.EmailAlreadyExists, window.AuthState.ErrorKind, "L'erreur d'enrolement doit rester distincte.");
-            True(errorBanner.IsVisible, "La bannière d'erreur d'enrolement doit être visible dans le preview WPF.");
         }
     }
 
@@ -586,11 +505,6 @@ internal static class AuthOverlayPreviewTests
             RoutedEvent = Keyboard.PreviewKeyDownEvent
         };
         target.RaiseEvent(args);
-    }
-
-    private static void RaiseClick(Button button)
-    {
-        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, button));
     }
 
     private static async Task DelayAndPumpAsync(int milliseconds)

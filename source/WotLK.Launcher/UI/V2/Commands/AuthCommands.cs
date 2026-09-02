@@ -22,22 +22,13 @@ internal sealed class AuthCommands : IDisposable
             return LauncherSessionStartStatus.ShuttingDown;
         }
 
-        LauncherSessionStartResult start = request.Mode switch
-        {
-            AuthMode.Login => _runtime.TryLogin(request.Username, request.Password),
-            AuthMode.Register => _runtime.TryRegister(
+        LauncherSessionStartResult start = request.Mode == AuthMode.Login
+            ? _runtime.TryLogin(request.Username, request.Password)
+            : _runtime.TryRegister(
                 request.Username,
                 request.Email,
                 request.Password,
-                request.PasswordConfirmation),
-            AuthMode.Enrollment => _runtime.TryEnrollExisting(
-                request.Username,
-                request.Email,
-                request.Password),
-            _ => LauncherSessionStartResult.Rejected(
-                LauncherSessionStartStatus.RejectedByValidation,
-                _runtime.Session.CurrentSnapshot)
-        };
+                request.PasswordConfirmation);
         if (start.IsStarted && start.Completion is not null)
         {
             _ = ObserveCompletionAsync(start.Completion);

@@ -6,7 +6,6 @@ internal enum LauncherSessionState
     SignedOut,
     Authenticating,
     Registering,
-    Enrolling,
     LoggingOut,
     Authenticated,
     Unavailable
@@ -18,9 +17,7 @@ internal enum LauncherSessionFailureCategory
     NoStoredSession,
     SessionExpired,
     InvalidCredentials,
-    AtlasProfileRequired,
-    EnrollmentNotAllowed,
-    AlreadyEnrolled,
+    AtlasAccountUnavailable,
     Validation,
     UsernameAlreadyExists,
     EmailAlreadyExists,
@@ -39,7 +36,6 @@ internal enum LauncherSessionOperationKind
     Restore,
     Login,
     Register,
-    Enrollment,
     Logout
 }
 
@@ -106,8 +102,7 @@ internal sealed record AuthSessionSnapshot(
     internal bool IsRestoring => State == LauncherSessionState.Restoring;
 
     internal bool IsSubmitting => State is LauncherSessionState.Authenticating
-        or LauncherSessionState.Registering
-        or LauncherSessionState.Enrolling;
+        or LauncherSessionState.Registering;
 
     internal bool IsLoggingOut => State == LauncherSessionState.LoggingOut;
 

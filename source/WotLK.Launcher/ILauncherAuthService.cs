@@ -22,12 +22,6 @@ internal interface ILauncherAuthService : IDisposable
         string password,
         CancellationToken cancellationToken = default);
 
-    Task<LauncherAuthSession> PrepareEnrollmentAsync(
-        string username,
-        string email,
-        string currentPassword,
-        CancellationToken cancellationToken = default);
-
     void CommitSession(LauncherAuthSession session, bool clearGameSingleSignOn);
 
     void InvalidateLocalSession();

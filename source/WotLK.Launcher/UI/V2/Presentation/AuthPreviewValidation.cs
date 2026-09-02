@@ -32,18 +32,4 @@ internal static partial class AuthPreviewValidation
             passwordsMatch);
         return new AuthFormValidation(result.IsValid, result.Message);
     }
-
-    internal static AuthFormValidation EnrollExisting(
-        string username,
-        string email,
-        bool hasCurrentPassword,
-        int currentPasswordLength)
-    {
-        LauncherAuthInputValidation result = LauncherAuthenticationValidator.EnrollExisting(
-            username,
-            email,
-            hasCurrentPassword,
-            currentPasswordLength);
-        return new AuthFormValidation(result.IsValid, result.Message);
-    }
 }

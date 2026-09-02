@@ -66,13 +66,20 @@ public sealed partial class LauncherDatabase
         await UpsertModernCredentialAsync(
             connection, transaction, username, modernSalt, modernVerifier, cancellationToken);
 
-        await InsertProfileAsync(
-            connection,
-            transaction,
-            accountId,
-            displayUsername,
-            normalizedEmail,
-            cancellationToken);
+        await using (MySqlCommand profile = connection.CreateCommand())
+        {
+            profile.Transaction = transaction;
+            profile.CommandText = """
+                INSERT INTO atlas_launcher_profile
+                    (account_id, display_username, email_normalized)
+                VALUES
+                    (@accountId, @displayUsername, @email);
+                """;
+            profile.Parameters.AddWithValue("@accountId", accountId);
+            profile.Parameters.AddWithValue("@displayUsername", displayUsername);
+            profile.Parameters.AddWithValue("@email", normalizedEmail);
+            await profile.ExecuteNonQueryAsync(cancellationToken);
+        }
 
         await using (MySqlCommand realms = connection.CreateCommand())
         {
@@ -104,11 +111,16 @@ public sealed partial class LauncherDatabase
         if (credential is null)
             return new AtlasLoginResult(AtlasLoginOutcome.InvalidCredentials, null);
 
-        if (!VerifyCredential(credential, request.Password))
+        bool valid = credential.ModernSalt is not null && credential.ModernVerifier is not null
+            ? SrpCredentials.VerifyModern(
+                credential.Username, request.Password, credential.ModernSalt, credential.ModernVerifier)
+            : SrpCredentials.VerifyLegacy(
+                credential.Username, request.Password, credential.LegacySalt, credential.LegacyVerifier);
+        if (!valid)
             return new AtlasLoginResult(AtlasLoginOutcome.InvalidCredentials, null);
 
         if (!credential.HasAtlasProfile)
-            return new AtlasLoginResult(AtlasLoginOutcome.AtlasProfileRequired, null);
+            return new AtlasLoginResult(AtlasLoginOutcome.AtlasAccountUnavailable, null);
 
         await using MySqlTransaction transaction =
             await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
@@ -129,113 +141,6 @@ public sealed partial class LauncherDatabase
         await transaction.CommitAsync(cancellationToken);
         return new AtlasLoginResult(
             AtlasLoginOutcome.Succeeded,
-            ToAuthResponse(session, profile));
-    }
-
-    public async Task<AtlasEnrollmentResult> EnrollExistingAsync(
-        EnrollExistingAccountRequest request,
-        string? deviceName,
-        CancellationToken cancellationToken)
-    {
-        string displayUsername = request.Username.Trim();
-        string username = displayUsername.ToUpperInvariant();
-        string email = request.Email.Trim();
-        string normalizedEmail = email.ToUpperInvariant();
-
-        await using MySqlConnection connection = await OpenAsync(cancellationToken);
-        await using MySqlTransaction transaction =
-            await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
-
-        AccountCredential? credential = await LoadCredentialForUpdateAsync(
-            connection,
-            transaction,
-            username,
-            cancellationToken);
-        if (credential is null || !VerifyCredential(credential, request.CurrentPassword))
-        {
-            return new AtlasEnrollmentResult(
-                AtlasEnrollmentOutcome.InvalidCredentials,
-                null);
-        }
-
-        if (credential.HasAtlasProfile)
-        {
-            return new AtlasEnrollmentResult(
-                AtlasEnrollmentOutcome.AlreadyEnrolled,
-                null);
-        }
-
-        if (!AtlasEnrollmentEligibility.IsEligible(credential.Username))
-        {
-            return new AtlasEnrollmentResult(
-                AtlasEnrollmentOutcome.NotEligible,
-                null);
-        }
-
-        if (await EmailExistsAsync(
-                connection,
-                transaction,
-                normalizedEmail,
-                credential.AccountId,
-                cancellationToken))
-        {
-            return new AtlasEnrollmentResult(
-                AtlasEnrollmentOutcome.EmailAlreadyUsed,
-                null);
-        }
-
-        if (credential.ModernSalt is null || credential.ModernVerifier is null)
-        {
-            (byte[] salt, byte[] verifier) =
-                SrpCredentials.MakeModern(credential.Username, request.CurrentPassword);
-            await UpsertModernCredentialAsync(
-                connection,
-                transaction,
-                credential.Username,
-                salt,
-                verifier,
-                cancellationToken);
-        }
-
-        try
-        {
-            await InsertProfileAsync(
-                connection,
-                transaction,
-                credential.AccountId,
-                displayUsername,
-                normalizedEmail,
-                cancellationToken);
-        }
-        catch (MySqlException exception) when (exception.Number == 1062)
-        {
-            return new AtlasEnrollmentResult(
-                AtlasEnrollmentOutcome.EmailAlreadyUsed,
-                null);
-        }
-
-        SessionTokens session = _tokens.Create(_options.AccessTokenMinutes, _options.RefreshTokenDays);
-        await InsertSessionAsync(
-            connection,
-            transaction,
-            credential.AccountId,
-            deviceName,
-            session,
-            cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-
-        AccountProfile profile = new(
-            credential.AccountId,
-            displayUsername,
-            email,
-            false,
-            null,
-            false,
-            false,
-            40,
-            null);
-        return new AtlasEnrollmentResult(
-            AtlasEnrollmentOutcome.Succeeded,
             ToAuthResponse(session, profile));
     }
 
@@ -824,20 +729,6 @@ public sealed partial class LauncherDatabase
         return await ReadCredentialAsync(command, cancellationToken);
     }
 
-    private static async Task<AccountCredential?> LoadCredentialForUpdateAsync(
-        MySqlConnection connection,
-        MySqlTransaction transaction,
-        string username,
-        CancellationToken cancellationToken)
-    {
-        await using MySqlCommand command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = CredentialQuery
-            + " WHERE BINARY a.username = BINARY @username LIMIT 1 FOR UPDATE;";
-        command.Parameters.AddWithValue("@username", username);
-        return await ReadCredentialAsync(command, cancellationToken);
-    }
-
     private static async Task<AccountCredential?> ReadCredentialAsync(
         MySqlCommand command,
         CancellationToken cancellationToken)
@@ -881,28 +772,6 @@ public sealed partial class LauncherDatabase
         command.Parameters.Add("@salt", MySqlDbType.Binary, 32).Value = salt;
         command.Parameters.Add("@verifier", MySqlDbType.VarBinary, 256).Value = verifier;
         await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    private static async Task InsertProfileAsync(
-        MySqlConnection connection,
-        MySqlTransaction transaction,
-        uint accountId,
-        string displayUsername,
-        string normalizedEmail,
-        CancellationToken cancellationToken)
-    {
-        await using MySqlCommand profile = connection.CreateCommand();
-        profile.Transaction = transaction;
-        profile.CommandText = """
-            INSERT INTO atlas_launcher_profile
-                (account_id, display_username, email_normalized)
-            VALUES
-                (@accountId, @displayUsername, @email);
-            """;
-        profile.Parameters.AddWithValue("@accountId", accountId);
-        profile.Parameters.AddWithValue("@displayUsername", displayUsername);
-        profile.Parameters.AddWithValue("@email", normalizedEmail);
-        await profile.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private static async Task InsertSessionAsync(
@@ -1016,21 +885,6 @@ public sealed partial class LauncherDatabase
             session.RefreshToken,
             session.RefreshExpiresAt,
             profile);
-
-    private static bool VerifyCredential(AccountCredential credential, string password)
-    {
-        return credential.ModernSalt is not null && credential.ModernVerifier is not null
-            ? SrpCredentials.VerifyModern(
-                credential.Username,
-                password,
-                credential.ModernSalt,
-                credential.ModernVerifier)
-            : SrpCredentials.VerifyLegacy(
-                credential.Username,
-                password,
-                credential.LegacySalt,
-                credential.LegacyVerifier);
-    }
 
     private const string CredentialQuery = """
         SELECT a.id, a.username, a.email, a.salt, a.verifier,

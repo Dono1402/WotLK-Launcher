@@ -22,6 +22,7 @@ public partial class LauncherShellV2 : Window
     private readonly LauncherShellPage _initialPage;
     private IInputElement? _authFocusReturnTarget;
     private IInputElement? _avatarCropFocusReturnTarget;
+    private IInputElement? _patchNoteFocusReturnTarget;
     private AuthCommands? _authCommands;
     private AccountCommands? _accountCommands;
     private FriendsCommands? _friendsCommands;
@@ -330,12 +331,14 @@ public partial class LauncherShellV2 : Window
         AccountState = accountState ?? throw new ArgumentNullException(nameof(accountState));
         AvatarCropState = avatarCropState ?? throw new ArgumentNullException(nameof(avatarCropState));
         ActivityState = activityState ?? new ActivityUiState();
+        PatchNoteState = new PatchNoteUiState();
         _overlayCoordinator = new ShellOverlayCoordinator(
             ActivityState,
             FriendsState,
             AuthState,
             ProfileState,
-            AvatarCropState);
+            AvatarCropState,
+            PatchNoteState);
         _initialAuthPreviewScenario = authPreviewScenario;
         _initialProfilePreviewScenario = profilePreviewScenario;
         _initialPage = initialPage;
@@ -354,6 +357,7 @@ public partial class LauncherShellV2 : Window
         PreviewGotKeyboardFocus += LauncherShellV2_PreviewGotKeyboardFocus;
         AccountState.PropertyChanged += AccountState_PropertyChanged;
         AddonsState.PropertyChanged += AddonsState_PropertyChanged;
+        DashboardState.PropertyChanged += DashboardState_PropertyChanged;
         Loaded += LauncherShellV2_Loaded;
         Closed += LauncherShellV2_Closed;
     }
@@ -380,6 +384,8 @@ public partial class LauncherShellV2 : Window
 
     public ActivityUiState ActivityState { get; }
 
+    public PatchNoteUiState PatchNoteState { get; }
+
     public bool IsSettingsNavigationEnabled => IsPreviewMode || SettingsState.Current.IsRuntimeConnected;
 
     public bool IsAccountNavigationEnabled => IsPreviewMode
@@ -405,6 +411,8 @@ public partial class LauncherShellV2 : Window
     internal FriendsDrawerV2 FriendsOverlay => FriendsDrawer;
 
     internal ActivityCenterPanelV2 ActivityOverlay => ActivityCenter;
+
+    internal PatchNoteOverlayV2 PatchNoteReaderOverlay => PatchNoteOverlay;
 
     internal ProfileMenuV2 ProfileOverlay => ProfileMenu;
 
@@ -613,6 +621,7 @@ public partial class LauncherShellV2 : Window
         PreviewGotKeyboardFocus -= LauncherShellV2_PreviewGotKeyboardFocus;
         AccountState.PropertyChanged -= AccountState_PropertyChanged;
         AddonsState.PropertyChanged -= AddonsState_PropertyChanged;
+        DashboardState.PropertyChanged -= DashboardState_PropertyChanged;
         AuthOverlay.SubmissionRequested -= AuthOverlay_SubmissionRequested;
         ProfileMenu.ManageAccountRequested -= ProfileMenu_ManageAccountRequested;
         _authCommands = null;
@@ -628,6 +637,9 @@ public partial class LauncherShellV2 : Window
         ProfileMenu.IsOpen = false;
         ActivityCenter.State = null;
         ActivityCenter.IsOpen = false;
+        PatchNoteOverlay.DetachFromShell();
+        PatchNoteOverlay.State = null;
+        PatchNoteOverlay.IsOpen = false;
         FriendsDrawer.State = null;
         FriendsDrawer.IsOpen = false;
         AvatarCropOverlay.DetachFromShell();
@@ -726,7 +738,31 @@ public partial class LauncherShellV2 : Window
             && (IsPreviewMode || SettingsState.Current.IsRuntimeConnected))
         {
             NavigateTo(LauncherShellPage.Game);
+            GameView.FocusPrimaryAction();
         }
+    }
+
+    private void GameView_OptionsRequested(object? sender, EventArgs e)
+    {
+        if (!IsSettingsNavigationEnabled || _overlayCoordinator.Current != ShellOverlayKind.None)
+        {
+            return;
+        }
+
+        NavigateTo(LauncherShellPage.Settings);
+        SettingsView.SelectAndFocusCategory(SettingsCategory.Game);
+    }
+
+    private void GameView_PatchNoteRequested(object? sender, EventArgs e)
+    {
+        if (!DashboardState.Current.CanOpenLatestPatchNote
+            || !_overlayCoordinator.TryOpenPatchNote())
+        {
+            return;
+        }
+
+        _patchNoteFocusReturnTarget = GameView.PatchNoteActionFocusTarget;
+        PatchNoteOverlay.FocusFirstControl();
     }
 
     private void AddonsNavigationButton_Click(object sender, RoutedEventArgs e)
@@ -763,6 +799,11 @@ public partial class LauncherShellV2 : Window
     private void FriendsDrawer_CloseRequested(object? sender, EventArgs e)
     {
         _overlayCoordinator.CloseFriends();
+    }
+
+    private void PatchNoteOverlay_CloseRequested(object? sender, EventArgs e)
+    {
+        _overlayCoordinator.ClosePatchNote();
     }
 
     private void ActivityCenter_CloseRequested(object? sender, EventArgs e)
@@ -976,6 +1017,23 @@ public partial class LauncherShellV2 : Window
         Keyboard.Focus(FriendsButton);
     }
 
+    private void PatchNoteOverlay_Closed(object? sender, EventArgs e)
+    {
+        if (PatchNoteState.IsOpen || _overlayCoordinator.Current != ShellOverlayKind.None)
+        {
+            _patchNoteFocusReturnTarget = null;
+            return;
+        }
+
+        if (_patchNoteFocusReturnTarget is not null)
+        {
+            FocusManager.SetFocusedElement(this, _patchNoteFocusReturnTarget);
+            Keyboard.Focus(_patchNoteFocusReturnTarget);
+        }
+
+        _patchNoteFocusReturnTarget = null;
+    }
+
     private void ActivityCenter_Closed(object? sender, EventArgs e)
     {
         ActivityButton.Focusable = true;
@@ -1038,6 +1096,13 @@ public partial class LauncherShellV2 : Window
         if (e.Key == Key.Escape && AuthState.IsOpen)
         {
             CloseAuthenticationFromUser();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Escape && PatchNoteState.IsOpen)
+        {
+            _overlayCoordinator.ClosePatchNote();
             e.Handled = true;
             return;
         }
@@ -1121,6 +1186,17 @@ public partial class LauncherShellV2 : Window
             {
                 e.Handled = true;
                 AuthOverlay.FocusFirstControl();
+            }
+
+            return;
+        }
+
+        if (PatchNoteState.IsOpen)
+        {
+            if (!PatchNoteOverlay.ContainsKeyboardFocusTarget(e.NewFocus as DependencyObject))
+            {
+                e.Handled = true;
+                PatchNoteOverlay.FocusFirstControl();
             }
 
             return;
@@ -1220,6 +1296,14 @@ public partial class LauncherShellV2 : Window
             && !AddonsState.Current.IsRuntimeConnected)
         {
             NavigateTo(LauncherShellPage.Game);
+        }
+    }
+
+    private void DashboardState_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (PatchNoteState.IsOpen && !DashboardState.Current.CanOpenLatestPatchNote)
+        {
+            _overlayCoordinator.ClosePatchNote();
         }
     }
 

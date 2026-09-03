@@ -2,7 +2,9 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using WotLK.Launcher.UI.V2.Presentation;
 
 namespace WotLK.Launcher.UI.V2.Views;
@@ -135,6 +137,23 @@ public partial class SettingsViewV2 : UserControl
         SetCategoryState(AppearanceCategoryButton, AppearancePanel, category == SettingsCategory.Appearance);
         SetCategoryState(DiagnosticCategoryButton, DiagnosticPanel, category == SettingsCategory.Diagnostic);
         SettingsScrollViewer.ScrollToTop();
+    }
+
+    internal void SelectAndFocusCategory(SettingsCategory category)
+    {
+        SelectCategory(category);
+        Button target = category switch
+        {
+            SettingsCategory.Game => GameCategoryButton,
+            SettingsCategory.Updates => UpdatesCategoryButton,
+            SettingsCategory.Notifications => NotificationsCategoryButton,
+            SettingsCategory.Appearance => AppearanceCategoryButton,
+            SettingsCategory.Diagnostic => DiagnosticCategoryButton,
+            _ => GeneralCategoryButton
+        };
+        _ = Dispatcher.BeginInvoke(
+            DispatcherPriority.Input,
+            new Action(() => Keyboard.Focus(target)));
     }
 
     private void ApplyState(bool applyInitialCategory = false)

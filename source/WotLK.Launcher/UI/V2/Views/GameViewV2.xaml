@@ -211,9 +211,11 @@
                                             <TextBlock Text="{Binding PrimaryActionLabel}" FontWeight="Bold"/>
                                         </StackPanel>
                                     </Button>
-                                    <Button Style="{StaticResource AtlasV2.Button.Secondary}"
+                                    <Button x:Name="OptionsButton"
+                                            Style="{StaticResource AtlasV2.Button.Secondary}"
                                             IsEnabled="{Binding IsOptionsEnabled}"
-                                            AutomationProperties.Name="Options">
+                                            AutomationProperties.Name="Options"
+                                            Click="OptionsButton_Click">
                                         <StackPanel Orientation="Horizontal">
                                             <Path Width="16" Height="16"
                                                   Margin="0,0,9,0"
@@ -279,29 +281,30 @@
                                            Text="{Binding DashboardState.Current.LatestPatchNoteMetaText, ElementName=Root}"
                                            VerticalAlignment="Center"
                                            Style="{StaticResource AtlasV2.Text.Caption}"/>
-                                <StackPanel x:Name="LatestPatchNoteAction"
-                                            HorizontalAlignment="Right"
-                                            Orientation="Horizontal"
-                                            Opacity="0.52"
-                                            IsHitTestVisible="False"
-                                            Focusable="False"
-                                            ToolTip="La lecture complète sera disponible dans un panneau dédié">
-                                    <TextBlock Text="Lire la note de mise à jour"
-                                               VerticalAlignment="Center"
-                                               Style="{StaticResource AtlasV2.Text.Body}"
-                                               FontSize="13"
-                                               FontWeight="SemiBold"
-                                               Foreground="{StaticResource AtlasV2.Brush.Text}"/>
-                                    <Path Width="15" Height="15"
-                                          Margin="8,0,0,0"
-                                          Data="{StaticResource AtlasV2.Icon.ArrowRight}"
-                                          Stroke="{StaticResource AtlasV2.Brush.Gold}"
-                                          StrokeThickness="1.8"
-                                          StrokeStartLineCap="Round"
-                                          StrokeEndLineCap="Round"
-                                          StrokeLineJoin="Round"
-                                          Stretch="Uniform"/>
-                                </StackPanel>
+                                <Button x:Name="LatestPatchNoteAction"
+                                        HorizontalAlignment="Right"
+                                        Style="{StaticResource AtlasV2.Button.GhostCompact}"
+                                        IsEnabled="{Binding DashboardState.Current.CanOpenLatestPatchNote, ElementName=Root}"
+                                        ToolTip="Lire la dernière note de mise à jour"
+                                        ToolTipService.ShowOnDisabled="True"
+                                        AutomationProperties.Name="Lire la note de mise à jour"
+                                        Click="LatestPatchNoteAction_Click">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Lire la note de mise à jour"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"/>
+                                        <Path Width="15" Height="15"
+                                              Margin="8,0,0,0"
+                                              Data="{StaticResource AtlasV2.Icon.ArrowRight}"
+                                              Stroke="{StaticResource AtlasV2.Brush.Gold}"
+                                              StrokeThickness="1.8"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round"
+                                              Stretch="Uniform"/>
+                                    </StackPanel>
+                                </Button>
                             </Grid>
                         </Grid>
                     </Border>

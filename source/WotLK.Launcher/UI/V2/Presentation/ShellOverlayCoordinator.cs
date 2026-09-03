@@ -7,7 +7,8 @@ internal enum ShellOverlayKind
     Friends,
     Authentication,
     Profile,
-    AvatarCrop
+    AvatarCrop,
+    PatchNote
 }
 
 internal sealed class ShellOverlayCoordinator
@@ -17,32 +18,37 @@ internal sealed class ShellOverlayCoordinator
     private readonly AuthUiState _authentication;
     private readonly ProfileUiState _profile;
     private readonly AvatarCropUiState _avatarCrop;
+    private readonly PatchNoteUiState _patchNote;
 
     internal ShellOverlayCoordinator(
         ActivityUiState activity,
         FriendsUiState friends,
         AuthUiState authentication,
         ProfileUiState profile,
-        AvatarCropUiState avatarCrop)
+        AvatarCropUiState avatarCrop,
+        PatchNoteUiState patchNote)
     {
         _activity = activity ?? throw new ArgumentNullException(nameof(activity));
         _friends = friends ?? throw new ArgumentNullException(nameof(friends));
         _authentication = authentication ?? throw new ArgumentNullException(nameof(authentication));
         _profile = profile ?? throw new ArgumentNullException(nameof(profile));
         _avatarCrop = avatarCrop ?? throw new ArgumentNullException(nameof(avatarCrop));
+        _patchNote = patchNote ?? throw new ArgumentNullException(nameof(patchNote));
     }
 
     internal ShellOverlayKind Current => _avatarCrop.IsOpen
         ? ShellOverlayKind.AvatarCrop
         : _authentication.IsOpen
-        ? ShellOverlayKind.Authentication
-        : _activity.IsOpen
-            ? ShellOverlayKind.Activity
-            : _friends.IsOpen
-            ? ShellOverlayKind.Friends
-            : _profile.IsOpen
-                ? ShellOverlayKind.Profile
-                : ShellOverlayKind.None;
+            ? ShellOverlayKind.Authentication
+            : _patchNote.IsOpen
+            ? ShellOverlayKind.PatchNote
+            : _activity.IsOpen
+                ? ShellOverlayKind.Activity
+                : _friends.IsOpen
+                    ? ShellOverlayKind.Friends
+                    : _profile.IsOpen
+                        ? ShellOverlayKind.Profile
+                        : ShellOverlayKind.None;
 
     internal void OpenAuthentication()
     {
@@ -50,6 +56,7 @@ internal sealed class ShellOverlayCoordinator
         _activity.IsOpen = false;
         _friends.IsOpen = false;
         _profile.IsOpen = false;
+        _patchNote.IsOpen = false;
         _authentication.IsOpen = true;
     }
 
@@ -67,6 +74,7 @@ internal sealed class ShellOverlayCoordinator
 
         _activity.IsOpen = false;
         _profile.IsOpen = false;
+        _patchNote.IsOpen = false;
         _friends.IsOpen = !_friends.IsOpen;
         return true;
     }
@@ -85,6 +93,7 @@ internal sealed class ShellOverlayCoordinator
 
         _friends.IsOpen = false;
         _profile.IsOpen = false;
+        _patchNote.IsOpen = false;
         _activity.IsOpen = !_activity.IsOpen;
         return true;
     }
@@ -100,6 +109,7 @@ internal sealed class ShellOverlayCoordinator
         _authentication.IsOpen = false;
         _friends.IsOpen = false;
         _profile.IsOpen = false;
+        _patchNote.IsOpen = false;
         _activity.IsOpen = true;
     }
 
@@ -115,6 +125,7 @@ internal sealed class ShellOverlayCoordinator
 
         _activity.IsOpen = false;
         _friends.IsOpen = false;
+        _patchNote.IsOpen = false;
         _profile.IsOpen = !_profile.IsOpen;
         return true;
     }
@@ -133,6 +144,7 @@ internal sealed class ShellOverlayCoordinator
         _authentication.IsOpen = false;
         _activity.IsOpen = false;
         _friends.IsOpen = false;
+        _patchNote.IsOpen = false;
         _profile.IsOpen = true;
     }
 
@@ -146,6 +158,7 @@ internal sealed class ShellOverlayCoordinator
         _activity.IsOpen = false;
         _friends.IsOpen = false;
         _profile.IsOpen = false;
+        _patchNote.IsOpen = false;
         if (_avatarCrop.Current.IsPreview)
         {
             _avatarCrop.Open();
@@ -164,5 +177,24 @@ internal sealed class ShellOverlayCoordinator
         {
             _avatarCrop.IsOpen = false;
         }
+    }
+
+    internal bool TryOpenPatchNote()
+    {
+        if (_avatarCrop.IsOpen || _authentication.IsOpen || _profile.Current.IsLoggingOut)
+        {
+            return false;
+        }
+
+        _activity.IsOpen = false;
+        _friends.IsOpen = false;
+        _profile.IsOpen = false;
+        _patchNote.IsOpen = true;
+        return true;
+    }
+
+    internal void ClosePatchNote()
+    {
+        _patchNote.IsOpen = false;
     }
 }

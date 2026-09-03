@@ -349,7 +349,7 @@ public static class LauncherV2PreviewData
             LatestPatchNoteMetaText: "30 août 2026",
             HasPatchNote: true,
             IsStale: false,
-            CanOpenLatestPatchNote: false));
+            CanOpenLatestPatchNote: true));
         state.AttachRefreshCommand(PreviewCommand.Instance);
         return state;
     }

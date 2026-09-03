@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
@@ -77,6 +78,7 @@ internal static class LauncherDashboardTests
             LatestPatchNoteSummary = string.Empty
         });
         Equal("Aucun résumé disponible.", emptySummaryView.LatestPatchNoteSummary, "La présentation doit traiter un résumé vide sans inventer une autre note.");
+        True(emptySummaryView.CanOpenLatestPatchNote, "Une note réelle doit pouvoir être ouverte dans le lecteur léger.");
     }
 
     private static async Task RefuseRequestsWithoutSessionAsync()
@@ -445,17 +447,28 @@ internal static class LauncherDashboardTests
                 int afterConstruction = propertyNotifications;
                 GameUiState game = LauncherV2PreviewData.CreateGame(GamePreviewScenario.Ready);
                 string originalClientStatus = game.ClientStatus;
+                SettingsViewState runtimeSettings = LauncherV2PreviewData.CreateSettings().Current with
+                {
+                    IsRuntimeConnected = true,
+                    AreDeferredControlsEnabled = false
+                };
                 window = new LauncherShellV2(
                     LauncherV2PreviewData.CreateShell(GamePreviewScenario.Ready),
                     game,
                     dashboard,
-                    LauncherV2PreviewData.CreateFriends())
+                    LauncherV2PreviewData.CreateFriends(),
+                    new ProfileUiState(),
+                    new SettingsUiState(runtimeSettings))
                 {
                     Width = 1440,
-                    Height = 860
+                    Height = 860,
+                    Left = -20000,
+                    Top = -20000,
+                    WindowStartupLocation = WindowStartupLocation.Manual,
+                    ShowInTaskbar = false
                 };
-                window.Measure(new Size(1440, 860));
-                window.Arrange(new Rect(0, 0, 1440, 860));
+                window.Show();
+                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
                 window.UpdateLayout();
 
                 TextBlock realmText = Required<TextBlock>(window, "RealmStatusText");
@@ -463,7 +476,25 @@ internal static class LauncherDashboardTests
                 GameViewV2 gameView = Required<GameViewV2>(window, "GameView");
                 TextBlock noteTitle = Required<TextBlock>(gameView, "LatestPatchNoteTitleText");
                 TextBlock noteSummary = Required<TextBlock>(gameView, "LatestPatchNoteSummaryText");
-                StackPanel noteAction = Required<StackPanel>(gameView, "LatestPatchNoteAction");
+                Button noteAction = Required<Button>(gameView, "LatestPatchNoteAction");
+                Button options = Required<Button>(gameView, "OptionsButton");
+                True(!noteAction.IsEnabled, "Le lecteur doit rester indisponible sans note réelle.");
+
+                RaiseClick(options);
+                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
+                Equal(LauncherShellPage.Settings, window.CurrentPage, "Options doit ouvrir Paramètres.");
+                Equal(SettingsCategory.Game, window.SettingsPage.SelectedCategory, "Options doit cibler directement la catégorie Jeu.");
+                Equal(
+                    Required<Button>(window.SettingsPage, "GameCategoryButton"),
+                    Keyboard.FocusedElement,
+                    "Options doit placer le focus sur la catégorie Jeu.");
+                RaiseClick(Required<Button>(window, "GameNavigationButton"));
+                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
+                Equal(LauncherShellPage.Game, window.CurrentPage, "La navigation Jeu doit permettre de revenir depuis Options.");
+                Equal(
+                    gameView.PrimaryActionFocusTarget,
+                    Keyboard.FocusedElement,
+                    "Le retour vers Jeu doit rendre le focus à l’action principale.");
 
                 runtime.Publish(Snapshot(1, DashboardRealmState.Online, "Vraie note", true));
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
@@ -474,7 +505,36 @@ internal static class LauncherDashboardTests
                 EqualBrush(application, "AtlasV2.Brush.Success", realmDot.Fill, "Online doit utiliser le vert.");
                 Equal(afterConstruction + 1, propertyNotifications, "Un snapshot doit produire une notification atomique groupée.");
                 Equal(originalClientStatus, game.ClientStatus, "Le royaume ne doit pas modifier le client.");
-                True(!noteAction.IsHitTestVisible && !noteAction.Focusable, "Lire la note doit rester désactivé pendant 02E.");
+                True(noteAction.IsEnabled, "Une note réelle doit activer son lecteur.");
+                Keyboard.Focus(noteAction);
+                RaiseClick(noteAction);
+                await DelayAndPumpAsync(190);
+                PatchNoteOverlayV2 patchNote = window.PatchNoteReaderOverlay;
+                Equal(ShellOverlayKind.PatchNote, window.CurrentOverlay, "La note doit s’ouvrir comme overlay léger unique.");
+                True(!patchNote.IsFullyClosed && patchNote.IsHitTestVisible, "L’overlay ouvert doit intercepter son contenu.");
+                Equal("Vraie note", Required<TextBlock>(patchNote, "PatchNoteTitleText").Text, "Le titre réel doit alimenter l’overlay.");
+                Equal("Résumé réel", Required<TextBlock>(patchNote, "PatchNoteBodyText").Text, "Le corps doit réutiliser le résumé réel du dashboard.");
+                Equal("v1.1.0", Required<TextBlock>(patchNote, "PatchNoteVersionText").Text, "La version réelle doit être visible.");
+                True(patchNote.ContainsKeyboardFocusTarget(Keyboard.FocusedElement as DependencyObject), "Le focus doit rester dans le lecteur.");
+                Keyboard.Focus(options);
+                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
+                True(patchNote.ContainsKeyboardFocusTarget(Keyboard.FocusedElement as DependencyObject), "Le focus ne doit pas passer derrière le lecteur.");
+                RaisePreviewKey(window, Key.Escape);
+                await DelayAndPumpAsync(190);
+                True(patchNote.IsFullyClosed && !window.PatchNoteState.IsOpen, "Échap doit retirer le lecteur et son hit-test.");
+                Equal(noteAction, Keyboard.FocusedElement, "Le focus doit revenir à l’action patch note.");
+
+                RaiseClick(noteAction);
+                await DelayAndPumpAsync(190);
+                RaiseMouseDown(Required<Border>(patchNote, "Scrim"));
+                await DelayAndPumpAsync(190);
+                True(patchNote.IsFullyClosed, "Un clic extérieur doit fermer le lecteur.");
+
+                RaiseClick(noteAction);
+                await DelayAndPumpAsync(190);
+                RaiseClick(Required<Button>(patchNote, "CloseButton"));
+                await DelayAndPumpAsync(190);
+                True(patchNote.IsFullyClosed, "Le bouton X doit fermer le lecteur.");
                 dashboard.SetWideRealmLabel(false);
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
                 Equal("En ligne", realmText.Text, "Le mode compact doit afficher En ligne.");
@@ -676,6 +736,45 @@ internal static class LauncherDashboardTests
     {
         return scope.FindName(name) as T
             ?? throw new InvalidOperationException($"Le contrôle WPF {name} est absent.");
+    }
+
+    private static void RaiseClick(Button button)
+    {
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, button));
+    }
+
+    private static void RaisePreviewKey(UIElement target, Key key)
+    {
+        PresentationSource source = PresentationSource.FromVisual(target)
+            ?? throw new InvalidOperationException("La source WPF du contrôle est absente.");
+        target.RaiseEvent(new KeyEventArgs(
+            Keyboard.PrimaryDevice,
+            source,
+            Environment.TickCount,
+            key)
+        {
+            RoutedEvent = Keyboard.PreviewKeyDownEvent
+        });
+    }
+
+    private static void RaiseMouseDown(UIElement target)
+    {
+        target.RaiseEvent(new MouseButtonEventArgs(
+            Mouse.PrimaryDevice,
+            Environment.TickCount,
+            MouseButton.Left)
+        {
+            RoutedEvent = UIElement.MouseLeftButtonDownEvent,
+            Source = target
+        });
+    }
+
+    private static async Task DelayAndPumpAsync(int milliseconds)
+    {
+        await Task.Delay(milliseconds);
+        await Dispatcher.CurrentDispatcher.InvokeAsync(
+            () => { },
+            DispatcherPriority.ApplicationIdle);
     }
 
     private static void EqualBrush(

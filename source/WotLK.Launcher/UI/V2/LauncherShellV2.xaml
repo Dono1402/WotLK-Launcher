@@ -381,7 +381,9 @@
                 <views:GameViewV2 x:Name="GameView"
                                   State="{Binding GameState}"
                                   DashboardState="{Binding DashboardState}"
-                                  LayoutMode="{Binding ShellState.LayoutMode}"/>
+                                  LayoutMode="{Binding ShellState.LayoutMode}"
+                                  OptionsRequested="GameView_OptionsRequested"
+                                  PatchNoteRequested="GameView_PatchNoteRequested"/>
                 <views:AddonsViewV2 x:Name="AddonsView"
                                     Visibility="Collapsed"
                                     State="{Binding AddonsState}"
@@ -411,6 +413,12 @@
                                        IsOpen="{Binding FriendsState.IsOpen, Mode=TwoWay}"
                                        CloseRequested="FriendsDrawer_CloseRequested"
                                        Closed="FriendsDrawer_Closed"/>
+                <views:PatchNoteOverlayV2 x:Name="PatchNoteOverlay"
+                                          Panel.ZIndex="90"
+                                          State="{Binding DashboardState}"
+                                          IsOpen="{Binding PatchNoteState.IsOpen, Mode=TwoWay}"
+                                          CloseRequested="PatchNoteOverlay_CloseRequested"
+                                          Closed="PatchNoteOverlay_Closed"/>
                 <views:AuthOverlayViewV2 x:Name="AuthOverlay"
                                          Panel.ZIndex="100"
                                          State="{Binding AuthState}"

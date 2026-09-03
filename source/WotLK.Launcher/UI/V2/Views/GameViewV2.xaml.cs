@@ -31,6 +31,10 @@ public partial class GameViewV2 : UserControl
         Loaded += (_, _) => ApplyLayout(LayoutMode);
     }
 
+    public event EventHandler? OptionsRequested;
+
+    public event EventHandler? PatchNoteRequested;
+
     public GameUiState? State
     {
         get => (GameUiState?)GetValue(StateProperty);
@@ -51,9 +55,24 @@ public partial class GameViewV2 : UserControl
 
     internal IInputElement PrimaryActionFocusTarget => PrimaryActionButton;
 
+    internal IInputElement PatchNoteActionFocusTarget => LatestPatchNoteAction;
+
     internal bool FocusPrimaryAction()
     {
         return PrimaryActionButton.Focus();
+    }
+
+    private void OptionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        OptionsRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void LatestPatchNoteAction_Click(object sender, RoutedEventArgs e)
+    {
+        if (DashboardState?.Current.CanOpenLatestPatchNote == true)
+        {
+            PatchNoteRequested?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private static void LayoutModeChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)

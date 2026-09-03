@@ -73,7 +73,7 @@ internal sealed class DashboardStateAdapter : IDisposable
             metaText,
             snapshot.HasPatchNote,
             snapshot.IsStale,
-            CanOpenLatestPatchNote: false);
+            CanOpenLatestPatchNote: snapshot.HasPatchNote);
     }
 
     private void Runtime_SnapshotChanged(

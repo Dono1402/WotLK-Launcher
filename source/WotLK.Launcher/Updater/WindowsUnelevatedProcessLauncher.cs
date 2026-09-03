@@ -1,19 +1,20 @@
-using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Text;
-using Microsoft.Win32.SafeHandles;
 
 namespace WotLK.Launcher.Updater;
 
+// Explorer-hosted ShellExecute flow adapted from Microsoft Node.js Tools
+// (Apache-2.0): Nodejs/Product/Nodejs/SharedProject/SystemUtilities.cs.
 internal static class WindowsUnelevatedProcessLauncher
 {
-    private const uint ProcessQueryLimitedInformation = 0x1000;
-    private const uint TokenAssignPrimary = 0x0001;
-    private const uint TokenDuplicate = 0x0002;
-    private const uint TokenQuery = 0x0008;
-    private const uint LogonWithProfile = 0x00000001;
+    private const int CsidlDesktop = 0;
+    private const int ShellWindowClassDesktop = 8;
+    private const int ShellWindowFindNeedDispatch = 1;
+    private const uint ShellViewGetItemBackground = 0;
+    private const int ShowNormal = 1;
+
+    private static readonly Guid TopLevelBrowserService =
+        new("4C96BE40-915C-11CF-99D3-00AA004AE837");
 
     internal static void Launch(
         string executablePath,
@@ -27,59 +28,49 @@ internal static class WindowsUnelevatedProcessLauncher
 
         string executable = Path.GetFullPath(executablePath);
         string directory = Path.GetFullPath(workingDirectory);
-        nint shellWindow = GetShellWindow();
-        if (shellWindow == 0
-            || GetWindowThreadProcessId(shellWindow, out uint shellProcessId) == 0
-            || shellProcessId == 0)
-        {
-            throw new InvalidOperationException("Shell Windows interactif indisponible.");
-        }
+        object desktop = CsidlDesktop;
+        object unused = new();
 
-        ValidateShellProcess(shellProcessId);
-        using SafeProcessHandle shellProcess = OpenProcess(
-            ProcessQueryLimitedInformation,
-            inheritHandle: false,
-            shellProcessId);
-        if (shellProcess.IsInvalid)
+        try
         {
-            throw LastWin32Error("Impossible d'ouvrir le processus du shell Windows.");
-        }
-
-        uint tokenAccess = TokenAssignPrimary | TokenDuplicate | TokenQuery;
-        if (!OpenProcessToken(shellProcess, tokenAccess, out SafeAccessTokenHandle shellToken))
-        {
-            throw LastWin32Error("Impossible d'ouvrir le jeton du shell Windows.");
-        }
-
-        using (shellToken)
-        {
-            if (IsTokenElevated(shellToken))
+            IShellWindows shellWindows = (IShellWindows)new ShellWindows();
+            IServiceProvider serviceProvider = (IServiceProvider)shellWindows.FindWindowSW(
+                ref desktop,
+                ref unused,
+                ShellWindowClassDesktop,
+                out int shellWindow,
+                ShellWindowFindNeedDispatch);
+            if (shellWindow == 0)
             {
-                throw new InvalidOperationException(
-                    "Le shell Windows ne fournit pas de jeton utilisateur non élevé.");
+                throw new InvalidOperationException("Shell Windows interactif indisponible.");
             }
 
-            StartupInfo startupInfo = new()
-            {
-                Size = Marshal.SizeOf<StartupInfo>()
-            };
-            StringBuilder commandLine = new(BuildCommandLine(executable, arguments));
-            if (!CreateProcessWithTokenW(
-                    shellToken,
-                    LogonWithProfile,
-                    executable,
-                    commandLine,
-                    creationFlags: 0,
-                    environment: 0,
-                    directory,
-                    ref startupInfo,
-                    out ProcessInformation processInformation))
-            {
-                throw LastWin32Error("Windows n'a pas pu relancer Atlas Launcher.");
-            }
+            Guid browserInterface = typeof(IShellBrowser).GUID;
+            Guid topLevelBrowserService = TopLevelBrowserService;
+            IShellBrowser shellBrowser = (IShellBrowser)serviceProvider.QueryService(
+                ref topLevelBrowserService,
+                ref browserInterface);
+            IShellView shellView = shellBrowser.QueryActiveShellView();
+            Guid dispatchInterface = typeof(IDispatch).GUID;
+            IShellFolderViewDual folderView = (IShellFolderViewDual)shellView.GetItemObject(
+                ShellViewGetItemBackground,
+                ref dispatchInterface);
+            IShellDispatch2 shellDispatch = (IShellDispatch2)folderView.Application;
 
-            CloseHandle(processInformation.ThreadHandle);
-            CloseHandle(processInformation.ProcessHandle);
+            // This object lives in Explorer, so the child inherits Explorer's
+            // non-elevated context instead of the update helper's elevated one.
+            shellDispatch.ShellExecute(
+                executable,
+                arguments,
+                directory,
+                string.Empty,
+                ShowNormal);
+        }
+        catch (COMException exception)
+        {
+            throw new InvalidOperationException(
+                "Windows n'a pas pu relancer Atlas Launcher via l'Explorateur.",
+                exception);
         }
     }
 
@@ -97,130 +88,107 @@ internal static class WindowsUnelevatedProcessLauncher
             : commandLine + " " + arguments;
     }
 
-    private static void ValidateShellProcess(uint shellProcessId)
+    [ComImport]
+    [Guid("9BA05972-F6A8-11CF-A442-00A0C90A8F39")]
+    [ClassInterface(ClassInterfaceType.None)]
+    private class ShellWindows
     {
-        using Process shell = Process.GetProcessById(checked((int)shellProcessId));
-        using Process current = Process.GetCurrentProcess();
-        string windowsDirectory = Environment.GetEnvironmentVariable("WINDIR")
-            ?? throw new InvalidOperationException("Dossier Windows introuvable.");
-        string expectedPath = Path.Combine(windowsDirectory, "explorer.exe");
-        string? actualPath = shell.MainModule?.FileName;
-        if (shell.SessionId != current.SessionId
-            || actualPath is null
-            || !string.Equals(
-                Path.GetFullPath(actualPath),
-                Path.GetFullPath(expectedPath),
-                StringComparison.OrdinalIgnoreCase))
+    }
+
+    [ComImport]
+    [Guid("85CB6900-4D95-11CF-960C-0080C7F4EE85")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIDispatch)]
+    private interface IShellWindows
+    {
+        [return: MarshalAs(UnmanagedType.IDispatch)]
+        object FindWindowSW(
+            [MarshalAs(UnmanagedType.Struct)] ref object location,
+            [MarshalAs(UnmanagedType.Struct)] ref object locationRoot,
+            int windowClass,
+            out int windowHandle,
+            int findOptions);
+    }
+
+    [ComImport]
+    [Guid("6D5140C1-7436-11CE-8034-00AA006009FA")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IServiceProvider
+    {
+        [return: MarshalAs(UnmanagedType.Interface)]
+        object QueryService(ref Guid service, ref Guid interfaceId);
+    }
+
+    [ComImport]
+    [Guid("000214E2-0000-0000-C000-000000000046")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IShellBrowser
+    {
+        void VTableGap01();
+        void VTableGap02();
+        void VTableGap03();
+        void VTableGap04();
+        void VTableGap05();
+        void VTableGap06();
+        void VTableGap07();
+        void VTableGap08();
+        void VTableGap09();
+        void VTableGap10();
+        void VTableGap11();
+        void VTableGap12();
+        IShellView QueryActiveShellView();
+    }
+
+    [ComImport]
+    [Guid("000214E3-0000-0000-C000-000000000046")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IShellView
+    {
+        void VTableGap01();
+        void VTableGap02();
+        void VTableGap03();
+        void VTableGap04();
+        void VTableGap05();
+        void VTableGap06();
+        void VTableGap07();
+        void VTableGap08();
+        void VTableGap09();
+        void VTableGap10();
+        void VTableGap11();
+        void VTableGap12();
+
+        [return: MarshalAs(UnmanagedType.Interface)]
+        object GetItemObject(uint aspectOfView, ref Guid interfaceId);
+    }
+
+    [ComImport]
+    [Guid("00020400-0000-0000-C000-000000000046")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIDispatch)]
+    private interface IDispatch
+    {
+    }
+
+    [ComImport]
+    [Guid("E7A1AF80-4D96-11CF-960C-0080C7F4EE85")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIDispatch)]
+    private interface IShellFolderViewDual
+    {
+        object Application
         {
-            throw new InvalidDataException("Le shell Windows interactif est invalide.");
+            [return: MarshalAs(UnmanagedType.IDispatch)]
+            get;
         }
     }
 
-    private static bool IsTokenElevated(SafeAccessTokenHandle token)
+    [ComImport]
+    [Guid("A4C6892C-3BA9-11D2-9DEA-00C04FB16162")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIDispatch)]
+    private interface IShellDispatch2
     {
-        if (!GetTokenInformation(
-                token,
-                TokenInformationClass.TokenElevation,
-                out TokenElevation elevation,
-                Marshal.SizeOf<TokenElevation>(),
-                out _))
-        {
-            throw LastWin32Error("Impossible de vérifier le jeton du shell Windows.");
-        }
-
-        return elevation.IsElevated != 0;
+        void ShellExecute(
+            [MarshalAs(UnmanagedType.BStr)] string file,
+            [MarshalAs(UnmanagedType.Struct)] object arguments,
+            [MarshalAs(UnmanagedType.Struct)] object directory,
+            [MarshalAs(UnmanagedType.Struct)] object operation,
+            [MarshalAs(UnmanagedType.Struct)] object showCommand);
     }
-
-    private static Win32Exception LastWin32Error(string message) =>
-        new(Marshal.GetLastWin32Error(), message);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct TokenElevation
-    {
-        internal int IsElevated;
-    }
-
-    private enum TokenInformationClass
-    {
-        TokenElevation = 20
-    }
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct StartupInfo
-    {
-        internal int Size;
-        internal string? Reserved;
-        internal string? Desktop;
-        internal string? Title;
-        internal uint X;
-        internal uint Y;
-        internal uint XSize;
-        internal uint YSize;
-        internal uint XCountChars;
-        internal uint YCountChars;
-        internal uint FillAttribute;
-        internal uint Flags;
-        internal ushort ShowWindow;
-        internal ushort ReservedSize;
-        internal nint ReservedPointer;
-        internal nint StandardInput;
-        internal nint StandardOutput;
-        internal nint StandardError;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct ProcessInformation
-    {
-        internal nint ProcessHandle;
-        internal nint ThreadHandle;
-        internal uint ProcessId;
-        internal uint ThreadId;
-    }
-
-    [DllImport("user32.dll")]
-    private static extern nint GetShellWindow();
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern uint GetWindowThreadProcessId(
-        nint window,
-        out uint processId);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern SafeProcessHandle OpenProcess(
-        uint desiredAccess,
-        [MarshalAs(UnmanagedType.Bool)] bool inheritHandle,
-        uint processId);
-
-    [DllImport("advapi32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool OpenProcessToken(
-        SafeProcessHandle processHandle,
-        uint desiredAccess,
-        out SafeAccessTokenHandle tokenHandle);
-
-    [DllImport("advapi32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetTokenInformation(
-        SafeAccessTokenHandle tokenHandle,
-        TokenInformationClass tokenInformationClass,
-        out TokenElevation tokenInformation,
-        int tokenInformationLength,
-        out int returnLength);
-
-    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CreateProcessWithTokenW(
-        SafeAccessTokenHandle token,
-        uint logonFlags,
-        string applicationName,
-        StringBuilder commandLine,
-        uint creationFlags,
-        nint environment,
-        string currentDirectory,
-        ref StartupInfo startupInfo,
-        out ProcessInformation processInformation);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CloseHandle(nint handle);
 }

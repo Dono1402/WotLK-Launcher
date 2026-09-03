@@ -1,4 +1,9 @@
 {
   "schemaVersion": 1,
-  "keys": []
+  "keys": [
+    {
+      "keyId": "atlas-prod-p256-2026-01",
+      "subjectPublicKeyInfo": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEjF7rvW/+VHN3/0TMIj+0Y1owcokAY+Cc5qo2TOcwF7mvc8h6JfyphvY1vtzrRkTfv3Irv/5C/6qt8TfbffxwNQ=="
+    }
+  ]
 }

@@ -1,6 +1,10 @@
 {
-  "version": "1.1.0",
-  "url": "http://152.228.225.7/launcher/WotLK-Launcher.exe",
-  "size": 75643199,
-  "sha256": "88295d1ea9b29f755611bc46e178154cefd0af5fb2556e6c6f77ef0d776dd7ac"
+  "schemaVersion": 1,
+  "keyId": "atlas-prod-p256-2026-01",
+  "version": "1.1.1",
+  "url": "https://animeclub.fr/wotlk/launcher/releases/1.1.1/WotLK-Launcher.exe",
+  "size": 79819663,
+  "sha256": "02c07636895aec453ca053e6c089322b97184f7a114ee2525829b4ce10deb0e0",
+  "publishedAt": "2026-09-03T06:22:12Z",
+  "signature": "MEUCIQDD1586qvoAozXKLVWNkV8o3c0rkshyzfNxptPmTvTgcAIgY9D5i7jtcw4m3VsQbDlXEZy4nvzUqxYf26l7+lHXDxo="
 }

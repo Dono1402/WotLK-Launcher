@@ -8,10 +8,19 @@ artifact_store="${ARTIFACT_STORE:-/srv/wotlk/launcher-releases}"
 server_root="${SERVER_ROOT:-/opt/wotlk-launcher-server}"
 caddyfile="${CADDYFILE:-/etc/caddy/Caddyfile}"
 manifest_tool="${MANIFEST_TOOL:-$repo_root/scripts/launcher-update-manifest.py}"
-signing_public_key="${ATLAS_LAUNCHER_SIGNING_PUBLIC_KEY:-}"
+trust_store="${ATLAS_LAUNCHER_TRUST_STORE:-$repo_root/source/WotLK.Launcher/Assets/Security/launcher-update-public-keys.json}"
 signing_key_id="${ATLAS_LAUNCHER_SIGNING_KEY_ID:-}"
+verification_temp=""
 
 manifest="$public_root/launcher-update.json"
+
+cleanup() {
+  if [ -n "$verification_temp" ]; then
+    rm -rf "$verification_temp"
+  fi
+}
+
+trap cleanup EXIT
 
 require_file() {
   if [ ! -f "$1" ]; then
@@ -57,12 +66,40 @@ repo_from_remote() {
 
 require_file "$manifest"
 require_file "$manifest_tool"
+require_file "$trust_store"
 
-if [ -z "$signing_public_key" ] || [ -z "$signing_key_id" ]; then
-  echo "ATLAS_LAUNCHER_SIGNING_PUBLIC_KEY and ATLAS_LAUNCHER_SIGNING_KEY_ID are required" >&2
+if [ -z "$signing_key_id" ]; then
+  echo "ATLAS_LAUNCHER_SIGNING_KEY_ID is required" >&2
   exit 1
 fi
-require_file "$signing_public_key"
+
+verification_temp="$(mktemp -d /tmp/atlas-launcher-release-verification.XXXXXXXX)"
+chmod 0700 "$verification_temp"
+signing_public_key="$verification_temp/launcher-update-public.pem"
+python3 - "$trust_store" "$signing_key_id" "$verification_temp/launcher-update-public.der" <<'PY'
+import base64
+import json
+import sys
+from pathlib import Path
+
+trust_path, key_id, output_path = sys.argv[1:]
+document = json.loads(Path(trust_path).read_text(encoding="utf-8"))
+matches = [entry for entry in document.get("keys", []) if entry.get("keyId") == key_id]
+if len(matches) != 1:
+    raise SystemExit("release keyId is not uniquely present in the embedded trust store")
+try:
+    encoded = matches[0]["subjectPublicKeyInfo"]
+    public_key = base64.b64decode(encoded, validate=True)
+except (KeyError, TypeError, ValueError):
+    raise SystemExit("embedded release public key is invalid")
+Path(output_path).write_bytes(public_key)
+PY
+openssl pkey \
+  -pubin \
+  -inform DER \
+  -in "$verification_temp/launcher-update-public.der" \
+  -out "$signing_public_key" >/dev/null 2>&1
+chmod 0600 "$signing_public_key" "$verification_temp/launcher-update-public.der"
 
 version="$(json_value "$manifest" version)"
 expected_size="$(json_value "$manifest" size)"

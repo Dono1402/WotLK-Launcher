@@ -3,6 +3,8 @@ artifacts/
 *.tmp
 *.bak
 *.log
+**/__pycache__/
+*.pyc
 
 # Atlas release signing secrets. Public trust anchors may be committed separately.
 .signing/

@@ -102,31 +102,35 @@ change to version, size, hash, URL, timestamp or key ID invalidates it.
 ## Trust anchors and key handling
 
 The launcher embeds only SubjectPublicKeyInfo public keys from
-`Assets/Security/launcher-update-public-keys.json`. The file is intentionally
-empty during 04C.1: no production private key has been created or approved.
-Consequently, a production request fails closed with an unknown `keyId` until
-the rollout key ceremony is complete.
+`Assets/Security/launcher-update-public-keys.json`. Checkpoint 04C.2 approved
+`atlas-prod-p256-2026-01`; its public SPKI SHA-256 is
+`32bb4355e1b49ec59ad757e4bb83ed231da80a2ceae986d2abca89e6fe6faa32`.
 
 Tests create ephemeral P-256 keys in memory. They are never accepted by the
 production trust store; embedded production loading also rejects every key ID
 using the reserved `atlas-test-` prefix.
 
-Production proposal:
+Production policy:
 
-1. generate a dedicated P-256 key pair on an administrative host;
-2. store the private PEM at `/etc/atlas-release-signing/launcher-update-private.pem`;
-3. owner `atlas-release`, group `atlas-release`, mode `0600`, parent mode `0700`;
-4. do not grant the Caddy/Kestrel users read or traverse permission;
-5. do not place the private key under `/var/www`, `/srv/wotlk/launcher-releases`,
-   an application checkout, a backup containing public web assets, or Git;
-6. add only the public SPKI and approved `keyId` to the embedded trust resource;
-7. rebuild the launcher and independently compare its embedded public key with
-   the public half held by release operations.
+1. Atlas is the authoritative and only storage location for the private key;
+2. the private PEM exists only at
+   `/etc/atlas-release-signing/launcher-update-private.pem`;
+3. `/etc/atlas-release-signing` is `root:root` mode `0700` and the PEM is
+   `root:root` mode `0600`;
+4. Caddy, `wotlklauncher`, ASP.NET and unprivileged deployment accounts have no
+   read or traverse permission on this directory;
+5. the private key is never copied to Git, `/var/www`, `/srv/wotlk`,
+   `/opt/wotlk-launcher-api`, an application release, appsettings, a manifest,
+   logs, or a separate backup;
+6. only an administrative root publication process reads the private key;
+7. only the public SPKI and approved `keyId` are embedded in the launcher.
 
-The release script consumes the private and public paths through
-`ATLAS_LAUNCHER_SIGNING_KEY` and `ATLAS_LAUNCHER_SIGNING_PUBLIC_KEY`. It never
-prints either key or PEM content. `.gitignore` rejects the expected private-key
-names and `.signing/` development directories.
+No `atlas-release` account is created. The publication script requires root,
+the exact private-key path and exact ownership/modes. It derives a public key
+inside its private temporary directory and compares it byte-for-byte with the
+embedded trust anchor before signing. Neither PEM content is printed.
+`.gitignore` rejects expected private-key names and `.signing/` development
+directories.
 
 ## Rotation
 
@@ -162,8 +166,9 @@ No unsigned fallback or user bypass exists in the new client.
 ## Publication
 
 `scripts/launcher-update-manifest.py` creates and independently verifies the
-manifest using OpenSSL. `source/Publish-Launcher-Atlas.sh` now requires an
-explicit version and key configuration, then performs this order:
+manifest using OpenSSL. `source/Publish-Launcher-Atlas.sh` uses the fixed
+root-only private key and requires an explicit version and `keyId`, then
+performs this order:
 
 1. build output is already final;
 2. calculate final package size and SHA-256;
@@ -180,18 +185,38 @@ does not overwrite the mutable top-level legacy binaries. Packages can receive
 long-lived immutable cache headers; `launcher-update.json` must use no-cache or
 short revalidation headers.
 
-`scripts/release-launcher.sh` verifies the signature and versioned package again
-before creating release metadata, commits, tags or remote publication.
+`scripts/release-launcher.sh` reconstructs the verification key from the
+committed trust store and verifies the signature and versioned package again
+before creating release metadata, commits, tags or remote publication. It has
+no reason or permission to read the private key.
 
-## Production changes still required
+## 04C.2 production rollout
 
-No production change is part of 04C.1. Before rollout:
+Checkpoint 04C.2 uses these public mappings:
 
-1. approve the exact HTTPS path and Caddy mapping to the existing public root;
-2. configure manifest cache revalidation and immutable package caching;
-3. perform the production key ceremony and secure backup policy;
-4. embed the approved public SPKI/keyId and rebuild;
-5. publish a signed package to the versioned path first;
-6. expose the same extended manifest on the legacy HTTP endpoint;
-7. smoke old launcher update, new launcher verification, UAC and rollback;
-8. only then enable automatic application for the public release.
+- `/wotlk/launcher/launcher-update.json` maps to
+  `/var/www/wotlk-launcher/launcher/launcher-update.json` with `no-store`;
+- `/wotlk/launcher/releases/*` maps to
+  `/var/www/wotlk-launcher/launcher/releases/*` with a one-year immutable cache;
+- the legacy IP endpoint serves the exact same manifest bytes with `no-store`
+  during migration.
+
+The versioned package is published and verified first. The signed manifest is
+then switched atomically at the HTTPS backing path and copied byte-for-byte to
+the legacy endpoint. Automatic application is enabled only after HTTPS,
+signature, legacy transition and updater rollback smoke tests succeed.
+
+Rollout completed on 2026-09-03 for Atlas Launcher `1.1.1`:
+
+- signed manifest key: `atlas-prod-p256-2026-01`;
+- package SHA-256:
+  `02c07636895aec453ca053e6c089322b97184f7a114ee2525829b4ce10deb0e0`;
+- HTTPS and legacy manifest bytes are identical;
+- HTTPS package response is immutable and the manifest response is `no-store`;
+- the former top-level `1.1.0` executable remains untouched for transition;
+- the Caddy configuration backup is root-only under `/etc/caddy/backups`.
+
+The production manifest advertises the update, but installation remains an
+explicit user action. A real elevation/replacement smoke test for an installed
+copy under `Program Files` remains outside 04C.2 and must not be inferred from
+the simulated atomic updater tests.

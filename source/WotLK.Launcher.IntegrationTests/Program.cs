@@ -221,6 +221,12 @@ if (args.Length == 1
     return await LauncherSelfUpdateSecurityTests.RunAsync();
 }
 
+if (args.Length == 1
+    && string.Equals(args[0], "--secure-self-update-live", StringComparison.OrdinalIgnoreCase))
+{
+    return await LauncherSelfUpdateSecurityTests.RunProductionAsync();
+}
+
 if (args.Length >= 1
     && string.Equals(args[0], "--activity-runtime-wpf", StringComparison.OrdinalIgnoreCase))
 {

@@ -17,16 +17,28 @@ Si le repo `Dono1402/WotLK-Launcher` n'existe pas encore, le script de release p
 
 Workflow:
 
-1. Publier les nouveaux fichiers dans `/var/www/wotlk-launcher/launcher`.
-2. Mettre a jour `/var/www/wotlk-launcher/launcher/launcher-update.json`.
-3. Synchroniser l'endpoint de transition legacy si necessaire pour les anciens launchers.
-4. Lancer:
+1. Produire les octets finaux du launcher et de l'installer.
+2. Depuis Atlas, lancer la publication administrative signee avec le `keyId`
+   approuve. Le package versionne est publie avant le manifeste.
+3. Verifier le canal HTTPS et l'endpoint de transition legacy.
+4. Historiser ensuite la release avec:
 
 ```bash
-/opt/wotlk-launcher-release/scripts/release-launcher.sh
+sudo env ATLAS_LAUNCHER_SIGNING_KEY_ID=atlas-prod-p256-2026-01 \
+  /opt/wotlk-launcher-release/source/Publish-Launcher-Atlas.sh \
+  /chemin/WotLK-Launcher.exe \
+  /chemin/WotLK-Launcher-Installer.exe \
+  X.Y.Z
 ```
 
-Le script:
+Puis:
+
+```bash
+ATLAS_LAUNCHER_SIGNING_KEY_ID=atlas-prod-p256-2026-01 \
+  /opt/wotlk-launcher-release/scripts/release-launcher.sh
+```
+
+Le second script:
 
 - valide le hash et la taille de `WotLK-Launcher.exe`;
 - copie les assets dans `/srv/wotlk/launcher-releases/vX.Y.Z`;
@@ -34,5 +46,10 @@ Le script:
 - cree le tag git annote `vX.Y.Z`;
 - pousse le tag si un remote `origin` existe;
 - cree une GitHub Release si `gh` est installe et authentifie.
+
+La cle privee n'existe que sur Atlas sous
+`/etc/atlas-release-signing/launcher-update-private.pem`, avec un repertoire
+`root:root` `0700` et un fichier `root:root` `0600`. Elle n'est jamais copiee
+dans ce depot ni dans les racines publiques ou d'artefacts.
 
 Les binaires ne sont pas stockes dans git. Git garde les metadonnees, les hashes et le tag de release; les assets restent dans le store serveur et peuvent etre uploades en release GitHub.

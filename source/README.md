@@ -66,5 +66,11 @@ dotnet publish WotLK.Launcher/WotLK.Launcher.csproj -c Release -r win-x64 --self
 
 ## Publication
 
-Les binaires publics sont deployes dans `/var/www/wotlk-launcher/launcher` puis historises par `/opt/wotlk-launcher-release/scripts/release-launcher.sh`.
+Les binaires publics sont signes et deployes par
+`Publish-Launcher-Atlas.sh`. La publication doit etre executee en root sur
+Atlas avec `ATLAS_LAUNCHER_SIGNING_KEY_ID=atlas-prod-p256-2026-01`; elle utilise
+uniquement `/etc/atlas-release-signing/launcher-update-private.pem`, publie le
+package versionne avant le manifeste et verifie l'ancre publique embarquee.
+Les metadonnees sont ensuite historisees par
+`/opt/wotlk-launcher-release/scripts/release-launcher.sh`.
 Le launcher ne stocke plus d'identifiant secret local.

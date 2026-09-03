@@ -1,6 +1,11 @@
 http://152.228.225.7 {
 	encode zstd gzip
 
+	@launcher_update_manifest path /launcher/launcher-update.json
+	header @launcher_update_manifest Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+	header @launcher_update_manifest Pragma "no-cache"
+	header @launcher_update_manifest X-Content-Type-Options "nosniff"
+
 	@launcher_binary_authorized_wotlk {
 		path /launcher/WotLK-Launcher.exe
 		header X-WotLK-Launcher-Update 1

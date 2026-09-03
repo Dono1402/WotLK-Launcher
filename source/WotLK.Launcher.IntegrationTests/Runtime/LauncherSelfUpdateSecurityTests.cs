@@ -11,6 +11,9 @@ using WotLK.Launcher.Updater;
 internal static class LauncherSelfUpdateSecurityTests
 {
     private const string TestKeyId = "atlas-test-ephemeral-01";
+    private const string ProductionKeyId = "atlas-prod-p256-2026-01";
+    private const string ProductionPublicKeySha256 =
+        "32bb4355e1b49ec59ad757e4bb83ed231da80a2ceae986d2abca89e6fe6faa32";
     private const string PublishedAt = "2026-09-03T04:00:00Z";
 
     internal static async Task<int> RunAsync()
@@ -24,9 +27,75 @@ internal static class LauncherSelfUpdateSecurityTests
         await VerifyStructuredCoordinatorFailuresAsync();
         await VerifyInvalidSignatureCannotReachPackageOrApplicationAsync();
         VerifyLegacyManifestCompatibility();
-        VerifyProductionTrustResourceIsFailClosedForTests();
-        Console.WriteLine("Secure launcher update manifest OK (04C.1).");
+        VerifyProductionTrustResource();
+        Console.WriteLine("Secure launcher update manifest OK (04C.2).");
         return 0;
+    }
+
+    internal static async Task<int> RunProductionAsync()
+    {
+        string root = NewRoot("production");
+        string packagePath = Path.Combine(root, "WotLK-Launcher.exe");
+        using CancellationTokenSource timeout = new(TimeSpan.FromMinutes(3));
+        using LauncherSelfUpdateHttpClient client = LauncherSelfUpdateHttpClient.CreateProduction();
+        try
+        {
+            LauncherUpdateManifest manifest = await client.LoadManifestAsync(timeout.Token);
+            Equal(ProductionKeyId, manifest.KeyId,
+                "Le manifeste live doit utiliser l'ancre Atlas approuvée.");
+            True(
+                Version.TryParse(manifest.Version, out Version? available)
+                && available > new Version(1, 1, 0),
+                "Le canal signé live doit proposer une version postérieure à 1.1.0.");
+
+            using SocketsHttpHandler legacyHandler = new() { AllowAutoRedirect = false };
+            using HttpClient legacyHttp = new(legacyHandler);
+            using HttpResponseMessage legacyResponse = await legacyHttp.GetAsync(
+                "http://152.228.225.7/launcher/launcher-update.json",
+                timeout.Token);
+            legacyResponse.EnsureSuccessStatusCode();
+            LegacyUpdateManifest? legacy = JsonSerializer.Deserialize<LegacyUpdateManifest>(
+                await legacyResponse.Content.ReadAsByteArrayAsync(timeout.Token),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            True(legacy is not null,
+                "Le manifeste de transition doit rester lisible par le contrat legacy.");
+            Equal(manifest.Version, legacy!.Version,
+                "Les endpoints sécurisé et legacy doivent annoncer la même version.");
+            Equal(manifest.Url, legacy.Url,
+                "Les endpoints sécurisé et legacy doivent annoncer le même package HTTPS.");
+            Equal(manifest.Size, legacy.Size,
+                "Les endpoints sécurisé et legacy doivent annoncer la même taille.");
+            Equal(manifest.Sha256, legacy.Sha256,
+                "Les endpoints sécurisé et legacy doivent annoncer le même hash.");
+
+            LauncherSelfUpdateTransferProgress? lastProgress = null;
+            Uri packageUri = LauncherSelfUpdateHttpClient.BuildDownloadUri(
+                manifest.Url,
+                manifest.Version);
+            await client.DownloadAsync(
+                packageUri,
+                packagePath,
+                manifest.Size,
+                progress => lastProgress = progress,
+                timeout.Token);
+            await LauncherUpdatePackageIntegrity.ValidateAsync(
+                packagePath,
+                manifest,
+                ComputeSha256Async,
+                timeout.Token);
+
+            True(lastProgress is not null
+                && lastProgress.BytesProcessed == manifest.Size
+                && lastProgress.Percent == 100d,
+                "Le téléchargement live doit publier une progression terminale cohérente.");
+            Console.WriteLine(
+                $"Secure launcher production channel OK (04C.2): version={manifest.Version}, keyId={manifest.KeyId}.");
+            return 0;
+        }
+        finally
+        {
+            TryDelete(root);
+        }
     }
 
     private static void VerifyCanonicalPayloadAndSignatureCoverage()
@@ -545,12 +614,21 @@ internal static class LauncherSelfUpdateSecurityTests
         }
     }
 
-    private static void VerifyProductionTrustResourceIsFailClosedForTests()
+    private static void VerifyProductionTrustResource()
     {
         LauncherUpdateTrustStore production = LauncherUpdateTrustStore.LoadEmbeddedProduction();
         True(
             !production.TryGetSubjectPublicKeyInfo(TestKeyId, out _),
             "Une clé de test ne doit jamais être acceptée par le trust store production.");
+        True(
+            production.TryGetSubjectPublicKeyInfo(ProductionKeyId, out byte[] productionKey),
+            "L'ancre de confiance Atlas approuvée doit être embarquée.");
+        Equal(
+            ProductionPublicKeySha256,
+            Convert.ToHexString(SHA256.HashData(productionKey)).ToLowerInvariant(),
+            "L'ancre embarquée doit correspondre exactement à la clé publique Atlas.");
+        Equal(1, production.Count,
+            "Aucune autre ancre de confiance production ne doit être ajoutée silencieusement.");
     }
 
     private static async Task<LauncherSelfUpdateErrorCategory?> CheckCategoryAsync(

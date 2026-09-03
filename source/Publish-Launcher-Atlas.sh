@@ -10,17 +10,22 @@ launcher="$(realpath "$1")"
 installer="$(realpath "$2")"
 version="$3"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source_repo_root="$(realpath "$script_dir/..")"
 manifest_tool="${MANIFEST_TOOL:-$script_dir/../scripts/launcher-update-manifest.py}"
 repo_root="${REPO_ROOT:-/opt/wotlk-launcher-release}"
 public_root="${PUBLIC_ROOT:-/var/www/wotlk-launcher/launcher}"
 artifact_root="${ARTIFACT_ROOT:-/srv/wotlk/launcher-releases}"
-private_key="${ATLAS_LAUNCHER_SIGNING_KEY:-}"
-public_key="${ATLAS_LAUNCHER_SIGNING_PUBLIC_KEY:-}"
+expected_private_key="/etc/atlas-release-signing/launcher-update-private.pem"
+private_key="${ATLAS_LAUNCHER_SIGNING_KEY:-$expected_private_key}"
+trust_store="${ATLAS_LAUNCHER_TRUST_STORE:-$script_dir/WotLK.Launcher/Assets/Security/launcher-update-public-keys.json}"
 key_id="${ATLAS_LAUNCHER_SIGNING_KEY_ID:-}"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 staging="$(mktemp -d /tmp/atlas-launcher-release.XXXXXXXX)"
 manifest_next=""
+public_key="$staging/launcher-update-public.pem"
+trusted_public_der="$staging/trusted-public.der"
+signing_public_der="$staging/signing-public.der"
+
+chmod 0700 "$staging"
 
 cleanup() {
   rm -rf "$staging"
@@ -38,24 +43,58 @@ require_file() {
   fi
 }
 
-reject_private_key_location() {
-  local resolved
-  resolved="$(realpath "$1")"
-  case "$resolved" in
-    "$source_repo_root"/*|"$repo_root"/*|"$public_root"/*|"$artifact_root"/*)
-      echo "private signing key must stay outside repository, public and artifact roots" >&2
-      exit 1
-      ;;
-  esac
-}
-
-require_private_key_permissions() {
-  local mode
-  mode="$(stat -c '%a' "$1")"
-  if (( (8#$mode & 077) != 0 )); then
-    echo "private signing key must not grant group or world permissions (expected mode 0600 or stricter)" >&2
+require_root_signing_key() {
+  local resolved directory_state key_state
+  if [ "$(id -u)" -ne 0 ]; then
+    echo "Atlas launcher publication must run as root" >&2
     exit 1
   fi
+
+  resolved="$(realpath "$1")"
+  if [ "$resolved" != "$expected_private_key" ]; then
+    echo "private signing key must be $expected_private_key" >&2
+    exit 1
+  fi
+
+  directory_state="$(stat -c '%u:%g:%a' "$(dirname "$resolved")")"
+  key_state="$(stat -c '%u:%g:%a' "$resolved")"
+  if [ "$directory_state" != "0:0:700" ]; then
+    echo "signing directory must be root:root mode 0700" >&2
+    exit 1
+  fi
+  if [ "$key_state" != "0:0:600" ]; then
+    echo "private signing key must be root:root mode 0600" >&2
+    exit 1
+  fi
+}
+
+prepare_trusted_public_key() {
+  python3 - "$trust_store" "$key_id" "$trusted_public_der" <<'PY'
+import base64
+import json
+import sys
+from pathlib import Path
+
+trust_path, key_id, output_path = sys.argv[1:]
+document = json.loads(Path(trust_path).read_text(encoding="utf-8"))
+matches = [entry for entry in document.get("keys", []) if entry.get("keyId") == key_id]
+if len(matches) != 1:
+    raise SystemExit("release keyId is not uniquely present in the embedded trust store")
+try:
+    encoded = matches[0]["subjectPublicKeyInfo"]
+    public_key = base64.b64decode(encoded, validate=True)
+except (KeyError, TypeError, ValueError):
+    raise SystemExit("embedded release public key is invalid")
+Path(output_path).write_bytes(public_key)
+PY
+
+  openssl pkey -pubin -inform DER -in "$trusted_public_der" -out "$public_key" >/dev/null 2>&1
+  openssl pkey -in "$private_key" -pubout -outform DER -out "$signing_public_der" >/dev/null 2>&1
+  if ! cmp -s "$trusted_public_der" "$signing_public_der"; then
+    echo "private signing key does not match the embedded Atlas trust anchor" >&2
+    exit 1
+  fi
+  chmod 0600 "$public_key" "$trusted_public_der" "$signing_public_der"
 }
 
 install_immutable() {
@@ -74,14 +113,14 @@ install_immutable() {
 require_file "$launcher"
 require_file "$installer"
 require_file "$manifest_tool"
-if [ -z "$private_key" ] || [ -z "$public_key" ] || [ -z "$key_id" ]; then
-  echo "ATLAS_LAUNCHER_SIGNING_KEY, ATLAS_LAUNCHER_SIGNING_PUBLIC_KEY and ATLAS_LAUNCHER_SIGNING_KEY_ID are required" >&2
+require_file "$trust_store"
+if [ -z "$key_id" ]; then
+  echo "ATLAS_LAUNCHER_SIGNING_KEY_ID is required" >&2
   exit 1
 fi
 require_file "$private_key"
-require_file "$public_key"
-reject_private_key_location "$private_key"
-require_private_key_permissions "$private_key"
+require_root_signing_key "$private_key"
+prepare_trusted_public_key
 
 manifest="$staging/launcher-update.json"
 python3 "$manifest_tool" create \

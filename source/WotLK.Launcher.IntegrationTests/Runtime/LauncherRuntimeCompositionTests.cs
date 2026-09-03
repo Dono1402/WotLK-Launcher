@@ -23,16 +23,17 @@ internal static class LauncherRuntimeCompositionTests
 
     private static void CharacterizeStartupModes()
     {
-        Equal(LauncherStartupMode.Legacy, App.ResolveStartupMode([]), "Sans argument, la v1.1.0 reste le défaut.");
+        Equal(LauncherStartupMode.UiV2, App.ResolveStartupMode([]), "Sans argument, la V2 réelle doit être le défaut.");
+        Equal(LauncherStartupMode.Legacy, App.ResolveStartupMode(["--legacy"]), "--legacy doit conserver le fallback historique.");
         Equal(LauncherStartupMode.UiV2, App.ResolveStartupMode(["--ui-v2"]), "--ui-v2 doit sélectionner la V2 réelle.");
         Equal(
             LauncherStartupMode.UiV2Preview,
             App.ResolveStartupMode(["--ui-v2", "--preview-state=Ready"]),
             "Le preview doit nécessiter un état explicite.");
         Equal(
-            LauncherStartupMode.Legacy,
+            LauncherStartupMode.InvalidArguments,
             App.ResolveStartupMode(["--preview-state=Ready"]),
-            "Un argument preview sans --ui-v2 ne doit produire aucun effet.");
+            "Un argument preview sans --ui-v2 doit être refusé avant toute composition réelle.");
     }
 
     private static void CharacterizeMissingClient()
@@ -184,7 +185,7 @@ internal static class LauncherRuntimeCompositionTests
                 "Le royaume doit rester neutre avant la restauration.");
             Equal("Non vérifié", dashboard.Current.RealmStatusLabel, "La présentation ne doit inventer aucun statut.");
             True(shell.IsGameNavigationEnabled, "La page Jeu locale doit rester visible.");
-            True(!shell.IsNavigationEnabled, "Les destinations non migrées doivent rester désactivées.");
+            True(shell.IsNavigationEnabled, "Les destinations V2 réelles doivent être disponibles dès le démarrage.");
             Equal("Compte", shell.Username, "Aucune identité ne doit être inventée avant la restauration.");
             Equal(0, friends.Friends.Count, "La V2 réelle ne doit pas reprendre les amis fictifs du preview.");
             True(!game.IsPrimaryActionEnabled, "Aucune commande mutante ne doit être active en 02A.");

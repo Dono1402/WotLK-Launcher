@@ -14,7 +14,7 @@ internal static class LauncherV2RuntimePresentation
             Username = "Compte",
             IsAuthenticated = false,
             IsGameNavigationEnabled = true,
-            IsNavigationEnabled = false
+            IsNavigationEnabled = true
         };
     }
 

@@ -764,8 +764,8 @@ internal static class LauncherAddonsRuntimeTests
 
     private static void CharacterizePreviewIsolation()
     {
-        Equal(LauncherStartupMode.Legacy, App.ResolveStartupMode([]),
-            "Le lancement sans argument doit rester legacy.");
+        Equal(LauncherStartupMode.UiV2, App.ResolveStartupMode([]),
+            "Le lancement sans argument doit ouvrir la V2 réelle.");
         Equal(LauncherStartupMode.UiV2, App.ResolveStartupMode(["--ui-v2"]),
             "La V2 réelle doit conserver sa branche dédiée.");
         Equal(LauncherStartupMode.UiV2AddonsPreview,

@@ -40,7 +40,7 @@ internal static class AccountPreviewTests
             LauncherStartupMode.InvalidArguments,
             App.ResolveStartupMode(["--ui-v2", "--preview-account", "--preview-settings"]),
             "Compte et Paramètres preview ne doivent pas être combinés.");
-        Equal(LauncherStartupMode.Legacy, App.ResolveStartupMode([]), "Le lancement sans argument doit rester legacy.");
+        Equal(LauncherStartupMode.UiV2, App.ResolveStartupMode([]), "Le lancement sans argument doit ouvrir la V2 réelle.");
         Equal(LauncherStartupMode.UiV2, App.ResolveStartupMode(["--ui-v2"]), "La V2 réelle doit rester distincte.");
     }
 

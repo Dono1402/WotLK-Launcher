@@ -46,9 +46,9 @@ internal static class AddonsPreviewTests
             App.ResolveStartupMode(["--ui-v2", "--preview-addons=many", "--preview-settings=game"]),
             "Addons et Paramètres preview ne doivent pas être combinés.");
         Equal(
-            LauncherStartupMode.Legacy,
+            LauncherStartupMode.UiV2,
             App.ResolveStartupMode([]),
-            "Le démarrage sans argument doit rester legacy.");
+            "Le démarrage sans argument doit ouvrir la V2 réelle.");
         Equal(
             LauncherStartupMode.UiV2,
             App.ResolveStartupMode(["--ui-v2"]),

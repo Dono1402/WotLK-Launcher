@@ -93,9 +93,13 @@ internal static class LegacyMainWindowCharacterizationTests
     private static void CharacterizeStartupRouting()
     {
         Equal(
-            LauncherStartupMode.Legacy,
+            LauncherStartupMode.UiV2,
             App.ResolveStartupMode([]),
-            "Sans argument, le launcher doit sélectionner uniquement la fenêtre legacy.");
+            "Sans argument, le launcher doit sélectionner uniquement la V2 réelle.");
+        Equal(
+            LauncherStartupMode.Legacy,
+            App.ResolveStartupMode(["--legacy"]),
+            "--legacy doit conserver explicitement la fenêtre historique.");
         Equal(
             LauncherStartupMode.UiV2,
             App.ResolveStartupMode(["--ui-v2"]),
@@ -105,9 +109,9 @@ internal static class LegacyMainWindowCharacterizationTests
             App.ResolveStartupMode(["--ui-v2", "--preview-state=Ready"]),
             "Un état preview explicite doit isoler les données fictives de la V2 réelle.");
         Equal(
-            LauncherStartupMode.Legacy,
+            LauncherStartupMode.InvalidArguments,
             App.ResolveStartupMode(["--preview-state=Ready"]),
-            "Un argument preview isolé ne doit jamais activer la V2.");
+            "Un argument preview isolé doit être refusé avant toute composition réelle.");
         Equal(
             LauncherStartupMode.GrantGameDirectoryAccess,
             App.ResolveStartupMode(["--grant-game-access", "C:\\Atlas", "S-1-5-18"]),

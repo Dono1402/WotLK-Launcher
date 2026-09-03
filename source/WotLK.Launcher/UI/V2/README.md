@@ -1,12 +1,14 @@
 # Atlas Launcher UI V2 - Checkpoint Jeu
 
-Lancer la V2 réelle avec :
+Le lancement normal ouvre la V2 réelle :
 
 ```powershell
-WotLK.Launcher.exe --ui-v2
+WotLK.Launcher.exe
 ```
 
-Ce mode utilise la composition réelle unique du launcher. Au checkpoint 03B.1, le panneau Amis charge les relations Atlas existantes, résout leurs photos 64 px via l'`AvatarImageCache` partagé et utilise un unique rafraîchissement social de 15 secondes pendant la session authentifiée.
+`--ui-v2` reste un alias de compatibilité. Le fallback de diagnostic legacy reste disponible explicitement avec `WotLK.Launcher.exe --legacy`.
+
+Le mode V2 utilise la composition réelle unique du launcher. Au checkpoint 03B.1, le panneau Amis charge les relations Atlas existantes, résout leurs photos 64 px via l'`AvatarImageCache` partagé et utilise un unique rafraîchissement social de 15 secondes pendant la session authentifiée.
 
 Lancer une prévisualisation fictive déterministe avec :
 
@@ -14,9 +16,9 @@ Lancer une prévisualisation fictive déterministe avec :
 WotLK.Launcher.exe --ui-v2 --preview-state=Ready
 ```
 
-Sans `--ui-v2`, le launcher v1.1.0 et ses services existants restent le chemin de démarrage par défaut. Le mode de prévisualisation n'instancie ni authentification, ni réseau, ni minuterie, ni téléchargement.
+Les arguments `--preview-*` continuent d'exiger `--ui-v2`. Le mode de prévisualisation n'instancie ni authentification, ni réseau, ni minuterie, ni téléchargement.
 
-Les dictionnaires `AtlasV2.Tokens.xaml`, `AtlasV2.Icons.xaml` et `AtlasV2.Controls.xaml` sont chargés dans les ressources de l'application uniquement après détection de `--ui-v2`. Ce chargement ciblé est nécessaire pour que les `UserControl` WPF compilés puissent résoudre leurs ressources avant leur rattachement à la fenêtre. Toutes les clés sont préfixées `AtlasV2.` et aucun style global implicite n'est déclaré ; le démarrage v1.1.0 ne charge donc aucune ressource V2.
+Les dictionnaires `AtlasV2.Tokens.xaml`, `AtlasV2.Icons.xaml` et `AtlasV2.Controls.xaml` sont chargés dans les ressources de l'application uniquement pour un démarrage V2 ou preview. Ce chargement ciblé est nécessaire pour que les `UserControl` WPF compilés puissent résoudre leurs ressources avant leur rattachement à la fenêtre. Toutes les clés sont préfixées `AtlasV2.` et aucun style global implicite n'est déclaré ; le démarrage `--legacy` ne charge donc aucune ressource V2.
 
 Deux arguments réservés à la validation visuelle permettent de fixer le viewport logique et l'état initial du drawer :
 

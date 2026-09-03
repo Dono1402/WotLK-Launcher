@@ -149,6 +149,8 @@ internal static class V2RolloutReadinessTests
                 await PumpAsync(DispatcherPriority.Render);
                 True(window.SettingsPage.ScrollHost.ScrollableWidth <= 0.5, "Paramètres ne doit pas déborder horizontalement à 1080 x 680.");
 
+                await ValidateLongClientVersionLayoutAsync();
+
                 RaiseClick(profileButton);
                 RaiseClick(manageAccount);
                 await PumpAsync(DispatcherPriority.Render);
@@ -194,6 +196,50 @@ internal static class V2RolloutReadinessTests
                 application?.Shutdown();
                 dispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
             }
+        }
+    }
+
+    private static async Task ValidateLongClientVersionLayoutAsync()
+    {
+        const string longClientVersion = "wotlk-classic-3.4.3.54261-frFR-2026.08.31.3";
+        LauncherShellV2 window = new(
+            LauncherV2PreviewData.CreateShell(GamePreviewScenario.Ready),
+            new GameUiState
+            {
+                ClientVersion = longClientVersion
+            },
+            LauncherV2PreviewData.CreateDashboard(GamePreviewScenario.Ready),
+            LauncherV2PreviewData.CreateFriends())
+        {
+            Width = 1080,
+            Height = 680,
+            Left = -20000,
+            Top = -20000,
+            WindowStartupLocation = WindowStartupLocation.Manual,
+            ShowInTaskbar = false,
+            ShowActivated = false
+        };
+
+        try
+        {
+            window.Show();
+            await PumpAsync(DispatcherPriority.Render);
+            GameViewV2 game = Required<GameViewV2>(window, "GameView");
+            TextBlock label = Required<TextBlock>(game, "ReadyClientVersionLabel");
+            TextBlock value = Required<TextBlock>(game, "ReadyClientVersionValue");
+            Point labelOrigin = label.TransformToAncestor(game).Transform(new Point());
+            Point valueOrigin = value.TransformToAncestor(game).Transform(new Point());
+
+            True(
+                labelOrigin.X + label.ActualWidth + 8 <= valueOrigin.X + 0.5,
+                "Une version client longue ne doit pas chevaucher son libellé à 1080 x 680.");
+            Equal(TextTrimming.CharacterEllipsis, value.TextTrimming, "La version longue doit être tronquée visuellement.");
+            Equal(longClientVersion, value.ToolTip as string, "La version complète doit rester disponible en info-bulle.");
+        }
+        finally
+        {
+            window.Close();
+            await PumpAsync(DispatcherPriority.Background);
         }
     }
 

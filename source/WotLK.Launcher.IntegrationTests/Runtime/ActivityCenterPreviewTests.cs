@@ -41,8 +41,8 @@ internal static class ActivityCenterPreviewTests
             LauncherStartupMode.InvalidArguments,
             App.ResolveStartupMode(["--ui-v2", "--preview-activity=history", "--preview-addons=default"]),
             "Activité et Addons ne doivent jamais composer deux previews.");
-        Equal(LauncherStartupMode.Legacy, App.ResolveStartupMode([]),
-            "Le lancement sans argument doit rester legacy.");
+        Equal(LauncherStartupMode.UiV2, App.ResolveStartupMode([]),
+            "Le lancement sans argument doit ouvrir la V2 réelle.");
         Equal(LauncherStartupMode.UiV2, App.ResolveStartupMode(["--ui-v2"]),
             "La V2 réelle doit rester distincte du preview Activité.");
 

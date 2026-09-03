@@ -403,9 +403,22 @@
                                             <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
                                         <Grid>
-                                            <TextBlock Text="Version du client" Style="{StaticResource AtlasV2.Text.Caption}"/>
-                                            <TextBlock Text="{Binding ClientVersion}"
-                                                       HorizontalAlignment="Right"
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="12"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock x:Name="ReadyClientVersionLabel"
+                                                       Text="Version du client"
+                                                       Style="{StaticResource AtlasV2.Text.Caption}"/>
+                                            <TextBlock x:Name="ReadyClientVersionValue"
+                                                       Grid.Column="2"
+                                                       Text="{Binding ClientVersion}"
+                                                       ToolTip="{Binding ClientVersion}"
+                                                       HorizontalAlignment="Stretch"
+                                                       TextAlignment="Right"
+                                                       TextWrapping="NoWrap"
+                                                       TextTrimming="CharacterEllipsis"
                                                        Style="{StaticResource AtlasV2.Text.Caption}"
                                                        FontWeight="SemiBold"
                                                        Foreground="{StaticResource AtlasV2.Brush.Text}"/>
@@ -519,12 +532,40 @@
                                             <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
                                         <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="12"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
                                             <TextBlock Text="Version installée" Style="{StaticResource AtlasV2.Text.Caption}"/>
-                                            <TextBlock Text="{Binding ClientVersion}" HorizontalAlignment="Right" Style="{StaticResource AtlasV2.Text.Caption}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding ClientVersion}"
+                                                       ToolTip="{Binding ClientVersion}"
+                                                       HorizontalAlignment="Stretch"
+                                                       TextAlignment="Right"
+                                                       TextWrapping="NoWrap"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Style="{StaticResource AtlasV2.Text.Caption}"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource AtlasV2.Brush.Text}"/>
                                         </Grid>
                                         <Grid Grid.Row="1" Margin="0,4,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="12"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
                                             <TextBlock Text="Version disponible" Style="{StaticResource AtlasV2.Text.Caption}"/>
-                                            <TextBlock Text="{Binding AvailableClientVersion}" HorizontalAlignment="Right" Style="{StaticResource AtlasV2.Text.Caption}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Gold}"/>
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding AvailableClientVersion}"
+                                                       ToolTip="{Binding AvailableClientVersion}"
+                                                       HorizontalAlignment="Stretch"
+                                                       TextAlignment="Right"
+                                                       TextWrapping="NoWrap"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Style="{StaticResource AtlasV2.Text.Caption}"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource AtlasV2.Brush.Gold}"/>
                                         </Grid>
                                     </Grid>
                                     <Grid Grid.Row="3" Margin="0,9,0,0">

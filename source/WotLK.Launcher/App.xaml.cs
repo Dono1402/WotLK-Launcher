@@ -61,7 +61,8 @@ public partial class App : Application
         if (startupMode == LauncherStartupMode.InvalidArguments)
         {
             MessageBox.Show(
-                "Les modes de prévisualisation nécessitent --ui-v2 et ne peuvent pas être combinés.",
+                "Les modes --legacy et --ui-v2 ne peuvent pas être combinés. "
+                + "Les prévisualisations nécessitent --ui-v2 et ne peuvent pas être combinées.",
                 "Prévisualisation Atlas Launcher",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
@@ -69,15 +70,7 @@ public partial class App : Application
             return;
         }
 
-        if (startupMode is LauncherStartupMode.UiV2
-            or LauncherStartupMode.UiV2Preview
-            or LauncherStartupMode.UiV2AuthPreview
-            or LauncherStartupMode.UiV2ProfilePreview
-            or LauncherStartupMode.UiV2SettingsPreview
-            or LauncherStartupMode.UiV2FriendsPreview
-            or LauncherStartupMode.UiV2AccountPreview
-            or LauncherStartupMode.UiV2AddonsPreview
-            or LauncherStartupMode.UiV2ActivityPreview)
+        if (UsesV2Window(startupMode))
         {
             try
             {
@@ -94,50 +87,6 @@ public partial class App : Application
                 Shutdown(1);
                 return;
             }
-
-            if (startupMode is LauncherStartupMode.UiV2Preview
-                or LauncherStartupMode.UiV2AuthPreview
-                or LauncherStartupMode.UiV2ProfilePreview
-                or LauncherStartupMode.UiV2SettingsPreview
-                or LauncherStartupMode.UiV2FriendsPreview
-                or LauncherStartupMode.UiV2AccountPreview
-                or LauncherStartupMode.UiV2AddonsPreview
-                or LauncherStartupMode.UiV2ActivityPreview)
-            {
-                GamePreviewScenario previewScenario = LauncherV2PreviewData.ResolveScenario(e.Args);
-                LauncherShellV2 previewWindow = startupMode switch
-                {
-                    LauncherStartupMode.UiV2AuthPreview => new LauncherShellV2(
-                        previewScenario,
-                        AuthPreviewArguments.ResolveScenario(e.Args)),
-                    LauncherStartupMode.UiV2ProfilePreview => new LauncherShellV2(
-                        previewScenario,
-                        ProfilePreviewArguments.ResolveScenario(e.Args)),
-                    LauncherStartupMode.UiV2SettingsPreview => new LauncherShellV2(
-                        previewScenario,
-                        SettingsPreviewArguments.ResolveScenario(e.Args)),
-                    LauncherStartupMode.UiV2FriendsPreview => new LauncherShellV2(
-                        previewScenario,
-                        FriendsPreviewArguments.ResolveScenario(e.Args)),
-                    LauncherStartupMode.UiV2AccountPreview => new LauncherShellV2(
-                        previewScenario,
-                        AccountPreviewArguments.ResolveScenario(e.Args)),
-                    LauncherStartupMode.UiV2AddonsPreview => new LauncherShellV2(
-                        previewScenario,
-                        AddonsPreviewArguments.ResolveScenario(e.Args)),
-                    LauncherStartupMode.UiV2ActivityPreview => new LauncherShellV2(
-                        previewScenario,
-                        ActivityPreviewArguments.ResolveScenario(e.Args)),
-                    _ => new LauncherShellV2(previewScenario)
-                };
-                ApplyV2PreviewOptions(previewWindow, e.Args);
-                MainWindow = previewWindow;
-                previewWindow.Show();
-                return;
-            }
-
-            StartRuntimeV2(updateStartup);
-            return;
         }
 
         if (startupMode == LauncherStartupMode.GrantGameDirectoryAccess)
@@ -152,19 +101,22 @@ public partial class App : Application
             return;
         }
 
-        var window = new MainWindow(
-            LegacyMainWindowDependencies.CreateProduction(
-                updateStartup?.RecoveryOccurred == true));
-        MainWindow = window;
-        window.Show();
-        ScheduleUpdateReadyConfirmation(window, updateStartup);
+        DispatchInteractiveStartup(
+            startupMode,
+            () => StartLegacy(updateStartup),
+            () => StartRuntimeV2(updateStartup),
+            previewMode => StartV2Preview(previewMode, e.Args));
     }
 
     internal static LauncherStartupMode ResolveStartupMode(IEnumerable<string> arguments)
     {
         string[] args = arguments as string[] ?? arguments.ToArray();
+        bool useLegacy = args.Any(argument =>
+            string.Equals(argument, "--legacy", StringComparison.OrdinalIgnoreCase));
         bool useUiV2 = args.Any(argument =>
             string.Equals(argument, "--ui-v2", StringComparison.OrdinalIgnoreCase));
+        bool useGamePreview = args.Any(argument =>
+            argument.StartsWith("--preview-state=", StringComparison.OrdinalIgnoreCase));
         bool useAuthPreview = AuthPreviewArguments.IsRequested(args);
         bool useProfilePreview = ProfilePreviewArguments.IsRequested(args);
         bool useSettingsPreview = SettingsPreviewArguments.IsRequested(args);
@@ -179,7 +131,8 @@ public partial class App : Application
             + (useAccountPreview ? 1 : 0)
             + (useAddonsPreview ? 1 : 0)
             + (useActivityPreview ? 1 : 0);
-        if ((dedicatedPreviewCount > 0 && !useUiV2)
+        if ((useLegacy && useUiV2)
+            || ((useGamePreview || dedicatedPreviewCount > 0) && !useUiV2)
             || dedicatedPreviewCount > 1)
         {
             return LauncherStartupMode.InvalidArguments;
@@ -222,9 +175,7 @@ public partial class App : Application
                 return LauncherStartupMode.UiV2ActivityPreview;
             }
 
-            bool usePreview = args.Any(argument =>
-                argument.StartsWith("--preview-state=", StringComparison.OrdinalIgnoreCase));
-            return usePreview ? LauncherStartupMode.UiV2Preview : LauncherStartupMode.UiV2;
+            return useGamePreview ? LauncherStartupMode.UiV2Preview : LauncherStartupMode.UiV2;
         }
 
         if (GameDirectoryAccess.IsGrantAccessMode(args))
@@ -232,9 +183,111 @@ public partial class App : Application
             return LauncherStartupMode.GrantGameDirectoryAccess;
         }
 
-        return GameInstallServices.IsGameUninstallMode(args)
-            ? LauncherStartupMode.UninstallGame
-            : LauncherStartupMode.Legacy;
+        if (GameInstallServices.IsGameUninstallMode(args))
+        {
+            return LauncherStartupMode.UninstallGame;
+        }
+
+        return useLegacy
+            ? LauncherStartupMode.Legacy
+            : LauncherStartupMode.UiV2;
+    }
+
+    internal static void DispatchInteractiveStartup(
+        LauncherStartupMode startupMode,
+        Action startLegacy,
+        Action startRuntimeV2,
+        Action<LauncherStartupMode> startV2Preview)
+    {
+        ArgumentNullException.ThrowIfNull(startLegacy);
+        ArgumentNullException.ThrowIfNull(startRuntimeV2);
+        ArgumentNullException.ThrowIfNull(startV2Preview);
+
+        switch (startupMode)
+        {
+            case LauncherStartupMode.Legacy:
+                startLegacy();
+                return;
+            case LauncherStartupMode.UiV2:
+                startRuntimeV2();
+                return;
+            case LauncherStartupMode.UiV2Preview:
+            case LauncherStartupMode.UiV2AuthPreview:
+            case LauncherStartupMode.UiV2ProfilePreview:
+            case LauncherStartupMode.UiV2SettingsPreview:
+            case LauncherStartupMode.UiV2FriendsPreview:
+            case LauncherStartupMode.UiV2AccountPreview:
+            case LauncherStartupMode.UiV2AddonsPreview:
+            case LauncherStartupMode.UiV2ActivityPreview:
+                startV2Preview(startupMode);
+                return;
+            default:
+                throw new ArgumentOutOfRangeException(
+                    nameof(startupMode),
+                    startupMode,
+                    "Le mode ne crée pas de fenêtre interactive.");
+        }
+    }
+
+    internal static bool UsesV2Window(LauncherStartupMode startupMode) => startupMode is
+        LauncherStartupMode.UiV2
+        or LauncherStartupMode.UiV2Preview
+        or LauncherStartupMode.UiV2AuthPreview
+        or LauncherStartupMode.UiV2ProfilePreview
+        or LauncherStartupMode.UiV2SettingsPreview
+        or LauncherStartupMode.UiV2FriendsPreview
+        or LauncherStartupMode.UiV2AccountPreview
+        or LauncherStartupMode.UiV2AddonsPreview
+        or LauncherStartupMode.UiV2ActivityPreview;
+
+    private void StartLegacy(LauncherUpdateStartupSession? updateStartup)
+    {
+        var window = new MainWindow(
+            LegacyMainWindowDependencies.CreateProduction(
+                updateStartup?.RecoveryOccurred == true));
+        MainWindow = window;
+        window.Show();
+        ScheduleUpdateReadyConfirmation(window, updateStartup);
+    }
+
+    private void StartV2Preview(
+        LauncherStartupMode startupMode,
+        IEnumerable<string> arguments)
+    {
+        string[] args = arguments as string[] ?? arguments.ToArray();
+        GamePreviewScenario previewScenario = LauncherV2PreviewData.ResolveScenario(args);
+        LauncherShellV2 previewWindow = startupMode switch
+        {
+            LauncherStartupMode.UiV2AuthPreview => new LauncherShellV2(
+                previewScenario,
+                AuthPreviewArguments.ResolveScenario(args)),
+            LauncherStartupMode.UiV2ProfilePreview => new LauncherShellV2(
+                previewScenario,
+                ProfilePreviewArguments.ResolveScenario(args)),
+            LauncherStartupMode.UiV2SettingsPreview => new LauncherShellV2(
+                previewScenario,
+                SettingsPreviewArguments.ResolveScenario(args)),
+            LauncherStartupMode.UiV2FriendsPreview => new LauncherShellV2(
+                previewScenario,
+                FriendsPreviewArguments.ResolveScenario(args)),
+            LauncherStartupMode.UiV2AccountPreview => new LauncherShellV2(
+                previewScenario,
+                AccountPreviewArguments.ResolveScenario(args)),
+            LauncherStartupMode.UiV2AddonsPreview => new LauncherShellV2(
+                previewScenario,
+                AddonsPreviewArguments.ResolveScenario(args)),
+            LauncherStartupMode.UiV2ActivityPreview => new LauncherShellV2(
+                previewScenario,
+                ActivityPreviewArguments.ResolveScenario(args)),
+            LauncherStartupMode.UiV2Preview => new LauncherShellV2(previewScenario),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(startupMode),
+                startupMode,
+                "Le mode demandé n'est pas une prévisualisation V2.")
+        };
+        ApplyV2PreviewOptions(previewWindow, args);
+        MainWindow = previewWindow;
+        previewWindow.Show();
     }
 
     private void StartRuntimeV2(LauncherUpdateStartupSession? updateStartup)

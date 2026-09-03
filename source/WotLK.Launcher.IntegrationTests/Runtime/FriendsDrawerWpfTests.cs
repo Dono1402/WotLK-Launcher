@@ -42,8 +42,8 @@ internal static class FriendsDrawerWpfTests
         Equal(LauncherStartupMode.InvalidArguments,
             App.ResolveStartupMode(["--ui-v2", "--preview-friends", "--preview-account=profile"]),
             "Amis et Compte ne doivent jamais composer deux previews.");
-        Equal(LauncherStartupMode.Legacy, App.ResolveStartupMode([]),
-            "Le lancement sans argument doit rester legacy.");
+        Equal(LauncherStartupMode.UiV2, App.ResolveStartupMode([]),
+            "Le lancement sans argument doit ouvrir la V2 réelle.");
         Equal(LauncherStartupMode.UiV2, App.ResolveStartupMode(["--ui-v2"]),
             "La V2 réelle doit rester distincte du preview Amis.");
     }

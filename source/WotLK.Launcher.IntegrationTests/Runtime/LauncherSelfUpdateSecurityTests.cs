@@ -98,6 +98,60 @@ internal static class LauncherSelfUpdateSecurityTests
         }
     }
 
+    internal static async Task<int> RunProductionCheckOnlyAsync()
+    {
+        Equal(
+            Uri.UriSchemeHttps,
+            LauncherSelfUpdateHttpClient.ManifestUri.Scheme,
+            "Le check live doit utiliser exclusivement le manifeste HTTPS approuvé.");
+
+        string launcherPath = Path.Combine(AppContext.BaseDirectory, "WotLK.Launcher.exe");
+        True(File.Exists(launcherPath), "L'exécutable launcher compilé est absent du smoke live.");
+        Version installedAssemblyVersion = typeof(App).Assembly.GetName().Version
+            ?? new Version(0, 0, 0);
+        string installedVersion = "v" + installedAssemblyVersion.ToString(3);
+
+        using LauncherSelfUpdateHttpClient productionClient =
+            LauncherSelfUpdateHttpClient.CreateProduction();
+        CheckOnlyProductionClient checkOnlyClient = new(productionClient);
+        using LauncherOperationCoordinator operations = new();
+        InertTimer timer = new(LauncherSelfUpdateCoordinator.CheckInterval);
+        TrackingRejectingFinalizer finalizer = new();
+        using LauncherSelfUpdateCoordinator coordinator = new(
+            operations,
+            checkOnlyClient,
+            finalizer,
+            timer,
+            automaticChecksEnabled: false,
+            installedVersion,
+            selfUpdateRecoveryOccurred: false,
+            getExecutablePath: () => launcherPath);
+
+        LauncherSelfUpdateCheckResult result = await coordinator.CheckAsync();
+        True(
+            result.Outcome is LauncherSelfUpdateCheckOutcome.Completed
+                or LauncherSelfUpdateCheckOutcome.NoUpdate,
+            $"Le check signé live a échoué: {result.Outcome}/{result.ErrorCategory}.");
+        LauncherUpdateManifest manifest = checkOnlyClient.Manifest
+            ?? throw new InvalidOperationException("Le manifeste live vérifié n'a pas été capturé.");
+        Equal(ProductionKeyId, manifest.KeyId,
+            "Le manifeste live doit utiliser l'ancre Atlas approuvée.");
+        _ = LauncherSelfUpdateHttpClient.BuildDownloadUri(manifest.Url, manifest.Version);
+        Equal(1, checkOnlyClient.ManifestRequests,
+            "Le check live doit charger un seul manifeste.");
+        Equal(0, checkOnlyClient.DownloadRequests,
+            "Le check live ne doit télécharger aucun package.");
+        Equal(0, finalizer.Calls,
+            "Le check live ne doit préparer aucun remplacement.");
+        True(!timer.IsEnabled,
+            "Le smoke ponctuel ne doit pas démarrer le timer périodique.");
+
+        Console.WriteLine(
+            $"Secure launcher production check-only OK: outcome={result.Outcome}, "
+            + $"manifestVersion={manifest.Version}, keyId={manifest.KeyId}, download=0, apply=0.");
+        return 0;
+    }
+
     private static void VerifyCanonicalPayloadAndSignatureCoverage()
     {
         using ECDsa signer = ECDsa.Create(ECCurve.NamedCurves.nistP256);
@@ -868,6 +922,39 @@ internal static class LauncherSelfUpdateSecurityTests
         {
             Calls++;
             throw new InvalidOperationException("Le finalizer ne doit pas être appelé.");
+        }
+    }
+
+    private sealed class CheckOnlyProductionClient(
+        ILauncherSelfUpdateClient inner) : ILauncherSelfUpdateClient
+    {
+        internal int ManifestRequests { get; private set; }
+
+        internal int DownloadRequests { get; private set; }
+
+        internal LauncherUpdateManifest? Manifest { get; private set; }
+
+        public async Task<LauncherUpdateManifest> LoadManifestAsync(
+            CancellationToken cancellationToken)
+        {
+            ManifestRequests++;
+            using CancellationTokenSource timeout =
+                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(30));
+            Manifest = await inner.LoadManifestAsync(timeout.Token);
+            return Manifest;
+        }
+
+        public Task DownloadAsync(
+            Uri uri,
+            string targetPath,
+            long expectedSize,
+            Action<LauncherSelfUpdateTransferProgress> reportProgress,
+            CancellationToken cancellationToken)
+        {
+            DownloadRequests++;
+            throw new InvalidOperationException(
+                "Le check live ne doit jamais atteindre le téléchargement.");
         }
     }
 

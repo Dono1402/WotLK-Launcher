@@ -79,7 +79,7 @@ internal static class AuthOverlayPreviewTests
         Equal(LauncherStartupMode.UiV2AuthPreview, App.ResolveStartupMode(["--ui-v2", "--preview-auth=register"]), "Le preview Register doit être isolé.");
         Equal(LauncherStartupMode.InvalidArguments, App.ResolveStartupMode(["--preview-auth=login"]), "preview-auth sans --ui-v2 doit être refusé.");
         Equal(LauncherStartupMode.UiV2Preview, App.ResolveStartupMode(["--ui-v2", "--preview-state=Ready"]), "preview-state doit rester inchangé.");
-        Equal(LauncherStartupMode.Legacy, App.ResolveStartupMode([]), "Le lancement sans argument doit rester legacy.");
+        Equal(LauncherStartupMode.UiV2, App.ResolveStartupMode([]), "Le lancement sans argument doit ouvrir la V2 réelle.");
 
         Dictionary<string, AuthPreviewScenario> scenarios = new(StringComparer.OrdinalIgnoreCase)
         {

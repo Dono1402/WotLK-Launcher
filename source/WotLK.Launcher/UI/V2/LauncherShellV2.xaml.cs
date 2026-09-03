@@ -23,6 +23,7 @@ public partial class LauncherShellV2 : Window
     private IInputElement? _authFocusReturnTarget;
     private IInputElement? _avatarCropFocusReturnTarget;
     private IInputElement? _patchNoteFocusReturnTarget;
+    private bool _restoreFriendsFocusAfterClose;
     private AuthCommands? _authCommands;
     private AccountCommands? _accountCommands;
     private FriendsCommands? _friendsCommands;
@@ -498,6 +499,7 @@ public partial class LauncherShellV2 : Window
         }
 
         _authFocusReturnTarget = GameView.PrimaryActionFocusTarget;
+        SuppressFriendsFocusRestore();
         if (!AuthState.IsOpen)
         {
             AuthState.PrepareForOpen();
@@ -515,6 +517,7 @@ public partial class LauncherShellV2 : Window
         }
 
         _authFocusReturnTarget = ProfileButton;
+        SuppressFriendsFocusRestore();
         AuthState.ApplyPreviewScenario(scenario);
         AuthOverlay.PreparePreviewScenario(scenario);
         _overlayCoordinator.OpenAuthentication();
@@ -565,6 +568,7 @@ public partial class LauncherShellV2 : Window
     {
         if (_overlayCoordinator.TryToggleFriends() && FriendsState.IsOpen)
         {
+            _restoreFriendsFocusAfterClose = true;
             FriendsDrawer.IsOpen = true;
             FriendsButton.Focusable = false;
         }
@@ -712,6 +716,7 @@ public partial class LauncherShellV2 : Window
     {
         if (_overlayCoordinator.TryToggleFriends())
         {
+            _restoreFriendsFocusAfterClose = true;
             FriendsButton.Focusable = !FriendsState.IsOpen;
             if (FriendsState.IsOpen)
             {
@@ -722,8 +727,14 @@ public partial class LauncherShellV2 : Window
 
     private void ActivityButton_Click(object sender, RoutedEventArgs e)
     {
+        bool friendsWasOpen = FriendsState.IsOpen;
         if (_overlayCoordinator.TryToggleActivity())
         {
+            if (friendsWasOpen)
+            {
+                _restoreFriendsFocusAfterClose = false;
+                FriendsButton.Focusable = true;
+            }
             ActivityButton.Focusable = !ActivityState.IsOpen;
             if (ActivityState.IsOpen)
             {
@@ -755,10 +766,17 @@ public partial class LauncherShellV2 : Window
 
     private void GameView_PatchNoteRequested(object? sender, EventArgs e)
     {
+        bool friendsWasOpen = FriendsState.IsOpen;
         if (!DashboardState.Current.CanOpenLatestPatchNote
             || !_overlayCoordinator.TryOpenPatchNote())
         {
             return;
+        }
+
+        if (friendsWasOpen)
+        {
+            _restoreFriendsFocusAfterClose = false;
+            FriendsButton.Focusable = true;
         }
 
         _patchNoteFocusReturnTarget = GameView.PatchNoteActionFocusTarget;
@@ -854,8 +872,14 @@ public partial class LauncherShellV2 : Window
     {
         if (ShellState.IsAuthenticated)
         {
+            bool friendsWasOpen = FriendsState.IsOpen;
             if (_overlayCoordinator.TryToggleProfile())
             {
+                if (friendsWasOpen)
+                {
+                    _restoreFriendsFocusAfterClose = false;
+                    FriendsButton.Focusable = true;
+                }
                 ProfileButton.Focusable = !ProfileState.IsOpen;
                 if (ProfileState.IsOpen)
                 {
@@ -878,6 +902,7 @@ public partial class LauncherShellV2 : Window
         }
 
         _authFocusReturnTarget = ProfileButton;
+        SuppressFriendsFocusRestore();
         AuthState.PrepareForOpen();
         _overlayCoordinator.OpenAuthentication();
         FriendsButton.Focusable = false;
@@ -1008,13 +1033,26 @@ public partial class LauncherShellV2 : Window
 
     private void FriendsDrawer_Closed(object? sender, EventArgs e)
     {
+        bool restoreFocus = _restoreFriendsFocusAfterClose;
+        _restoreFriendsFocusAfterClose = false;
         FriendsButton.Focusable = true;
-        if (FriendsState.IsOpen || _overlayCoordinator.Current != ShellOverlayKind.None)
+        if (!restoreFocus
+            || FriendsState.IsOpen
+            || _overlayCoordinator.Current != ShellOverlayKind.None)
         {
             return;
         }
 
         Keyboard.Focus(FriendsButton);
+    }
+
+    private void SuppressFriendsFocusRestore()
+    {
+        if (FriendsState.IsOpen)
+        {
+            _restoreFriendsFocusAfterClose = false;
+            FriendsButton.Focusable = true;
+        }
     }
 
     private void PatchNoteOverlay_Closed(object? sender, EventArgs e)

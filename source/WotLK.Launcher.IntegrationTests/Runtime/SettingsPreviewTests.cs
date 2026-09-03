@@ -55,9 +55,9 @@ internal static class SettingsPreviewTests
             App.ResolveStartupMode(["--ui-v2", "--preview-settings", "--preview-profile=signed-in"]),
             "Settings et Profile preview ne doivent pas être combinés.");
         Equal(
-            LauncherStartupMode.Legacy,
+            LauncherStartupMode.UiV2,
             App.ResolveStartupMode([]),
-            "Le lancement sans argument doit rester legacy.");
+            "Le lancement sans argument doit ouvrir la V2 réelle.");
         Equal(
             LauncherStartupMode.UiV2,
             App.ResolveStartupMode(["--ui-v2"]),

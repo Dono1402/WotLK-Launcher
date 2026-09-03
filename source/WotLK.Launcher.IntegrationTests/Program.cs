@@ -20,6 +20,18 @@ if (args.Length == 1
 }
 
 if (args.Length == 1
+    && string.Equals(args[0], "--startup-routing", StringComparison.OrdinalIgnoreCase))
+{
+    return await LauncherStartupRoutingTests.RunAsync();
+}
+
+if (args.Length == 1
+    && string.Equals(args[0], "--v2-lifecycle-isolation", StringComparison.OrdinalIgnoreCase))
+{
+    return await V2LifecycleIsolationTests.RunAsync();
+}
+
+if (args.Length == 1
     && string.Equals(args[0], "--runtime-hardening", StringComparison.OrdinalIgnoreCase))
 {
     return await LauncherRuntimeHardeningTests.RunAsync();
@@ -237,6 +249,12 @@ if (args.Length == 1
     && string.Equals(args[0], "--secure-self-update", StringComparison.OrdinalIgnoreCase))
 {
     return await LauncherSelfUpdateSecurityTests.RunAsync();
+}
+
+if (args.Length == 1
+    && string.Equals(args[0], "--secure-self-update-check-live", StringComparison.OrdinalIgnoreCase))
+{
+    return await LauncherSelfUpdateSecurityTests.RunProductionCheckOnlyAsync();
 }
 
 if (args.Length == 1

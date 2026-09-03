@@ -23,6 +23,7 @@ internal sealed class LauncherAccountCoordinator : IDisposable
     private Task _activeMutationTask = Task.CompletedTask;
     private AccountRuntimeSnapshot _currentSnapshot;
     private DateTimeOffset _lastProgressPublication;
+    private long _sessionGeneration;
     private long _sequence;
     private int _disposeState;
 
@@ -66,6 +67,7 @@ internal sealed class LauncherAccountCoordinator : IDisposable
         AccountRuntimeSnapshot loading;
         TaskCompletionSource startGate;
         Task<AccountActionCompletion> completion;
+        long sessionGeneration;
         lock (_sync)
         {
             if (IsStoppingUnsafe())
@@ -85,6 +87,7 @@ internal sealed class LauncherAccountCoordinator : IDisposable
                 CancellationTokenSource.CreateLinkedTokenSource(
                 _operations.ShutdownToken);
             _refreshCancellation = refreshCancellation;
+            sessionGeneration = _sessionGeneration;
             loading = SetSnapshotUnsafe(
                 _currentSnapshot with
                 {
@@ -97,7 +100,7 @@ internal sealed class LauncherAccountCoordinator : IDisposable
             startGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             completion = RunAfterGateAsync(
                 startGate.Task,
-                () => RefreshCoreAsync(refreshCancellation));
+                () => RefreshCoreAsync(refreshCancellation, sessionGeneration));
             _activeRefreshTask = completion;
         }
 
@@ -453,11 +456,15 @@ internal sealed class LauncherAccountCoordinator : IDisposable
     }
 
     private async Task<AccountActionCompletion> RefreshCoreAsync(
-        CancellationTokenSource cancellation)
+        CancellationTokenSource cancellation,
+        long sessionGeneration)
     {
         try
         {
-            return await RefreshProfileAsync(cancellation.Token, fromCancellation: false)
+            return await RefreshProfileAsync(
+                    cancellation.Token,
+                    fromCancellation: false,
+                    sessionGeneration)
                 .ConfigureAwait(false);
         }
         finally
@@ -475,13 +482,18 @@ internal sealed class LauncherAccountCoordinator : IDisposable
 
     private async Task<AccountActionCompletion> RefreshProfileAsync(
         CancellationToken cancellationToken,
-        bool fromCancellation)
+        bool fromCancellation,
+        long sessionGeneration)
     {
         AtlasRequestPreparationStatus preparation = await _session
             .PrepareAuthenticatedRequestAsync(cancellationToken)
             .ConfigureAwait(false);
         if (preparation != AtlasRequestPreparationStatus.Ready)
         {
+            if (!IsRefreshSessionCurrent(sessionGeneration))
+            {
+                return CancelledRefresh();
+            }
             AccountAvatarErrorCategory error = preparation switch
             {
                 AtlasRequestPreparationStatus.AuthenticationRequired =>
@@ -501,11 +513,20 @@ internal sealed class LauncherAccountCoordinator : IDisposable
                 rejected);
         }
 
+        if (!IsRefreshSessionCurrent(sessionGeneration))
+        {
+            return CancelledRefresh();
+        }
+
         try
         {
             AvatarProfileReadResult result = await _mediaClient
                 .GetProfileAsync(cancellationToken)
                 .ConfigureAwait(false);
+            if (!IsRefreshSessionCurrent(sessionGeneration))
+            {
+                return CancelledRefresh();
+            }
             ImmutableArray<AccountDeviceSessionSnapshot> sessions = [];
             AccountSessionsState sessionsState = AccountSessionsState.Loaded;
             AccountRuntimeError accountError = AccountRuntimeError.None;
@@ -514,10 +535,18 @@ internal sealed class LauncherAccountCoordinator : IDisposable
                 IReadOnlyList<LauncherDeviceSession> response = await _authentication
                     .GetSessionsAsync(cancellationToken)
                     .ConfigureAwait(false);
+                if (!IsRefreshSessionCurrent(sessionGeneration))
+                {
+                    return CancelledRefresh();
+                }
                 sessions = response.Select(ToSessionSnapshot).ToImmutableArray();
             }
             catch (LauncherAuthException exception)
             {
+                if (!IsRefreshSessionCurrent(sessionGeneration))
+                {
+                    return CancelledRefresh();
+                }
                 AccountErrorCategory category = MapAccountFailure(
                     AccountOperationState.None,
                     exception);
@@ -539,6 +568,10 @@ internal sealed class LauncherAccountCoordinator : IDisposable
             }
             catch (OperationCanceledException exception)
             {
+                if (!IsRefreshSessionCurrent(sessionGeneration))
+                {
+                    return CancelledRefresh();
+                }
                 sessionsState = AccountSessionsState.Failed;
                 accountError = new AccountRuntimeError(
                     AccountOperationState.None,
@@ -550,6 +583,10 @@ internal sealed class LauncherAccountCoordinator : IDisposable
             }
             catch (HttpRequestException exception)
             {
+                if (!IsRefreshSessionCurrent(sessionGeneration))
+                {
+                    return CancelledRefresh();
+                }
                 sessionsState = AccountSessionsState.Failed;
                 accountError = new AccountRuntimeError(
                     AccountOperationState.None,
@@ -561,6 +598,10 @@ internal sealed class LauncherAccountCoordinator : IDisposable
             }
             catch (Exception exception)
             {
+                if (!IsRefreshSessionCurrent(sessionGeneration))
+                {
+                    return CancelledRefresh();
+                }
                 sessionsState = AccountSessionsState.Failed;
                 accountError = new AccountRuntimeError(
                     AccountOperationState.None,
@@ -574,7 +615,9 @@ internal sealed class LauncherAccountCoordinator : IDisposable
             AccountRuntimeSnapshot snapshot;
             lock (_sync)
             {
-                if (IsStoppingUnsafe())
+                if (IsStoppingUnsafe()
+                    || sessionGeneration != _sessionGeneration
+                    || !_session.CurrentSnapshot.IsAuthenticated)
                 {
                     return new AccountActionCompletion(
                         AccountActionCompletionStatus.Cancelled,
@@ -618,6 +661,10 @@ internal sealed class LauncherAccountCoordinator : IDisposable
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            if (!IsRefreshSessionCurrent(sessionGeneration))
+            {
+                return CancelledRefresh();
+            }
             AccountRuntimeSnapshot snapshot = PublishStable(
                 fromCancellation
                     ? AccountAvatarErrorCategory.CancellationAmbiguous
@@ -626,9 +673,20 @@ internal sealed class LauncherAccountCoordinator : IDisposable
         }
         catch (AvatarMediaException exception)
         {
+            if (!IsRefreshSessionCurrent(sessionGeneration))
+            {
+                return CancelledRefresh();
+            }
             if (exception.Category == AvatarMediaFailureCategory.Unauthorized)
             {
                 _session.NotifyAuthenticatedRequestUnauthorized();
+                AccountAvatarErrorCategory unauthorizedError = fromCancellation
+                    ? AccountAvatarErrorCategory.CancellationAmbiguous
+                    : AccountAvatarErrorCategory.Unauthorized;
+                WriteFailureSafely("refresh", unauthorizedError, exception);
+                return new AccountActionCompletion(
+                    AccountActionCompletionStatus.Failed,
+                    CurrentSnapshot);
             }
             AccountAvatarErrorCategory error = fromCancellation
                 ? AccountAvatarErrorCategory.CancellationAmbiguous
@@ -647,6 +705,10 @@ internal sealed class LauncherAccountCoordinator : IDisposable
         }
         catch (Exception exception)
         {
+            if (!IsRefreshSessionCurrent(sessionGeneration))
+            {
+                return CancelledRefresh();
+            }
             AccountRuntimeSnapshot snapshot = PublishStable(AccountAvatarErrorCategory.Unknown);
             WriteFailureSafely("refresh", AccountAvatarErrorCategory.Unknown, exception);
             return new AccountActionCompletion(AccountActionCompletionStatus.Failed, snapshot);
@@ -1081,7 +1143,8 @@ internal sealed class LauncherAccountCoordinator : IDisposable
             PublishMutationPhase(lease, AccountAvatarOperationState.Reconciling, null);
             AccountActionCompletion reconciled = await RefreshProfileAsync(
                 _operations.ShutdownToken,
-                fromCancellation: true).ConfigureAwait(false);
+                fromCancellation: true,
+                CaptureSessionGeneration()).ConfigureAwait(false);
             CompleteLease(lease);
             return reconciled with { Status = AccountActionCompletionStatus.Cancelled };
         }
@@ -1463,6 +1526,7 @@ internal sealed class LauncherAccountCoordinator : IDisposable
 
     private void Session_SnapshotChanged(object? sender, AuthSessionSnapshotEventArgs e)
     {
+        CancellationTokenSource? refresh;
         AccountRuntimeSnapshot snapshot;
         lock (_sync)
         {
@@ -1470,11 +1534,42 @@ internal sealed class LauncherAccountCoordinator : IDisposable
             {
                 return;
             }
+            _sessionGeneration++;
+            refresh = _refreshCancellation;
             snapshot = CreateSessionSnapshot(e.Snapshot, _getCurrentProfile());
             _currentSnapshot = snapshot;
         }
 
+        TryCancel(refresh);
         RaiseSnapshotChanged(snapshot);
+    }
+
+    private long CaptureSessionGeneration()
+    {
+        lock (_sync)
+        {
+            return _sessionGeneration;
+        }
+    }
+
+    private bool IsRefreshSessionCurrent(long sessionGeneration)
+    {
+        lock (_sync)
+        {
+            return !IsStoppingUnsafe()
+                && sessionGeneration == _sessionGeneration
+                && _session.CurrentSnapshot.IsAuthenticated;
+        }
+    }
+
+    private AccountActionCompletion CancelledRefresh()
+    {
+        lock (_sync)
+        {
+            return new AccountActionCompletion(
+                AccountActionCompletionStatus.Cancelled,
+                _currentSnapshot);
+        }
     }
 
     private AccountRuntimeSnapshot CreateSessionSnapshot(

@@ -96,14 +96,15 @@ internal sealed class LauncherUpdateTransactionStore
         string path,
         CancellationToken cancellationToken)
     {
-        await using FileStream stream = new(
+        using FileStream stream = new(
             path,
             FileMode.Open,
             FileAccess.Read,
             FileShare.Read | FileShare.Delete,
             128 * 1024,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
-        byte[] hash = await SHA256.HashDataAsync(stream, cancellationToken);
+        byte[] hash = await SHA256.HashDataAsync(stream, cancellationToken)
+            .ConfigureAwait(false);
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 

@@ -10,6 +10,7 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         CharacterizeSingleExecutableReleaseContract();
         ValidateInternalCommandLineContract();
         ValidateHelperRequesterBoundary();
+        ValidateHelperHashDoesNotCaptureWpfContext();
         await PrepareTransactionWithoutTouchingActiveReleaseAsync();
         await RejectInvalidCandidateBeforeTouchingReleaseAsync();
         await KeepPreviousReleaseAcrossPreSwapCrashPointsAsync();
@@ -123,6 +124,73 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
                 environment.Transaction.ParentProcessId,
                 (_, _) => false),
             "Le helper doit refuser une cible arbitraire ne correspondant pas au demandeur vivant.");
+    }
+
+    private static void ValidateHelperHashDoesNotCaptureWpfContext()
+    {
+        string root = Path.Combine(
+            Path.GetTempPath(),
+            "AtlasLauncherHashContextTest",
+            Guid.NewGuid().ToString("N"));
+        string path = Path.Combine(root, "updater.exe");
+        Directory.CreateDirectory(root);
+        using (FileStream stream = new(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        {
+            stream.SetLength(32 * 1024 * 1024);
+        }
+
+        try
+        {
+            using ManualResetEventSlim completed = new();
+            Exception? failure = null;
+            Thread thread = new(() =>
+            {
+                SynchronizationContext.SetSynchronizationContext(
+                    new NonPumpingSynchronizationContext());
+                try
+                {
+                    _ = LauncherUpdateTransactionStore.ComputeSha256Async(
+                            path,
+                            CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult();
+                }
+                catch (Exception exception)
+                {
+                    failure = exception;
+                }
+                finally
+                {
+                    completed.Set();
+                }
+            })
+            {
+                IsBackground = true,
+                Name = "Atlas launcher updater hash context test"
+            };
+            thread.Start();
+
+            True(
+                completed.Wait(TimeSpan.FromSeconds(10)),
+                "Le hash du helper ne doit pas capturer le contexte WPF lors d'un appel synchrone.");
+            if (failure is not null)
+            {
+                throw new InvalidOperationException(
+                    "Le hash du helper a échoué sous un contexte WPF bloqué.",
+                    failure);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private sealed class NonPumpingSynchronizationContext : SynchronizationContext
+    {
+        public override void Post(SendOrPostCallback callback, object? state)
+        {
+        }
     }
 
     private static async Task PrepareTransactionWithoutTouchingActiveReleaseAsync()

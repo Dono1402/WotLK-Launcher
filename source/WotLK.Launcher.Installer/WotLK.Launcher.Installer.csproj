@@ -20,6 +20,20 @@
     <None Remove="Assets\**\*.png" />
     <Resource Include="Assets\**\*.png" />
     <Resource Include="Assets\AppIcon.ico" />
+    <Resource Include="..\WotLK.Launcher\Assets\Branding\AtlasLauncherLogo.png"
+              Link="Assets\Branding\AtlasLauncherLogo.png" />
+    <Resource Include="..\WotLK.Launcher\Assets\Images\ArthasIcecrownHero.png"
+              Link="Assets\Images\ArthasIcecrownHero.png" />
+    <Resource Include="..\WotLK.Launcher\Assets\Fonts\Manrope-Regular.ttf"
+              Link="Assets\Fonts\Manrope-Regular.ttf" />
+    <Resource Include="..\WotLK.Launcher\Assets\Fonts\Manrope-Medium.ttf"
+              Link="Assets\Fonts\Manrope-Medium.ttf" />
+    <Resource Include="..\WotLK.Launcher\Assets\Fonts\Manrope-SemiBold.ttf"
+              Link="Assets\Fonts\Manrope-SemiBold.ttf" />
+    <Resource Include="..\WotLK.Launcher\Assets\Fonts\Manrope-Bold.ttf"
+              Link="Assets\Fonts\Manrope-Bold.ttf" />
+    <Resource Include="..\WotLK.Launcher\Assets\Fonts\Manrope-ExtraBold.ttf"
+              Link="Assets\Fonts\Manrope-ExtraBold.ttf" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,229 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="AtlasInstaller.Tokens.xaml"/>
+        <ResourceDictionary Source="AtlasInstaller.Icons.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
+
+    <Style x:Key="AtlasInstaller.WindowButton" TargetType="{x:Type Button}">
+        <Setter Property="Width" Value="46"/>
+        <Setter Property="Height" Value="46"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Foreground" Value="{StaticResource AtlasInstaller.Brush.TextMuted}"/>
+        <Setter Property="Cursor" Value="Arrow"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border x:Name="Root" Background="{TemplateBinding Background}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource AtlasInstaller.Brush.SurfaceHover}"/>
+                            <Setter Property="Foreground" Value="{StaticResource AtlasInstaller.Brush.Text}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#26313C"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.38"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AtlasInstaller.Button.Base" TargetType="{x:Type Button}">
+        <Setter Property="MinWidth" Value="118"/>
+        <Setter Property="Height" Value="44"/>
+        <Setter Property="Padding" Value="18,0"/>
+        <Setter Property="FontFamily" Value="{StaticResource AtlasInstaller.Font.Manrope}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Foreground" Value="{StaticResource AtlasInstaller.Brush.Text}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AtlasInstaller.Brush.BorderStrong}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border x:Name="Root"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="5">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"
+                                          RecognizesAccessKey="True"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource AtlasInstaller.Brush.SurfaceHover}"/>
+                            <Setter TargetName="Root" Property="BorderBrush" Value="#54616E"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource AtlasInstaller.Brush.Cyan}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.82"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.38"/>
+                            <Setter Property="Cursor" Value="Arrow"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AtlasInstaller.Button.Primary"
+           TargetType="{x:Type Button}"
+           BasedOn="{StaticResource AtlasInstaller.Button.Base}">
+        <Setter Property="MinWidth" Value="138"/>
+        <Setter Property="Foreground" Value="#111418"/>
+        <Setter Property="Background" Value="{StaticResource AtlasInstaller.Brush.Gold}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AtlasInstaller.Brush.Gold}"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource AtlasInstaller.Brush.GoldHover}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AtlasInstaller.Brush.GoldHover}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="AtlasInstaller.Button.Secondary"
+           TargetType="{x:Type Button}"
+           BasedOn="{StaticResource AtlasInstaller.Button.Base}"/>
+
+    <Style x:Key="AtlasInstaller.Button.Ghost"
+           TargetType="{x:Type Button}"
+           BasedOn="{StaticResource AtlasInstaller.Button.Base}">
+        <Setter Property="MinWidth" Value="94"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource AtlasInstaller.Brush.TextMuted}"/>
+    </Style>
+
+    <Style x:Key="AtlasInstaller.PathTextBox" TargetType="{x:Type TextBox}">
+        <Setter Property="Height" Value="48"/>
+        <Setter Property="Padding" Value="15,0"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="FontFamily" Value="{StaticResource AtlasInstaller.Font.Manrope}"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Foreground" Value="{StaticResource AtlasInstaller.Brush.Text}"/>
+        <Setter Property="CaretBrush" Value="{StaticResource AtlasInstaller.Brush.Cyan}"/>
+        <Setter Property="Background" Value="#0C1116"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AtlasInstaller.Brush.BorderStrong}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type TextBox}">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="5">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"
+                                      VerticalAlignment="Center"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Hidden"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource AtlasInstaller.Brush.Cyan}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AtlasInstaller.CheckBox" TargetType="{x:Type CheckBox}">
+        <Setter Property="Foreground" Value="{StaticResource AtlasInstaller.Brush.Text}"/>
+        <Setter Property="FontFamily" Value="{StaticResource AtlasInstaller.Font.Manrope}"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="FontSize" Value="15"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type CheckBox}">
+                    <Grid Background="Transparent">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="24"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="Box"
+                                Width="18"
+                                Height="18"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                Background="#0C1116"
+                                BorderBrush="{StaticResource AtlasInstaller.Brush.BorderStrong}"
+                                BorderThickness="1"
+                                CornerRadius="3">
+                            <Path x:Name="CheckMark"
+                                  Width="12"
+                                  Height="12"
+                                  Data="{StaticResource AtlasInstaller.Icon.Check}"
+                                  Style="{StaticResource AtlasInstaller.Icon.Stroke}"
+                                  Stroke="#101418"
+                                  StrokeThickness="2.4"
+                                  Visibility="Collapsed"/>
+                        </Border>
+                        <ContentPresenter Grid.Column="1"
+                                          Margin="8,0,0,0"
+                                          VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"
+                                          RecognizesAccessKey="True"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Box" Property="Background" Value="{StaticResource AtlasInstaller.Brush.Gold}"/>
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource AtlasInstaller.Brush.Gold}"/>
+                            <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource AtlasInstaller.Brush.GoldHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45"/>
+                            <Setter Property="Cursor" Value="Arrow"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AtlasInstaller.ProgressBar" TargetType="{x:Type ProgressBar}">
+        <Setter Property="Height" Value="7"/>
+        <Setter Property="Background" Value="#242C34"/>
+        <Setter Property="Foreground" Value="{StaticResource AtlasInstaller.Brush.Cyan}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ProgressBar}">
+                    <Grid ClipToBounds="True">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="3"/>
+                        <Border x:Name="PART_Track" CornerRadius="3" ClipToBounds="True">
+                            <Border x:Name="PART_Indicator"
+                                    HorizontalAlignment="Left"
+                                    Background="{TemplateBinding Foreground}"
+                                    CornerRadius="3"
+                                    Effect="{StaticResource AtlasInstaller.Effect.CyanGlow}"/>
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

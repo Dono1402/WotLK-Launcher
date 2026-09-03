@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\WotLK.Launcher\WotLK.Launcher.csproj" />
+    <ProjectReference Include="..\WotLK.Launcher.Installer\WotLK.Launcher.Installer.csproj" />
     <ProjectReference Include="..\WotLK.Launcher.Server\WotLK.Launcher.Server.csproj" />
   </ItemGroup>
 

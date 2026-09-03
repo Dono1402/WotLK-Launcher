@@ -1,0 +1,57 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <FontFamily x:Key="AtlasInstaller.Font.Manrope">pack://application:,,,/WotLK.Launcher.Installer;component/Assets/Fonts/#Manrope</FontFamily>
+    <BooleanToVisibilityConverter x:Key="AtlasInstaller.BooleanToVisibility"/>
+
+    <Color x:Key="AtlasInstaller.Color.Window">#090D12</Color>
+    <Color x:Key="AtlasInstaller.Color.Surface">#11161C</Color>
+    <Color x:Key="AtlasInstaller.Color.SurfaceRaised">#171D24</Color>
+    <Color x:Key="AtlasInstaller.Color.SurfaceHover">#1E2630</Color>
+    <Color x:Key="AtlasInstaller.Color.Border">#2A333D</Color>
+    <Color x:Key="AtlasInstaller.Color.BorderStrong">#3A4652</Color>
+    <Color x:Key="AtlasInstaller.Color.Text">#F3F5F7</Color>
+    <Color x:Key="AtlasInstaller.Color.TextMuted">#A8B2BE</Color>
+    <Color x:Key="AtlasInstaller.Color.TextDim">#75818E</Color>
+    <Color x:Key="AtlasInstaller.Color.Gold">#E0B354</Color>
+    <Color x:Key="AtlasInstaller.Color.GoldHover">#EAC36E</Color>
+    <Color x:Key="AtlasInstaller.Color.Cyan">#5BD6E8</Color>
+    <Color x:Key="AtlasInstaller.Color.Green">#58D7A2</Color>
+    <Color x:Key="AtlasInstaller.Color.Red">#ED7079</Color>
+    <Color x:Key="AtlasInstaller.Color.WarningSurface">#241F15</Color>
+    <Color x:Key="AtlasInstaller.Color.ErrorSurface">#26171B</Color>
+
+    <SolidColorBrush x:Key="AtlasInstaller.Brush.Window" Color="{StaticResource AtlasInstaller.Color.Window}"/>
+    <SolidColorBrush x:Key="AtlasInstaller.Brush.Surface" Color="{StaticResource AtlasInstaller.Color.Surface}"/>
+    <SolidColorBrush x:Key="AtlasInstaller.Brush.SurfaceRaised" Color="{StaticResource AtlasInstaller.Color.SurfaceRaised}"/>
+    <SolidColorBrush x:Key="AtlasInstaller.Brush.SurfaceHover" Color="{StaticResource AtlasInstaller.Color.SurfaceHover}"/>
+    <SolidColorBrush x:Key="AtlasInstaller.Brush.Border" Color="{StaticResource AtlasInstaller.Color.Border}"/>
+    <SolidColorBrush x:Key="AtlasInstaller.Brush.BorderStrong" Color="{StaticResource AtlasInstaller.Color.BorderStrong}"/>
+    <SolidColorBrush x:Key="AtlasInstaller.Brush.Text" Color="{StaticResource AtlasInstaller.Color.Text}"/>
+    <SolidColorBrush x:Key="AtlasInstaller.Brush.TextMuted" Color="{StaticResource AtlasInstaller.Color.TextMuted}"/>
+    <SolidColorBrush x:Key="AtlasInstaller.Brush.TextDim" Color="{StaticResource AtlasInstaller.Color.TextDim}"/>
+    <SolidColorBrush x:Key="AtlasInstaller.Brush.Gold" Color="{StaticResource AtlasInstaller.Color.Gold}"/>
+    <SolidColorBrush x:Key="AtlasInstaller.Brush.GoldHover" Color="{StaticResource AtlasInstaller.Color.GoldHover}"/>
+    <SolidColorBrush x:Key="AtlasInstaller.Brush.Cyan" Color="{StaticResource AtlasInstaller.Color.Cyan}"/>
+    <SolidColorBrush x:Key="AtlasInstaller.Brush.Green" Color="{StaticResource AtlasInstaller.Color.Green}"/>
+    <SolidColorBrush x:Key="AtlasInstaller.Brush.Red" Color="{StaticResource AtlasInstaller.Color.Red}"/>
+    <SolidColorBrush x:Key="AtlasInstaller.Brush.WarningSurface" Color="{StaticResource AtlasInstaller.Color.WarningSurface}"/>
+    <SolidColorBrush x:Key="AtlasInstaller.Brush.ErrorSurface" Color="{StaticResource AtlasInstaller.Color.ErrorSurface}"/>
+
+    <BitmapImage x:Key="AtlasInstaller.Image.Logo"
+                 UriSource="/WotLK.Launcher.Installer;component/Assets/Branding/AtlasLauncherLogo.png"/>
+    <BitmapImage x:Key="AtlasInstaller.Image.Icecrown"
+                 UriSource="/WotLK.Launcher.Installer;component/Assets/Images/ArthasIcecrownHero.png"/>
+
+    <DropShadowEffect x:Key="AtlasInstaller.Effect.WindowShadow"
+                      BlurRadius="28"
+                      Direction="270"
+                      ShadowDepth="8"
+                      Color="#000000"
+                      Opacity="0.55"/>
+    <DropShadowEffect x:Key="AtlasInstaller.Effect.CyanGlow"
+                      BlurRadius="10"
+                      Direction="0"
+                      ShadowDepth="0"
+                      Color="{StaticResource AtlasInstaller.Color.Cyan}"
+                      Opacity="0.34"/>
+</ResourceDictionary>

@@ -1,4 +1,7 @@
+using System.Runtime.CompilerServices;
 using System.Windows;
+
+[assembly: InternalsVisibleTo("WotLK.Launcher.IntegrationTests")]
 
 [assembly:ThemeInfo(
     ResourceDictionaryLocation.None,            //where theme specific resource dictionaries are located

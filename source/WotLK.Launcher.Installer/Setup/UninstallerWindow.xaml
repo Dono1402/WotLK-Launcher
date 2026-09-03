@@ -1,0 +1,127 @@
+<Window x:Class="WotLK.Launcher.Installer.Setup.UninstallerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Désinstallation d’Atlas Launcher"
+        Icon="/WotLK.Launcher.Installer;component/Assets/AppIcon.ico"
+        Width="680"
+        Height="430"
+        MinWidth="620"
+        MinHeight="390"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="CanMinimize"
+        Background="Transparent"
+        AllowsTransparency="False"
+        FontFamily="{DynamicResource AtlasInstaller.Font.Manrope}"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        Closing="Window_Closing">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Resources/AtlasInstaller.Controls.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Border Background="{StaticResource AtlasInstaller.Brush.Window}"
+            BorderBrush="{StaticResource AtlasInstaller.Brush.BorderStrong}"
+            BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="54"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="76"/>
+            </Grid.RowDefinitions>
+
+            <Border Background="#0D1217"
+                    BorderBrush="{StaticResource AtlasInstaller.Brush.Border}"
+                    BorderThickness="0,0,0,1"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid>
+                    <StackPanel Margin="17,0,0,0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Image Width="30" Height="30" Source="{StaticResource AtlasInstaller.Image.Logo}"/>
+                        <TextBlock Margin="10,0,0,0"
+                                   VerticalAlignment="Center"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource AtlasInstaller.Brush.Text}"
+                                   Text="Désinstallation d’Atlas Launcher"/>
+                    </StackPanel>
+                    <Button x:Name="CloseButton"
+                            HorizontalAlignment="Right"
+                            Style="{StaticResource AtlasInstaller.WindowButton}"
+                            Click="Close_Click">
+                        <Path Width="17"
+                              Height="17"
+                              Data="{StaticResource AtlasInstaller.Icon.Close}"
+                              Style="{StaticResource AtlasInstaller.Icon.Stroke}"
+                              Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"/>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1" Margin="42,34,42,28">
+                <StackPanel>
+                    <TextBlock x:Name="EyebrowText"
+                               FontSize="11"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource AtlasInstaller.Brush.Gold}"
+                               Text="ATLAS LAUNCHER"/>
+                    <TextBlock x:Name="TitleText"
+                               Margin="0,8,0,0"
+                               FontSize="29"
+                               FontWeight="ExtraBold"
+                               Foreground="{StaticResource AtlasInstaller.Brush.Text}"
+                               Text="Désinstaller Atlas Launcher ?"/>
+                    <TextBlock x:Name="MessageText"
+                               Margin="0,12,0,0"
+                               FontSize="14"
+                               Foreground="{StaticResource AtlasInstaller.Brush.TextMuted}"
+                               TextWrapping="Wrap"
+                               Text="Le launcher et ses raccourcis seront supprimés. Le client WoW, les addons et tes données Atlas sous LocalAppData seront conservés."/>
+                    <ProgressBar x:Name="RemovalProgress"
+                                 Margin="0,28,0,0"
+                                 Height="8"
+                                 IsIndeterminate="True"
+                                 Visibility="Collapsed"
+                                 Style="{StaticResource AtlasInstaller.ProgressBar}"/>
+                    <Border x:Name="StatusPanel"
+                            Margin="0,24,0,0"
+                            Padding="16,13"
+                            Background="{StaticResource AtlasInstaller.Brush.Surface}"
+                            BorderBrush="{StaticResource AtlasInstaller.Brush.Border}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Visibility="Collapsed">
+                        <TextBlock x:Name="StatusText"
+                                   FontSize="13"
+                                   Foreground="{StaticResource AtlasInstaller.Brush.TextMuted}"
+                                   TextWrapping="Wrap"/>
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+            <Border Grid.Row="2"
+                    Background="#0E1318"
+                    BorderBrush="{StaticResource AtlasInstaller.Brush.Border}"
+                    BorderThickness="0,1,0,0">
+                <Grid Margin="28,0">
+                    <Button x:Name="CancelButton"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource AtlasInstaller.Button.Ghost}"
+                            Content="Annuler"
+                            Click="Cancel_Click"/>
+                    <Button x:Name="PrimaryButton"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            IsDefault="True"
+                            Style="{StaticResource AtlasInstaller.Button.Primary}"
+                            Content="Désinstaller"
+                            Click="Primary_Click"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

@@ -1,94 +1,101 @@
-# Atlas Launcher Setup Wizard
+# Atlas Launcher Windows Setup
 
-This checkpoint introduces only the visual WPF wizard and its isolated preview
-state. `App.xaml.cs`, `MainWindow`, `InstallerServices`, the application manifest,
-the embedded launcher payload, and the existing install/uninstall behavior are
-unchanged.
+`WotLK.Launcher.Installer` is the offline, per-machine x64 setup for Atlas
+Launcher. Its stable distribution filename is `AtlasLauncherSetup.exe`.
 
-## Preview boundary
-
-- `InstallerWizardWindow` consumes only `InstallerWizardUiState`.
-- Every preview transition is local and deterministic.
-- No preview type references `InstallerServices`, `Process`, the registry,
-  shortcuts, the network, or the file system.
-- The IntegrationTests process hosts the WPF window without elevation and saves
-  captures under the ignored `artifacts/` directory.
-- The legacy installer remains the default entry point until the functional
-  installer checkpoint is explicitly approved.
-- Manrope is linked from the launcher assets under SIL OFL 1.1; the pinned source,
-  hashes, and licence are documented in `../WotLK.Launcher/Assets/ATTRIBUTIONS.md`.
-- The Atlas logo and Icecrown image reuse the existing product-owned launcher
-  assets. No preview-only generated replacement is introduced.
-
-## Product and target
+## Product contract
 
 - Product: **Atlas Launcher**
 - Bootstrap payload: **1.1.2**
-- Embedded payload SHA-256: `690f0afed2010affef628115f6602815d9017e20189224300b79e3885c7ab2b6`
-- Stable future distribution filename: `AtlasLauncherSetup.exe`
-- Published PE architecture verified for launcher and installer: **x64**
+- Payload size: `79,820,116` bytes
+- Payload SHA-256: `690f0afed2010affef628115f6602815d9017e20189224300b79e3885c7ab2b6`
+- Technical launcher filename: `WotLK.Launcher.exe`
 - Default destination: `%ProgramFiles%\Atlas Launcher`
+- Publisher: **AnimeClub**
+- Uninstall key: `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\AtlasLauncher`
 
-The x86 Program Files directory must only be selected by a genuinely x86
-distribution. The destination policy will accept absolute paths on local fixed
-drives, including spaces and accented characters. It will reject relative paths,
-UNC/network paths, drive roots, Windows directories, the WoW client directory,
-invalid paths, and locations that cannot be prepared safely.
+Setup never reads the production update manifest and never uses the network. The
+embedded launcher owns all later signed HTTPS self-updates.
 
-## Functional composition planned after visual approval
+## Runtime boundary
 
-The existing installer project remains the only installer executable. The future
-composition will separate the unelevated wizard from a narrowly scoped elevated
-apply mode in the same signed binary:
+The parameterless `InstallerWizardWindow` is the real setup. Its preview
+constructor continues to use only deterministic local state and is hosted by the
+IntegrationTests executable without UAC. Preview scenarios do not compose the
+registry, shortcuts, process launch, payload extraction, or folder picker.
 
-1. The normal wizard runs at user integrity and builds an immutable install plan.
-2. Starting installation launches the same setup binary with `runas` and a
-   validated, local plan identifier.
-3. The elevated apply mode stages files beside the destination, verifies the
-   embedded launcher payload, then commits files, shortcuts, and registry state.
-4. Any failure rolls back only artifacts created by that attempt and writes
-   technical details to `%LocalAppData%\Atlas Launcher\Installer\install.log`.
-5. Completion is returned to the unelevated wizard. Launching Atlas Launcher is
-   delegated through the interactive Explorer shell so it cannot inherit the
-   administrator token.
+The distribution manifest uses `requireAdministrator`, so the complete setup is
+elevated once. Atlas Launcher itself is never marked as elevated. At completion,
+the setup delegates launch to the Explorer-hosted shell and therefore creates a
+Medium-integrity process with the installation directory as its working folder.
 
-There is no download during installation and no dependency on the production
-update manifest. The embedded 1.1.2 launcher owns all later signed HTTPS updates.
+## Transaction
 
-## Windows registration
+`InstallerEngine` performs one single-flight transaction:
 
-The functional checkpoint will use the 64-bit HKLM uninstall view for this x64
-package and a stable Atlas-specific key. It will register `DisplayName`,
-`DisplayVersion`, `Publisher` (`AnimeClub`), `InstallLocation`, `DisplayIcon`,
-`UninstallString`, `InstallDate`, `EstimatedSize`, `NoModify`, and `NoRepair`.
-`QuietUninstallString` will only be retained if the quiet flow receives dedicated
-tests.
+1. detect and block any registered or on-disk legacy launcher;
+2. validate destination, access, drive type, and free space;
+3. create a staging directory beside the destination;
+4. stream the embedded payload to a partial file while measuring bytes and
+   computing SHA-256;
+5. copy the setup as `Uninstall.exe` and write the install state;
+6. atomically move staging into the destination;
+7. create selected shortcuts;
+8. write the x64 HKLM uninstall registration last;
+9. finalize the log and state.
 
-The installed `Uninstall.exe` will remove the launcher files, optional shortcuts,
-its own uninstall entry, and itself. It must preserve WoW, addons, `Config.wtf`,
-`.atlas-addons.json`, and all Atlas user data under LocalAppData.
+On failure, the registration, owned shortcuts, committed destination, staging,
+and empty parent directories created by that attempt are rolled back. A
+pre-existing empty destination is restored as an empty directory.
 
-## Progress and rollback
+Technical details are appended to
+`%LocalAppData%\Atlas Launcher\Installer\install.log`; token/password/secret and
+Bearer-shaped values are redacted.
 
-The functional progress model will report measured payload bytes plus completed
-commit phases: preparation, destination creation, file installation, shortcuts,
-Windows registration, and finalization. It will never advance from a timer.
-Navigation and cancellation remain disabled while an atomic phase cannot be
-rolled back safely.
+## Uninstaller size decision
 
-Existing installations are only detected and blocked. No legacy files are read,
-adopted, upgraded, repaired, or removed by the new setup flow.
+The installed `Uninstall.exe` is an exact copy of the standalone setup. This
+keeps uninstall independent of an installed .NET runtime and avoids a fifth
+project, but it duplicates the full setup size inside the installation. For the
+04D.2 Release artifact, the setup/uninstaller is `185,191,513` bytes, the exact
+installed footprint is `265,012,637` bytes, and the free-space check requires
+`332,120,493` bytes after adding the 64 MiB safety margin.
 
-## Manual preview
+The uninstaller asks for confirmation in interactive mode and supports a tested
+`--quiet` mode used by `QuietUninstallString`. It only removes the files listed by
+the validated install state, owned shortcuts, and the matching x64 uninstall
+key. It refuses to continue while the exact installed launcher path is running.
+It never targets WoW, addons, `Config.wtf`, `.atlas-addons.json`, or Atlas data in
+LocalAppData. A hidden post-exit PowerShell command removes `Uninstall.exe` and
+the now-empty installation directory.
 
-The IntegrationTests host opens the real WPF wizard without UAC or system-side
-installation effects:
+## Build
+
+From the repository root:
 
 ```powershell
-& 'C:\Users\Dono\.dotnet\sdk-8.0.424\dotnet.exe' run --project 'source\WotLK.Launcher.IntegrationTests\WotLK.Launcher.IntegrationTests.csproj' -c Release --no-build -- --installer-preview-show welcome
+& '.\scripts\build-atlas-installer.ps1'
 ```
 
-Replace `welcome` with `destination`, `options`, `ready`, `installing`,
-`completed`, `invalid-path`, `insufficient-space`, `existing-installation`, or
-`install-error`. `F12` is a harness-only escape hatch, including from the locked
-critical-installation preview.
+The script uses `C:\Users\Dono\.dotnet\sdk-8.0.424\dotnet.exe` explicitly,
+validates the payload before publish, and leaves only
+`artifacts\AtlasLauncherSetup\AtlasLauncherSetup.exe` in the distribution
+directory.
+
+## Test entry points
+
+```powershell
+& 'C:\Users\Dono\.dotnet\sdk-8.0.424\dotnet.exe' run --project 'source\WotLK.Launcher.IntegrationTests\WotLK.Launcher.IntegrationTests.csproj' -c Release --no-build -- --installer-preview
+& 'C:\Users\Dono\.dotnet\sdk-8.0.424\dotnet.exe' run --project 'source\WotLK.Launcher.IntegrationTests\WotLK.Launcher.IntegrationTests.csproj' -c Release --no-build -- --installer-runtime
+& 'C:\Users\Dono\.dotnet\sdk-8.0.424\dotnet.exe' run --project 'source\WotLK.Launcher.IntegrationTests\WotLK.Launcher.IntegrationTests.csproj' -c Release --no-build -- --installer-runtime-artifact 'artifacts\AtlasLauncherSetup\AtlasLauncherSetup.exe'
+```
+
+The elevated Program Files/HKLM suite uses unique `Atlas Launcher 04D2 Test`
+paths and registry keys. It snapshots the existing WotLK launcher, LocalAppData,
+and WoW paths before and after every run. From an Administrator PowerShell:
+
+```powershell
+$result = 'artifacts\installer-04d2-elevated-result.txt'
+& 'C:\Users\Dono\.dotnet\sdk-8.0.424\dotnet.exe' run --project 'source\WotLK.Launcher.IntegrationTests\WotLK.Launcher.IntegrationTests.csproj' -c Release --no-build -- --installer-runtime-elevated 'artifacts\AtlasLauncherSetup\AtlasLauncherSetup.exe' $result
+Get-Content -LiteralPath $result
+```

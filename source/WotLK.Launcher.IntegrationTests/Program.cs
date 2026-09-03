@@ -265,6 +265,36 @@ if (args.Length >= 1
 }
 
 if (args.Length == 1
+    && string.Equals(args[0], "--installer-runtime", StringComparison.OrdinalIgnoreCase))
+{
+    return await InstallerRuntimeTests.RunAsync();
+}
+
+if (args.Length == 3
+    && string.Equals(args[0], "--installer-runtime-elevated", StringComparison.OrdinalIgnoreCase))
+{
+    return await InstallerRuntimeTests.RunElevatedAsync(args[1], args[2]);
+}
+
+if (args.Length == 2
+    && string.Equals(args[0], "--installer-runtime-artifact", StringComparison.OrdinalIgnoreCase))
+{
+    return await InstallerRuntimeTests.RunArtifactAsync(args[1]);
+}
+
+if (args.Length == 2
+    && string.Equals(args[0], "--installer-integrity-probe", StringComparison.OrdinalIgnoreCase))
+{
+    return await InstallerRuntimeTests.WriteIntegrityProbeAsync(args[1]);
+}
+
+if (args.Length == 1
+    && string.Equals(args[0], "--installer-unelevated-launch", StringComparison.OrdinalIgnoreCase))
+{
+    return await InstallerRuntimeTests.RunUnelevatedLaunchAsync();
+}
+
+if (args.Length == 1
     && string.Equals(args[0], "--avatar-foundation", StringComparison.OrdinalIgnoreCase))
 {
     return await AvatarFoundationTests.RunAsync();

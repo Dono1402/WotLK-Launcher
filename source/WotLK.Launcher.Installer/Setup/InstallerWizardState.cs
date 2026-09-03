@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Runtime.CompilerServices;
 
 namespace WotLK.Launcher.Installer.Setup;
 
@@ -48,6 +47,10 @@ internal sealed record InstallerStepItem(
     string Label,
     InstallerStepStatus Status);
 
+internal sealed record InstallerPhaseItem(
+    string Label,
+    InstallerStepStatus Status);
+
 internal sealed record InstallerWizardViewState(
     InstallerPreviewScenario Scenario,
     InstallerWizardStep Step,
@@ -58,11 +61,20 @@ internal sealed record InstallerWizardViewState(
     InstallerNoticeKind Notice,
     double ProgressPercent,
     string ProgressPhase,
-    string ProgressDetail)
+    string ProgressDetail,
+    long RequiredBytes = 0,
+    long? AvailableBytes = null,
+    string? NoticeTitleOverride = null,
+    string? NoticeMessageOverride = null,
+    bool? CanPrimaryActionOverride = null,
+    bool? CanCancelOverride = null,
+    bool? CanCloseWindowOverride = null,
+    bool CanOpenInstalledApps = false,
+    InstallerWorkPhase ActiveWorkPhase = InstallerWorkPhase.InstallingFiles)
 {
-    internal const string ProductName = "Atlas Launcher";
-    internal const string ProductVersion = "1.1.2";
-    internal const string DefaultInstallPath = @"C:\Program Files\Atlas Launcher";
+    internal const string ProductName = InstallerProduct.Name;
+    internal const string ProductVersion = InstallerProduct.Version;
+    internal static string DefaultInstallPath => InstallerProduct.GetDefaultInstallPath();
 
     public string HeaderEyebrow => Notice switch
     {
@@ -77,7 +89,7 @@ internal sealed record InstallerWizardViewState(
         InstallerNoticeKind.InstallError => "Installation interrompue",
         _ => Step switch
         {
-            InstallerWizardStep.Welcome => "Bienvenue dans Atlas Launcher",
+            InstallerWizardStep.Welcome => "Bienvenue dans l’assistant d’installation",
             InstallerWizardStep.Destination => "Choisir le dossier d’installation",
             InstallerWizardStep.Options => "Options supplémentaires",
             InstallerWizardStep.Ready => "Prêt à installer",
@@ -95,7 +107,7 @@ internal sealed record InstallerWizardViewState(
         _ => Step switch
         {
             InstallerWizardStep.Welcome =>
-                "Cet assistant installera Atlas Launcher 1.1.2 sur cet ordinateur.",
+                "Cet assistant va installer Atlas Launcher 1.1.2 sur cet ordinateur.",
             InstallerWizardStep.Destination =>
                 "Sélectionne l’emplacement réservé au launcher. Le client WoW reste séparé.",
             InstallerWizardStep.Options =>
@@ -108,7 +120,7 @@ internal sealed record InstallerWizardViewState(
         }
     };
 
-    public string NoticeTitle => Notice switch
+    public string NoticeTitle => NoticeTitleOverride ?? Notice switch
     {
         InstallerNoticeKind.InvalidPath => "Ce dossier ne peut pas être utilisé",
         InstallerNoticeKind.InsufficientSpace => "Espace disque insuffisant",
@@ -117,7 +129,7 @@ internal sealed record InstallerWizardViewState(
         _ => string.Empty
     };
 
-    public string NoticeMessage => Notice switch
+    public string NoticeMessage => NoticeMessageOverride ?? Notice switch
     {
         InstallerNoticeKind.InvalidPath =>
             "Choisis un dossier local absolu qui n’est ni une racine de disque, ni Windows, ni le client WoW.",
@@ -130,11 +142,15 @@ internal sealed record InstallerWizardViewState(
         _ => string.Empty
     };
 
-    public string RequiredSpaceText => "285 Mo requis";
+    public string RequiredSpaceText => RequiredBytes > 0
+        ? InstallerPathValidator.FormatBytes(RequiredBytes) + " requis"
+        : "285 Mo requis";
 
-    public string AvailableSpaceText => Notice == InstallerNoticeKind.InsufficientSpace
-        ? "42 Mo disponibles"
-        : "186 Go disponibles";
+    public string AvailableSpaceText => AvailableBytes.HasValue
+        ? InstallerPathValidator.FormatBytes(AvailableBytes.Value) + " disponibles"
+        : Notice == InstallerNoticeKind.InsufficientSpace
+            ? "42 Mo disponibles"
+            : "186 Go disponibles";
 
     public string DesktopShortcutSummary => CreateDesktopShortcut ? "Oui" : "Non";
 
@@ -153,10 +169,11 @@ internal sealed record InstallerWizardViewState(
         }
     };
 
-    public bool CanPrimaryAction => Notice == InstallerNoticeKind.InstallError
+    public bool CanPrimaryAction => CanPrimaryActionOverride ?? (
+        Notice == InstallerNoticeKind.InstallError
         || (Notice is not (
                 InstallerNoticeKind.InvalidPath or InstallerNoticeKind.InsufficientSpace)
-            && Step != InstallerWizardStep.Installing);
+            && Step != InstallerWizardStep.Installing));
 
     public bool CanGoBack => Notice is not (
             InstallerNoticeKind.ExistingInstallation or InstallerNoticeKind.InstallError)
@@ -165,12 +182,14 @@ internal sealed record InstallerWizardViewState(
             or InstallerWizardStep.Options
             or InstallerWizardStep.Ready);
 
-    public bool CanCancel => Notice == InstallerNoticeKind.InstallError
+    public bool CanCancel => CanCancelOverride ?? (
+        Notice == InstallerNoticeKind.InstallError
         || (Step != InstallerWizardStep.Installing
-            && Step != InstallerWizardStep.Completed);
+            && Step != InstallerWizardStep.Completed));
 
-    public bool CanCloseWindow => Notice == InstallerNoticeKind.InstallError
-        || Step != InstallerWizardStep.Installing;
+    public bool CanCloseWindow => CanCloseWindowOverride ?? (
+        Notice == InstallerNoticeKind.InstallError
+        || Step != InstallerWizardStep.Installing);
 
     public bool ShowBack => Step != InstallerWizardStep.Welcome
         && Step != InstallerWizardStep.Installing
@@ -195,6 +214,8 @@ internal sealed record InstallerWizardViewState(
 
     public IReadOnlyList<InstallerStepItem> Steps => CreateSteps(Step);
 
+    public IReadOnlyList<InstallerPhaseItem> Phases => CreatePhases(ActiveWorkPhase);
+
     private static IReadOnlyList<InstallerStepItem> CreateSteps(InstallerWizardStep activeStep)
     {
         string[] labels =
@@ -217,20 +238,42 @@ internal sealed record InstallerWizardViewState(
                     ? InstallerStepStatus.Active
                     : InstallerStepStatus.Pending)).ToArray();
     }
+
+    private static IReadOnlyList<InstallerPhaseItem> CreatePhases(InstallerWorkPhase activePhase)
+    {
+        string[] labels =
+        [
+            "Préparation",
+            "Création du dossier",
+            "Installation des fichiers",
+            "Création des raccourcis",
+            "Enregistrement dans Windows",
+            "Finalisation"
+        ];
+        int active = (int)activePhase;
+        return labels.Select((label, index) => new InstallerPhaseItem(
+            label,
+            index < active
+                ? InstallerStepStatus.Completed
+                : index == active
+                    ? InstallerStepStatus.Active
+                    : InstallerStepStatus.Pending)).ToArray();
+    }
 }
 
 internal sealed class InstallerWizardUiState : INotifyPropertyChanged
 {
     private InstallerWizardViewState _current;
 
-    internal InstallerWizardUiState(InstallerWizardViewState initial)
+    internal InstallerWizardUiState(InstallerWizardViewState initial, bool isPreview = true)
     {
         _current = initial ?? throw new ArgumentNullException(nameof(initial));
+        IsPreview = isPreview;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    internal bool IsPreview => true;
+    internal bool IsPreview { get; }
 
     public InstallerWizardViewState Current
     {
@@ -247,8 +290,11 @@ internal sealed class InstallerWizardUiState : INotifyPropertyChanged
         }
     }
 
+    internal void Replace(InstallerWizardViewState state) => Current = state;
+
     internal void MoveNext()
     {
+        DemandPreview();
         if (!Current.CanPrimaryAction)
         {
             return;
@@ -282,19 +328,13 @@ internal sealed class InstallerWizardUiState : INotifyPropertyChanged
 
         if (next != Current.Scenario)
         {
-            InstallerWizardViewState candidate = InstallerWizardPreviewData.Create(next);
-            Current = candidate with
-            {
-                InstallPath = Current.InstallPath,
-                CreateDesktopShortcut = Current.CreateDesktopShortcut,
-                CreateStartMenuShortcut = Current.CreateStartMenuShortcut,
-                LaunchAfterInstall = Current.LaunchAfterInstall
-            };
+            Current = PreserveSelections(InstallerWizardPreviewData.Create(next));
         }
     }
 
     internal void MoveBack()
     {
+        DemandPreview();
         if (!Current.CanGoBack)
         {
             return;
@@ -307,40 +347,57 @@ internal sealed class InstallerWizardUiState : INotifyPropertyChanged
             InstallerWizardStep.Ready => InstallerPreviewScenario.Options,
             _ => Current.Scenario
         };
+        Current = PreserveSelections(InstallerWizardPreviewData.Create(previous));
+    }
 
-        InstallerWizardViewState candidate = InstallerWizardPreviewData.Create(previous);
-        Current = candidate with
+    internal void ToggleDesktopShortcut()
+    {
+        DemandPreview();
+        Current = Current with { CreateDesktopShortcut = !Current.CreateDesktopShortcut };
+    }
+
+    internal void ToggleStartMenuShortcut()
+    {
+        DemandPreview();
+        Current = Current with { CreateStartMenuShortcut = !Current.CreateStartMenuShortcut };
+    }
+
+    internal void ToggleLaunchAfterInstall()
+    {
+        DemandPreview();
+        Current = Current with { LaunchAfterInstall = !Current.LaunchAfterInstall };
+    }
+
+    internal void SelectPreviewFolder()
+    {
+        DemandPreview();
+        Current = Current with
+        {
+            InstallPath = @"D:\Applications\Atlas Launcher",
+            Notice = InstallerNoticeKind.None
+        };
+    }
+
+    internal void SetPreviewPath(string path)
+    {
+        DemandPreview();
+        Current = Current with { InstallPath = path };
+    }
+
+    private InstallerWizardViewState PreserveSelections(InstallerWizardViewState candidate) =>
+        candidate with
         {
             InstallPath = Current.InstallPath,
             CreateDesktopShortcut = Current.CreateDesktopShortcut,
             CreateStartMenuShortcut = Current.CreateStartMenuShortcut,
             LaunchAfterInstall = Current.LaunchAfterInstall
         };
+
+    private void DemandPreview()
+    {
+        if (!IsPreview)
+        {
+            throw new InvalidOperationException("Une transition fictive a été appelée en mode réel.");
+        }
     }
-
-    internal void ToggleDesktopShortcut() => Current = Current with
-    {
-        CreateDesktopShortcut = !Current.CreateDesktopShortcut
-    };
-
-    internal void ToggleStartMenuShortcut() => Current = Current with
-    {
-        CreateStartMenuShortcut = !Current.CreateStartMenuShortcut
-    };
-
-    internal void ToggleLaunchAfterInstall() => Current = Current with
-    {
-        LaunchAfterInstall = !Current.LaunchAfterInstall
-    };
-
-    internal void SelectPreviewFolder() => Current = Current with
-    {
-        InstallPath = @"D:\Applications\Atlas Launcher",
-        Notice = InstallerNoticeKind.None
-    };
-
-    internal void SetPreviewPath(string path) => Current = Current with
-    {
-        InstallPath = path
-    };
 }

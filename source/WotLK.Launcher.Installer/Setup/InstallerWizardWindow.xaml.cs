@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using System.IO;
+using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Input;
 
@@ -6,24 +8,32 @@ namespace WotLK.Launcher.Installer.Setup;
 
 public partial class InstallerWizardWindow : Window
 {
+    private readonly InstallerWizardRuntime? _runtime;
     private bool _allowClose;
+    private bool _initialized;
+    private InstallerWizardStep _lastStep;
+    private InstallerNoticeKind _lastNotice;
+
+    public InstallerWizardWindow()
+    {
+        InstallerManropeValidator.ValidateOrThrow();
+        _runtime = InstallerWizardRuntime.CreateProduction();
+        State = _runtime.State;
+        InitializeWindow();
+    }
 
     internal InstallerWizardWindow(InstallerPreviewScenario scenario)
     {
         InstallerManropeValidator.ValidateOrThrow();
         State = new InstallerWizardUiState(InstallerWizardPreviewData.Create(scenario));
-        InitializeComponent();
-        DataContext = State;
-        State.PropertyChanged += State_PropertyChanged;
-        Loaded += Window_Loaded;
-        SizeChanged += Window_SizeChanged;
+        InitializeWindow();
     }
 
     internal InstallerWizardUiState State { get; }
 
     internal bool IsPreviewMode => State.IsPreview;
 
-    internal int SystemEffectCount => 0;
+    internal int SystemEffectCount => _runtime?.SystemEffectCount ?? 0;
 
     internal void CloseForTest()
     {
@@ -31,9 +41,26 @@ public partial class InstallerWizardWindow : Window
         Close();
     }
 
+    private void InitializeWindow()
+    {
+        _lastStep = State.Current.Step;
+        _lastNotice = State.Current.Notice;
+        InitializeComponent();
+        DataContext = State;
+        State.PropertyChanged += State_PropertyChanged;
+        Loaded += Window_Loaded;
+        SizeChanged += Window_SizeChanged;
+    }
+
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
         ApplyResponsiveLayout();
+        if (!_initialized)
+        {
+            _initialized = true;
+            _runtime?.Initialize();
+        }
+
         PrimaryButton.Focus();
     }
 
@@ -56,27 +83,58 @@ public partial class InstallerWizardWindow : Window
             return;
         }
 
-        WizardScrollHost.ScrollToTop();
-        Dispatcher.BeginInvoke(() => PrimaryButton.Focus());
+        bool blockingNoticeChanged = State.Current.Notice != _lastNotice
+            && (State.Current.Notice is InstallerNoticeKind.ExistingInstallation or InstallerNoticeKind.InstallError
+                || _lastNotice is InstallerNoticeKind.ExistingInstallation or InstallerNoticeKind.InstallError);
+        bool pageChanged = State.Current.Step != _lastStep || blockingNoticeChanged;
+        _lastStep = State.Current.Step;
+        _lastNotice = State.Current.Notice;
+        if (pageChanged)
+        {
+            WizardScrollHost.ScrollToTop();
+            Dispatcher.BeginInvoke(() => PrimaryButton.Focus());
+        }
     }
 
-    private void Primary_Click(object sender, RoutedEventArgs e)
+    private async void Primary_Click(object sender, RoutedEventArgs e)
     {
         if (State.Current.Step == InstallerWizardStep.Completed)
         {
             _allowClose = true;
+            if (_runtime is not null)
+            {
+                Hide();
+                _runtime.FinishAndLaunchIfRequested();
+            }
+
             Close();
             return;
         }
 
-        State.MoveNext();
+        if (State.IsPreview)
+        {
+            State.MoveNext();
+            return;
+        }
+
+        await _runtime!.MoveNextAsync();
     }
 
-    private void Back_Click(object sender, RoutedEventArgs e) => State.MoveBack();
+    private void Back_Click(object sender, RoutedEventArgs e)
+    {
+        if (State.IsPreview)
+        {
+            State.MoveBack();
+        }
+        else
+        {
+            _runtime!.MoveBack();
+        }
+    }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
-        if (!State.Current.CanCancel)
+        if (!State.Current.CanCancel || !ConfirmCancellation())
         {
             return;
         }
@@ -85,29 +143,91 @@ public partial class InstallerWizardWindow : Window
         Close();
     }
 
-    private void Browse_Click(object sender, RoutedEventArgs e) =>
-        State.SelectPreviewFolder();
+    private void Browse_Click(object sender, RoutedEventArgs e)
+    {
+        if (State.IsPreview)
+        {
+            State.SelectPreviewFolder();
+            return;
+        }
 
-    private void DesktopShortcut_Click(object sender, RoutedEventArgs e) =>
-        State.ToggleDesktopShortcut();
+        OpenFolderDialog dialog = new()
+        {
+            Title = "Choisir le dossier d'installation d'Atlas Launcher",
+            InitialDirectory = Directory.Exists(State.Current.InstallPath)
+                ? State.Current.InstallPath
+                : Path.GetDirectoryName(State.Current.InstallPath),
+            Multiselect = false
+        };
+        if (dialog.ShowDialog(this) == true)
+        {
+            _runtime!.SetInstallPath(dialog.FolderName);
+        }
+    }
 
-    private void StartMenuShortcut_Click(object sender, RoutedEventArgs e) =>
-        State.ToggleStartMenuShortcut();
+    private void DesktopShortcut_Click(object sender, RoutedEventArgs e)
+    {
+        if (State.IsPreview)
+        {
+            State.ToggleDesktopShortcut();
+        }
+        else
+        {
+            _runtime!.ToggleDesktopShortcut();
+        }
+    }
 
-    private void LaunchAfterInstall_Click(object sender, RoutedEventArgs e) =>
-        State.ToggleLaunchAfterInstall();
+    private void StartMenuShortcut_Click(object sender, RoutedEventArgs e)
+    {
+        if (State.IsPreview)
+        {
+            State.ToggleStartMenuShortcut();
+        }
+        else
+        {
+            _runtime!.ToggleStartMenuShortcut();
+        }
+    }
+
+    private void LaunchAfterInstall_Click(object sender, RoutedEventArgs e)
+    {
+        if (State.IsPreview)
+        {
+            State.ToggleLaunchAfterInstall();
+        }
+        else
+        {
+            _runtime!.ToggleLaunchAfterInstall();
+        }
+    }
+
+    private void InstallPathTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (!State.IsPreview && _initialized && InstallPathTextBox.Text != State.Current.InstallPath)
+        {
+            _runtime!.SetInstallPath(InstallPathTextBox.Text);
+        }
+    }
 
     private void InstallPathTextBox_LostKeyboardFocus(
         object sender,
-        KeyboardFocusChangedEventArgs e) =>
-        State.SetPreviewPath(InstallPathTextBox.Text);
+        KeyboardFocusChangedEventArgs e)
+    {
+        if (State.IsPreview)
+        {
+            State.SetPreviewPath(InstallPathTextBox.Text);
+        }
+    }
+
+    private void OpenInstalledApps_Click(object sender, RoutedEventArgs e) =>
+        _runtime?.OpenInstalledApps();
 
     private void Minimize_Click(object sender, RoutedEventArgs e) =>
         WindowState = WindowState.Minimized;
 
     private void Close_Click(object sender, RoutedEventArgs e)
     {
-        if (!State.Current.CanCloseWindow)
+        if (!State.Current.CanCloseWindow || !ConfirmCancellation())
         {
             return;
         }
@@ -118,25 +238,15 @@ public partial class InstallerWizardWindow : Window
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ChangedButton != MouseButton.Left)
+        if (e.ChangedButton == MouseButton.Left && e.ClickCount == 1)
         {
-            return;
+            DragMove();
         }
-
-        if (e.ClickCount == 2)
-        {
-            WindowState = WindowState == WindowState.Maximized
-                ? WindowState.Normal
-                : WindowState.Maximized;
-            return;
-        }
-
-        DragMove();
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Escape || !State.Current.CanCancel)
+        if (e.Key != Key.Escape || !State.Current.CanCancel || !ConfirmCancellation())
         {
             return;
         }
@@ -154,8 +264,32 @@ public partial class InstallerWizardWindow : Window
             return;
         }
 
+        if (!_allowClose && !ConfirmCancellation())
+        {
+            e.Cancel = true;
+            return;
+        }
+
         State.PropertyChanged -= State_PropertyChanged;
         Loaded -= Window_Loaded;
         SizeChanged -= Window_SizeChanged;
+        _runtime?.Dispose();
+    }
+
+    private bool ConfirmCancellation()
+    {
+        if (State.IsPreview || State.Current.Step == InstallerWizardStep.Completed)
+        {
+            return true;
+        }
+
+        return MessageBox.Show(
+                this,
+                "Annuler l'installation d'Atlas Launcher ?",
+                "Installation d'Atlas Launcher",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question,
+                MessageBoxResult.No)
+            == MessageBoxResult.Yes;
     }
 }

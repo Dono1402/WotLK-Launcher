@@ -5,15 +5,15 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:setup="clr-namespace:WotLK.Launcher.Installer.Setup"
         mc:Ignorable="d"
-        Title="Installer Atlas Launcher"
+        Title="Installation d’Atlas Launcher"
         Icon="/WotLK.Launcher.Installer;component/Assets/AppIcon.ico"
-        Width="1180"
-        Height="740"
-        MinWidth="1000"
-        MinHeight="640"
+        Width="1080"
+        Height="680"
+        MinWidth="900"
+        MinHeight="600"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
-        ResizeMode="CanResize"
+        ResizeMode="CanMinimize"
         Background="Transparent"
         AllowsTransparency="False"
         FontFamily="{DynamicResource AtlasInstaller.Font.Manrope}"
@@ -97,7 +97,7 @@
                                    FontSize="15"
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource AtlasInstaller.Brush.Text}"
-                                   Text="Installer Atlas Launcher"/>
+                                   Text="Installation d’Atlas Launcher"/>
                         <Border Width="1"
                                 Height="18"
                                 Margin="13,0"
@@ -385,6 +385,7 @@
                                                  Style="{StaticResource AtlasInstaller.PathTextBox}"
                                                  Text="{Binding Current.InstallPath, Mode=OneWay}"
                                                  AutomationProperties.Name="Dossier d’installation"
+                                                 TextChanged="InstallPathTextBox_TextChanged"
                                                  LostKeyboardFocus="InstallPathTextBox_LostKeyboardFocus"/>
                                         <Button x:Name="BrowseButton"
                                                 Grid.Column="1"
@@ -527,7 +528,7 @@
                                                            Text="Créer un raccourci dans le menu Démarrer"/>
                                                 <TextBlock Margin="0,3,0,0"
                                                            Style="{StaticResource AtlasInstaller.Text.Caption}"
-                                                           Text="Ajoute Atlas Launcher à la liste des applications Windows."/>
+                                                           Text="Ajoute Atlas Launcher au menu Démarrer."/>
                                             </StackPanel>
                                         </CheckBox>
                                     </Border>
@@ -630,29 +631,87 @@
 
                                     <StackPanel Margin="0,18,0,0">
                                         <TextBlock Style="{StaticResource AtlasInstaller.Text.Label}" Text="PROGRESSION"/>
-                                        <Grid Margin="0,12,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="24"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Path Width="15" Height="15" Data="{StaticResource AtlasInstaller.Icon.Check}" Style="{StaticResource AtlasInstaller.Icon.Stroke}" Stroke="{StaticResource AtlasInstaller.Brush.Green}"/>
-                                            <TextBlock Grid.Column="1" Margin="7,0,0,0" Style="{StaticResource AtlasInstaller.Text.Body}" Foreground="#CBD4DC" Text="Préparation"/>
-                                        </Grid>
-                                        <Grid Margin="0,10,0,0">
-                                            <Grid.ColumnDefinitions><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <Path Width="15" Height="15" Data="{StaticResource AtlasInstaller.Icon.Check}" Style="{StaticResource AtlasInstaller.Icon.Stroke}" Stroke="{StaticResource AtlasInstaller.Brush.Green}"/>
-                                            <TextBlock Grid.Column="1" Margin="7,0,0,0" Style="{StaticResource AtlasInstaller.Text.Body}" Foreground="#CBD4DC" Text="Création du dossier"/>
-                                        </Grid>
-                                        <Grid Margin="0,10,0,0">
-                                            <Grid.ColumnDefinitions><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <Border Width="9" Height="9" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{StaticResource AtlasInstaller.Brush.Cyan}" CornerRadius="5" Effect="{StaticResource AtlasInstaller.Effect.CyanGlow}"/>
-                                            <TextBlock Grid.Column="1" Margin="7,0,0,0" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource AtlasInstaller.Brush.Cyan}" Text="Installation des fichiers"/>
-                                        </Grid>
-                                        <Grid Margin="0,10,0,0">
-                                            <Grid.ColumnDefinitions><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <Border Width="7" Height="7" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#45515D" CornerRadius="4"/>
-                                            <TextBlock Grid.Column="1" Margin="7,0,0,0" Style="{StaticResource AtlasInstaller.Text.Body}" Foreground="{StaticResource AtlasInstaller.Brush.TextDim}" Text="Raccourcis et enregistrement Windows"/>
-                                        </Grid>
+                                        <ItemsControl Margin="0,12,0,0" ItemsSource="{Binding Current.Phases}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,0,0,8">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="24"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Path Width="15"
+                                                              Height="15"
+                                                              Data="{StaticResource AtlasInstaller.Icon.Check}"
+                                                              Stroke="{StaticResource AtlasInstaller.Brush.Green}">
+                                                            <Path.Style>
+                                                                <Style TargetType="{x:Type Path}" BasedOn="{StaticResource AtlasInstaller.Icon.Stroke}">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Static setup:InstallerStepStatus.Completed}">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Path.Style>
+                                                        </Path>
+                                                        <Border Width="9"
+                                                                Height="9"
+                                                                HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"
+                                                                Background="{StaticResource AtlasInstaller.Brush.Cyan}"
+                                                                CornerRadius="5"
+                                                                Effect="{StaticResource AtlasInstaller.Effect.CyanGlow}">
+                                                            <Border.Style>
+                                                                <Style TargetType="{x:Type Border}">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Static setup:InstallerStepStatus.Active}">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                        </Border>
+                                                        <Border Width="7"
+                                                                Height="7"
+                                                                HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"
+                                                                Background="#45515D"
+                                                                CornerRadius="4">
+                                                            <Border.Style>
+                                                                <Style TargetType="{x:Type Border}">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Static setup:InstallerStepStatus.Pending}">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                        </Border>
+                                                        <TextBlock Grid.Column="1"
+                                                                   Margin="7,0,0,0"
+                                                                   FontSize="14"
+                                                                   Text="{Binding Label}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource AtlasInstaller.Text.Body}">
+                                                                    <Setter Property="Foreground" Value="{StaticResource AtlasInstaller.Brush.TextDim}"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Static setup:InstallerStepStatus.Completed}">
+                                                                            <Setter Property="Foreground" Value="#CBD4DC"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Static setup:InstallerStepStatus.Active}">
+                                                                            <Setter Property="Foreground" Value="{StaticResource AtlasInstaller.Brush.Cyan}"/>
+                                                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                     </StackPanel>
                                 </StackPanel>
 
@@ -710,8 +769,9 @@
                                                 <Button x:Name="OpenInstalledAppsButton"
                                                         Margin="0,16,0,0"
                                                         HorizontalAlignment="Left"
-                                                        IsEnabled="False"
-                                                        Style="{StaticResource AtlasInstaller.Button.Secondary}">
+                                                        IsEnabled="{Binding Current.CanOpenInstalledApps}"
+                                                        Style="{StaticResource AtlasInstaller.Button.Secondary}"
+                                                        Click="OpenInstalledApps_Click">
                                                     <StackPanel Orientation="Horizontal">
                                                         <Path Width="16" Height="16" Data="{StaticResource AtlasInstaller.Icon.ExternalLink}" Style="{StaticResource AtlasInstaller.Icon.Stroke}" Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"/>
                                                         <TextBlock Margin="8,0,0,0" Text="Ouvrir les applications installées"/>

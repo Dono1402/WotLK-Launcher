@@ -216,6 +216,24 @@ if (args.Length == 1
 }
 
 if (args.Length == 1
+    && string.Equals(args[0], "--launcher-installed-app-version", StringComparison.OrdinalIgnoreCase))
+{
+    return await LauncherInstalledAppVersionTests.RunAsync();
+}
+
+if (args.Length == 1
+    && string.Equals(args[0], "--launcher-installed-app-version-windows-smoke", StringComparison.OrdinalIgnoreCase))
+{
+    return LauncherInstalledAppVersionTests.RunWindowsSmoke();
+}
+
+if (args.Length == 1
+    && string.Equals(args[0], "--launcher-installed-app-version-windows-smoke-elevated", StringComparison.OrdinalIgnoreCase))
+{
+    return LauncherInstalledAppVersionTests.RunElevatedWindowsSmoke();
+}
+
+if (args.Length == 1
     && string.Equals(args[0], "--secure-self-update", StringComparison.OrdinalIgnoreCase))
 {
     return await LauncherSelfUpdateSecurityTests.RunAsync();

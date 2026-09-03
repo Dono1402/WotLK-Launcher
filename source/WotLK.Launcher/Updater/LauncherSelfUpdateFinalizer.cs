@@ -34,6 +34,7 @@ internal sealed class LauncherSelfUpdateFinalizer : ILauncherSelfUpdateFinalizer
         string downloadedCandidatePath,
         long expectedSize,
         string expectedSha256,
+        string authenticatedTargetVersion,
         int parentProcessId,
         CancellationToken cancellationToken)
     {
@@ -49,7 +50,8 @@ internal sealed class LauncherSelfUpdateFinalizer : ILauncherSelfUpdateFinalizer
         if (expectedSize <= 0
             || string.IsNullOrWhiteSpace(expectedSha256)
             || expectedSha256.Length != 64
-            || !expectedSha256.All(Uri.IsHexDigit))
+            || !expectedSha256.All(Uri.IsHexDigit)
+            || !LauncherUpdateVersionPolicy.IsValid(authenticatedTargetVersion))
         {
             throw new InvalidDataException(
                 "Le manifeste ne permet pas de valider sûrement le nouveau launcher.");
@@ -115,7 +117,8 @@ internal sealed class LauncherSelfUpdateFinalizer : ILauncherSelfUpdateFinalizer
                 PreviousSha256: previousHash,
                 CandidateSha256: candidateHash,
                 Phase: LauncherUpdateTransactionPhase.Prepared,
-                UpdatedAt: DateTimeOffset.UtcNow);
+                UpdatedAt: DateTimeOffset.UtcNow,
+                AuthenticatedTargetVersion: authenticatedTargetVersion);
             _store.Save(transaction);
             transactionSaved = true;
             LauncherUpdateJournal.Append(transaction, "transaction préparée par le launcher actif");

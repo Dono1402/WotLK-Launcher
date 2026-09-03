@@ -338,7 +338,7 @@ internal static class LauncherSelfUpdateCoordinatorTests
         using (SelfUpdateHarness refused = new())
         {
             await refused.DiscoverUpdateAsync();
-            refused.Finalizer.Handler = (_, _, _, _, _, _) =>
+            refused.Finalizer.Handler = (_, _, _, _, _, _, _) =>
                 throw new IOException("helper-secret-refusal");
             LauncherSelfUpdateStartResult start = refused.Coordinator.TryStartUpdate();
             LauncherSelfUpdateCompletion result = await start.Completion!;
@@ -359,11 +359,24 @@ internal static class LauncherSelfUpdateCoordinatorTests
             await accepted.DiscoverUpdateAsync();
             TaskCompletionSource finalizerEntered = NewCompletion();
             TaskCompletionSource acceptHandoff = NewCompletion();
-            accepted.Finalizer.Handler = async (target, candidate, size, hash, parent, token) =>
+            accepted.Finalizer.Handler = async (
+                target,
+                candidate,
+                size,
+                hash,
+                version,
+                parent,
+                token) =>
             {
                 finalizerEntered.TrySetResult();
                 await acceptHandoff.Task.WaitAsync(token);
-                return accepted.Finalizer.CreateTransaction(target, candidate, size, hash, parent);
+                return accepted.Finalizer.CreateTransaction(
+                    target,
+                    candidate,
+                    size,
+                    hash,
+                    version,
+                    parent);
             };
 
             LauncherSelfUpdateStartResult start = accepted.Coordinator.TryStartUpdate();
@@ -387,6 +400,8 @@ internal static class LauncherSelfUpdateCoordinatorTests
                 "Un helper ayant accepté la transaction doit autoriser le shutdown.");
             Equal(1, accepted.Finalizer.Calls,
                 "Le coordinateur doit déléguer une seule fois à 04B.3a.");
+            Equal("2.0.0", accepted.Finalizer.AuthenticatedTargetVersion,
+                "La version transmise au helper doit provenir du manifeste signé.");
             Equal(1, accepted.ShutdownCalls,
                 "Le shutdown ne doit être demandé qu'après acceptation du helper.");
         }
@@ -680,24 +695,28 @@ internal static class LauncherSelfUpdateCoordinatorTests
 
     private sealed class FakeSelfUpdateFinalizer(string root) : ILauncherSelfUpdateFinalizer
     {
-        internal Func<string, string, long, string, int, CancellationToken, Task<LauncherUpdateTransaction>>?
+        internal Func<string, string, long, string, string, int, CancellationToken, Task<LauncherUpdateTransaction>>?
             Handler { get; set; }
         internal int Calls { get; private set; }
+        internal string? AuthenticatedTargetVersion { get; private set; }
 
         public Task<LauncherUpdateTransaction> PrepareAndLaunchAsync(
             string targetPath,
             string downloadedCandidatePath,
             long expectedSize,
             string expectedSha256,
+            string authenticatedTargetVersion,
             int parentProcessId,
             CancellationToken cancellationToken)
         {
             Calls++;
+            AuthenticatedTargetVersion = authenticatedTargetVersion;
             return Handler?.Invoke(
                     targetPath,
                     downloadedCandidatePath,
                     expectedSize,
                     expectedSha256,
+                    authenticatedTargetVersion,
                     parentProcessId,
                     cancellationToken)
                 ?? Task.FromResult(CreateTransaction(
@@ -705,6 +724,7 @@ internal static class LauncherSelfUpdateCoordinatorTests
                     downloadedCandidatePath,
                     expectedSize,
                     expectedSha256,
+                    authenticatedTargetVersion,
                     parentProcessId));
         }
 
@@ -713,6 +733,7 @@ internal static class LauncherSelfUpdateCoordinatorTests
             string candidatePath,
             long size,
             string hash,
+            string authenticatedTargetVersion,
             int parentProcessId)
         {
             Guid id = Guid.NewGuid();
@@ -735,7 +756,8 @@ internal static class LauncherSelfUpdateCoordinatorTests
                 Hash(File.ReadAllBytes(targetPath)),
                 hash,
                 LauncherUpdateTransactionPhase.Prepared,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow,
+                AuthenticatedTargetVersion: authenticatedTargetVersion);
         }
     }
 

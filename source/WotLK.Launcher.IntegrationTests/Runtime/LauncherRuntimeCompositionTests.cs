@@ -307,6 +307,7 @@ internal sealed class RuntimeCompositionSelfUpdateFinalizer : ILauncherSelfUpdat
         string downloadedCandidatePath,
         long expectedSize,
         string expectedSha256,
+        string authenticatedTargetVersion,
         int parentProcessId,
         CancellationToken cancellationToken) =>
         throw new InvalidOperationException("Aucun handoff self-update n'est attendu.");

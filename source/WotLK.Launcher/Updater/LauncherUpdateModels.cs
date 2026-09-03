@@ -1,4 +1,18 @@
+using System.Text.RegularExpressions;
+
 namespace WotLK.Launcher.Updater;
+
+internal static class LauncherUpdateVersionPolicy
+{
+    private static readonly Regex VersionPattern = new(
+        "^[0-9]{1,5}(\\.[0-9]{1,5}){1,3}$",
+        RegexOptions.CultureInvariant);
+
+    internal static bool IsValid(string? version) =>
+        !string.IsNullOrEmpty(version)
+        && VersionPattern.IsMatch(version)
+        && Version.TryParse(version, out _);
+}
 
 internal enum LauncherUpdateTransactionPhase
 {
@@ -54,7 +68,8 @@ internal sealed record LauncherUpdateTransaction(
     LauncherUpdateTransactionPhase Phase,
     DateTimeOffset UpdatedAt,
     int? NewProcessId = null,
-    string? FailureCategory = null)
+    string? FailureCategory = null,
+    string? AuthenticatedTargetVersion = null)
 {
     internal const int CurrentSchemaVersion = 1;
 }
@@ -156,6 +171,7 @@ internal interface ILauncherSelfUpdateFinalizer
         string downloadedCandidatePath,
         long expectedSize,
         string expectedSha256,
+        string authenticatedTargetVersion,
         int parentProcessId,
         CancellationToken cancellationToken);
 }

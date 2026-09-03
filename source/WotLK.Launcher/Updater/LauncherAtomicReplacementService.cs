@@ -169,6 +169,8 @@ internal sealed class LauncherAtomicReplacementService
     private readonly Func<TimeSpan, CancellationToken, Task> _delayAsync;
     private readonly Func<int, string, bool> _processMatchesPath;
     private readonly Action<int?, string> _stopProcess;
+    private readonly ILauncherInstalledAppVersionSynchronizer
+        _installedAppVersionSynchronizer;
 
     internal LauncherAtomicReplacementService(
         LauncherUpdateTransactionStore store,
@@ -179,7 +181,8 @@ internal sealed class LauncherAtomicReplacementService
         ILauncherUpdateFaultInjector? faultInjector = null,
         Func<TimeSpan, CancellationToken, Task>? delayAsync = null,
         Func<int, string, bool>? processMatchesPath = null,
-        Action<int?, string>? stopProcess = null)
+        Action<int?, string>? stopProcess = null,
+        ILauncherInstalledAppVersionSynchronizer? installedAppVersionSynchronizer = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _atomicMover = atomicMover ?? throw new ArgumentNullException(nameof(atomicMover));
@@ -192,6 +195,8 @@ internal sealed class LauncherAtomicReplacementService
         _processMatchesPath = processMatchesPath
             ?? LauncherUpdateParentWaiter.ProcessMatchesPath;
         _stopProcess = stopProcess ?? LauncherUpdateProcessTerminator.StopIfMatches;
+        _installedAppVersionSynchronizer = installedAppVersionSynchronizer
+            ?? LauncherInstalledAppVersionSynchronizer.CreateProduction();
 
         if (_retryPolicy.FileAttempts <= 0
             || _retryPolicy.FileRetryDelay < TimeSpan.Zero
@@ -320,6 +325,7 @@ internal sealed class LauncherAtomicReplacementService
             _faultInjector.Hit(LauncherUpdateFaultPoint.AfterReadyConfirmation, transaction);
             transaction = SavePhase(transaction, LauncherUpdateTransactionPhase.Committed);
             _faultInjector.Hit(LauncherUpdateFaultPoint.AfterCommitPersisted, transaction);
+            SynchronizeInstalledVersion(transaction);
             Log(transaction, "transaction confirmée");
             CleanupAfterSuccess(transaction);
             return new LauncherUpdateExecutionResult(
@@ -394,6 +400,7 @@ internal sealed class LauncherAtomicReplacementService
         {
             if (transaction.Phase == LauncherUpdateTransactionPhase.Committed)
             {
+                SynchronizeInstalledVersion(transaction);
                 CleanupAfterSuccess(transaction);
                 Log(transaction, "récupération: commit déjà confirmé, nettoyage terminé");
                 return new LauncherUpdateExecutionResult(
@@ -411,6 +418,7 @@ internal sealed class LauncherAtomicReplacementService
                 LauncherUpdateTransaction committed = SavePhase(
                     transaction,
                     LauncherUpdateTransactionPhase.Committed);
+                SynchronizeInstalledVersion(committed);
                 CleanupAfterSuccess(committed);
                 Log(committed, "récupération: confirmation valide retrouvée");
                 return new LauncherUpdateExecutionResult(
@@ -821,6 +829,30 @@ internal sealed class LauncherAtomicReplacementService
         }
         catch
         {
+        }
+    }
+
+    private void SynchronizeInstalledVersion(
+        LauncherUpdateTransaction transaction)
+    {
+        try
+        {
+            LauncherInstalledAppVersionSyncResult result =
+                _installedAppVersionSynchronizer.Synchronize(transaction);
+            Log(
+                transaction,
+                "synchronisation DisplayVersion: " + result.Status
+                + (result.FailureCategory is null
+                    ? string.Empty
+                    : " category=" + result.FailureCategory));
+        }
+        catch (Exception exception)
+        {
+            // Registry metadata must never invalidate a confirmed binary update.
+            Log(
+                transaction,
+                "synchronisation DisplayVersion ignorée: "
+                + exception.GetType().Name);
         }
     }
 

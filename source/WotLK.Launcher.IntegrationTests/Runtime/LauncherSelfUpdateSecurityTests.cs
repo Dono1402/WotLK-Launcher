@@ -847,6 +847,7 @@ internal static class LauncherSelfUpdateSecurityTests
             string downloadedCandidatePath,
             long expectedSize,
             string expectedSha256,
+            string authenticatedTargetVersion,
             int parentProcessId,
             CancellationToken cancellationToken) =>
             throw new InvalidOperationException("Le finalizer ne doit pas être appelé par ces tests.");
@@ -861,6 +862,7 @@ internal static class LauncherSelfUpdateSecurityTests
             string downloadedCandidatePath,
             long expectedSize,
             string expectedSha256,
+            string authenticatedTargetVersion,
             int parentProcessId,
             CancellationToken cancellationToken)
         {

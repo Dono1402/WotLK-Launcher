@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using WotLK.Launcher.Updater;
 
 namespace WotLK.Launcher.Runtime;
 
@@ -63,10 +64,6 @@ internal sealed class LauncherUpdatePackageIntegrityException : Exception
 internal static class LauncherUpdateUriPolicy
 {
     private static readonly StringComparison IgnoreCase = StringComparison.OrdinalIgnoreCase;
-    private static readonly Regex VersionSegmentPattern = new(
-        "^[0-9]{1,5}(\\.[0-9]{1,5}){1,3}$",
-        RegexOptions.CultureInvariant);
-
     internal static void RequireManifestUri(Uri uri)
     {
         RequireCommon(uri);
@@ -98,7 +95,7 @@ internal static class LauncherUpdateUriPolicy
             + expectedVersion
             + "/"
             + LauncherUpdateSecurityConstants.PackageFileName;
-        if (!VersionSegmentPattern.IsMatch(expectedVersion)
+        if (!LauncherUpdateVersionPolicy.IsValid(expectedVersion)
             || !string.Equals(uri.AbsolutePath, expectedPath, StringComparison.Ordinal)
             || !string.Equals(rawUrl, uri.AbsoluteUri, StringComparison.Ordinal))
         {
@@ -126,7 +123,7 @@ internal static class LauncherUpdateUriPolicy
             || !string.Equals(segments[1], "wotlk", StringComparison.Ordinal)
             || !string.Equals(segments[2], "launcher", StringComparison.Ordinal)
             || !string.Equals(segments[3], "releases", StringComparison.Ordinal)
-            || !VersionSegmentPattern.IsMatch(segments[4])
+            || !LauncherUpdateVersionPolicy.IsValid(segments[4])
             || !string.Equals(
                 segments[5],
                 LauncherUpdateSecurityConstants.PackageFileName,
@@ -365,9 +362,6 @@ internal sealed class LauncherUpdateManifestVerifier(
     private static readonly Regex KeyIdPattern = new(
         "^[a-z0-9][a-z0-9._-]{2,63}$",
         RegexOptions.CultureInvariant);
-    private static readonly Regex VersionPattern = new(
-        "^[0-9]{1,5}(\\.[0-9]{1,5}){1,3}$",
-        RegexOptions.CultureInvariant);
     private static readonly Regex Sha256Pattern = new(
         "^[0-9a-f]{64}$",
         RegexOptions.CultureInvariant);
@@ -429,8 +423,7 @@ internal sealed class LauncherUpdateManifestVerifier(
 
     private static void ValidateSignedFields(LauncherUpdateManifest manifest)
     {
-        if (!VersionPattern.IsMatch(manifest.Version)
-            || !Version.TryParse(manifest.Version, out _)
+        if (!LauncherUpdateVersionPolicy.IsValid(manifest.Version)
             || manifest.Size <= 0
             || manifest.Size > LauncherUpdateSecurityConstants.MaximumPackageBytes
             || !Sha256Pattern.IsMatch(manifest.Sha256)

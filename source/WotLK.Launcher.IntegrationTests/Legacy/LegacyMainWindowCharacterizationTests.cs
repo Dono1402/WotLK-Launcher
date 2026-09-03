@@ -1271,6 +1271,7 @@ internal sealed class RecordingSelfUpdateFinalizer : ILauncherSelfUpdateFinalize
         string downloadedCandidatePath,
         long expectedSize,
         string expectedSha256,
+        string authenticatedTargetVersion,
         int parentProcessId,
         CancellationToken cancellationToken)
     {

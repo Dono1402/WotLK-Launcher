@@ -195,6 +195,14 @@ internal sealed class LauncherUpdateTransactionStore
         {
             throw new InvalidDataException("Métadonnées de validation incomplètes.");
         }
+
+        // Null preserves recovery of transactions created by launcher 1.1.2.
+        if (transaction.AuthenticatedTargetVersion is not null
+            && !LauncherUpdateVersionPolicy.IsValid(
+                transaction.AuthenticatedTargetVersion))
+        {
+            throw new InvalidDataException("Version cible authentifiée invalide.");
+        }
     }
 
     private static string RequireLocalAbsolutePath(string path, string label)

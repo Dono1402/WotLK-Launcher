@@ -13,6 +13,7 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         ValidateHelperHashDoesNotCaptureWpfContext();
         await RejectElevatedUpdatedProcessAndReleaseTargetAsync();
         await PrepareTransactionWithoutTouchingActiveReleaseAsync();
+        await RejectInvalidAuthenticatedVersionBeforeTransactionAsync();
         await RejectInvalidCandidateBeforeTouchingReleaseAsync();
         await KeepPreviousReleaseAcrossPreSwapCrashPointsAsync();
         await RetryTransientAtomicSwapFailureAsync();
@@ -28,6 +29,7 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         await RollBackWhenReadyNeverArrivesAsync();
         await IgnoreWrongAndStaleReadySignalsAsync();
         await AcceptImmediateAndDelayedReadySignalsAsync();
+        await KeepPortableUpdateSuccessfulWithoutRegistrationAsync();
         await RetryTemporaryWindowsLockAsync();
         await AbandonPermanentWindowsLockAsync();
         await KeepTargetWholeDuringAtomicSwapAsync();
@@ -251,6 +253,7 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             downloaded,
             environment.NewBytes.Length,
             Hash(environment.NewBytes),
+            "1.2.0",
             Environment.ProcessId,
             CancellationToken.None);
 
@@ -267,6 +270,8 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             "Le téléchargement initial doit être nettoyé après sa copie durable validée.");
         True(File.Exists(transaction.TransactionPath),
             "Le marqueur transactionnel doit précéder l'élévation.");
+        Equal("1.2.0", transaction.AuthenticatedTargetVersion,
+            "La transaction doit conserver la version du manifeste signé.");
     }
 
     private static async Task RejectInvalidCandidateBeforeTouchingReleaseAsync()
@@ -281,6 +286,37 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         await environment.AssertTargetIsOldAsync();
         Equal(0, environment.Launcher.UpdatedLaunchCalls,
             "Aucun nouveau processus ne doit être créé après validation invalide.");
+        Equal(0, environment.VersionSynchronizer.Calls,
+            "Une validation échouée ne doit jamais modifier DisplayVersion.");
+        Equal("1.1.2", environment.VersionSynchronizer.DisplayVersion,
+            "Une mise à jour échouée doit conserver l'ancienne version Windows.");
+    }
+
+    private static async Task RejectInvalidAuthenticatedVersionBeforeTransactionAsync()
+    {
+        using AtomicUpdateEnvironment environment = new();
+        RecordingHelperLauncher helper = new();
+        LauncherSelfUpdateFinalizer finalizer = new(
+            environment.TransactionsRoot,
+            environment.Store,
+            helper);
+        string downloaded = Path.Combine(environment.Root, "invalid-version.exe");
+        await File.WriteAllBytesAsync(downloaded, environment.NewBytes);
+
+        await ThrowsAsync<InvalidDataException>(() => finalizer.PrepareAndLaunchAsync(
+            environment.TargetPath,
+            downloaded,
+            environment.NewBytes.Length,
+            Hash(environment.NewBytes),
+            "1.2.0-preview",
+            Environment.ProcessId,
+            CancellationToken.None));
+
+        Equal(0, helper.ApplyCalls,
+            "Une version de manifeste invalide ne doit jamais lancer le helper élevé.");
+        await environment.AssertTargetIsOldAsync();
+        Equal("1.1.2", environment.VersionSynchronizer.DisplayVersion,
+            "Une version invalide ne doit provoquer aucune écriture Windows.");
     }
 
     private static async Task KeepPreviousReleaseAcrossPreSwapCrashPointsAsync()
@@ -405,6 +441,10 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             environment.Store.Load(environment.Transaction.TransactionPath));
         Equal(LauncherUpdateExecutionOutcome.Succeeded, recovered.Outcome,
             "Un Ready encore rattaché au bon processus doit permettre de terminer le commit.");
+        Equal(1, environment.VersionSynchronizer.Calls,
+            "La reprise ne doit synchroniser DisplayVersion qu'après le Ready retrouvé.");
+        Equal("1.2.0", environment.VersionSynchronizer.DisplayVersion,
+            "La reprise confirmée doit publier la version authentifiée.");
         await environment.AssertTargetIsNewAsync();
         True(!File.Exists(environment.Transaction.BackupPath),
             "Le backup peut être supprimé après récupération d'un Ready valide.");
@@ -422,12 +462,16 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             environment.Transaction.TransactionPath);
         Equal(LauncherUpdateTransactionPhase.Committed, persisted.Phase,
             "Le commit doit être durable avant la suppression du backup.");
+        Equal("1.1.2", environment.VersionSynchronizer.DisplayVersion,
+            "Un crash juste après le commit durable doit précéder l'écriture registre.");
 
         LauncherUpdateExecutionResult recovered = await environment.RecoveryService.RecoverAsync(
             persisted);
         Equal(LauncherUpdateExecutionOutcome.Succeeded, recovered.Outcome,
             "Un commit durable doit rester valide même si son processus a disparu.");
         await environment.AssertTargetIsNewAsync();
+        Equal("1.2.0", environment.VersionSynchronizer.DisplayVersion,
+            "La reprise d'un commit durable doit terminer la synchronisation Windows.");
         True(!File.Exists(environment.Transaction.BackupPath)
              && !File.Exists(environment.Transaction.TransactionPath),
             "La reprise doit terminer le nettoyage d'un commit interrompu.");
@@ -483,6 +527,10 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         True(environment.Launcher.LastProcess?.KillCalls == 1,
             "Le processus non confirmé doit être arrêté avant rollback.");
         await environment.AssertTargetIsOldAsync();
+        Equal(0, environment.VersionSynchronizer.Calls,
+            "Un rollback ne doit jamais modifier DisplayVersion.");
+        Equal("1.1.2", environment.VersionSynchronizer.DisplayVersion,
+            "Un rollback doit conserver l'ancienne version Windows.");
     }
 
     private static async Task IgnoreWrongAndStaleReadySignalsAsync()
@@ -522,6 +570,12 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
                 "Le marqueur doit être retiré après commit.");
             Equal(0, environment.Launcher.RollbackLaunchCalls,
                 "Une mise à jour confirmée ne doit pas relancer l'ancienne version.");
+            Equal(1, environment.VersionSynchronizer.Calls,
+                "DisplayVersion doit être synchronisé une fois après Ready.");
+            Equal("1.2.0", environment.VersionSynchronizer.LastVersion,
+                "DisplayVersion doit provenir du manifeste signé.");
+            Equal("1.2.0", environment.VersionSynchronizer.DisplayVersion,
+                "Une mise à jour confirmée doit publier la nouvelle version Windows.");
         }
     }
 
@@ -544,6 +598,22 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             "Un verrou Windows transitoire pendant le swap doit être absorbé par les retries.");
         True(mover.Attempts > 1,
             "Le test Windows doit observer au moins un échec réel de MoveFileEx.");
+        await environment.AssertTargetIsNewAsync();
+    }
+
+    private static async Task KeepPortableUpdateSuccessfulWithoutRegistrationAsync()
+    {
+        using AtomicUpdateEnvironment environment = new(
+            registrationStatus: LauncherInstalledAppVersionSyncStatus.EntryMissing);
+        LauncherUpdateExecutionResult result = await environment.Service.ApplyAsync(
+            environment.Transaction);
+
+        Equal(LauncherUpdateExecutionOutcome.Succeeded, result.Outcome,
+            "Une entrée Applications installées absente ne doit pas faire échouer l'update.");
+        Equal(1, environment.VersionSynchronizer.Calls,
+            "Le helper doit constater l'absence uniquement après Ready.");
+        Equal("1.1.2", environment.VersionSynchronizer.DisplayVersion,
+            "Une installation portable ne doit créer aucune version Windows.");
         await environment.AssertTargetIsNewAsync();
     }
 
@@ -833,7 +903,9 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             LauncherUpdateRetryPolicy? retryPolicy = null,
             bool parentExits = true,
             ILauncherAtomicFileMover? atomicMover = null,
-            bool recoveryProcessIsAlive = true)
+            bool recoveryProcessIsAlive = true,
+            LauncherInstalledAppVersionSyncStatus registrationStatus =
+                LauncherInstalledAppVersionSyncStatus.Updated)
         {
             _faultPoint = faultPoint;
             Root = Path.Combine(
@@ -858,13 +930,16 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             ILauncherUpdateFaultInjector injector = faultPoint is null
                 ? NullLauncherUpdateFaultInjector.Instance
                 : new ThrowingFaultInjector(faultPoint.Value);
+            VersionSynchronizer = new RecordingInstalledAppVersionSynchronizer(
+                registrationStatus);
             Service = new LauncherAtomicReplacementService(
                 Store,
                 atomicMover ?? new WindowsLauncherAtomicFileMover(),
                 new FakeParentWaiter(parentExits),
                 Launcher,
                 policy,
-                injector);
+                injector,
+                installedAppVersionSynchronizer: VersionSynchronizer);
             RecoveryService = new LauncherAtomicReplacementService(
                 Store,
                 new WindowsLauncherAtomicFileMover(),
@@ -884,7 +959,8 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
                     {
                         process.Kill();
                     }
-                });
+                },
+                installedAppVersionSynchronizer: VersionSynchronizer);
         }
 
         internal string Root { get; }
@@ -908,6 +984,8 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         internal LauncherAtomicReplacementService Service { get; }
 
         internal LauncherAtomicReplacementService RecoveryService { get; }
+
+        internal RecordingInstalledAppVersionSynchronizer VersionSynchronizer { get; }
 
         internal void CorruptCandidate()
         {
@@ -965,7 +1043,34 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
                 Hash(OldBytes),
                 Hash(NewBytes),
                 LauncherUpdateTransactionPhase.Prepared,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow,
+                AuthenticatedTargetVersion: "1.2.0");
+        }
+    }
+
+    private sealed class RecordingInstalledAppVersionSynchronizer(
+        LauncherInstalledAppVersionSyncStatus status)
+        : ILauncherInstalledAppVersionSynchronizer
+    {
+        internal int Calls { get; private set; }
+
+        internal string? LastVersion { get; private set; }
+
+        internal string DisplayVersion { get; private set; } = "1.1.2";
+
+        public LauncherInstalledAppVersionSyncResult Synchronize(
+            LauncherUpdateTransaction transaction)
+        {
+            Calls++;
+            LastVersion = transaction.AuthenticatedTargetVersion;
+            if (status is LauncherInstalledAppVersionSyncStatus.Updated
+                or LauncherInstalledAppVersionSyncStatus.AlreadyCurrent)
+            {
+                DisplayVersion = transaction.AuthenticatedTargetVersion
+                    ?? DisplayVersion;
+            }
+            return new LauncherInstalledAppVersionSyncResult(
+                status);
         }
     }
 

@@ -11,6 +11,7 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         ValidateInternalCommandLineContract();
         ValidateHelperRequesterBoundary();
         ValidateHelperHashDoesNotCaptureWpfContext();
+        await RejectElevatedUpdatedProcessAndReleaseTargetAsync();
         await PrepareTransactionWithoutTouchingActiveReleaseAsync();
         await RejectInvalidCandidateBeforeTouchingReleaseAsync();
         await KeepPreviousReleaseAcrossPreSwapCrashPointsAsync();
@@ -95,6 +96,12 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             ["--ui-v2"],
             LauncherUpdateCommandLine.ApplicationArguments(["--ui-v2", postUpdate]),
             "L'argument interne ne doit pas modifier la résolution du mode UI.");
+        Equal(
+            "\"C:\\Program Files (x86)\\Atlas Launcher\\AtlasLauncher.exe\" " + postUpdate,
+            WindowsUnelevatedProcessLauncher.BuildCommandLine(
+                @"C:\Program Files (x86)\Atlas Launcher\AtlasLauncher.exe",
+                postUpdate),
+            "La relance non élevée doit préserver le chemin avec espaces et le handshake.");
     }
 
     private static void ValidateHelperRequesterBoundary()
@@ -184,6 +191,41 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    private static async Task RejectElevatedUpdatedProcessAndReleaseTargetAsync()
+    {
+        using AtomicUpdateEnvironment environment = new();
+        int stoppedProcessId = 0;
+        string? stoppedPath = null;
+        WindowsLauncherUpdateApplicationLauncher launcher = new(
+            environment.Store,
+            launchProcess: (_, _, _) => environment.Store.WriteStartedSignal(
+                environment.Transaction,
+                new LauncherUpdateProcessSignal(
+                    environment.Transaction.TransactionId,
+                    Environment.ProcessId,
+                    IsElevated: true,
+                    DateTimeOffset.UtcNow)),
+            processMatchesPath: (processId, path) =>
+                processId == Environment.ProcessId
+                && string.Equals(path, environment.TargetPath, StringComparison.OrdinalIgnoreCase),
+            stopProcess: (processId, path) =>
+            {
+                stoppedProcessId = processId ?? 0;
+                stoppedPath = path;
+            });
+
+        await ThrowsAsync<InvalidOperationException>(
+            () => launcher.LaunchUpdatedAsync(
+                environment.Transaction,
+                TimeSpan.FromSeconds(1),
+                TimeSpan.FromMilliseconds(10),
+                CancellationToken.None));
+        Equal(Environment.ProcessId, stoppedProcessId,
+            "Le candidat élevé doit être arrêté avant le rollback.");
+        Equal(environment.TargetPath, stoppedPath,
+            "Seule la cible validée peut être arrêtée avant le rollback.");
     }
 
     private sealed class NonPumpingSynchronizationContext : SynchronizationContext

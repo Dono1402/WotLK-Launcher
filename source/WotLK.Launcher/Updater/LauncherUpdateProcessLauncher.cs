@@ -1,17 +1,30 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Security.Principal;
 
 namespace WotLK.Launcher.Updater;
 
-internal sealed class WindowsLauncherUpdateApplicationLauncher(
-    LauncherUpdateTransactionStore store) : ILauncherUpdateApplicationLauncher
+internal sealed class WindowsLauncherUpdateApplicationLauncher
+    : ILauncherUpdateApplicationLauncher
 {
-    private readonly LauncherUpdateTransactionStore _store = store
-        ?? throw new ArgumentNullException(nameof(store));
+    private readonly LauncherUpdateTransactionStore _store;
+    private readonly Action<string, string, string> _launchProcess;
+    private readonly Func<int, string, bool> _processMatchesPath;
+    private readonly Action<int?, string> _stopProcess;
+
+    internal WindowsLauncherUpdateApplicationLauncher(
+        LauncherUpdateTransactionStore store,
+        Action<string, string, string>? launchProcess = null,
+        Func<int, string, bool>? processMatchesPath = null,
+        Action<int?, string>? stopProcess = null)
+    {
+        _store = store ?? throw new ArgumentNullException(nameof(store));
+        _launchProcess = launchProcess ?? LaunchThroughInteractiveShell;
+        _processMatchesPath = processMatchesPath
+            ?? LauncherUpdateParentWaiter.ProcessMatchesPath;
+        _stopProcess = stopProcess ?? LauncherUpdateProcessTerminator.StopIfMatches;
+    }
 
     public async Task<ILauncherUpdateLaunchedProcess> LaunchUpdatedAsync(
         LauncherUpdateTransaction transaction,
@@ -20,7 +33,7 @@ internal sealed class WindowsLauncherUpdateApplicationLauncher(
         CancellationToken cancellationToken)
     {
         _store.DeleteSignals(transaction);
-        LaunchThroughInteractiveShell(
+        _launchProcess(
             transaction.TargetPath,
             LauncherUpdateCommandLine.BuildPostUpdateArgument(transaction.TransactionId),
             Path.GetDirectoryName(transaction.TargetPath)!);
@@ -34,11 +47,16 @@ internal sealed class WindowsLauncherUpdateApplicationLauncher(
             {
                 if (signal.IsElevated)
                 {
+                    if (_processMatchesPath(signal.ProcessId, transaction.TargetPath))
+                    {
+                        _stopProcess(signal.ProcessId, transaction.TargetPath);
+                    }
+
                     throw new InvalidOperationException(
                         "Le nouveau launcher a hérité d'un jeton administrateur.");
                 }
 
-                if (!LauncherUpdateParentWaiter.ProcessMatchesPath(
+                if (!_processMatchesPath(
                         signal.ProcessId,
                         transaction.TargetPath))
                 {
@@ -61,16 +79,16 @@ internal sealed class WindowsLauncherUpdateApplicationLauncher(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (LauncherUpdateParentWaiter.ProcessMatchesPath(
+        if (_processMatchesPath(
                 transaction.ParentProcessId,
                 transaction.TargetPath))
         {
             return Task.CompletedTask;
         }
 
-        LaunchThroughInteractiveShell(
+        _launchProcess(
             transaction.TargetPath,
-            arguments: string.Empty,
+            string.Empty,
             Path.GetDirectoryName(transaction.TargetPath)!);
         return Task.CompletedTask;
     }
@@ -92,32 +110,10 @@ internal sealed class WindowsLauncherUpdateApplicationLauncher(
             return;
         }
 
-        Type shellType = Type.GetTypeFromProgID("Shell.Application")
-            ?? throw new InvalidOperationException("Shell Windows indisponible.");
-        object shell = Activator.CreateInstance(shellType)
-            ?? throw new InvalidOperationException("Shell Windows indisponible.");
-        try
-        {
-            shellType.InvokeMember(
-                "ShellExecute",
-                BindingFlags.InvokeMethod,
-                binder: null,
-                target: shell,
-                args: [executablePath, arguments, workingDirectory, "open", 1]);
-        }
-        catch (TargetInvocationException ex) when (ex.InnerException is not null)
-        {
-            throw new InvalidOperationException(
-                "Windows n'a pas pu relancer Atlas Launcher.",
-                ex.InnerException);
-        }
-        finally
-        {
-            if (Marshal.IsComObject(shell))
-            {
-                Marshal.FinalReleaseComObject(shell);
-            }
-        }
+        WindowsUnelevatedProcessLauncher.Launch(
+            executablePath,
+            arguments,
+            workingDirectory);
     }
 }
 

@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Security.Cryptography;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using MySqlConnector;
 
 namespace WotLK.Launcher.Server.Database;
@@ -14,7 +16,8 @@ internal enum LauncherSchemaMigrationState
 {
     AlreadyApplied,
     Adopted,
-    Applied
+    Applied,
+    BlockedByCeiling
 }
 
 internal sealed class LauncherSchemaMigrator
@@ -23,13 +26,27 @@ internal sealed class LauncherSchemaMigrator
     private readonly ILauncherSchemaMigrationSource _source;
     private readonly LauncherSchemaValidator _validator;
     private readonly string _applicationVersion;
+    private readonly ILogger<LauncherSchemaMigrator> _logger;
 
     internal LauncherSchemaMigrator(LauncherServerOptions options)
         : this(
             options,
             new EmbeddedLauncherSchemaMigrationSource(),
             new LauncherSchemaValidator(),
-            ResolveApplicationVersion())
+            ResolveApplicationVersion(),
+            NullLogger<LauncherSchemaMigrator>.Instance)
+    {
+    }
+
+    internal LauncherSchemaMigrator(
+        LauncherServerOptions options,
+        ILogger<LauncherSchemaMigrator> logger)
+        : this(
+            options,
+            new EmbeddedLauncherSchemaMigrationSource(),
+            new LauncherSchemaValidator(),
+            ResolveApplicationVersion(),
+            logger)
     {
     }
 
@@ -37,7 +54,8 @@ internal sealed class LauncherSchemaMigrator
         LauncherServerOptions options,
         ILauncherSchemaMigrationSource source,
         LauncherSchemaValidator validator,
-        string applicationVersion)
+        string applicationVersion,
+        ILogger<LauncherSchemaMigrator>? logger = null)
     {
         _options = options;
         _source = source;
@@ -45,12 +63,29 @@ internal sealed class LauncherSchemaMigrator
         _applicationVersion = string.IsNullOrWhiteSpace(applicationVersion)
             ? "unknown"
             : applicationVersion[..Math.Min(applicationVersion.Length, 64)];
+        _logger = logger ?? NullLogger<LauncherSchemaMigrator>.Instance;
     }
 
     internal async Task<IReadOnlyList<LauncherSchemaMigrationOutcome>> MigrateAsync(
         CancellationToken cancellationToken = default)
     {
         IReadOnlyList<LauncherSchemaMigration> migrations = _source.Load();
+        uint ceiling = ResolveCeiling(migrations, _options.MaximumSchemaVersion);
+        IReadOnlyList<LauncherSchemaMigration> eligibleMigrations = migrations
+            .Where(migration => migration.Version <= ceiling)
+            .ToArray();
+        IReadOnlyList<LauncherSchemaMigration> blockedMigrations = migrations
+            .Where(migration => migration.Version > ceiling)
+            .ToArray();
+        foreach (LauncherSchemaMigration blocked in blockedMigrations)
+        {
+            _logger.LogWarning(
+                "La migration Atlas {MigrationVersion:D4} ({MigrationName}) est disponible mais bloquee par le plafond {MigrationCeiling:D4}.",
+                blocked.Version,
+                blocked.Name,
+                ceiling);
+        }
+
         await using MySqlConnection connection = new(_options.ConnectionString);
         await connection.OpenAsync(cancellationToken);
         string lockName = BuildLockName(connection.Database);
@@ -62,9 +97,10 @@ internal sealed class LauncherSchemaMigrator
             await _validator.ValidateHistoryAsync(connection, cancellationToken);
             Dictionary<uint, AppliedMigration> applied = await ReadHistoryAsync(connection, cancellationToken);
             ValidateHistory(migrations, applied);
+            ValidateAppliedVersionsAgainstCeiling(applied, ceiling);
 
             List<LauncherSchemaMigrationOutcome> outcomes = [];
-            foreach (LauncherSchemaMigration migration in migrations)
+            foreach (LauncherSchemaMigration migration in eligibleMigrations)
             {
                 if (applied.ContainsKey(migration.Version))
                 {
@@ -111,12 +147,46 @@ internal sealed class LauncherSchemaMigrator
                 outcomes.Add(new(migration.Version, migration.Name, state));
             }
 
-            await ValidateSchemaForVersionAsync(connection, migrations[^1].Version, cancellationToken);
+            await ValidateSchemaForVersionAsync(connection, eligibleMigrations[^1].Version, cancellationToken);
+            outcomes.AddRange(blockedMigrations.Select(migration => new LauncherSchemaMigrationOutcome(
+                migration.Version,
+                migration.Name,
+                LauncherSchemaMigrationState.BlockedByCeiling)));
             return outcomes;
         }
         finally
         {
             await ReleaseLockAsync(connection, lockName);
+        }
+    }
+
+    private static uint ResolveCeiling(
+        IReadOnlyList<LauncherSchemaMigration> migrations,
+        uint? configuredCeiling)
+    {
+        uint latestVersion = migrations[^1].Version;
+        if (configuredCeiling is null)
+            return latestVersion;
+        if (configuredCeiling.Value == 0)
+            throw new InvalidOperationException("Le plafond de migration Atlas doit etre superieur a zero.");
+        if (configuredCeiling.Value > latestVersion)
+        {
+            throw new InvalidOperationException(
+                $"Le plafond de migration Atlas {configuredCeiling.Value:D4} ne correspond a aucune migration embarquee ; derniere version disponible : {latestVersion:D4}.");
+        }
+
+        return configuredCeiling.Value;
+    }
+
+    private static void ValidateAppliedVersionsAgainstCeiling(
+        IReadOnlyDictionary<uint, AppliedMigration> applied,
+        uint ceiling)
+    {
+        uint highestApplied = applied.Count == 0 ? 0 : applied.Keys.Max();
+        if (highestApplied > ceiling)
+        {
+            throw new InvalidOperationException(
+                $"La base Atlas contient deja la migration {highestApplied:D4}, au-dessus du plafond configure {ceiling:D4}.");
         }
     }
 

@@ -45,6 +45,9 @@ options.BrevoSenderName = FirstNonEmpty(
 options.AvatarMediaRoot = FirstNonEmpty(
     Environment.GetEnvironmentVariable("WOTLK_AVATAR_MEDIA_ROOT"),
     options.AvatarMediaRoot);
+options.MaximumSchemaVersion = LauncherSchemaMigrationCeiling.Resolve(
+    Environment.GetEnvironmentVariable(LauncherSchemaMigrationCeiling.EnvironmentVariableName),
+    builder.Environment.IsProduction());
 if (bool.TryParse(
         Environment.GetEnvironmentVariable("WOTLK_BREVO_SANDBOX"),
         out bool brevoSandbox))
@@ -59,7 +62,9 @@ if (!Regex.IsMatch(options.CharacterDatabaseName, "^[A-Za-z0-9_]+$", RegexOption
 
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<TokenService>();
-builder.Services.AddSingleton(_ => new LauncherSchemaMigrator(options));
+builder.Services.AddSingleton(services => new LauncherSchemaMigrator(
+    options,
+    services.GetRequiredService<ILogger<LauncherSchemaMigrator>>()));
 builder.Services.AddSingleton(services => new LauncherDatabase(
     options,
     services.GetRequiredService<TokenService>(),

@@ -10,6 +10,7 @@ ENV_FILE=$ENV_DIR/launcher-api.env
 INTERNAL_SECRET_FILE=/etc/atlas-wotlk-internal.secret
 BREVO_SECRET_FILE=/etc/atlas-brevo-api-key
 BREVO_SANDBOX_FILE=/etc/atlas-brevo-sandbox
+MAX_SCHEMA_VERSION=${WOTLK_LAUNCHER_MAX_SCHEMA_VERSION:-}
 
 if [ ! -f "$ARCHIVE" ]; then
   echo "missing archive: $ARCHIVE" >&2
@@ -21,6 +22,10 @@ if [ ! -f "$AUTH_CONF" ]; then
 fi
 if [ ! -f "$WORLD_CONF" ]; then
   echo "missing world config: $WORLD_CONF" >&2
+  exit 1
+fi
+if [ "$MAX_SCHEMA_VERSION" != "3" ]; then
+  echo "WOTLK_LAUNCHER_MAX_SCHEMA_VERSION=3 must be provided explicitly" >&2
   exit 1
 fi
 
@@ -82,6 +87,7 @@ install -d -m 0755 "$ENV_DIR"
 {
   printf "ASPNETCORE_URLS=http://127.0.0.1:4323\n"
   printf "DOTNET_ENVIRONMENT=Production\n"
+  printf "WOTLK_LAUNCHER_MAX_SCHEMA_VERSION=%s\n" "$MAX_SCHEMA_VERSION"
   printf "WOTLK_LAUNCHER_DB='%s'\n" "$conn"
   printf "WOTLK_CHARACTER_DB=%s\n" "$character_db"
   printf "WOTLK_HERMES_SHARED_SECRET=%s\n" "$internal_secret"
@@ -95,6 +101,10 @@ install -d -m 0755 "$ENV_DIR"
 } > "$ENV_FILE"
 chown root:root "$ENV_FILE"
 chmod 0600 "$ENV_FILE"
+if ! grep -Fxq 'WOTLK_LAUNCHER_MAX_SCHEMA_VERSION=3' "$ENV_FILE"; then
+  echo "migration ceiling preflight failed" >&2
+  exit 1
+fi
 
 cat > /etc/systemd/system/wotlk-launcher-api.service <<'SERVICE'
 [Unit]

@@ -47,6 +47,13 @@ Named MySQL locks are scoped from the database name. Migration commands never
 run concurrently in the same schema, while separate test and production schemas
 do not block each other.
 
+Production requires `WOTLK_LAUNCHER_MAX_SCHEMA_VERSION` to be set explicitly to
+a canonical positive integer. The migrator still loads and validates every
+embedded migration, but applies and validates the database schema only through
+that ceiling. It refuses startup when the database history is already newer than
+the configured ceiling. A missing or malformed production value is rejected
+before opening a database connection.
+
 ## Deployment rule
 
 Never edit an applied migration. Add the next sequential file and test first on

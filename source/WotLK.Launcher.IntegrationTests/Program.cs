@@ -319,6 +319,18 @@ if (args.Length == 1
 }
 
 if (args.Length == 1
+    && string.Equals(args[0], "--migration-ceiling", StringComparison.OrdinalIgnoreCase))
+{
+    return MigrationCeilingTests.Run();
+}
+
+if (args.Length == 1
+    && string.Equals(args[0], "--migration-ceiling-mysql", StringComparison.OrdinalIgnoreCase))
+{
+    return await MigrationCeilingTests.RunMySqlAsync();
+}
+
+if (args.Length == 1
     && string.Equals(args[0], "--avatar-migrations-mysql", StringComparison.OrdinalIgnoreCase))
 {
     return await AvatarFoundationTests.RunMySqlAsync();

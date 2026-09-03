@@ -100,12 +100,10 @@ internal static class LauncherSelfUpdateCoordinatorTests
         harness.Advance(TimeSpan.FromMinutes(1));
         harness.Client.Manifest = harness.ManifestFor(harness.CandidateBytes, "1.1.0");
         LauncherSelfUpdateCheckResult equalVersion = await harness.Coordinator.CheckAsync();
-        Equal(LauncherSelfUpdateCheckOutcome.Completed, equalVersion.Outcome,
-            "Le legacy considère une même version au hash différent comme disponible.");
-        True(harness.Coordinator.CurrentSnapshot.IsUpdateAvailable,
-            "La disponibilité doit être publiée sans créer d'Activity.");
-        Equal("1.1.0", harness.Coordinator.CurrentSnapshot.AvailableVersion,
-            "La version distante exploitable doit être conservée dans le snapshot.");
+        Equal(LauncherSelfUpdateCheckOutcome.NoUpdate, equalVersion.Outcome,
+            "Une version égale ne doit pas provoquer de remplacement involontaire.");
+        True(!harness.Coordinator.CurrentSnapshot.IsUpdateAvailable,
+            "Une version égale doit rester NoUpdate même si son hash diffère.");
 
         harness.Advance(TimeSpan.FromMinutes(1));
         harness.Client.Manifest = harness.ManifestFor(harness.CandidateBytes, "1.0.9");
@@ -326,7 +324,7 @@ internal static class LauncherSelfUpdateCoordinatorTests
             };
             LauncherSelfUpdateStartResult start = invalidCandidate.Coordinator.TryStartUpdate();
             LauncherSelfUpdateCompletion result = await start.Completion!;
-            Equal(LauncherSelfUpdateErrorCategory.CandidateInvalid, result.ErrorCategory,
+            Equal(LauncherSelfUpdateErrorCategory.PackageIntegrityFailed, result.ErrorCategory,
                 "Le candidat doit être validé avant tout appel du mécanisme 04B.3a.");
             Equal(0, invalidCandidate.Finalizer.Calls,
                 "Un candidat invalide ne doit jamais atteindre le finalizer atomique.");
@@ -579,7 +577,7 @@ internal static class LauncherSelfUpdateCoordinatorTests
         internal LauncherUpdateManifest ManifestFor(byte[] bytes, string version) => new()
         {
             Version = version,
-            Url = "/launcher/AtlasLauncher.exe",
+            Url = $"https://animeclub.fr/wotlk/launcher/releases/{version}/WotLK-Launcher.exe",
             Size = bytes.LongLength,
             Sha256 = Hash(bytes)
         };

@@ -31,6 +31,12 @@ public sealed class LauncherFile
 
 public sealed class LauncherUpdateManifest
 {
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; set; }
+
+    [JsonPropertyName("keyId")]
+    public string KeyId { get; set; } = "";
+
     [JsonPropertyName("version")]
     public string Version { get; set; } = "";
 
@@ -42,4 +48,10 @@ public sealed class LauncherUpdateManifest
 
     [JsonPropertyName("sha256")]
     public string Sha256 { get; set; } = "";
+
+    [JsonPropertyName("publishedAt")]
+    public string PublishedAt { get; set; } = "";
+
+    [JsonPropertyName("signature")]
+    public string Signature { get; set; } = "";
 }

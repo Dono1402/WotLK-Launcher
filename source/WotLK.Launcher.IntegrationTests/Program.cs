@@ -215,6 +215,12 @@ if (args.Length == 1
     return await LauncherSelfUpdateCoordinatorTests.RunAsync();
 }
 
+if (args.Length == 1
+    && string.Equals(args[0], "--secure-self-update", StringComparison.OrdinalIgnoreCase))
+{
+    return await LauncherSelfUpdateSecurityTests.RunAsync();
+}
+
 if (args.Length >= 1
     && string.Equals(args[0], "--activity-runtime-wpf", StringComparison.OrdinalIgnoreCase))
 {

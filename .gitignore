@@ -4,5 +4,11 @@ artifacts/
 *.bak
 *.log
 
+# Atlas release signing secrets. Public trust anchors may be committed separately.
+.signing/
+**/launcher-update-private.pem
+*.private.pem
+*.private.key
+
 source/**/bin/
 source/**/obj/

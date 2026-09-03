@@ -26,6 +26,7 @@
     <Resource Include="Assets\Images\*.png" />
     <Resource Include="Assets\Launcher\visuals\*.png" />
     <Resource Include="Assets\Launcher\addon-icons\*.png" />
+    <EmbeddedResource Include="Assets\Security\launcher-update-public-keys.json" />
   </ItemGroup>
 
   <ItemGroup>

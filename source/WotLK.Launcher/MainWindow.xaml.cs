@@ -174,7 +174,7 @@ public partial class MainWindow : Window
         _startupObserver.Record(LegacyStartupEvent.LauncherUpdateTimerCreated);
         _launcherSelfUpdate = new LauncherSelfUpdateCoordinator(
             _operations,
-            new LauncherSelfUpdateHttpClient(_http),
+            dependencies.CreateLauncherSelfUpdateClient(_http),
             dependencies.LauncherSelfUpdateFinalizer,
             launcherUpdateTimer,
             _settings.AutomaticLauncherUpdates,

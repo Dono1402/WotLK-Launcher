@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -22,9 +23,13 @@ internal enum LauncherSelfUpdateErrorCategory
 {
     ManifestUnavailable,
     ManifestInvalid,
+    ManifestTransportRejected,
+    ManifestSignatureInvalid,
+    ManifestUnsupported,
     NoUpdate,
     DownloadFailed,
     CandidateInvalid,
+    PackageIntegrityFailed,
     ApplyUnavailable,
     PermissionDenied,
     ReplacementFailed,
@@ -153,41 +158,75 @@ internal interface ILauncherSelfUpdateClient
         CancellationToken cancellationToken);
 }
 
-internal sealed class LauncherSelfUpdateHttpClient : ILauncherSelfUpdateClient
+internal sealed class LauncherSelfUpdateHttpClient : ILauncherSelfUpdateClient, IDisposable
 {
-    internal static readonly Uri ManifestUri = new(
-        "http://152.228.225.7/launcher/launcher-update.json");
+    internal static readonly Uri ManifestUri = LauncherUpdateSecurityConstants.ManifestUri;
     private const string UpdateRequestHeader = "X-WotLK-Launcher-Update";
     private const string UpdateRequestMarker = "1";
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
     private readonly HttpClient _httpClient;
+    private readonly ILauncherUpdateManifestVerifier _manifestVerifier;
+    private readonly bool _ownsHttpClient;
+    private int _disposeState;
 
-    internal LauncherSelfUpdateHttpClient(HttpClient httpClient)
+    internal LauncherSelfUpdateHttpClient(
+        HttpClient httpClient,
+        ILauncherUpdateManifestVerifier manifestVerifier,
+        bool ownsHttpClient = false)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _manifestVerifier = manifestVerifier
+            ?? throw new ArgumentNullException(nameof(manifestVerifier));
+        _ownsHttpClient = ownsHttpClient;
+    }
+
+    internal static LauncherSelfUpdateHttpClient CreateProduction()
+    {
+        SocketsHttpHandler handler = new()
+        {
+            AllowAutoRedirect = false,
+            AutomaticDecompression = DecompressionMethods.GZip
+                | DecompressionMethods.Deflate
+                | DecompressionMethods.Brotli
+        };
+        HttpClient client = new(handler, disposeHandler: true)
+        {
+            Timeout = TimeSpan.FromMinutes(30)
+        };
+        return new LauncherSelfUpdateHttpClient(
+            client,
+            new LauncherUpdateManifestVerifier(
+                LauncherUpdateTrustStore.LoadEmbeddedProduction()),
+            ownsHttpClient: true);
     }
 
     public async Task<LauncherUpdateManifest> LoadManifestAsync(
         CancellationToken cancellationToken)
     {
-        using HttpResponseMessage response = await _httpClient.GetAsync(
-                ManifestUri,
+        LauncherUpdateUriPolicy.RequireManifestUri(ManifestUri);
+        using HttpRequestMessage request = new(HttpMethod.Get, ManifestUri);
+        using HttpResponseMessage response = await _httpClient.SendAsync(
+                request,
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken)
             .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        RequireExpectedResponse(response, ManifestUri, manifest: true);
+        if (response.Content.Headers.ContentLength is long contentLength
+            && contentLength > LauncherUpdateSecurityConstants.MaximumManifestBytes)
+        {
+            throw new LauncherUpdateManifestUnsupportedException();
+        }
+
         await using Stream stream = await response.Content
             .ReadAsStreamAsync(cancellationToken)
             .ConfigureAwait(false);
-        return await JsonSerializer.DeserializeAsync<LauncherUpdateManifest>(
+        byte[] payload = await ReadBoundedAsync(
                 stream,
-                JsonOptions,
+                LauncherUpdateSecurityConstants.MaximumManifestBytes,
                 cancellationToken)
-            .ConfigureAwait(false)
-            ?? throw new JsonException("Manifeste launcher vide.");
+            .ConfigureAwait(false);
+        LauncherUpdateManifest manifest = LauncherUpdateManifestJson.ParseStrict(payload);
+        _manifestVerifier.Verify(manifest);
+        return manifest;
     }
 
     public async Task DownloadAsync(
@@ -199,6 +238,13 @@ internal sealed class LauncherSelfUpdateHttpClient : ILauncherSelfUpdateClient
     {
         ArgumentNullException.ThrowIfNull(uri);
         ArgumentNullException.ThrowIfNull(reportProgress);
+        LauncherUpdateUriPolicy.RequirePackageUri(uri);
+        if (expectedSize <= 0
+            || expectedSize > LauncherUpdateSecurityConstants.MaximumPackageBytes)
+        {
+            throw new LauncherUpdatePackageIntegrityException();
+        }
+
         using HttpRequestMessage request = new(HttpMethod.Get, uri);
         request.Headers.TryAddWithoutValidation(UpdateRequestHeader, UpdateRequestMarker);
         using HttpResponseMessage response = await _httpClient.SendAsync(
@@ -206,10 +252,14 @@ internal sealed class LauncherSelfUpdateHttpClient : ILauncherSelfUpdateClient
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken)
             .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        RequireExpectedResponse(response, uri, manifest: false);
 
         long? responseSize = response.Content.Headers.ContentLength;
-        long? totalSize = expectedSize > 0 ? expectedSize : responseSize;
+        if (responseSize is long declaredSize && declaredSize != expectedSize)
+        {
+            throw new LauncherUpdatePackageIntegrityException();
+        }
+        long? totalSize = expectedSize;
         await using Stream remote = await response.Content
             .ReadAsStreamAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -232,6 +282,11 @@ internal sealed class LauncherSelfUpdateHttpClient : ILauncherSelfUpdateClient
                 break;
             }
 
+            if (written > expectedSize - read)
+            {
+                throw new LauncherUpdatePackageIntegrityException();
+            }
+
             await local.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
                 .ConfigureAwait(false);
             written += read;
@@ -239,17 +294,77 @@ internal sealed class LauncherSelfUpdateHttpClient : ILauncherSelfUpdateClient
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+        if (written != expectedSize)
+        {
+            throw new LauncherUpdatePackageIntegrityException();
+        }
         reportProgress(CreateProgress(written, totalSize, stopwatch.Elapsed, completed: true));
     }
 
-    internal static Uri BuildDownloadUri(string url)
+    internal static Uri BuildDownloadUri(string url, string version)
     {
-        if (Uri.TryCreate(url, UriKind.Absolute, out Uri? absoluteUri))
+        return LauncherUpdateUriPolicy.RequirePackageUri(url, version);
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposeState, 1) == 0 && _ownsHttpClient)
         {
-            return absoluteUri;
+            _httpClient.Dispose();
+        }
+    }
+
+    private static void RequireExpectedResponse(
+        HttpResponseMessage response,
+        Uri expectedUri,
+        bool manifest)
+    {
+        int statusCode = (int)response.StatusCode;
+        if (statusCode is >= 300 and <= 399)
+        {
+            throw new LauncherUpdateManifestTransportException();
         }
 
-        return new Uri(ManifestUri, url);
+        Uri? finalUri = response.RequestMessage?.RequestUri;
+        if (finalUri is null || finalUri != expectedUri)
+        {
+            throw new LauncherUpdateManifestTransportException();
+        }
+
+        if (manifest)
+        {
+            LauncherUpdateUriPolicy.RequireManifestUri(finalUri);
+        }
+        else
+        {
+            LauncherUpdateUriPolicy.RequirePackageUri(finalUri);
+        }
+        response.EnsureSuccessStatusCode();
+    }
+
+    private static async Task<byte[]> ReadBoundedAsync(
+        Stream stream,
+        int maximumBytes,
+        CancellationToken cancellationToken)
+    {
+        using MemoryStream buffer = new(capacity: maximumBytes);
+        byte[] chunk = new byte[4096];
+        while (true)
+        {
+            int read = await stream.ReadAsync(chunk, cancellationToken).ConfigureAwait(false);
+            if (read == 0)
+            {
+                return buffer.ToArray();
+            }
+
+            if (buffer.Length > maximumBytes - read)
+            {
+                throw new LauncherUpdateManifestUnsupportedException();
+            }
+
+            await buffer.WriteAsync(chunk.AsMemory(0, read), cancellationToken)
+                .ConfigureAwait(false);
+        }
     }
 
     private static LauncherSelfUpdateTransferProgress CreateProgress(
@@ -788,6 +903,10 @@ internal sealed class LauncherSelfUpdateCoordinator : ILauncherSelfUpdateRuntime
         PeriodicCheckCompleted = null;
         OperationTerminated = null;
         _lifetimeCancellation.Dispose();
+        if (_client is IDisposable disposableClient)
+        {
+            disposableClient.Dispose();
+        }
     }
 
     private async void Timer_Tick(object? sender, EventArgs e)
@@ -971,7 +1090,9 @@ internal sealed class LauncherSelfUpdateCoordinator : ILauncherSelfUpdateRuntime
             string downloadedExecutable = Path.Combine(
                 updateDirectory,
                 Path.GetFileName(executable));
-            Uri downloadUri = LauncherSelfUpdateHttpClient.BuildDownloadUri(manifest.Url);
+            Uri downloadUri = LauncherSelfUpdateHttpClient.BuildDownloadUri(
+                manifest.Url,
+                manifest.Version);
 
             await _client.DownloadAsync(
                     downloadUri,
@@ -984,21 +1105,12 @@ internal sealed class LauncherSelfUpdateCoordinator : ILauncherSelfUpdateRuntime
 
             failurePhase = LauncherSelfUpdatePhase.Validating;
             PublishPhase(operation, LauncherSelfUpdatePhase.Validating, canUserCancel: true);
-            FileInfo candidate = new(downloadedExecutable);
-            if (!candidate.Exists || candidate.Length != manifest.Size)
-            {
-                throw new InvalidDataException("CandidateSizeMismatch");
-            }
-            string downloadedHash = await _computeSha256(downloadedExecutable, token)
+            await LauncherUpdatePackageIntegrity.ValidateAsync(
+                    downloadedExecutable,
+                    manifest,
+                    _computeSha256,
+                    token)
                 .ConfigureAwait(false);
-            token.ThrowIfCancellationRequested();
-            if (!string.Equals(
-                    downloadedHash,
-                    manifest.Sha256,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidDataException("CandidateHashMismatch");
-            }
 
             token.ThrowIfCancellationRequested();
             operation.DisableUserCancellation();
@@ -1260,13 +1372,13 @@ internal sealed class LauncherSelfUpdateCoordinator : ILauncherSelfUpdateRuntime
     {
         if (!Version.TryParse(manifestVersion, out Version? remoteVersion))
         {
-            return true;
+            return false;
         }
         string currentText = installedVersion.Trim().TrimStart('v', 'V');
         Version currentVersion = Version.TryParse(currentText, out Version? parsed)
             ? parsed
             : new Version(0, 0, 0, 0);
-        return NormalizeVersion(remoteVersion) >= NormalizeVersion(currentVersion);
+        return NormalizeVersion(remoteVersion) > NormalizeVersion(currentVersion);
     }
 
     private static Version NormalizeVersion(Version version) => new(
@@ -1278,7 +1390,14 @@ internal sealed class LauncherSelfUpdateCoordinator : ILauncherSelfUpdateRuntime
     private static LauncherSelfUpdateErrorCategory ClassifyCheckFailure(Exception exception) =>
         exception switch
         {
+            LauncherUpdateManifestFormatException => LauncherSelfUpdateErrorCategory.ManifestInvalid,
             JsonException or InvalidDataException => LauncherSelfUpdateErrorCategory.ManifestInvalid,
+            LauncherUpdateManifestTransportException =>
+                LauncherSelfUpdateErrorCategory.ManifestTransportRejected,
+            LauncherUpdateManifestSignatureException =>
+                LauncherSelfUpdateErrorCategory.ManifestSignatureInvalid,
+            LauncherUpdateManifestUnsupportedException =>
+                LauncherSelfUpdateErrorCategory.ManifestUnsupported,
             LauncherSelfUpdateApplyUnavailableException => LauncherSelfUpdateErrorCategory.ApplyUnavailable,
             UnauthorizedAccessException => LauncherSelfUpdateErrorCategory.PermissionDenied,
             HttpRequestException or TaskCanceledException => LauncherSelfUpdateErrorCategory.ManifestUnavailable,
@@ -1290,6 +1409,10 @@ internal sealed class LauncherSelfUpdateCoordinator : ILauncherSelfUpdateRuntime
         LauncherSelfUpdatePhase phase) => exception switch
         {
             LauncherSelfUpdateRestartException => LauncherSelfUpdateErrorCategory.RestartFailed,
+            LauncherUpdateManifestTransportException =>
+                LauncherSelfUpdateErrorCategory.ManifestTransportRejected,
+            LauncherUpdatePackageIntegrityException =>
+                LauncherSelfUpdateErrorCategory.PackageIntegrityFailed,
             LauncherSelfUpdateApplyUnavailableException => LauncherSelfUpdateErrorCategory.ApplyUnavailable,
             UnauthorizedAccessException => LauncherSelfUpdateErrorCategory.PermissionDenied,
             InvalidDataException => LauncherSelfUpdateErrorCategory.CandidateInvalid,
@@ -1308,10 +1431,18 @@ internal sealed class LauncherSelfUpdateCoordinator : ILauncherSelfUpdateRuntime
             "La recherche de mise à jour est temporairement indisponible.",
         LauncherSelfUpdateErrorCategory.ManifestInvalid =>
             "Les informations de mise à jour reçues sont invalides.",
+        LauncherSelfUpdateErrorCategory.ManifestTransportRejected =>
+            "Le canal de mise à jour n’a pas pu être vérifié.",
+        LauncherSelfUpdateErrorCategory.ManifestSignatureInvalid =>
+            "La mise à jour n’a pas pu être vérifiée.",
+        LauncherSelfUpdateErrorCategory.ManifestUnsupported =>
+            "Cette version du launcher ne reconnaît pas le manifeste de mise à jour.",
         LauncherSelfUpdateErrorCategory.DownloadFailed =>
             "La mise à jour du launcher n’a pas pu être téléchargée.",
         LauncherSelfUpdateErrorCategory.CandidateInvalid =>
             "Le fichier téléchargé n’a pas pu être validé.",
+        LauncherSelfUpdateErrorCategory.PackageIntegrityFailed =>
+            "Le fichier téléchargé ne correspond pas à la mise à jour vérifiée.",
         LauncherSelfUpdateErrorCategory.ApplyUnavailable =>
             "La mise à jour ne peut pas être appliquée depuis cette installation.",
         LauncherSelfUpdateErrorCategory.PermissionDenied =>

@@ -74,7 +74,7 @@ internal sealed class LauncherRuntimeDependencies
         static interval => new DispatcherLauncherSelfUpdateTimer(interval);
 
     internal Func<HttpClient, ILauncherSelfUpdateClient> CreateLauncherSelfUpdateClient { get; init; } =
-        static httpClient => new LauncherSelfUpdateHttpClient(httpClient);
+        static _ => LauncherSelfUpdateHttpClient.CreateProduction();
 
     internal ILauncherSelfUpdateFinalizer LauncherSelfUpdateFinalizer { get; init; } =
         WotLK.Launcher.Updater.LauncherSelfUpdateFinalizer.CreateProduction();

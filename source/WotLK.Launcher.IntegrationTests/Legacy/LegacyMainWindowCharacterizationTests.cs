@@ -316,7 +316,7 @@ internal static class LegacyMainWindowCharacterizationTests
             RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
             {
                 Version = "1.1.0",
-                Url = "https://atlas.test/launcher.exe",
+                Url = PackageUrl("1.1.0"),
                 Size = new FileInfo(currentExecutable).Length,
                 Sha256 = currentHash
             }));
@@ -331,7 +331,20 @@ internal static class LegacyMainWindowCharacterizationTests
             RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
             {
                 Version = "1.1.0",
-                Url = "https://atlas.test/launcher.exe",
+                Url = PackageUrl("1.1.0"),
+                Size = candidate.Length,
+                Sha256 = candidateHash
+            }));
+        await window.CheckLauncherUpdateForCharacterizationAsync();
+        snapshot = window.CaptureCharacterizationSnapshot();
+        True(!snapshot.LauncherSelfUpdateVisible,
+            "Une version égale ne doit plus permettre un remplacement involontaire.");
+
+        environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
+            RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
+            {
+                Version = "1.2.0",
+                Url = PackageUrl("1.2.0"),
                 Size = candidate.Length,
                 Sha256 = candidateHash
             }));
@@ -340,16 +353,16 @@ internal static class LegacyMainWindowCharacterizationTests
         LauncherSelfUpdateSnapshot updater =
             window.CaptureLauncherSelfUpdateForCharacterization();
         True(snapshot.LauncherSelfUpdateVisible,
-            "Une version égale avec un hash différent reste éligible dans le legacy. "
+            "Une version supérieure avec un hash différent doit rester visible dans le legacy. "
             + $"Updater={updater}; Log={snapshot.LogText}");
-        Equal("Mise a jour launcher disponible: 1.1.0", snapshot.LauncherSelfUpdateToolTip,
+        Equal("Mise a jour launcher disponible: 1.2.0", snapshot.LauncherSelfUpdateToolTip,
             "Le texte historique du bouton doit rester stable.");
 
         environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
             RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
             {
                 Version = "0.9.0",
-                Url = "https://atlas.test/launcher.exe",
+                Url = PackageUrl("0.9.0"),
                 Size = candidate.Length,
                 Sha256 = candidateHash
             }));
@@ -370,8 +383,8 @@ internal static class LegacyMainWindowCharacterizationTests
             "Deux checks simultanés doivent produire une seule requête legacy.");
         release.SetResult(RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
         {
-            Version = "1.1.0",
-            Url = "https://atlas.test/launcher.exe",
+            Version = "1.2.0",
+            Url = PackageUrl("1.2.0"),
             Size = candidate.Length,
             Sha256 = candidateHash
         }));
@@ -387,8 +400,8 @@ internal static class LegacyMainWindowCharacterizationTests
         environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
             RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
             {
-                Version = "1.1.0",
-                Url = "https://atlas.test/launcher.exe",
+                Version = "1.2.0",
+                Url = PackageUrl("1.2.0"),
                 Size = candidate.Length,
                 Sha256 = candidateHash
             }));
@@ -425,8 +438,8 @@ internal static class LegacyMainWindowCharacterizationTests
             environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
                 RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
                 {
-                    Version = "1.1.0",
-                    Url = "https://atlas.test/launcher.exe",
+                    Version = "1.2.0",
+                    Url = PackageUrl("1.2.0"),
                     Size = candidate.Length,
                     Sha256 = candidateHash
                 }));
@@ -458,8 +471,8 @@ internal static class LegacyMainWindowCharacterizationTests
             environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
                 RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
                 {
-                    Version = "1.1.0",
-                    Url = "https://atlas.test/launcher.exe",
+                    Version = "1.2.0",
+                    Url = PackageUrl("1.2.0"),
                     Size = candidate.Length,
                     Sha256 = candidateHash
                 }));
@@ -730,6 +743,9 @@ internal static class LegacyMainWindowCharacterizationTests
         True(condition(), failureMessage);
     }
 
+    private static string PackageUrl(string version) =>
+        $"https://animeclub.fr/wotlk/launcher/releases/{version}/WotLK-Launcher.exe";
+
     private static void AssertOrdered(
         IReadOnlyList<LegacyStartupEvent> actual,
         params LegacyStartupEvent[] expected)
@@ -896,6 +912,9 @@ internal sealed class LegacyTestEnvironment : IDisposable
             },
             PersistLogLine = _ => { },
             GameClientMaintenanceService = GameClientMaintenanceService,
+            CreateLauncherSelfUpdateClient = httpClient => new LauncherSelfUpdateHttpClient(
+                httpClient,
+                PassthroughLauncherUpdateManifestVerifier.Instance),
             LauncherSelfUpdateFinalizer = SelfUpdateFinalizer,
             OperationCoordinator = Operations,
             RequestApplicationShutdown = () => ShutdownRequests++,
@@ -1154,17 +1173,28 @@ internal sealed class RecordingHttpHandler(RecordingStartupObserver observer) : 
             LauncherUpdateRequests++;
             if (LauncherUpdateResponder is not null)
             {
-                return LauncherUpdateResponder(request, cancellationToken);
+                return AttachRequestAsync(
+                    LauncherUpdateResponder(request, cancellationToken),
+                    request);
             }
 
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+            return AttachRequestAsync(
+                Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)),
+                request);
         }
 
-        if (string.Equals(absoluteUri, "https://atlas.test/launcher.exe", StringComparison.OrdinalIgnoreCase))
+        if (absoluteUri.StartsWith(
+                "https://animeclub.fr/wotlk/launcher/releases/",
+                StringComparison.OrdinalIgnoreCase)
+            && absoluteUri.EndsWith(
+                "/WotLK-Launcher.exe",
+                StringComparison.Ordinal))
         {
             LauncherBinaryRequests++;
-            return LauncherBinaryResponder?.Invoke(request, cancellationToken)
-                ?? Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            return AttachRequestAsync(
+                LauncherBinaryResponder?.Invoke(request, cancellationToken)
+                    ?? Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound)),
+                request);
         }
 
         if (absoluteUri.Contains("manifest.json", StringComparison.OrdinalIgnoreCase))
@@ -1189,6 +1219,15 @@ internal sealed class RecordingHttpHandler(RecordingStartupObserver observer) : 
         return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
     }
 
+    private static async Task<HttpResponseMessage> AttachRequestAsync(
+        Task<HttpResponseMessage> responseTask,
+        HttpRequestMessage request)
+    {
+        HttpResponseMessage response = await responseTask;
+        response.RequestMessage ??= request;
+        return response;
+    }
+
     internal static HttpResponseMessage JsonResponse<T>(T value)
     {
         return new HttpResponseMessage(HttpStatusCode.OK)
@@ -1206,6 +1245,16 @@ internal sealed class RecordingHttpHandler(RecordingStartupObserver observer) : 
         {
             Content = new ByteArrayContent(value)
         };
+    }
+}
+
+internal sealed class PassthroughLauncherUpdateManifestVerifier : ILauncherUpdateManifestVerifier
+{
+    internal static PassthroughLauncherUpdateManifestVerifier Instance { get; } = new();
+
+    public void Verify(LauncherUpdateManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
     }
 }
 

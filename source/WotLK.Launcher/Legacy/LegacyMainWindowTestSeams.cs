@@ -119,6 +119,9 @@ internal sealed class LegacyMainWindowDependencies
     internal ILauncherSelfUpdateFinalizer LauncherSelfUpdateFinalizer { get; init; } =
         WotLK.Launcher.Updater.LauncherSelfUpdateFinalizer.CreateProduction();
 
+    internal Func<HttpClient, ILauncherSelfUpdateClient> CreateLauncherSelfUpdateClient { get; init; } =
+        static _ => LauncherSelfUpdateHttpClient.CreateProduction();
+
     internal Action RequestApplicationShutdown { get; init; } =
         RequestProductionShutdown;
 

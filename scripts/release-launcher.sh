@@ -7,10 +7,11 @@ legacy_root="${LEGACY_ROOT:-}"
 artifact_store="${ARTIFACT_STORE:-/srv/wotlk/launcher-releases}"
 server_root="${SERVER_ROOT:-/opt/wotlk-launcher-server}"
 caddyfile="${CADDYFILE:-/etc/caddy/Caddyfile}"
+manifest_tool="${MANIFEST_TOOL:-$repo_root/scripts/launcher-update-manifest.py}"
+signing_public_key="${ATLAS_LAUNCHER_SIGNING_PUBLIC_KEY:-}"
+signing_key_id="${ATLAS_LAUNCHER_SIGNING_KEY_ID:-}"
 
 manifest="$public_root/launcher-update.json"
-launcher="$public_root/WotLK-Launcher.exe"
-installer="$public_root/WotLK-Launcher-Installer.exe"
 
 require_file() {
   if [ ! -f "$1" ]; then
@@ -55,8 +56,13 @@ repo_from_remote() {
 }
 
 require_file "$manifest"
-require_file "$launcher"
-require_file "$installer"
+require_file "$manifest_tool"
+
+if [ -z "$signing_public_key" ] || [ -z "$signing_key_id" ]; then
+  echo "ATLAS_LAUNCHER_SIGNING_PUBLIC_KEY and ATLAS_LAUNCHER_SIGNING_KEY_ID are required" >&2
+  exit 1
+fi
+require_file "$signing_public_key"
 
 version="$(json_value "$manifest" version)"
 expected_size="$(json_value "$manifest" size)"
@@ -66,6 +72,17 @@ if [ -z "$version" ]; then
   echo "launcher-update.json does not contain a version" >&2
   exit 1
 fi
+
+launcher="$public_root/releases/$version/WotLK-Launcher.exe"
+installer="$public_root/releases/$version/WotLK-Launcher-Installer.exe"
+require_file "$launcher"
+require_file "$installer"
+
+python3 "$manifest_tool" verify \
+  --manifest "$manifest" \
+  --package "$launcher" \
+  --public-key "$signing_public_key" \
+  --expected-key-id "$signing_key_id"
 
 tag="v$version"
 launcher_size="$(stat -c%s "$launcher")"
@@ -84,11 +101,10 @@ if [ "${launcher_sha,,}" != "${expected_sha,,}" ]; then
 fi
 
 if [ -n "$legacy_root" ] && [ -d "$legacy_root" ]; then
-  for name in WotLK-Launcher.exe WotLK-Launcher-Installer.exe launcher-update.json; do
-    if [ -f "$legacy_root/$name" ] && ! cmp -s "$public_root/$name" "$legacy_root/$name"; then
-      echo "Warning: legacy endpoint differs for $name" >&2
-    fi
-  done
+  if [ -f "$legacy_root/launcher-update.json" ] \
+    && ! cmp -s "$manifest" "$legacy_root/launcher-update.json"; then
+    echo "Warning: legacy endpoint differs for launcher-update.json" >&2
+  fi
 fi
 
 mkdir -p "$repo_root/current" "$repo_root/releases/$tag" "$repo_root/server/src" "$repo_root/caddy"

@@ -37,12 +37,14 @@ internal sealed class AvatarMediaClient : IAvatarMediaClient
     private readonly HttpClient _httpClient;
     private readonly Uri _apiBaseUri;
     private readonly Uri _mediaBaseUri;
+    private readonly string _mediaPathPrefix;
 
     internal AvatarMediaClient(HttpClient httpClient, Uri apiBaseUri)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _apiBaseUri = EnsureTrailingSlash(apiBaseUri ?? throw new ArgumentNullException(nameof(apiBaseUri)));
         _mediaBaseUri = new Uri(_apiBaseUri, "../../");
+        _mediaPathPrefix = new Uri(_mediaBaseUri, "media/avatars/").AbsolutePath;
     }
 
     public async Task<AvatarProfileReadResult> GetProfileAsync(CancellationToken cancellationToken)
@@ -245,8 +247,27 @@ internal sealed class AvatarMediaClient : IAvatarMediaClient
 
     private Uri ResolveMediaUri(string value)
     {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new AvatarMediaException(AvatarMediaFailureCategory.InvalidImage);
+        }
+
+        string candidate = value.Trim();
         Uri resolved;
-        if (Uri.TryCreate(value, UriKind.Absolute, out Uri? absolute))
+        if (candidate.StartsWith("/", StringComparison.Ordinal))
+        {
+            if (!candidate.StartsWith(
+                    "/media/avatars/",
+                    StringComparison.Ordinal))
+            {
+                throw new AvatarMediaException(AvatarMediaFailureCategory.InvalidImage);
+            }
+
+            // Server descriptors are application-root relative. The public API can
+            // itself live below a prefix such as /wotlk, so resolve from that base.
+            resolved = new Uri(_mediaBaseUri, candidate.TrimStart('/'));
+        }
+        else if (Uri.TryCreate(candidate, UriKind.Absolute, out Uri? absolute))
         {
             if (!string.Equals(absolute.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
                 && !string.Equals(absolute.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase))
@@ -257,7 +278,7 @@ internal sealed class AvatarMediaClient : IAvatarMediaClient
         }
         else
         {
-            resolved = new Uri(_mediaBaseUri, value.TrimStart('/'));
+            resolved = new Uri(_mediaBaseUri, candidate);
         }
 
         bool sameOrigin = string.Equals(
@@ -272,8 +293,10 @@ internal sealed class AvatarMediaClient : IAvatarMediaClient
             && string.IsNullOrEmpty(resolved.UserInfo);
         if (!sameOrigin
             || !resolved.AbsolutePath.StartsWith(
-                "/media/avatars/",
-                StringComparison.Ordinal))
+                _mediaPathPrefix,
+                StringComparison.Ordinal)
+            || !string.IsNullOrEmpty(resolved.Query)
+            || !string.IsNullOrEmpty(resolved.Fragment))
         {
             throw new AvatarMediaException(AvatarMediaFailureCategory.InvalidImage);
         }

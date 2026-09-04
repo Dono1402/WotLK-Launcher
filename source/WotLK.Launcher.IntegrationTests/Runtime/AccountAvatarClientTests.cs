@@ -141,6 +141,35 @@ internal static class AccountAvatarClientTests
         await ValidateMediaErrorAsync(HttpStatusCode.ServiceUnavailable, "StorageFailed", AvatarMediaFailureCategory.StorageFailed);
         await ValidateMediaErrorAsync(HttpStatusCode.Unauthorized, "Unauthorized", AvatarMediaFailureCategory.Unauthorized);
         await ValidateMediaErrorAsync(HttpStatusCode.NotFound, "NotFound", AvatarMediaFailureCategory.BackendUnavailable);
+        await ValidatePrefixedMediaRouteAsync();
+    }
+
+    private static async Task ValidatePrefixedMediaRouteAsync()
+    {
+        Uri apiBase = new("https://animeclub.fr/wotlk/api/v1/");
+        AvatarDescriptor descriptor = Descriptor(version: 8);
+        byte[] png = CreatePng(8, 8);
+        Uri? requestedUri = null;
+        Queue<Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>> responses = new();
+        responses.Enqueue((request, _) =>
+        {
+            requestedUri = request.RequestUri;
+            return Task.FromResult(Png(HttpStatusCode.OK, png));
+        });
+
+        using HttpClient http = new(new QueueHttpHandler(responses));
+        AvatarMediaClient client = new(http, apiBase);
+        AvatarMediaDownloadResult media = await client.DownloadAvatarAsync(
+            descriptor,
+            64,
+            CancellationToken.None);
+
+        Equal(AvatarMediaDownloadStatus.Success, media.Status,
+            "Une variante servie sous le préfixe public doit être téléchargée.");
+        Equal(
+            $"/wotlk/media/avatars/{descriptor.AvatarId:N}/{descriptor.Version}/64.png",
+            requestedUri?.AbsolutePath,
+            "Le descripteur serveur doit conserver le préfixe public /wotlk.");
     }
 
     private static async Task ValidateMediaErrorAsync(

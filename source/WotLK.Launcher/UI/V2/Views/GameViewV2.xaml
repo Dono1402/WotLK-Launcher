@@ -39,26 +39,29 @@
                             Background="#0B1016"
                             ClipToBounds="True">
                         <Grid DataContext="{Binding State, ElementName=Root}">
-                            <Image x:Name="HeroArtwork"
-                                   HorizontalAlignment="Stretch"
-                                   VerticalAlignment="Stretch"
-                                   Stretch="UniformToFill"
-                                   Opacity="0.96"
-                                   RenderOptions.BitmapScalingMode="HighQuality">
-                                <Image.Source>
-                                    <BitmapImage UriSource="/WotLK.Launcher;component/Assets/Images/LichKingFrostmourneHero.jpg"
-                                                 DecodePixelWidth="3840"
-                                                 CacheOption="OnLoad"/>
-                                </Image.Source>
-                            </Image>
+                            <Rectangle x:Name="HeroArtwork"
+                                       Opacity="0.96"
+                                       RenderOptions.BitmapScalingMode="HighQuality">
+                                <Rectangle.Fill>
+                                    <ImageBrush AlignmentX="Right"
+                                                AlignmentY="Center"
+                                                Stretch="UniformToFill">
+                                        <ImageBrush.ImageSource>
+                                            <BitmapImage UriSource="/WotLK.Launcher;component/Assets/Images/LichKingFrostmourneHero.jpg"
+                                                         DecodePixelWidth="3840"
+                                                         CacheOption="OnLoad"/>
+                                        </ImageBrush.ImageSource>
+                                    </ImageBrush>
+                                </Rectangle.Fill>
+                            </Rectangle>
 
                             <Rectangle IsHitTestVisible="False">
                                 <Rectangle.Fill>
                                     <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
-                                        <GradientStop Offset="0" Color="#FA080D12"/>
-                                        <GradientStop Offset="0.34" Color="#DF080D12"/>
-                                        <GradientStop Offset="0.64" Color="#73080D12"/>
-                                        <GradientStop Offset="1" Color="#16080D12"/>
+                                        <GradientStop Offset="0" Color="#B8080D12"/>
+                                        <GradientStop Offset="0.34" Color="#92080D12"/>
+                                        <GradientStop Offset="0.64" Color="#42080D12"/>
+                                        <GradientStop Offset="1" Color="#10080D12"/>
                                     </LinearGradientBrush>
                                 </Rectangle.Fill>
                             </Rectangle>

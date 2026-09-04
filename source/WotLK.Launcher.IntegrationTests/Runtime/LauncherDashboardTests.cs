@@ -574,9 +574,9 @@ internal static class LauncherDashboardTests
                 True(noteAction.Content is System.Windows.Shapes.Path,
                     "Le bouton Mises à jour doit rester limité à son pictogramme.");
                 Equal(52d, noteAction.Width, "Le bouton Mises à jour doit conserver un format carré compact.");
-                True(Required<Image>(gameView, "HeroArtwork").Source is BitmapImage heroSource
+                True(Required<Rectangle>(gameView, "HeroArtwork").Fill is ImageBrush { AlignmentX: AlignmentX.Right, ImageSource: BitmapImage heroSource }
                     && heroSource.UriSource.OriginalString.EndsWith("LichKingFrostmourneHero.jpg", StringComparison.Ordinal),
-                    "La page Jeu doit utiliser le nouveau visuel du Roi-liche.");
+                    "La page Jeu doit utiliser le nouveau visuel du Roi-liche ancré à droite.");
                 if (!string.IsNullOrWhiteSpace(captureDirectory))
                 {
                     Directory.CreateDirectory(captureDirectory);

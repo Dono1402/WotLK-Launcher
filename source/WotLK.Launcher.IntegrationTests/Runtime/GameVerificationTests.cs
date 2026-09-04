@@ -376,11 +376,12 @@ internal static class GameVerificationTests
 
                 List<Button> buttons = FindVisualChildren<Button>(view).ToList();
                 List<Button> verifyButtons = FindButtons(buttons, "Vérifier le client");
-                True(verifyButtons.Count == 2, "Ready et UpdateAvailable doivent partager Vérifier.");
-                True(verifyButtons.All(button => ReferenceEquals(button.Command, gameState.VerifyCommand)), "Chaque bouton doit utiliser l'ICommand 02C.");
-                True(verifyButtons.All(button => !button.IsEnabled), "Sans pipeline de réparation injecté, le clic manuel doit rester désactivé.");
+                True(verifyButtons.Count == 0,
+                    "La page Jeu immersive ne doit plus dupliquer la vérification disponible dans Paramètres.");
+                True(!gameState.VerifyCommand.CanExecute(null),
+                    "Sans pipeline de réparation injecté, la commande manuelle doit rester désactivée.");
                 True(!FindButtons(buttons, "Jouer").Single().IsEnabled, "Jouer doit rester désactivé.");
-                True(!FindButtons(buttons, "Options").Single().IsEnabled, "Options doit rester désactivé.");
+                True(FindButtons(buttons, "Options").Count == 0, "Options ne doit plus apparaître sur la page Jeu.");
 
                 int groupedNotifications = 0;
                 gameState.PropertyChanged += (_, args) =>

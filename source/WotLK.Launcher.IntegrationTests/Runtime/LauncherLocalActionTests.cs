@@ -378,27 +378,26 @@ internal static class LauncherLocalActionTests
                 List<Button> buttons = FindVisualChildren<Button>(view).ToList();
                 List<Button> folderButtons = FindButtons(buttons, "Ouvrir le dossier du client");
                 List<Button> diagnosticButtons = FindButtons(buttons, "Ouvrir le diagnostic");
-                True(folderButtons.Count >= 3, "Toutes les cartes doivent exposer la commande Dossier.");
-                True(diagnosticButtons.Count >= 4, "Toutes les cartes concernées doivent exposer Diagnostic.");
-                True(folderButtons.All(button => ReferenceEquals(button.Command, gameState.OpenGameFolderCommand)), "Chaque Dossier doit utiliser le même ICommand 02B.");
-                True(diagnosticButtons.All(button => ReferenceEquals(button.Command, gameState.OpenDiagnosticCommand)), "Chaque Diagnostic doit utiliser le même ICommand 02B.");
-                True(folderButtons.All(button => button.IsEnabled), "Dossier réel doit être exécutable avant l'arrêt.");
-                True(diagnosticButtons.All(button => button.IsEnabled), "Diagnostic réel doit être exécutable avant l'arrêt.");
+                True(folderButtons.Count == 0 && diagnosticButtons.Count == 0,
+                    "La page Jeu immersive ne doit plus dupliquer Dossier et Diagnostic.");
+                True(gameState.OpenGameFolderCommand.CanExecute(null),
+                    "La commande Dossier doit rester disponible pour Paramètres.");
+                True(gameState.OpenDiagnosticCommand.CanExecute(null),
+                    "La commande Diagnostic doit rester disponible pour Paramètres.");
 
                 List<Button> verifyButtons = FindButtons(buttons, "Vérifier le client");
-                True(
-                    verifyButtons.All(button =>
-                        !button.IsEnabled
-                        && ReferenceEquals(button.Command, gameState.VerifyCommand)),
+                True(verifyButtons.Count == 0,
+                    "La page Jeu ne doit plus dupliquer Vérifier depuis la carte Installation retirée.");
+                True(!gameState.VerifyCommand.CanExecute(null),
                     "Sans coordinateur 02C, Vérifier doit conserver sa commande désactivée.");
                 Button primary = FindButtons(buttons, "Jouer").Single();
-                Button options = FindButtons(buttons, "Options").Single();
                 True(
                     !primary.IsEnabled
                     && ReferenceEquals(primary.Command, gameState.PrimaryActionCommand)
                     && !gameState.PrimaryActionCommand.CanExecute(null),
                     "Jouer doit rester désactivé tant qu'aucun runtime de jeu n'est raccordé.");
-                True(!options.IsEnabled && options.Command is null, "Options doit rester désactivé et non reconnecté.");
+                True(FindButtons(buttons, "Options").Count == 0,
+                    "Le bouton Options retiré ne doit plus apparaître dans la page Jeu.");
                 True(!application.Windows.OfType<MainWindow>().Any(), "La V2 locale ne doit pas instancier MainWindow legacy.");
 
                 gameState.OpenGameFolderCommand.Execute(null);

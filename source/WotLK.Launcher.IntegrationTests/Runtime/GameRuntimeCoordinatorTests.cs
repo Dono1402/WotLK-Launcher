@@ -484,8 +484,10 @@ internal static class GameRuntimeCoordinatorTests
                     }
                 };
 
-                Button installer = FindButtons(view, "Installer").Single();
+                Button installer = view.FindName("PrimaryActionButton") as Button
+                    ?? throw new InvalidOperationException("PrimaryActionButton introuvable.");
                 True(installer.IsEnabled && ReferenceEquals(installer.Command, state.PrimaryActionCommand), "Installer WPF doit utiliser PrimaryActionCommand.");
+                Equal("Installer", AutomationProperties.GetName(installer), "L'action principale doit annoncer Installer.");
                 state.PrimaryActionCommand.Execute(null);
                 await environment.Coordinator.WaitForIdleAsync();
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
@@ -493,8 +495,10 @@ internal static class GameRuntimeCoordinatorTests
                 Equal(GamePreviewScenario.Error, state.Scenario, "L'erreur doit être appliquée atomiquement.");
                 Equal("Réessayer", state.PrimaryActionLabel, "L'erreur doit afficher Réessayer.");
                 True(state.IsRetryEnabled && state.PrimaryActionCommand.CanExecute(null), "Réessayer doit être exécutable.");
-                True(FindButtons(view, "Réessayer l'opération").Single().IsEnabled, "Le bouton Retry WPF doit être actif.");
-                True(FindButtons(view, "Ouvrir le diagnostic").Any(button => button.IsEnabled), "Diagnostic doit rester accessible après erreur.");
+                True(installer.IsEnabled, "L'action principale Réessayer doit être active.");
+                Equal("Réessayer", AutomationProperties.GetName(installer), "L'action principale doit annoncer Réessayer.");
+                True(!FindButtons(view, "Ouvrir le diagnostic").Any(),
+                    "La page Jeu immersive ne doit plus dupliquer Diagnostic après une erreur.");
 
                 state.PrimaryActionCommand.Execute(null);
                 await transferStarted.Task;

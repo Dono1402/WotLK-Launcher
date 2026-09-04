@@ -19,6 +19,9 @@ internal static class LocalPatchNotesDraft
         [
             new("Launcher",
             [
+                "La page Jeu met désormais Norfendre en valeur sur toute la surface disponible.",
+                "Les actions Mises à jour et Jouer sont regroupées en bas à droite.",
+                "Les informations d'installation restent accessibles dans Paramètres sans encombrer la page Jeu.",
                 "Les notes de mise à jour disposent maintenant de leur propre onglet.",
                 "Chaque changement est présenté clairement, point par point."
             ]),

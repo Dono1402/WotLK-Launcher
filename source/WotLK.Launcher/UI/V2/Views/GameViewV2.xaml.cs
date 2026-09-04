@@ -31,8 +31,6 @@ public partial class GameViewV2 : UserControl
         Loaded += (_, _) => ApplyLayout(LayoutMode);
     }
 
-    public event EventHandler? OptionsRequested;
-
     public event EventHandler? PatchNoteRequested;
 
     public GameUiState? State
@@ -62,11 +60,6 @@ public partial class GameViewV2 : UserControl
         return PrimaryActionButton.Focus();
     }
 
-    private void OptionsButton_Click(object sender, RoutedEventArgs e)
-    {
-        OptionsRequested?.Invoke(this, EventArgs.Empty);
-    }
-
     private void LatestPatchNoteAction_Click(object sender, RoutedEventArgs e)
     {
         if (DashboardState?.Current.CanOpenLatestPatchNote == true)
@@ -93,43 +86,31 @@ public partial class GameViewV2 : UserControl
             AdaptiveLayoutMode.Compact => new Thickness(26, 18, 26, 26),
             _ => new Thickness(20, 16, 20, 24)
         };
-        HeroCard.Height = mode switch
+        HeroCard.MinHeight = mode switch
         {
-            AdaptiveLayoutMode.Wide => 296,
-            AdaptiveLayoutMode.Compact => 280,
-            _ => 276
+            AdaptiveLayoutMode.Wide => 520,
+            AdaptiveLayoutMode.Compact => 500,
+            _ => 480
         };
         HeroCopyPanel.Padding = mode switch
         {
-            AdaptiveLayoutMode.Wide => new Thickness(44, 30, 44, 30),
-            AdaptiveLayoutMode.Compact => new Thickness(38, 28, 38, 28),
-            _ => new Thickness(32, 26, 32, 26)
+            AdaptiveLayoutMode.Wide => new Thickness(48, 44, 48, 0),
+            AdaptiveLayoutMode.Compact => new Thickness(40, 36, 40, 0),
+            _ => new Thickness(32, 30, 32, 0)
         };
         HeroTitle.FontSize = mode switch
         {
-            AdaptiveLayoutMode.Wide => 38,
-            AdaptiveLayoutMode.Compact => 36,
-            _ => 34
+            AdaptiveLayoutMode.Wide => 48,
+            AdaptiveLayoutMode.Compact => 44,
+            _ => 40
         };
-        HeroArtwork.Width = mode switch
+        HeroBottomBar.Margin = mode switch
         {
-            AdaptiveLayoutMode.Wide => 940,
-            AdaptiveLayoutMode.Compact => 860,
-            _ => 820
+            AdaptiveLayoutMode.Wide => new Thickness(48, 28, 48, 44),
+            AdaptiveLayoutMode.Compact => new Thickness(40, 24, 40, 36),
+            _ => new Thickness(32, 22, 32, 30)
         };
-        HeroArtwork.Margin = mode switch
-        {
-            AdaptiveLayoutMode.Wide => new Thickness(0, 0, 56, 0),
-            AdaptiveLayoutMode.Compact => new Thickness(0, 0, 32, 0),
-            _ => new Thickness(0, 0, 20, 0)
-        };
-
-        NewsColumn.Width = new GridLength(1, GridUnitType.Star);
-        CardGapColumn.Width = new GridLength(20);
-        InstallColumn.Width = new GridLength(mode == AdaptiveLayoutMode.Wide ? 360 : 340);
-        Grid.SetRow(NewsCard, 0);
-        Grid.SetColumn(NewsCard, 0);
-        Grid.SetRow(InstallCard, 0);
-        Grid.SetColumn(InstallCard, 2);
+        LatestPatchNoteAction.Width = mode == AdaptiveLayoutMode.Stacked ? 158 : 176;
+        PrimaryActionButton.Width = mode == AdaptiveLayoutMode.Stacked ? 174 : 190;
     }
 }

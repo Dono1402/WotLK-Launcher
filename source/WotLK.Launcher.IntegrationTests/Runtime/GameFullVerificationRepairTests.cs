@@ -702,9 +702,11 @@ internal static class GameFullVerificationRepairTests
                 };
                 host.Show();
                 view.UpdateLayout();
-                Button verifyButton = FindButtons(view, "Vérifier le client").First();
-                True(verifyButton.IsEnabled, "Le bouton Vérifier WPF doit être actif avant GameRepair.");
-                verifyButton.Command.Execute(null);
+                True(!FindButtons(view, "Vérifier le client").Any(),
+                    "La page Jeu immersive ne doit plus dupliquer Vérifier et réparer.");
+                True(state.VerifyCommand.CanExecute(null),
+                    "La commande Vérifier et réparer doit rester active pour Paramètres.");
+                state.VerifyCommand.Execute(null);
 
                 await fullStarted.Task;
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);

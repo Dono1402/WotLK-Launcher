@@ -760,17 +760,6 @@ public partial class LauncherShellV2 : Window
         }
     }
 
-    private void GameView_OptionsRequested(object? sender, EventArgs e)
-    {
-        if (!IsSettingsNavigationEnabled || _overlayCoordinator.Current != ShellOverlayKind.None)
-        {
-            return;
-        }
-
-        NavigateTo(LauncherShellPage.Settings);
-        SettingsView.SelectAndFocusCategory(SettingsCategory.Game);
-    }
-
     private void GameView_PatchNoteRequested(object? sender, EventArgs e)
     {
         bool friendsWasOpen = FriendsState.IsOpen;

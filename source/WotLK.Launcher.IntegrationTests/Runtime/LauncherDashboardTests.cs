@@ -533,27 +533,16 @@ internal static class LauncherDashboardTests
                 TextBlock realmText = Required<TextBlock>(window, "RealmStatusText");
                 Ellipse realmDot = Required<Ellipse>(window, "RealmStatusDot");
                 GameViewV2 gameView = Required<GameViewV2>(window, "GameView");
-                TextBlock noteTitle = Required<TextBlock>(gameView, "LatestPatchNoteTitleText");
-                TextBlock noteSummary = Required<TextBlock>(gameView, "LatestPatchNoteSummaryText");
                 Button noteAction = Required<Button>(gameView, "LatestPatchNoteAction");
-                Button options = Required<Button>(gameView, "OptionsButton");
+                Border hero = Required<Border>(gameView, "HeroCard");
+                Border gameContent = Required<Border>(gameView, "ContentFrame");
                 True(!noteAction.IsEnabled, "Le lecteur doit rester indisponible sans note réelle.");
-
-                RaiseClick(options);
-                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
-                Equal(LauncherShellPage.Settings, window.CurrentPage, "Options doit ouvrir Paramètres.");
-                Equal(SettingsCategory.Game, window.SettingsPage.SelectedCategory, "Options doit cibler directement la catégorie Jeu.");
-                Equal(
-                    Required<Button>(window.SettingsPage, "GameCategoryButton"),
-                    Keyboard.FocusedElement,
-                    "Options doit placer le focus sur la catégorie Jeu.");
-                RaiseClick(Required<Button>(window, "GameNavigationButton"));
-                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
-                Equal(LauncherShellPage.Game, window.CurrentPage, "La navigation Jeu doit permettre de revenir depuis Options.");
-                Equal(
-                    gameView.PrimaryActionFocusTarget,
-                    Keyboard.FocusedElement,
-                    "Le retour vers Jeu doit rendre le focus à l’action principale.");
+                True(gameView.FindName("OptionsButton") is null,
+                    "Le raccourci Options ne doit plus occuper l’action principale de la page Jeu.");
+                True(gameView.FindName("NewsCard") is null && gameView.FindName("InstallCard") is null,
+                    "Les anciennes cartes Actualité et Installation doivent être retirées.");
+                True(Math.Abs(hero.ActualHeight - gameContent.ActualHeight) <= 0.5,
+                    "Le visuel Jeu doit occuper toute la hauteur utile de l’onglet.");
 
                 LauncherNews visibleNote = new(
                     "atlas-launcher-1-1-0",
@@ -572,12 +561,33 @@ internal static class LauncherDashboardTests
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
                 window.UpdateLayout();
                 Equal("Arthas en ligne", realmText.Text, "Le mode large doit afficher Arthas en ligne.");
-                Equal("Vraie note", noteTitle.Text, "La carte doit afficher la vraie note projetée.");
-                Equal("Résumé réel", noteSummary.Text, "La carte doit afficher le vrai résumé.");
                 EqualBrush(application, "AtlasV2.Brush.Success", realmDot.Fill, "Online doit utiliser le vert.");
                 Equal(afterConstruction + 1, propertyNotifications, "Un snapshot doit produire une notification atomique groupée.");
                 Equal(originalClientStatus, game.ClientStatus, "Le royaume ne doit pas modifier le client.");
-                True(noteAction.IsEnabled, "Une note réelle doit activer son lecteur.");
+                True(noteAction.IsEnabled, "Une note réelle doit activer le bouton Mises à jour.");
+                Equal(
+                    "Mises à jour",
+                    ((TextBlock)((StackPanel)noteAction.Content).Children[1]).Text,
+                    "Le bouton secondaire doit identifier clairement les mises à jour.");
+                if (!string.IsNullOrWhiteSpace(captureDirectory))
+                {
+                    Directory.CreateDirectory(captureDirectory);
+                    SavePng(window, System.IO.Path.Combine(captureDirectory, "game-immersive-1440x860.png"));
+                    window.Width = 1080;
+                    window.Height = 680;
+                    await dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+                    window.UpdateLayout();
+                    SavePng(window, System.IO.Path.Combine(captureDirectory, "game-immersive-1080x680.png"));
+                    window.Width = 1920;
+                    window.Height = 1080;
+                    await dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+                    window.UpdateLayout();
+                    SavePng(window, System.IO.Path.Combine(captureDirectory, "game-immersive-1920x1080.png"));
+                    window.Width = 1440;
+                    window.Height = 860;
+                    await dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+                    window.UpdateLayout();
+                }
                 Button patchNotesNavigation = Required<Button>(window, "PatchNotesNavigationButton");
                 RaiseClick(patchNotesNavigation);
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
@@ -638,7 +648,7 @@ internal static class LauncherDashboardTests
                 Equal("Résumé réel", Required<TextBlock>(patchNote, "PatchNoteBodyText").Text, "Le corps doit réutiliser le résumé réel du dashboard.");
                 Equal("v1.1.0", Required<TextBlock>(patchNote, "PatchNoteVersionText").Text, "La version réelle doit être visible.");
                 True(patchNote.ContainsKeyboardFocusTarget(Keyboard.FocusedElement as DependencyObject), "Le focus doit rester dans le lecteur.");
-                Keyboard.Focus(options);
+                Keyboard.Focus(gameView.PrimaryActionFocusTarget);
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
                 True(patchNote.ContainsKeyboardFocusTarget(Keyboard.FocusedElement as DependencyObject), "Le focus ne doit pas passer derrière le lecteur.");
                 RaisePreviewKey(window, Key.Escape);

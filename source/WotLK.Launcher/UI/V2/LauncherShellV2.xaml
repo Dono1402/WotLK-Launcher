@@ -387,11 +387,10 @@
 
             <Grid Grid.Row="1">
                 <views:GameViewV2 x:Name="GameView"
-                                  State="{Binding GameState}"
-                                  DashboardState="{Binding DashboardState}"
-                                  LayoutMode="{Binding ShellState.LayoutMode}"
-                                  OptionsRequested="GameView_OptionsRequested"
-                                  PatchNoteRequested="GameView_PatchNoteRequested"/>
+                                   State="{Binding GameState}"
+                                   DashboardState="{Binding DashboardState}"
+                                   LayoutMode="{Binding ShellState.LayoutMode}"
+                                   PatchNoteRequested="GameView_PatchNoteRequested"/>
                 <views:AddonsViewV2 x:Name="AddonsView"
                                     Visibility="Collapsed"
                                     State="{Binding AddonsState}"

@@ -11,7 +11,7 @@ La parite fonctionnelle locale est proche et l'architecture ne presente pas de d
 
 ## Corrections 04B.4
 
-- Le bouton `Options` de la page Jeu ouvre maintenant directement `Parametres > Jeu` et place le focus sur cette categorie.
+- La page Jeu utilise un visuel immersif plein onglet avec `Mises a jour` et l'action principale alignees en bas a droite.
 - Le retour vers Jeu replace le focus sur l'action principale.
 - `Lire la note de mise a jour` ouvre maintenant un overlay WPF leger alimente par la vraie note du dashboard.
 - L'overlay de note prend en charge fermeture X, Echap, clic exterieur, piege de focus, retour du focus et exclusivite avec les autres overlays.
@@ -34,7 +34,7 @@ Legende : `REAL`, `PREVIEW ONLY`, `READ ONLY`, `A VENIR`, `LEGACY ONLY`, `NON AP
 | Jeu | Installer | REAL | Pipeline de maintenance existant. |
 | Jeu | Mettre a jour | REAL | Meme pipeline et meme bail global. |
 | Jeu | Jouer | REAL | Single-flight separe, SSO et lancement existants. |
-| Jeu | Options | REAL | Ouvre `Parametres > Jeu`. |
+| Jeu | Mises a jour | REAL | Ouvre la derniere note disponible dans le lecteur leger. |
 | Jeu | Verifier | REAL | Verification rapide compatible legacy. |
 | Jeu | Verifier et reparer | REAL | Verification complete puis pipeline de reparation unique. |
 | Jeu | Dossier | REAL | `LauncherLocalActionCoordinator`. |
@@ -272,7 +272,7 @@ Les tests externes suivants n'ont pas ete annonces comme verts dans cet audit :
 - V2 reelle toujours derriere `--ui-v2` ; previews isolees sans effet de bord.
 - Autorites runtime, operation ids, annulations et compatibilites coherentes.
 - Navigation longue, responsive minimal, overlays et focus testes automatiquement.
-- Options Jeu et lecteur de patch note ne sont plus decoratifs.
+- Le bouton Mises a jour de la page Jeu et le lecteur de patch note ne sont pas decoratifs.
 - Aucun bouton actif sans action reelle trouve apres correction.
 
 ### YELLOW - validations manuelles ou de production

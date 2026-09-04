@@ -46,6 +46,7 @@ internal sealed class GameRuntimeCoordinator :
     private readonly IGameClientVerificationService _verificationService;
     private readonly IGameClientMaintenanceService? _maintenanceService;
     private readonly IGameLaunchService? _launchService;
+    private readonly IGameProcessMonitor? _processMonitor;
     private readonly LauncherOperationCoordinator _operations;
     private readonly LauncherSettings _settings;
     private readonly Func<bool> _isAuthenticated;
@@ -59,6 +60,7 @@ internal sealed class GameRuntimeCoordinator :
     private Task _activeOperation = Task.CompletedTask;
     private LauncherOperationLease? _activeLease;
     private Task _activePlayOperation = Task.CompletedTask;
+    private Task _activeGameStopOperation = Task.CompletedTask;
     private LauncherOperationLease? _activePlayLease;
     private TaskCompletionSource? _activePlayCompletion;
     private GameAction? _activeMaintenanceAction;
@@ -81,12 +83,18 @@ internal sealed class GameRuntimeCoordinator :
         IGameClientMaintenanceService? maintenanceService = null,
         Func<GameClientLocalState>? readLocalState = null,
         IGameLaunchService? launchService = null,
-        Func<LauncherSessionState>? getSessionState = null)
+        Func<LauncherSessionState>? getSessionState = null,
+        IGameProcessMonitor? processMonitor = null)
     {
         _verificationService = verificationService
             ?? throw new ArgumentNullException(nameof(verificationService));
         _maintenanceService = maintenanceService;
         _launchService = launchService;
+        _processMonitor = processMonitor;
+        if (_launchService is not null && _processMonitor is null)
+        {
+            throw new ArgumentNullException(nameof(processMonitor));
+        }
         _operations = operations ?? throw new ArgumentNullException(nameof(operations));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         ArgumentNullException.ThrowIfNull(localState);
@@ -616,7 +624,198 @@ internal sealed class GameRuntimeCoordinator :
             return;
         }
 
+        if (result.Outcome is GameLaunchOutcome.Started or GameLaunchOutcome.AlreadyRunning)
+        {
+            await ObserveGameProcessAsync(lease, result).ConfigureAwait(false);
+            return;
+        }
+
         CompletePlayAttempt(lease, result);
+    }
+
+    private async Task ObserveGameProcessAsync(
+        LauncherOperationLease lease,
+        GameLaunchResult result)
+    {
+        if (!MovePlayToProcessObservation(lease, result))
+        {
+            if (_operations.IsShuttingDown || lease.CancellationToken.IsCancellationRequested)
+            {
+                await StartGameStopForShutdown().ConfigureAwait(false);
+                CompletePlayAttempt(
+                    lease,
+                    new GameLaunchResult(
+                        lease.OperationId,
+                        GameLaunchOutcome.Cancelled,
+                        GameLaunchFailureCategory.Cancelled));
+            }
+            return;
+        }
+
+        try
+        {
+            bool isRunning = result.Outcome == GameLaunchOutcome.AlreadyRunning
+                || await _processMonitor!.WaitForRunningAsync(
+                    _settings.InstallPath,
+                    lease.CancellationToken).ConfigureAwait(false);
+            if (!isRunning)
+            {
+                CompletePlayAttempt(
+                    lease,
+                    new GameLaunchResult(
+                        lease.OperationId,
+                        GameLaunchOutcome.StartFailed,
+                        GameLaunchFailureCategory.Process,
+                        new TimeoutException("Le processus du jeu n'est pas apparu.")));
+                return;
+            }
+
+            if (result.Outcome != GameLaunchOutcome.AlreadyRunning
+                && !MovePlayToRunning(lease, result))
+            {
+                return;
+            }
+
+            if (Volatile.Read(ref _disposeState) == 0 && !_operations.IsShuttingDown)
+            {
+                RaisePlayStarted();
+            }
+
+            await _processMonitor!.WaitForExitAsync(
+                _settings.InstallPath,
+                lease.CancellationToken).ConfigureAwait(false);
+            CompletePlaySession(lease);
+        }
+        catch (OperationCanceledException) when (lease.CancellationToken.IsCancellationRequested)
+        {
+            if (_operations.IsShuttingDown)
+            {
+                await StartGameStopForShutdown().ConfigureAwait(false);
+            }
+
+            CompletePlayAttempt(
+                lease,
+                new GameLaunchResult(
+                    lease.OperationId,
+                    GameLaunchOutcome.Cancelled,
+                    GameLaunchFailureCategory.Cancelled));
+        }
+        catch (Exception exception)
+        {
+            CompletePlayAttempt(
+                lease,
+                new GameLaunchResult(
+                    lease.OperationId,
+                    GameLaunchOutcome.Unknown,
+                    GameLaunchFailureCategory.Process,
+                    exception));
+        }
+    }
+
+    private bool MovePlayToProcessObservation(
+        LauncherOperationLease lease,
+        GameLaunchResult result)
+    {
+        GameRuntimeSnapshot? snapshot = null;
+        lock (_sync)
+        {
+            if (!IsCurrentPlayUnsafe(lease))
+            {
+                return false;
+            }
+
+            snapshot = CreatePlaySnapshotUnsafe(
+                lease.OperationId,
+                result.Outcome == GameLaunchOutcome.AlreadyRunning
+                    ? GameLaunchPhase.Running
+                    : GameLaunchPhase.Started,
+                isPendingAuthentication: false,
+                failureCategory: null,
+                result.Outcome);
+            _currentSnapshot = snapshot;
+        }
+
+        Publish(snapshot, availabilityChanged: true);
+        return true;
+    }
+
+    private bool MovePlayToRunning(
+        LauncherOperationLease lease,
+        GameLaunchResult result)
+    {
+        GameRuntimeSnapshot? snapshot = null;
+        lock (_sync)
+        {
+            if (!IsCurrentPlayUnsafe(lease))
+            {
+                return false;
+            }
+
+            snapshot = CreatePlaySnapshotUnsafe(
+                lease.OperationId,
+                GameLaunchPhase.Running,
+                isPendingAuthentication: false,
+                failureCategory: null,
+                result.Outcome);
+            _currentSnapshot = snapshot;
+        }
+
+        Publish(snapshot, availabilityChanged: true);
+        return true;
+    }
+
+    private void CompletePlaySession(LauncherOperationLease lease)
+    {
+        TaskCompletionSource? completion;
+        lock (_sync)
+        {
+            if (!ReferenceEquals(_activePlayLease, lease)
+                || _currentSnapshot.PlayAttemptId != lease.OperationId)
+            {
+                return;
+            }
+
+            _activePlayLease = null;
+            completion = _activePlayCompletion;
+            _activePlayCompletion = null;
+        }
+
+        Interlocked.Increment(ref _suppressOperationAvailabilityRefresh);
+        try
+        {
+            lease.Complete();
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _suppressOperationAvailabilityRefresh);
+        }
+
+        GameRuntimeSnapshot? snapshot = null;
+        if (Volatile.Read(ref _disposeState) == 0 && !_operations.IsShuttingDown)
+        {
+            lock (_sync)
+            {
+                snapshot = _currentSnapshot with
+                {
+                    Sequence = NextSequence(),
+                    PlayAttemptId = null,
+                    PlayLaunchPhase = GameLaunchPhase.Idle,
+                    IsPlayPendingAuthentication = false,
+                    PlayFailureCategory = null,
+                    PrimaryActionUnavailableReason = null
+                };
+                _currentSnapshot = snapshot;
+                snapshot = RecalculateAvailabilityUnsafe(snapshot);
+                _currentSnapshot = snapshot;
+            }
+        }
+
+        if (snapshot is not null)
+        {
+            Publish(snapshot, availabilityChanged: true);
+        }
+
+        completion?.TrySetResult();
     }
 
     private void ReportPlayProgress(
@@ -635,6 +834,7 @@ internal sealed class GameRuntimeCoordinator :
                 || progress.Phase is GameLaunchPhase.Idle
                     or GameLaunchPhase.WaitingForAuthentication
                     or GameLaunchPhase.Started
+                    or GameLaunchPhase.Running
                     or GameLaunchPhase.Failed)
             {
                 return;
@@ -762,6 +962,8 @@ internal sealed class GameRuntimeCoordinator :
             GameLaunchPhase.RequestingTicket => "Demande du ticket en cours",
             GameLaunchPhase.PreparingSso => "Préparation de la connexion en cours",
             GameLaunchPhase.StartingProcess => "Lancement du jeu en cours",
+            GameLaunchPhase.Started => "En cours de lancement",
+            GameLaunchPhase.Running => "Jeu en cours d’utilisation",
             _ => null
         };
         return _currentSnapshot with
@@ -1161,6 +1363,7 @@ internal sealed class GameRuntimeCoordinator :
     {
         LauncherOperationLease? pendingLease = null;
         TaskCompletionSource? pendingCompletion = null;
+        bool stopGame = false;
         lock (_sync)
         {
             if (_activePlayLease is not null
@@ -1171,11 +1374,22 @@ internal sealed class GameRuntimeCoordinator :
                 _activePlayLease = null;
                 _activePlayCompletion = null;
             }
+            else if (_activePlayLease is not null
+                && _currentSnapshot.PlayLaunchPhase is GameLaunchPhase.StartingProcess
+                    or GameLaunchPhase.Started
+                    or GameLaunchPhase.Running)
+            {
+                stopGame = true;
+            }
         }
 
         pendingLease?.CancelForShutdown();
         pendingLease?.Complete();
         pendingCompletion?.TrySetResult();
+        if (stopGame)
+        {
+            _ = StartGameStopForShutdown();
+        }
         _operations.CancelForShutdown();
     }
 
@@ -1183,7 +1397,47 @@ internal sealed class GameRuntimeCoordinator :
     {
         lock (_sync)
         {
-            return Task.WhenAll(_activeOperation, _activePlayOperation);
+            return Task.WhenAll(
+                _activeOperation,
+                _activePlayOperation,
+                _activeGameStopOperation);
+        }
+    }
+
+    private Task StartGameStopForShutdown()
+    {
+        if (_processMonitor is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        lock (_sync)
+        {
+            if (!_activeGameStopOperation.IsCompleted)
+            {
+                return _activeGameStopOperation;
+            }
+
+            _activeGameStopOperation = StopGameSafelyAsync();
+            return _activeGameStopOperation;
+        }
+    }
+
+    private async Task StopGameSafelyAsync()
+    {
+        try
+        {
+            await _processMonitor!.StopAsync(_settings.InstallPath).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            try
+            {
+                _writeLog($"Arrêt du jeu impossible: category={exception.GetType().Name}.");
+            }
+            catch
+            {
+            }
         }
     }
 
@@ -1860,6 +2114,8 @@ internal sealed class GameRuntimeCoordinator :
                 GameLaunchPhase.RequestingTicket => "Demande du ticket en cours",
                 GameLaunchPhase.PreparingSso => "Préparation de la connexion en cours",
                 GameLaunchPhase.StartingProcess => "Lancement du jeu en cours",
+                GameLaunchPhase.Started => "En cours de lancement",
+                GameLaunchPhase.Running => "Jeu en cours d’utilisation",
                 _ => "Lancement en cours"
             };
         }
@@ -2007,6 +2263,7 @@ internal sealed class GameRuntimeCoordinator :
         }
 
         _operations.StateChanged -= Operations_StateChanged;
+        _processMonitor?.Dispose();
         PlayAuthenticationRequired = null;
         PlayStarted = null;
     }

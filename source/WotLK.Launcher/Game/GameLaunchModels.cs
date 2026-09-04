@@ -10,6 +10,7 @@ internal enum GameLaunchPhase
     PreparingSso,
     StartingProcess,
     Started,
+    Running,
     Failed
 }
 

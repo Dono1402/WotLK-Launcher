@@ -89,6 +89,9 @@ internal sealed class LauncherRuntimeDependencies
             new ProductionGameLaunchPlatform(),
             new ProductionGameProcessStarter());
 
+    internal Func<IGameProcessMonitor> CreateGameProcessMonitor { get; init; } =
+        static () => new ProductionGameProcessMonitor();
+
     internal Func<string, bool> HasPlayableClient { get; init; } =
         GameInstallServices.HasPlayableClient;
 
@@ -247,7 +250,8 @@ internal sealed class LauncherRuntime : IDisposable
             maintenanceService,
             () => dependencies.GameClientStateReader.Read(Settings),
             launchService,
-            () => _sessionCoordinator.CurrentSnapshot.State);
+            () => _sessionCoordinator.CurrentSnapshot.State,
+            dependencies.CreateGameProcessMonitor());
         SelfUpdate = new LauncherSelfUpdateCoordinator(
             Operations,
             dependencies.CreateLauncherSelfUpdateClient(_clientHttpClient),
@@ -457,6 +461,7 @@ internal sealed class LauncherRuntime : IDisposable
         Task<bool> selfUpdate = SelfUpdate.WaitForIdleAsync(timeout);
         Task<bool> dashboard = Dashboard.WaitForIdleAsync(timeout);
         Task<bool> session = _sessionCoordinator.WaitForIdleAsync(timeout);
+        Task<bool> game = WaitForTaskAsync(Game.WaitForIdleAsync(), timeout);
         Task<bool> addons = Addons.WaitForIdleAsync(timeout);
         Task<bool> profile = Profile.WaitForIdleAsync(timeout);
         Task<bool> account = Account.WaitForIdleAsync(timeout);
@@ -466,11 +471,25 @@ internal sealed class LauncherRuntime : IDisposable
             selfUpdate,
             dashboard,
             session,
+            game,
             addons,
             profile,
             account,
             friends).ConfigureAwait(false);
         return results.All(result => result);
+    }
+
+    private static async Task<bool> WaitForTaskAsync(Task task, TimeSpan timeout)
+    {
+        try
+        {
+            await task.WaitAsync(timeout).ConfigureAwait(false);
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
     }
 
     public void Dispose()

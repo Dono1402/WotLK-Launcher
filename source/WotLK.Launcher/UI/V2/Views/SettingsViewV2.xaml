@@ -471,10 +471,10 @@
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,20,0">
-                                            <TextBlock Text="Fermer Atlas après le lancement du jeu"
+                                            <TextBlock Text="Réduire Atlas après le lancement du jeu"
                                                        Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
                                             <TextBlock Margin="0,3,0,0"
-                                                       Text="Quitter le launcher lorsque WotLK Classic démarre."
+                                                       Text="Réduire le launcher lorsque WotLK Classic démarre."
                                                        Style="{StaticResource AtlasV2.Text.Caption}"/>
                                         </StackPanel>
                                         <ToggleButton x:Name="CloseAfterLaunchToggle"

@@ -671,7 +671,6 @@ public partial class LauncherShellV2 : Window
         bool stacked = mode == AdaptiveLayoutMode.Stacked;
         ProductGameName.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
         ProductDivider.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
-        FriendsButtonText.Visibility = stacked ? Visibility.Collapsed : Visibility.Visible;
         VersionText.Visibility = stacked ? Visibility.Collapsed : Visibility.Visible;
         PatchNotesNavigationLabel.Text = stacked ? "Notes" : "Mises à jour";
         DashboardState.SetWideRealmLabel(wide);
@@ -1393,7 +1392,7 @@ public partial class LauncherShellV2 : Window
 
     private void CloseWindowButton_Click(object sender, RoutedEventArgs e)
     {
-        Close();
+        WindowState = WindowState.Minimized;
     }
 
     private void ToggleMaximizeRestore()

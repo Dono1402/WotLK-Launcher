@@ -51,6 +51,7 @@ public sealed class GameUiState : BindableUiState
     private string _errorSummary = string.Empty;
     private string _primaryActionUnavailableReason = string.Empty;
     private bool _isLaunchInProgress;
+    private bool _isGameRunning;
     private string _notificationMessage = string.Empty;
     private GameSemanticTone _notificationTone = GameSemanticTone.Neutral;
     private bool _showsNotification;
@@ -213,6 +214,12 @@ public sealed class GameUiState : BindableUiState
         init => _isLaunchInProgress = value;
     }
 
+    public bool IsGameRunning
+    {
+        get => _isGameRunning;
+        init => _isGameRunning = value;
+    }
+
     public string NotificationMessage => _notificationMessage;
 
     public GameSemanticTone NotificationTone => _notificationTone;
@@ -279,6 +286,7 @@ public sealed class GameUiState : BindableUiState
         _errorSummary = viewState.ErrorSummary;
         _primaryActionUnavailableReason = viewState.PrimaryActionUnavailableReason;
         _isLaunchInProgress = viewState.IsLaunchInProgress;
+        _isGameRunning = viewState.IsGameRunning;
         RaisePropertyChanged(string.Empty);
     }
 

@@ -268,7 +268,7 @@
                                         </Button>
 
                                         <Button x:Name="PrimaryActionButton"
-                                                Width="190"
+                                                Width="238"
                                                 Style="{StaticResource AtlasV2.Button.Primary}"
                                                 IsEnabled="{Binding IsPrimaryActionEnabled}"
                                                 Command="{Binding PrimaryActionCommand}"

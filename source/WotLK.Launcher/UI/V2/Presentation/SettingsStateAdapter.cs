@@ -111,7 +111,7 @@ internal sealed class SettingsStateAdapter : IDisposable
             new GeneralSettingsViewState(
                 InterfaceLanguage: "Français",
                 StartWithWindows: false,
-                WindowCloseBehavior: "Quitter Atlas Launcher",
+                WindowCloseBehavior: "Réduire dans la barre des tâches",
                 CloseLauncherAfterGameStart: settings.CloseLauncherOnGameStart),
             new GameSettingsViewState(
                 InstallPath: settings.InstallPath,

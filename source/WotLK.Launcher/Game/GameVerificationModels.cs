@@ -191,7 +191,9 @@ internal sealed record GameRuntimeSnapshot(
         GameLaunchPhase.WaitingForAuthentication
         or GameLaunchPhase.RequestingTicket
         or GameLaunchPhase.PreparingSso
-        or GameLaunchPhase.StartingProcess;
+        or GameLaunchPhase.StartingProcess
+        or GameLaunchPhase.Started
+        or GameLaunchPhase.Running;
 
     internal bool CanPlay => Action == GameAction.Play
         && IsPlayable

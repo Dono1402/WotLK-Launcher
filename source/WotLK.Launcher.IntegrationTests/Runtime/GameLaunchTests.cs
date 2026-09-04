@@ -29,6 +29,7 @@ internal static class GameLaunchTests
         await CancelBeforeProcessStartAsync();
         await AcquireExactlyOneTicketAndProtectSessionAsync();
         await EnforcePlaySingleFlightAndTerminalRecoveryAsync();
+        await TrackRunningGameUntilExitAndShutdownAsync();
         await ManagePendingAuthenticationExactlyOnceAsync();
         await EnforceOperationCompatibilityAsync();
         await CancelPlayForShutdownWithoutLateCallbacksAsync();
@@ -270,14 +271,14 @@ internal static class GameLaunchTests
         Equal(GamePrimaryActionStatus.Busy, environment.Coordinator.TryExecutePrimaryAction(), "Entrée répétée doit rester single-flight.");
         Equal(1, environment.Launch.Calls, "Le double événement ne doit pas créer une seconde orchestration.");
         GameViewState activeView = GameStateAdapter.Project(environment.Coordinator.CurrentSnapshot);
-        Equal("Lancement…", activeView.PrimaryActionLabel, "Le bouton actif doit afficher Lancement…");
+        Equal("En cours de lancement", activeView.PrimaryActionLabel, "Le bouton actif doit décrire le lancement en cours.");
         True(!activeView.IsPrimaryActionEnabled && activeView.IsLaunchInProgress, "Le bouton actif doit être désactivé avec son indicateur.");
 
         release.TrySetResult();
         await environment.Coordinator.WaitForIdleAsync();
         Equal(1, startedEvents, "Le succès réel doit lever un seul événement PlayStarted.");
         Equal(GameAction.Play, environment.Coordinator.CurrentSnapshot.Action, "GameAction doit rester Play.");
-        Equal(GameLaunchPhase.Started, environment.Coordinator.CurrentSnapshot.PlayLaunchPhase, "Le résultat terminal doit être Started.");
+        Equal(GameLaunchPhase.Idle, environment.Coordinator.CurrentSnapshot.PlayLaunchPhase, "La fin du processus simulé doit revenir à Idle.");
         True(environment.Coordinator.CanExecutePrimaryAction, "Le verrou Play doit être libéré après succès.");
 
         TaskCompletionSource secondEntered = Signal();
@@ -311,6 +312,72 @@ internal static class GameLaunchTests
         Equal(1, startedEvents, "Un échec ne doit pas lever PlayStarted.");
         True(environment.Logs.All(line => !line.Contains(SecretTicket, StringComparison.Ordinal)), "Le journal Play ne doit pas exposer le ticket.");
         AssertSnapshotContainsNoSecret(failed);
+    }
+
+    private static async Task TrackRunningGameUntilExitAndShutdownAsync()
+    {
+        using (PlayRuntimeEnvironment environment = new(authenticated: true))
+        {
+            environment.ProcessMonitor.HoldLifecycle();
+            int startedEvents = 0;
+            environment.Coordinator.PlayStarted += (_, _) => startedEvents++;
+
+            Equal(GamePrimaryActionStatus.Started, environment.Coordinator.TryExecutePrimaryAction(),
+                "Le lancement suivi doit démarrer.");
+            await WaitForBackgroundAsync(() => environment.ProcessMonitor.WaitForRunningCalls == 1);
+            GameViewState launching = GameStateAdapter.Project(environment.Coordinator.CurrentSnapshot);
+            Equal(GameLaunchPhase.Started, environment.Coordinator.CurrentSnapshot.PlayLaunchPhase,
+                "Atlas doit attendre l'apparition du vrai processus WoW.");
+            Equal("En cours de lancement", launching.PrimaryActionLabel,
+                "Le bouton doit afficher l'état de démarrage.");
+            True(launching.IsLaunchInProgress && !launching.IsGameRunning,
+                "Le démarrage doit animer le bouton sans annoncer le jeu trop tôt.");
+            Equal(0, startedEvents,
+                "Process.Start seul ne doit pas encore annoncer que le jeu tourne.");
+
+            environment.ProcessMonitor.MarkRunning();
+            await WaitForBackgroundAsync(() => environment.Coordinator.CurrentSnapshot.PlayLaunchPhase == GameLaunchPhase.Running);
+            GameViewState running = GameStateAdapter.Project(environment.Coordinator.CurrentSnapshot);
+            Equal("Jeu en cours d’utilisation", running.PrimaryActionLabel,
+                "Le bouton doit refléter le jeu réellement ouvert.");
+            True(running.IsGameRunning && !running.IsLaunchInProgress && !running.IsPrimaryActionEnabled,
+                "Le jeu ouvert doit être un état stable et non redéclenchable.");
+            Equal(1, startedEvents,
+                "Le jeu réellement détecté doit lever un seul événement PlayStarted.");
+            Equal(GamePrimaryActionStatus.Busy, environment.Coordinator.TryExecutePrimaryAction(),
+                "Un second lancement doit être refusé tant que WoW tourne.");
+            LauncherOperationStartResult addons = environment.Operations.TryBegin(
+                LauncherOperationKind.Addons,
+                canUserCancel: true,
+                clientIsPlayable: true);
+            True(!addons.IsStarted,
+                "Une opération mutante ne doit pas coexister avec le jeu suivi.");
+
+            environment.ProcessMonitor.MarkExited();
+            await environment.Coordinator.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(2));
+            GameViewState ready = GameStateAdapter.Project(environment.Coordinator.CurrentSnapshot);
+            Equal(GameLaunchPhase.Idle, environment.Coordinator.CurrentSnapshot.PlayLaunchPhase,
+                "La fermeture du jeu doit terminer le suivi.");
+            Equal("Jouer", ready.PrimaryActionLabel,
+                "Le bouton doit revenir à Jouer lorsque WoW se ferme.");
+            True(ready.IsPrimaryActionEnabled,
+                "Un nouveau lancement doit être possible après la fermeture du jeu.");
+        }
+
+        using (PlayRuntimeEnvironment shutdown = new(authenticated: true))
+        {
+            shutdown.ProcessMonitor.HoldLifecycle();
+            Equal(GamePrimaryActionStatus.Started, shutdown.Coordinator.TryExecutePrimaryAction(),
+                "Le jeu témoin de fermeture doit démarrer.");
+            await WaitForBackgroundAsync(() => shutdown.ProcessMonitor.WaitForRunningCalls == 1);
+            shutdown.ProcessMonitor.MarkRunning();
+            await WaitForBackgroundAsync(() => shutdown.Coordinator.CurrentSnapshot.PlayLaunchPhase == GameLaunchPhase.Running);
+
+            shutdown.Coordinator.BeginShutdown();
+            await shutdown.Coordinator.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(2));
+            True(shutdown.ProcessMonitor.StopCalls >= 1,
+                "Une vraie fermeture du runtime doit demander l'arrêt du jeu.");
+        }
     }
 
     private static async Task ManagePendingAuthenticationExactlyOnceAsync()
@@ -456,10 +523,10 @@ internal static class GameLaunchTests
             LauncherV2PreviewData.ResolveScenario(["--ui-v2", "--preview-state=launching"]),
             "Le scénario preview launching doit être reconnu sans runtime.");
         GameUiState state = LauncherV2PreviewData.CreateGame(GamePreviewScenario.Launching);
-        Equal("Lancement…", state.PrimaryActionLabel, "Le preview doit montrer le libellé de lancement.");
+        Equal("En cours de lancement", state.PrimaryActionLabel, "Le preview doit montrer le libellé de lancement.");
         True(state.IsLaunchInProgress && !state.IsPrimaryActionEnabled, "Le preview launching doit rester statique et non déclenchable.");
         state.PrimaryActionCommand.Execute(null);
-        Equal("Lancement…", state.PrimaryActionLabel, "La commande preview ne doit produire aucun effet de bord.");
+        Equal("En cours de lancement", state.PrimaryActionLabel, "La commande preview ne doit produire aucun effet de bord.");
     }
 
     private static async Task ValidateWpfPlayAndAuthenticationFlowAsync()
@@ -652,6 +719,7 @@ internal static class GameLaunchTests
             CreateGameVerificationService = (_, _) => new RuntimeVerificationStub(),
             CreateGameMaintenanceService = (_, _) => new RuntimeMaintenanceStub(),
             CreateGameLaunchService = session => new GameLaunchService(session, platform, process),
+            CreateGameProcessMonitor = () => new FakeGameProcessMonitor(),
             HasPlayableClient = GameInstallServices.HasPlayableClient
         });
     }
@@ -732,6 +800,20 @@ internal static class GameLaunchTests
             }
 
             await DelayAndPumpAsync(15);
+        }
+    }
+
+    private static async Task WaitForBackgroundAsync(Func<bool> condition)
+    {
+        DateTime deadline = DateTime.UtcNow.AddSeconds(3);
+        while (!condition())
+        {
+            if (DateTime.UtcNow >= deadline)
+            {
+                throw new TimeoutException("Le scénario Play en arrière-plan n'a pas atteint l'état attendu.");
+            }
+
+            await Task.Delay(15);
         }
     }
 
@@ -994,6 +1076,62 @@ internal sealed class FakeGameLaunchService : IGameLaunchService
     }
 }
 
+internal sealed class FakeGameProcessMonitor : IGameProcessMonitor
+{
+    private TaskCompletionSource<bool>? _running;
+    private TaskCompletionSource? _exit;
+
+    internal int WaitForRunningCalls { get; private set; }
+
+    internal int WaitForExitCalls { get; private set; }
+
+    internal int StopCalls { get; private set; }
+
+    internal void HoldLifecycle()
+    {
+        _running = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _exit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    internal void MarkRunning() => _running?.TrySetResult(true);
+
+    internal void MarkExited() => _exit?.TrySetResult();
+
+    public async Task<bool> WaitForRunningAsync(
+        string installRoot,
+        CancellationToken cancellationToken)
+    {
+        WaitForRunningCalls++;
+        return _running is null
+            ? true
+            : await _running.Task.WaitAsync(cancellationToken);
+    }
+
+    public async Task WaitForExitAsync(
+        string installRoot,
+        CancellationToken cancellationToken)
+    {
+        WaitForExitCalls++;
+        if (_exit is not null)
+        {
+            await _exit.Task.WaitAsync(cancellationToken);
+        }
+    }
+
+    public Task StopAsync(string installRoot)
+    {
+        StopCalls++;
+        _exit?.TrySetResult();
+        return Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        _running?.TrySetCanceled();
+        _exit?.TrySetCanceled();
+    }
+}
+
 internal sealed class PlayVerificationStub : IGameClientVerificationService
 {
     internal Func<
@@ -1048,6 +1186,7 @@ internal sealed class PlayRuntimeEnvironment : IDisposable
         Verification = new PlayVerificationStub();
         Maintenance = new RuntimeMaintenanceStub();
         Launch = new FakeGameLaunchService();
+        ProcessMonitor = new FakeGameProcessMonitor();
         Coordinator = new GameRuntimeCoordinator(
             Verification,
             _operations,
@@ -1060,7 +1199,8 @@ internal sealed class PlayRuntimeEnvironment : IDisposable
             Maintenance,
             () => LocalState,
             Launch,
-            () => SessionState);
+            () => SessionState,
+            ProcessMonitor);
         Coordinator.RefreshAuthenticationAvailability();
     }
 
@@ -1079,6 +1219,8 @@ internal sealed class PlayRuntimeEnvironment : IDisposable
     internal RuntimeMaintenanceStub Maintenance { get; }
 
     internal FakeGameLaunchService Launch { get; }
+
+    internal FakeGameProcessMonitor ProcessMonitor { get; }
 
     internal LauncherOperationCoordinator Operations => _operations;
 

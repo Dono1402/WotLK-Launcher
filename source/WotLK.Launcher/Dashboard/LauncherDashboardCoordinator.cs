@@ -8,17 +8,21 @@ namespace WotLK.Launcher.Dashboard;
 
 internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, IDisposable
 {
+    internal static readonly TimeSpan AutomaticRefreshInterval = TimeSpan.FromMinutes(1);
+
     private readonly object _sync = new();
     private readonly ILauncherAuthService _authentication;
     private readonly CancellationToken _lifetimeToken;
     private readonly Action<string> _writeLog;
     private readonly TimeProvider _timeProvider;
+    private readonly ITimer _automaticRefreshTimer;
     private DashboardSnapshot _currentSnapshot = DashboardSnapshot.Initial;
     private Task? _activeRefreshTask;
     private Task? _initializationTask;
     private long _sequence;
     private long _requestGeneration;
     private bool _authenticatedRequestsEnabled;
+    private bool _isAutomaticRefreshEnabled;
     private bool _isShuttingDown;
     private int _disposeState;
 
@@ -33,6 +37,11 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
         _writeLog = writeLog ?? throw new ArgumentNullException(nameof(writeLog));
         _timeProvider = timeProvider ?? TimeProvider.System;
         _authenticatedRequestsEnabled = authentication.Session is not null;
+        _automaticRefreshTimer = _timeProvider.CreateTimer(
+            static state => ((LauncherDashboardCoordinator)state!).AutomaticRefreshTimer_Tick(),
+            this,
+            Timeout.InfiniteTimeSpan,
+            Timeout.InfiniteTimeSpan);
     }
 
     public event EventHandler? AvailabilityChanged;
@@ -100,6 +109,7 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
             _requestGeneration++;
         }
 
+        UpdateAutomaticRefreshState();
         RaiseAvailabilityChanged();
     }
 
@@ -116,6 +126,7 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
             _requestGeneration++;
         }
 
+        UpdateAutomaticRefreshState();
         RaiseAvailabilityChanged();
     }
 
@@ -170,6 +181,7 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
 
         if (changed)
         {
+            UpdateAutomaticRefreshState();
             RaiseAvailabilityChanged();
         }
     }
@@ -206,6 +218,7 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
         }
 
         BeginShutdown();
+        _automaticRefreshTimer.Dispose();
         lock (_sync)
         {
             SnapshotChanged = null;
@@ -569,6 +582,41 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
             if (Volatile.Read(ref _disposeState) == 0)
             {
                 AvailabilityChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+    }
+
+    private void AutomaticRefreshTimer_Tick()
+    {
+        if (Volatile.Read(ref _disposeState) == 0)
+        {
+            _ = TryRefresh();
+        }
+    }
+
+    private void UpdateAutomaticRefreshState()
+    {
+        lock (_sync)
+        {
+            bool enabled = !_isShuttingDown
+                && Volatile.Read(ref _disposeState) == 0
+                && !_lifetimeToken.IsCancellationRequested
+                && _authenticatedRequestsEnabled
+                && _authentication.Session is not null;
+            if (_isAutomaticRefreshEnabled == enabled)
+            {
+                return;
+            }
+
+            _isAutomaticRefreshEnabled = enabled;
+            try
+            {
+                _automaticRefreshTimer.Change(
+                    enabled ? AutomaticRefreshInterval : Timeout.InfiniteTimeSpan,
+                    enabled ? AutomaticRefreshInterval : Timeout.InfiniteTimeSpan);
+            }
+            catch (ObjectDisposedException)
+            {
             }
         }
     }

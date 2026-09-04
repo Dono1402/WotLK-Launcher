@@ -168,18 +168,6 @@
                             </StackPanel>
                         </Border>
 
-                        <Button x:Name="RefreshDashboardButton"
-                                Margin="0,0,5,0"
-                                Style="{StaticResource AtlasV2.Button.Icon}"
-                                Command="{Binding DashboardState.RefreshCommand}"
-                                ToolTip="Actualiser le statut et la note de mise à jour"
-                                AutomationProperties.Name="Actualiser le tableau de bord">
-                            <Path Width="17"
-                                  Height="17"
-                                  Data="{StaticResource AtlasV2.Icon.Refresh}"
-                                  Style="{StaticResource AtlasV2.Icon.Stroke}"/>
-                        </Button>
-
                         <Button x:Name="ActivityButton"
                                 Height="40"
                                 Margin="0,0,5,0"
@@ -190,7 +178,7 @@
                                 Click="ActivityButton_Click">
                             <Button.Style>
                                 <Style TargetType="{x:Type Button}"
-                                       BasedOn="{StaticResource AtlasV2.Button.Base}">
+                                       BasedOn="{StaticResource AtlasV2.Button.TopBarIcon}">
                                     <Setter Property="Width" Value="40"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding ActivityState.Current.TopBarShowsPercent}" Value="True">
@@ -198,7 +186,6 @@
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding ActivityState.IsOpen}" Value="True">
                                             <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfacePressed}"/>
-                                            <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.CyanBorder}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -260,30 +247,24 @@
                         </Button>
 
                         <Button x:Name="FriendsButton"
+                                Width="40"
                                 Height="40"
                                 Margin="0,0,5,0"
-                                Padding="11,0"
-                                Style="{StaticResource AtlasV2.Button.Base}"
+                                Padding="10"
+                                Style="{StaticResource AtlasV2.Button.TopBarIcon}"
                                 ToolTip="Amis"
                                 IsEnabled="{Binding ShellState.IsNavigationEnabled}"
                                 AutomationProperties.Name="Ouvrir le panneau Amis"
                                 Click="FriendsButton_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <Path Width="17"
-                                      Height="17"
-                                      Data="{StaticResource AtlasV2.Icon.Users}"
-                                      Style="{StaticResource AtlasV2.Icon.Stroke}"/>
-                                <TextBlock x:Name="FriendsButtonText"
-                                           Margin="8,0,0,0"
-                                           VerticalAlignment="Center"
-                                           Text="Amis"
-                                           FontWeight="SemiBold"/>
-                            </StackPanel>
+                            <Path Width="18"
+                                  Height="18"
+                                  Data="{StaticResource AtlasV2.Icon.Users}"
+                                  Style="{StaticResource AtlasV2.Icon.Stroke}"/>
                         </Button>
 
                         <Button x:Name="SettingsButton"
                                 Margin="0,0,3,0"
-                                Style="{StaticResource AtlasV2.Button.Icon}"
+                                Style="{StaticResource AtlasV2.Button.TopBarIcon}"
                                 ToolTip="Paramètres"
                                 IsEnabled="{Binding IsSettingsNavigationEnabled}"
                                 AutomationProperties.Name="Paramètres"
@@ -308,7 +289,7 @@
                                 Height="40"
                                 Margin="0,0,8,0"
                                 Padding="0"
-                                Style="{StaticResource AtlasV2.Button.Icon}"
+                                Style="{StaticResource AtlasV2.Button.TopBarIcon}"
                                 ToolTip="{Binding ShellState.ProfileToolTip}"
                                 IsEnabled="{Binding ShellState.IsProfileActionEnabled}"
                                 Focusable="True"
@@ -375,8 +356,8 @@
                         </Button>
                         <Button x:Name="CloseWindowButton"
                                 Style="{StaticResource AtlasV2.Button.WindowClose}"
-                                ToolTip="Fermer"
-                                AutomationProperties.Name="Fermer"
+                                ToolTip="Réduire dans la barre des tâches"
+                                AutomationProperties.Name="Réduire dans la barre des tâches"
                                 Click="CloseWindowButton_Click">
                             <Path Data="{StaticResource AtlasV2.Icon.Close}"
                                   Style="{StaticResource AtlasV2.Icon.Stroke}"/>

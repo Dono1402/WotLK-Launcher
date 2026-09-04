@@ -29,7 +29,8 @@ internal sealed record GameViewState(
     string ErrorTitle,
     string ErrorSummary,
     string PrimaryActionUnavailableReason,
-    bool IsLaunchInProgress = false);
+    bool IsLaunchInProgress = false,
+    bool IsGameRunning = false);
 
 internal sealed class GameStateAdapter : IDisposable
 {
@@ -174,19 +175,14 @@ internal sealed class GameStateAdapter : IDisposable
 
         if (snapshot.PlayLaunchPhase is GameLaunchPhase.RequestingTicket
             or GameLaunchPhase.PreparingSso
-            or GameLaunchPhase.StartingProcess)
+            or GameLaunchPhase.StartingProcess
+            or GameLaunchPhase.Started)
         {
-            string status = snapshot.PlayLaunchPhase switch
-            {
-                GameLaunchPhase.RequestingTicket => "Connexion au jeu",
-                GameLaunchPhase.PreparingSso => "Préparation du lancement",
-                _ => "Démarrage d’Arctium"
-            };
             return Stable(
                     GamePreviewScenario.Ready,
                     GameSemanticTone.Accent,
-                    status,
-                    "Lancement…",
+                    "En cours de lancement",
+                    "En cours de lancement",
                     badge,
                     snapshot,
                     isClientReady: true)
@@ -197,18 +193,21 @@ internal sealed class GameStateAdapter : IDisposable
                 };
         }
 
-        if (snapshot.PlayLaunchPhase == GameLaunchPhase.Started)
+        if (snapshot.PlayLaunchPhase == GameLaunchPhase.Running)
         {
             return Stable(
-                GamePreviewScenario.Ready,
-                GameSemanticTone.Success,
-                snapshot.LastPlayOutcome == GameLaunchOutcome.AlreadyRunning
-                    ? "Jeu déjà lancé"
-                    : "Jeu lancé",
-                "Jouer",
-                badge,
-                snapshot,
-                isClientReady: true);
+                    GamePreviewScenario.Ready,
+                    GameSemanticTone.Success,
+                    "Jeu en cours d’utilisation",
+                    "Jeu en cours d’utilisation",
+                    badge,
+                    snapshot,
+                    isClientReady: true)
+                with
+                {
+                    IsPrimaryActionEnabled = false,
+                    IsGameRunning = true
+                };
         }
 
         string failureStatus = snapshot.LastPlayOutcome switch

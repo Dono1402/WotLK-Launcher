@@ -31,6 +31,9 @@ internal enum LauncherStartupMode
 
 public partial class App : Application
 {
+    private LauncherSingleInstanceGate? _singleInstanceGate;
+    private int _pendingActivationRequest;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         if (LauncherUpdateCommandLine.TryParseHelper(
@@ -49,6 +52,21 @@ public partial class App : Application
 
         string[] applicationArguments = LauncherUpdateCommandLine.ApplicationArguments(e.Args);
         LauncherStartupMode startupMode = ResolveStartupMode(applicationArguments);
+        if (UsesSingleInstance(startupMode))
+        {
+            string identity = LauncherSingleInstanceGate.CurrentIdentity;
+            if (!LauncherSingleInstanceGate.TryAcquire(identity, out LauncherSingleInstanceGate? gate))
+            {
+                _ = LauncherSingleInstanceGate.SignalExisting(identity);
+                base.OnStartup(e);
+                Shutdown(0);
+                return;
+            }
+
+            _singleInstanceGate = gate;
+            gate!.ActivationRequested += SingleInstanceGate_ActivationRequested;
+        }
+
         LauncherUpdateStartupSession? updateStartup = startupMode is
             LauncherStartupMode.Legacy or LauncherStartupMode.UiV2
                 ? LauncherUpdateStartupSession.Begin(
@@ -240,6 +258,9 @@ public partial class App : Application
         or LauncherStartupMode.UiV2AddonsPreview
         or LauncherStartupMode.UiV2ActivityPreview;
 
+    internal static bool UsesSingleInstance(LauncherStartupMode startupMode) => startupMode is
+        LauncherStartupMode.Legacy or LauncherStartupMode.UiV2;
+
     private void StartLegacy(LauncherUpdateStartupSession? updateStartup)
     {
         var window = new MainWindow(
@@ -247,6 +268,7 @@ public partial class App : Application
                 updateStartup?.RecoveryOccurred == true));
         MainWindow = window;
         window.Show();
+        ActivatePendingPrimaryWindow();
         ScheduleUpdateReadyConfirmation(window, updateStartup);
     }
 
@@ -430,8 +452,6 @@ public partial class App : Application
             gameState,
             runtime.Game,
             window.Dispatcher);
-        RefreshDashboardCommand refreshDashboardCommand = new(runtime.Dashboard);
-        dashboardState.AttachRefreshCommand(refreshDashboardCommand.Command);
         DashboardStateAdapter dashboardStateAdapter = new(
             dashboardState,
             runtime.Dashboard,
@@ -454,7 +474,7 @@ public partial class App : Application
                 {
                     if (!shutdownStarted && window.IsVisible)
                     {
-                        window.Close();
+                        window.WindowState = WindowState.Minimized;
                     }
                 }));
         };
@@ -485,7 +505,6 @@ public partial class App : Application
             logoutCommand.Dispose();
             primaryActionCommand.Dispose();
             verificationCommand.Dispose();
-            refreshDashboardCommand.Dispose();
             gameCommands.Dispose();
             runtime.Game.PlayStarted -= playStartedHandler;
             gameState.ClearNotification();
@@ -523,7 +542,7 @@ public partial class App : Application
 
             shutdownStarted = true;
             runtime.BeginShutdown();
-            await runtime.WaitForShutdownAsync(TimeSpan.FromSeconds(3));
+            await runtime.WaitForShutdownAsync(TimeSpan.FromSeconds(18));
             DisposePresentation();
             allowClose = true;
             await window.Dispatcher.InvokeAsync(window.Close, DispatcherPriority.Send);
@@ -539,7 +558,57 @@ public partial class App : Application
 
         MainWindow = window;
         window.Show();
+        ActivatePendingPrimaryWindow();
         ScheduleUpdateReadyConfirmation(window, updateStartup);
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        if (_singleInstanceGate is not null)
+        {
+            _singleInstanceGate.ActivationRequested -= SingleInstanceGate_ActivationRequested;
+            _singleInstanceGate.Dispose();
+            _singleInstanceGate = null;
+        }
+
+        base.OnExit(e);
+    }
+
+    private void SingleInstanceGate_ActivationRequested(object? sender, EventArgs e)
+    {
+        Interlocked.Exchange(ref _pendingActivationRequest, 1);
+        if (!Dispatcher.HasShutdownStarted && !Dispatcher.HasShutdownFinished)
+        {
+            _ = Dispatcher.BeginInvoke(
+                DispatcherPriority.Send,
+                new Action(ActivatePendingPrimaryWindow));
+        }
+    }
+
+    private void ActivatePendingPrimaryWindow()
+    {
+        Window? window = MainWindow;
+        if (window is null || !window.IsLoaded)
+        {
+            return;
+        }
+
+        if (Interlocked.Exchange(ref _pendingActivationRequest, 0) == 0)
+        {
+            return;
+        }
+
+        if (!window.IsVisible)
+        {
+            window.Show();
+        }
+        if (window.WindowState == WindowState.Minimized)
+        {
+            window.WindowState = WindowState.Normal;
+        }
+
+        _ = window.Activate();
+        window.Focus();
     }
 
     private static void ScheduleUpdateReadyConfirmation(

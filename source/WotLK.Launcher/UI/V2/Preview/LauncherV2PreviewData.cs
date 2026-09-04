@@ -129,7 +129,7 @@ public static class LauncherV2PreviewData
             new GeneralSettingsViewState(
                 InterfaceLanguage: "Français",
                 StartWithWindows: false,
-                WindowCloseBehavior: "Quitter Atlas Launcher",
+                WindowCloseBehavior: "Réduire dans la barre des tâches",
                 CloseLauncherAfterGameStart: false),
             new GameSettingsViewState(
                 InstallPath: @"C:\Program Files (x86)\WotLK",
@@ -489,15 +489,15 @@ public static class LauncherV2PreviewData
             {
                 Scenario = GamePreviewScenario.Ready,
                 SemanticTone = GameSemanticTone.Accent,
-                ClientStatus = "Démarrage d’Arctium",
-                PrimaryActionLabel = "Lancement…",
+                ClientStatus = "En cours de lancement",
+                PrimaryActionLabel = "En cours de lancement",
                 IsPrimaryActionEnabled = false,
                 IsOptionsEnabled = false,
                 InstallBadgeText = "À jour",
                 IsClientReady = true,
                 Progress = 0,
                 IsLaunchInProgress = true,
-                PrimaryActionUnavailableReason = "Lancement du jeu en cours"
+                PrimaryActionUnavailableReason = "En cours de lancement"
             },
             GamePreviewScenario.RealmOffline => new GameUiState
             {

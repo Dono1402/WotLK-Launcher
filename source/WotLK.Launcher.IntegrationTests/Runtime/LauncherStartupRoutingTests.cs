@@ -8,6 +8,8 @@ internal static class LauncherStartupRoutingTests
     {
         CharacterizeRouting();
         CharacterizeExclusiveWindowDispatch();
+        CharacterizeSingleInstanceRoutes();
+        EnforceSingleInstanceGate();
         CharacterizeSingleRuntimeComposition();
         Console.WriteLine(
             "Routage de démarrage OK (05A.1 : V2 par défaut, fallback legacy, previews isolées, fenêtre/composition uniques).");
@@ -121,6 +123,43 @@ internal static class LauncherStartupRoutingTests
                 _ => calls++),
             "Un mode non interactif ne doit créer aucune fenêtre.");
         Equal(0, calls, "Le dispatch invalide a invoqué une fabrique de fenêtre.");
+    }
+
+    private static void CharacterizeSingleInstanceRoutes()
+    {
+        True(App.UsesSingleInstance(LauncherStartupMode.UiV2),
+            "La V2 réelle doit participer au verrou d'instance.");
+        True(App.UsesSingleInstance(LauncherStartupMode.Legacy),
+            "Le fallback legacy doit partager le verrou du launcher officiel.");
+        True(!App.UsesSingleInstance(LauncherStartupMode.UiV2Preview),
+            "Les previews isolées ne doivent pas bloquer le launcher local de test.");
+        True(!App.UsesSingleInstance(LauncherStartupMode.GrantGameDirectoryAccess),
+            "Un helper élevé ne doit jamais être pris pour une seconde interface.");
+    }
+
+    private static void EnforceSingleInstanceGate()
+    {
+        string identity = "AtlasLauncher.Tests." + Guid.NewGuid().ToString("N");
+        True(LauncherSingleInstanceGate.TryAcquire(identity, out LauncherSingleInstanceGate? first),
+            "La première instance doit acquérir le verrou immédiatement.");
+        using (LauncherSingleInstanceGate acquired = first!)
+        {
+            using ManualResetEventSlim activation = new(initialState: false);
+            acquired.ActivationRequested += (_, _) => activation.Set();
+
+            True(!LauncherSingleInstanceGate.TryAcquire(identity, out LauncherSingleInstanceGate? second),
+                "Une seconde instance doit être refusée immédiatement.");
+            True(second is null, "Une instance refusée ne doit posséder aucun verrou.");
+            True(LauncherSingleInstanceGate.SignalExisting(identity),
+                "La seconde instance doit pouvoir réveiller la première.");
+            True(activation.Wait(TimeSpan.FromSeconds(2)),
+                "La première instance doit recevoir la demande d'activation.");
+        }
+
+        True(LauncherSingleInstanceGate.TryAcquire(identity, out LauncherSingleInstanceGate? reopened),
+            "Le verrou doit être libéré à la fermeture réelle du launcher.");
+        reopened!.Dispose();
+        reopened.Dispose();
     }
 
     private static void CharacterizeSingleRuntimeComposition()

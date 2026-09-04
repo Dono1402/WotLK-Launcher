@@ -316,7 +316,8 @@ internal static class LauncherProfileLogoutTests
             maintenanceService: new RuntimeMaintenanceStub(),
             readLocalState: () => local,
             launchService: launch,
-            getSessionState: () => LauncherSessionState.SignedOut);
+            getSessionState: () => LauncherSessionState.SignedOut,
+            processMonitor: new FakeGameProcessMonitor());
         using LauncherDashboardCoordinator dashboard = new(
             authentication,
             lifetime.Token,

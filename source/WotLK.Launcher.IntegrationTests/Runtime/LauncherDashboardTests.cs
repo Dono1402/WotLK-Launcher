@@ -31,6 +31,7 @@ internal static class LauncherDashboardTests
         await RefuseRequestsWithoutSessionAsync();
         await LoadOnceAfterConcurrentSessionRestoreAsync();
         await PublishLoadingAndRejectConcurrentRefreshAsync();
+        await RefreshAutomaticallyEveryMinuteAsync();
         await ClassifyUnavailableResponsesAsync();
         await PreserveSuccessfulDataAfterFailureAsync();
         await HandleEmptyPatchNoteFeedAsync();
@@ -225,6 +226,57 @@ internal static class LauncherDashboardTests
         True(coordinator.CanRefresh, "La commande doit être réactivée après succès.");
         True(sequences.SequenceEqual(sequences.Order()), "Les séquences doivent être croissantes.");
         True(sequences.Zip(sequences.Skip(1)).All(pair => pair.First < pair.Second), "Les séquences doivent être strictement croissantes.");
+    }
+
+    private static async Task RefreshAutomaticallyEveryMinuteAsync()
+    {
+        ManualDashboardTimeProvider time = new();
+        FakeLauncherAuthService authentication = Authenticated(
+            _ => Task.FromResult(Status()),
+            _ => Task.FromResult<IReadOnlyList<LauncherNews>>([]));
+        using CancellationTokenSource lifetime = new();
+        using LauncherDashboardCoordinator coordinator = new(
+            authentication,
+            lifetime.Token,
+            _ => { },
+            time);
+
+        coordinator.ResumeAuthenticatedRequests();
+        Equal(1, time.CreateTimerCalls, "Le dashboard doit posséder un seul timer.");
+        Equal(LauncherDashboardCoordinator.AutomaticRefreshInterval, time.Timer.DueTime,
+            "La première actualisation automatique doit attendre une minute.");
+        Equal(LauncherDashboardCoordinator.AutomaticRefreshInterval, time.Timer.Period,
+            "La cadence automatique doit rester d'une minute.");
+
+        time.Timer.Fire();
+        True(await coordinator.WaitForIdleAsync(TimeSpan.FromSeconds(2)),
+            "L'actualisation automatique doit être observée.");
+        Equal(1, authentication.GetStatusCalls,
+            "Un tick doit produire une seule lecture du statut.");
+        Equal(1, authentication.GetNewsCalls,
+            "Un tick doit produire une seule lecture des notes.");
+
+        TaskCompletionSource<LauncherServerStatus> status = NewCompletion<LauncherServerStatus>();
+        TaskCompletionSource<IReadOnlyList<LauncherNews>> notes = NewCompletion<IReadOnlyList<LauncherNews>>();
+        authentication.StatusHandler = _ => status.Task;
+        authentication.NewsHandler = _ => notes.Task;
+        time.Timer.Fire();
+        time.Timer.Fire();
+        Equal(2, authentication.GetStatusCalls,
+            "Un second tick pendant une requête active doit être ignoré.");
+        Equal(2, authentication.GetNewsCalls,
+            "Le timer ne doit jamais créer une seconde requête concurrente.");
+        status.SetResult(Status());
+        notes.SetResult([]);
+        True(await coordinator.WaitForIdleAsync(TimeSpan.FromSeconds(2)),
+            "La requête automatique bloquée doit terminer.");
+
+        coordinator.SuspendAuthenticatedRequests();
+        True(!time.Timer.IsEnabled,
+            "Le timer doit être arrêté dès que la session Atlas est suspendue.");
+        time.Timer.Fire();
+        Equal(2, authentication.GetStatusCalls,
+            "Aucune requête automatique ne doit partir sans session active.");
     }
 
     private static async Task ClassifyUnavailableResponsesAsync()
@@ -532,11 +584,21 @@ internal static class LauncherDashboardTests
 
                 TextBlock realmText = Required<TextBlock>(window, "RealmStatusText");
                 Ellipse realmDot = Required<Ellipse>(window, "RealmStatusDot");
+                Button activityButton = Required<Button>(window, "ActivityButton");
+                Button friendsButton = Required<Button>(window, "FriendsButton");
                 GameViewV2 gameView = Required<GameViewV2>(window, "GameView");
                 Button noteAction = Required<Button>(gameView, "LatestPatchNoteAction");
                 Border hero = Required<Border>(gameView, "HeroCard");
                 Border gameContent = Required<Border>(gameView, "ContentFrame");
                 True(!noteAction.IsEnabled, "Le lecteur doit rester indisponible sans note réelle.");
+                True(window.FindName("RefreshDashboardButton") is null,
+                    "Le rafraîchissement automatique ne doit plus afficher de bouton manuel.");
+                True(friendsButton.Content is System.Windows.Shapes.Path,
+                    "Amis doit être représenté uniquement par son pictogramme.");
+                Equal(new Thickness(0), friendsButton.BorderThickness,
+                    "Le raccourci Amis ne doit plus afficher de cadre.");
+                Equal(new Thickness(0), activityButton.BorderThickness,
+                    "Le centre d'activité ne doit plus afficher de cadre.");
                 True(gameView.FindName("OptionsButton") is null,
                     "Le raccourci Options ne doit plus occuper l’action principale de la page Jeu.");
                 True(gameView.FindName("NewsCard") is null && gameView.FindName("InstallCard") is null,
@@ -679,6 +741,14 @@ internal static class LauncherDashboardTests
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
                 Equal("En ligne", realmText.Text, "Le mode compact doit afficher En ligne.");
                 dashboard.SetWideRealmLabel(true);
+
+                Button closeWindow = Required<Button>(window, "CloseWindowButton");
+                RaiseClick(closeWindow);
+                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
+                Equal(WindowState.Minimized, window.WindowState,
+                    "La croix doit réduire Atlas dans la barre des tâches.");
+                window.WindowState = WindowState.Normal;
+                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
 
                 Exception? backgroundPublishFailure = null;
                 await Task.Run(() =>
@@ -1005,6 +1075,78 @@ internal static class LauncherDashboardTests
             CurrentSnapshot = snapshot;
             SnapshotChanged?.Invoke(this, new DashboardSnapshotEventArgs(snapshot));
             AvailabilityChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private sealed class ManualDashboardTimeProvider : TimeProvider
+    {
+        internal int CreateTimerCalls { get; private set; }
+
+        internal ManualDashboardTimer Timer { get; private set; } = null!;
+
+        public override ITimer CreateTimer(
+            TimerCallback callback,
+            object? state,
+            TimeSpan dueTime,
+            TimeSpan period)
+        {
+            CreateTimerCalls++;
+            Timer = new ManualDashboardTimer(callback, state, dueTime, period);
+            return Timer;
+        }
+    }
+
+    private sealed class ManualDashboardTimer : ITimer
+    {
+        private readonly TimerCallback _callback;
+        private readonly object? _state;
+        private bool _isDisposed;
+
+        internal ManualDashboardTimer(
+            TimerCallback callback,
+            object? state,
+            TimeSpan dueTime,
+            TimeSpan period)
+        {
+            _callback = callback;
+            _state = state;
+            DueTime = dueTime;
+            Period = period;
+        }
+
+        internal TimeSpan DueTime { get; private set; }
+
+        internal TimeSpan Period { get; private set; }
+
+        internal bool IsEnabled => !_isDisposed && DueTime != Timeout.InfiniteTimeSpan;
+
+        public bool Change(TimeSpan dueTime, TimeSpan period)
+        {
+            ObjectDisposedException.ThrowIf(_isDisposed, this);
+            DueTime = dueTime;
+            Period = period;
+            return true;
+        }
+
+        internal void Fire()
+        {
+            if (IsEnabled)
+            {
+                _callback(_state);
+            }
+        }
+
+        public void Dispose()
+        {
+            _isDisposed = true;
+            DueTime = Timeout.InfiniteTimeSpan;
+            Period = Timeout.InfiniteTimeSpan;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Dispose();
+            return ValueTask.CompletedTask;
         }
     }
 }

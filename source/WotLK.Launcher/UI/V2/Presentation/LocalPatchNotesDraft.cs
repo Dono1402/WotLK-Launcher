@@ -26,7 +26,16 @@ internal static class LocalPatchNotesDraft
                 "Les actions Mises à jour et Jouer sont regroupées en bas à droite.",
                 "Les informations d'installation restent accessibles dans Paramètres sans encombrer la page Jeu.",
                 "Les notes de mise à jour disposent maintenant de leur propre onglet.",
-                "Chaque changement est présenté clairement, point par point."
+                "Chaque changement est présenté clairement, point par point.",
+                "La barre supérieure est plus légère, avec des raccourcis sans cadre et un accès Amis limité à son icône.",
+                "Le statut d’Arthas et les notes se mettent désormais à jour automatiquement.",
+                "Atlas Launcher empêche l’ouverture de plusieurs exemplaires et ramène au premier lorsqu’il est déjà lancé.",
+                "La croix réduit désormais Atlas Launcher dans la barre des tâches."
+            ]),
+            new("Jeu",
+            [
+                "Le bouton Jouer indique clairement quand le jeu démarre, quand il est ouvert et quand il est de nouveau disponible.",
+                "Une fermeture complète d’Atlas Launcher ferme également le jeu en cours."
             ]),
             new("Profil",
             [

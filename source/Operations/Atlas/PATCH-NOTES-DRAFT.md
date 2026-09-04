@@ -14,7 +14,8 @@ publication d'une version.
 ### Profil
 
 - Les accès « Gérer mon profil » et « Gérer mon compte » sont maintenant séparés.
-- La photo de profil se modifie directement en survolant son aperçu.
+- La photo de profil se modifie en cliquant n'importe où sur son aperçu circulaire.
+- Les actions affichées au survol restent discrètes pour mieux laisser voir la photo.
 - Les images jusqu'à 25 Mo peuvent être utilisées comme photo de profil.
 - Le cadrage et l'aperçu de la photo affichent désormais le même résultat.
 - La nouvelle photo apparaît immédiatement après sa validation.

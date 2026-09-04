@@ -350,6 +350,18 @@ internal static class AccountPreviewTests
             await DelayAndPumpAsync(190);
             True(overlay.IsHitTestVisible && overlay.Opacity > 0.98,
                 "Le survol doit révéler les actions dans le cercle.");
+            Equal(160d, modify.ActualWidth,
+                "Toute la largeur de l'avatar doit déclencher le changement de photo.");
+            Equal(160d, modify.ActualHeight,
+                "Toute la hauteur de l'avatar doit déclencher le changement de photo.");
+            True(IsHitWithin(modify, interactionArea.InputHitTest(new Point(8, 80))),
+                "Un clic près du bord gauche du cercle doit changer la photo.");
+            True(!IsHitWithin(modify, interactionArea.InputHitTest(new Point(4, 4))),
+                "La zone cliquable ne doit pas dépasser du cercle dans ses angles.");
+            True(IsHitWithin(remove, interactionArea.InputHitTest(new Point(133, 27))),
+                "La croix doit rester prioritaire sur la surface de changement.");
+            True(modify.Background is SolidColorBrush { Color.A: < 190 },
+                "Le disque jaune doit rester suffisamment transparent.");
 
             RaiseMouseLeave(interactionArea);
             await DelayAndPumpAsync(150);
@@ -581,6 +593,12 @@ internal static class AccountPreviewTests
     {
         return element.TransformToAncestor(ancestor).TransformBounds(
             new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+    }
+
+    private static bool IsHitWithin(FrameworkElement element, IInputElement? hit)
+    {
+        return hit is DependencyObject target
+            && (ReferenceEquals(element, target) || element.IsAncestorOf(target));
     }
 
     private static T Required<T>(FrameworkElement root, string name)

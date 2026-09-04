@@ -130,6 +130,44 @@
                     <StackPanel Grid.Column="3"
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center">
+                        <Button x:Name="LauncherUpdateButton"
+                                Width="40"
+                                Height="40"
+                                Margin="0,0,5,0"
+                                ToolTip="Mettre à jour Atlas Launcher"
+                                ToolTipService.ShowOnDisabled="True"
+                                AutomationProperties.Name="Mettre à jour Atlas Launcher"
+                                Command="{Binding SettingsState.StartLauncherUpdateCommand}"
+                                Click="LauncherUpdateButton_Click">
+                            <Button.Style>
+                                <Style TargetType="{x:Type Button}"
+                                       BasedOn="{StaticResource AtlasV2.Button.TopBarIcon}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Success}"/>
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding SettingsState.Current.Updates.IsUpdateAvailable}" Value="True"/>
+                                                <Condition Binding="{Binding SettingsState.Current.Updates.IsUpdating}" Value="False"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </MultiDataTrigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SuccessSurface}"/>
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SuccessBorder}"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <Path Width="20"
+                                  Height="20"
+                                  Data="{StaticResource AtlasV2.Icon.Refresh}"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                  Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                        </Button>
+
                         <Button x:Name="ActivityButton"
                                 Height="40"
                                 Margin="0,0,5,0"

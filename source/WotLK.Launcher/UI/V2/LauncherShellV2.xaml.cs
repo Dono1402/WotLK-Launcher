@@ -831,6 +831,14 @@ public partial class LauncherShellV2 : Window
         NavigateTo(LauncherShellPage.PatchNotes);
     }
 
+    private void LauncherUpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (SettingsState.StartLauncherUpdateCommand.CanExecute(null) && !ActivityState.IsOpen)
+        {
+            ActivityButton_Click(sender, e);
+        }
+    }
+
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
         if (IsSettingsNavigationEnabled && _overlayCoordinator.Current == ShellOverlayKind.None)

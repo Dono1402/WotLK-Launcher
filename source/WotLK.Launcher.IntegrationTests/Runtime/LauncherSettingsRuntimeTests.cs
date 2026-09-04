@@ -1,5 +1,8 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
@@ -496,6 +499,29 @@ internal static class LauncherSettingsRuntimeTests
         try
         {
             await DelayAndPumpAsync(180);
+            Button updateButton = Required<Button>(window, "LauncherUpdateButton");
+            True(updateButton.IsVisible && updateButton.IsEnabled,
+                "Une mise à jour disponible doit afficher le bouton de la barre du haut.");
+            True(ReferenceEquals(settingsState.StartLauncherUpdateCommand, updateButton.Command),
+                "Le bouton doit utiliser la commande de mise à jour existante.");
+            Equal(((SolidColorBrush)window.FindResource("AtlasV2.Brush.Success")).Color,
+                ((SolidColorBrush)updateButton.Foreground).Color,
+                "L'icône de mise à jour disponible doit être verte.");
+            Equal(new Thickness(0), updateButton.BorderThickness,
+                "Le bouton ne doit pas réintroduire de cadre permanent.");
+            selfUpdateRuntime.SetUpdateAvailable(false);
+            await PumpAsync(DispatcherPriority.DataBind);
+            True(updateButton.Visibility == Visibility.Collapsed && !updateButton.IsEnabled,
+                "Le bouton doit disparaître lorsque le launcher est à jour.");
+            selfUpdateRuntime.SetUpdateAvailable(true);
+            await PumpAsync(DispatcherPriority.DataBind);
+            True(updateButton.IsVisible && updateButton.IsEnabled,
+                "La détection automatique doit faire réapparaître le bouton sans navigation.");
+            if (!string.IsNullOrWhiteSpace(captureDirectory))
+            {
+                Directory.CreateDirectory(captureDirectory);
+                SavePng(window, Path.Combine(captureDirectory, "05-update-topbar-1440x860.png"));
+            }
             Button settingsButton = Required<Button>(window, "SettingsButton");
             True(settingsButton.IsEnabled, "La navigation Paramètres doit être active dans la V2 réelle.");
             RaiseClick(settingsButton);
@@ -558,15 +584,44 @@ internal static class LauncherSettingsRuntimeTests
                 "L'état Checking doit être projeté sans créer une opération Activity.");
             True(!settingsState.CheckLauncherUpdateCommand.CanExecute(null),
                 "Un deuxième check doit être refusé pendant la requête active.");
+            True(updateButton.IsVisible && !updateButton.IsEnabled,
+                "Le bouton doit rester visible sans permettre l'installation pendant un check.");
             selfUpdateRuntime.CompleteCheck();
             await PumpAsync(DispatcherPriority.DataBind);
             True(settingsState.CheckLauncherUpdateCommand.CanExecute(null),
                 "La commande doit redevenir disponible après le check coalescé.");
 
+            IInvokeProvider updateInvoker = (IInvokeProvider)new ButtonAutomationPeer(updateButton)
+                .GetPattern(PatternInterface.Invoke);
+            updateInvoker.Invoke();
+            await PumpAsync(DispatcherPriority.ApplicationIdle);
+            Equal(1, selfUpdateRuntime.StartCalls,
+                "Un vrai clic WPF doit démarrer une seule mise à jour.");
+            True(window.ActivityState.IsOpen && window.CurrentOverlay == ShellOverlayKind.Activity,
+                "Le clic doit ouvrir le suivi de téléchargement sans changer de page.");
+            True(updateButton.Visibility == Visibility.Collapsed && !updateButton.IsEnabled,
+                "Le bouton doit céder la place au suivi et empêcher une deuxième installation.");
+            selfUpdateRuntime.CancelUpdate();
+            await PumpAsync(DispatcherPriority.ApplicationIdle);
+            True(updateButton.IsVisible && updateButton.IsEnabled,
+                "Une installation annulée doit pouvoir être relancée depuis la barre du haut.");
+            updateInvoker.Invoke();
+            await PumpAsync(DispatcherPriority.ApplicationIdle);
+            Equal(2, selfUpdateRuntime.StartCalls,
+                "Une nouvelle tentative doit déléguer exactement un lancement supplémentaire.");
+            True(window.ActivityState.IsOpen,
+                "Relancer une mise à jour ne doit pas refermer le suivi déjà ouvert.");
+            selfUpdateRuntime.CancelUpdate();
+            RaiseClick(Required<Button>(window, "ActivityButton"));
+            await DelayAndPumpAsync(220);
+
             selfUpdateRuntime.PublishError(LauncherSelfUpdateErrorCategory.ManifestUnavailable);
             await PumpAsync(DispatcherPriority.DataBind);
             True(!settingsState.Current.Updates.IsUpdateAvailable,
                 "Une erreur de manifeste doit retirer l'état de mise à jour disponible.");
+            Equal(Visibility.Collapsed, updateButton.Visibility,
+                "Un manifeste indisponible ne doit pas afficher une fausse mise à jour.");
+            selfUpdateRuntime.SetUpdateAvailable(true);
 
             window.Width = 1080;
             window.Height = 680;
@@ -578,6 +633,12 @@ internal static class LauncherSettingsRuntimeTests
                 "Settings ne doit jamais afficher de barre horizontale à 1080x680.");
             True(view.ScrollHost.ExtentWidth <= view.ScrollHost.ViewportWidth + 1,
                 "Le contenu Updates ne doit pas être coupé horizontalement à 1080x680.");
+            Button patchNotes = Required<Button>(window, "PatchNotesNavigationButton");
+            True(patchNotes.TranslatePoint(new Point(patchNotes.ActualWidth, 0), window).X
+                 <= updateButton.TranslatePoint(new Point(0, 0), window).X,
+                "Le bouton vert ne doit pas chevaucher la navigation à 1080 px.");
+            Equal(40d, updateButton.ActualWidth,
+                "Le bouton doit conserver sa largeur compacte à 1080 px.");
             if (!string.IsNullOrWhiteSpace(captureDirectory))
             {
                 SavePng(window, Path.Combine(captureDirectory, "04-settings-runtime-updates-1080x680.png"));
@@ -650,6 +711,10 @@ internal static class LauncherSettingsRuntimeTests
                 "Le choix anglais doit être persisté immédiatement.");
             Equal("Settings", Required<TextBlock>(view, "PageTitle").Text,
                 "La V2 doit être traduite sans redémarrage.");
+            Equal("Update Atlas Launcher", updateButton.ToolTip as string,
+                "L'infobulle de mise à jour doit être traduite en anglais.");
+            Equal("Update Atlas Launcher", AutomationProperties.GetName(updateButton),
+                "Le nom accessible du bouton doit être traduit en anglais.");
             True(BindingOperations.IsDataBound(
                     Required<TextBlock>(view, "LauncherVersionText"),
                     TextBlock.TextProperty),
@@ -658,6 +723,8 @@ internal static class LauncherSettingsRuntimeTests
             await PumpAsync(DispatcherPriority.ApplicationIdle);
             Equal("Paramètres", Required<TextBlock>(view, "PageTitle").Text,
                 "Le retour au français doit restaurer les libellés exacts.");
+            Equal("Mettre à jour Atlas Launcher", updateButton.ToolTip as string,
+                "L'infobulle doit revenir en français sans redémarrage.");
 
             ToggleButton startupToggle = Required<ToggleButton>(view, "StartWithWindowsToggle");
             startupToggle.IsChecked = true;
@@ -894,6 +961,7 @@ internal sealed class SettingsDashboardRuntimeStub : ILauncherDashboardRuntime
 internal sealed class SettingsSelfUpdateRuntimeStub : ILauncherSelfUpdateRuntime
 {
     private TaskCompletionSource<LauncherSelfUpdateCheckResult>? _activeCheck;
+    private TaskCompletionSource<LauncherSelfUpdateCompletion>? _activeUpdate;
 
     internal SettingsSelfUpdateRuntimeStub()
     {
@@ -924,6 +992,7 @@ internal sealed class SettingsSelfUpdateRuntimeStub : ILauncherSelfUpdateRuntime
         && CurrentSnapshot.IsUpdateAvailable
         && !CurrentSnapshot.IsUpdating;
     internal int CheckCalls { get; private set; }
+    internal int StartCalls { get; private set; }
 
     public Task<LauncherSelfUpdateCheckResult> CheckAsync()
     {
@@ -944,8 +1013,47 @@ internal sealed class SettingsSelfUpdateRuntimeStub : ILauncherSelfUpdateRuntime
         return _activeCheck.Task;
     }
 
-    public LauncherSelfUpdateStartResult TryStartUpdate() =>
-        new(LauncherSelfUpdateStartStatus.Busy, null);
+    public LauncherSelfUpdateStartResult TryStartUpdate()
+    {
+        if (!CanStartUpdate)
+        {
+            return new(LauncherSelfUpdateStartStatus.Busy, null);
+        }
+
+        StartCalls++;
+        _activeUpdate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Publish(CurrentSnapshot with
+        {
+            Sequence = CurrentSnapshot.Sequence + 1,
+            IsUpdating = true,
+            Phase = LauncherSelfUpdatePhase.Downloading
+        });
+        return new(LauncherSelfUpdateStartStatus.Started, _activeUpdate.Task);
+    }
+
+    internal void CancelUpdate()
+    {
+        TaskCompletionSource<LauncherSelfUpdateCompletion>? completion = _activeUpdate;
+        _activeUpdate = null;
+        Publish(CurrentSnapshot with
+        {
+            Sequence = CurrentSnapshot.Sequence + 1,
+            IsUpdating = false,
+            Phase = LauncherSelfUpdatePhase.None
+        });
+        completion?.TrySetResult(new(LauncherOperationOutcome.Cancelled));
+    }
+
+    internal void SetUpdateAvailable(bool available)
+    {
+        Publish(CurrentSnapshot with
+        {
+            Sequence = CurrentSnapshot.Sequence + 1,
+            IsUpdateAvailable = available,
+            AvailableVersion = available ? "v1.2.0" : null,
+            ErrorCategory = null
+        });
+    }
 
     internal void CompleteCheck()
     {

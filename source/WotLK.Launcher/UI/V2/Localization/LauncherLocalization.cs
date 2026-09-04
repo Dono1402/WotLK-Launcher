@@ -62,6 +62,7 @@ internal static class LauncherLocalization
             ["Installation"] = "Install",
             ["Installer"] = "Install",
             ["Mettre à jour"] = "Update",
+            ["Mettre à jour Atlas Launcher"] = "Update Atlas Launcher",
             ["Réessayer"] = "Try again",
             ["Vérifier"] = "Verify",
             ["Vérifier et réparer"] = "Verify and repair",

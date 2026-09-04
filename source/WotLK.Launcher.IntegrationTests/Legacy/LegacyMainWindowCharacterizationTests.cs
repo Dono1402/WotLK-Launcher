@@ -314,13 +314,20 @@ internal static class LegacyMainWindowCharacterizationTests
             ?? throw new InvalidOperationException("Exécutable de test introuvable.");
         string currentHash = Convert.ToHexString(await SHA256.HashDataAsync(
             File.OpenRead(currentExecutable)));
+        Version launcherAssemblyVersion = typeof(App).Assembly.GetName().Version
+            ?? throw new InvalidOperationException("Version du launcher introuvable.");
+        string currentVersion = launcherAssemblyVersion.ToString(3);
+        string newerVersion = new Version(
+            launcherAssemblyVersion.Major,
+            launcherAssemblyVersion.Minor + 1,
+            0).ToString(3);
         MainWindow window = new(environment.CreateDependencies());
 
         environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
             RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
             {
-                Version = "1.1.0",
-                Url = PackageUrl("1.1.0"),
+                Version = currentVersion,
+                Url = PackageUrl(currentVersion),
                 Size = new FileInfo(currentExecutable).Length,
                 Sha256 = currentHash
             }));
@@ -334,8 +341,8 @@ internal static class LegacyMainWindowCharacterizationTests
         environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
             RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
             {
-                Version = "1.1.0",
-                Url = PackageUrl("1.1.0"),
+                Version = currentVersion,
+                Url = PackageUrl(currentVersion),
                 Size = candidate.Length,
                 Sha256 = candidateHash
             }));
@@ -347,8 +354,8 @@ internal static class LegacyMainWindowCharacterizationTests
         environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
             RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
             {
-                Version = "1.2.0",
-                Url = PackageUrl("1.2.0"),
+                Version = newerVersion,
+                Url = PackageUrl(newerVersion),
                 Size = candidate.Length,
                 Sha256 = candidateHash
             }));
@@ -359,7 +366,7 @@ internal static class LegacyMainWindowCharacterizationTests
         True(snapshot.LauncherSelfUpdateVisible,
             "Une version supérieure avec un hash différent doit rester visible dans le legacy. "
             + $"Updater={updater}; Log={snapshot.LogText}");
-        Equal("Mise a jour launcher disponible: 1.2.0", snapshot.LauncherSelfUpdateToolTip,
+        Equal($"Mise a jour launcher disponible: {newerVersion}", snapshot.LauncherSelfUpdateToolTip,
             "Le texte historique du bouton doit rester stable.");
 
         environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
@@ -387,8 +394,8 @@ internal static class LegacyMainWindowCharacterizationTests
             "Deux checks simultanés doivent produire une seule requête legacy.");
         release.SetResult(RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
         {
-            Version = "1.2.0",
-            Url = PackageUrl("1.2.0"),
+            Version = newerVersion,
+            Url = PackageUrl(newerVersion),
             Size = candidate.Length,
             Sha256 = candidateHash
         }));
@@ -400,12 +407,13 @@ internal static class LegacyMainWindowCharacterizationTests
     {
         byte[] candidate = Encoding.UTF8.GetBytes("atlas-launcher-candidate-for-handoff");
         string candidateHash = Convert.ToHexString(SHA256.HashData(candidate));
+        string newerVersion = GetNewerLauncherVersion();
         using LegacyTestEnvironment environment = new(initialPlayableClient: true);
         environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
             RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
             {
-                Version = "1.2.0",
-                Url = PackageUrl("1.2.0"),
+                Version = newerVersion,
+                Url = PackageUrl(newerVersion),
                 Size = candidate.Length,
                 Sha256 = candidateHash
             }));
@@ -437,13 +445,14 @@ internal static class LegacyMainWindowCharacterizationTests
     {
         byte[] candidate = new byte[256 * 1024];
         string candidateHash = Convert.ToHexString(SHA256.HashData(candidate));
+        string newerVersion = GetNewerLauncherVersion();
         using (LegacyTestEnvironment environment = new(initialPlayableClient: true))
         {
             environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
                 RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
                 {
-                    Version = "1.2.0",
-                    Url = PackageUrl("1.2.0"),
+                    Version = newerVersion,
+                    Url = PackageUrl(newerVersion),
                     Size = candidate.Length,
                     Sha256 = candidateHash
                 }));
@@ -475,8 +484,8 @@ internal static class LegacyMainWindowCharacterizationTests
             environment.Http.LauncherUpdateResponder = (_, _) => Task.FromResult(
                 RecordingHttpHandler.JsonResponse(new LauncherUpdateManifest
                 {
-                    Version = "1.2.0",
-                    Url = PackageUrl("1.2.0"),
+                    Version = newerVersion,
+                    Url = PackageUrl(newerVersion),
                     Size = candidate.Length,
                     Sha256 = candidateHash
                 }));
@@ -749,6 +758,13 @@ internal static class LegacyMainWindowCharacterizationTests
 
     private static string PackageUrl(string version) =>
         $"https://animeclub.fr/wotlk/launcher/releases/{version}/WotLK-Launcher.exe";
+
+    private static string GetNewerLauncherVersion()
+    {
+        Version current = typeof(App).Assembly.GetName().Version
+            ?? throw new InvalidOperationException("Version du launcher introuvable.");
+        return new Version(current.Major, current.Minor + 1, 0).ToString(3);
+    }
 
     private static void AssertOrdered(
         IReadOnlyList<LegacyStartupEvent> actual,

@@ -152,6 +152,81 @@ internal static class LauncherSelfUpdateSecurityTests
         return 0;
     }
 
+    internal static async Task<int> RunCandidateNoUpdateAsync(
+        string manifestPath,
+        string packagePath)
+    {
+        manifestPath = Path.GetFullPath(manifestPath);
+        packagePath = Path.GetFullPath(packagePath);
+        True(File.Exists(manifestPath), "Le manifeste candidat est absent.");
+        True(File.Exists(packagePath), "Le package candidat est absent.");
+
+        LauncherUpdateManifest manifest = LauncherUpdateManifestJson.ParseStrict(
+            await File.ReadAllBytesAsync(manifestPath));
+        LauncherUpdateManifestVerifier verifier = new(
+            LauncherUpdateTrustStore.LoadEmbeddedProduction());
+        verifier.Verify(manifest);
+        Equal(ProductionKeyId, manifest.KeyId,
+            "Le manifeste candidat doit utiliser l'ancre de production Atlas.");
+        Equal("1.2.0", manifest.Version,
+            "Le manifeste candidat doit annoncer Atlas Launcher 1.2.0.");
+        Equal(
+            "https://animeclub.fr/wotlk/launcher/releases/1.2.0/WotLK-Launcher.exe",
+            LauncherSelfUpdateHttpClient.BuildDownloadUri(
+                manifest.Url,
+                manifest.Version).AbsoluteUri,
+            "L'URL future du package candidat est incorrecte.");
+        await LauncherUpdatePackageIntegrity.ValidateAsync(
+            packagePath,
+            manifest,
+            ComputeSha256Async,
+            CancellationToken.None);
+
+        CandidateCheckOnlyClient client = new(manifest);
+        using LauncherOperationCoordinator operations = new();
+        int activityEvents = 0;
+        operations.ActivityChanged += (_, _) => activityEvents++;
+        TrackingRejectingFinalizer finalizer = new();
+        InertTimer timer = new(LauncherSelfUpdateCoordinator.CheckInterval);
+        using LauncherSelfUpdateCoordinator coordinator = new(
+            operations,
+            client,
+            finalizer,
+            timer,
+            automaticChecksEnabled: false,
+            installedVersion: "v1.2.0",
+            selfUpdateRecoveryOccurred: false,
+            getExecutablePath: () => packagePath,
+            writeLog: _ => { });
+
+        LauncherSelfUpdateCheckResult result = await coordinator.CheckAsync();
+        Equal(LauncherSelfUpdateCheckOutcome.NoUpdate, result.Outcome,
+            "Une installation 1.2.0 identique au candidat doit produire NoUpdate.");
+        True(!coordinator.CurrentSnapshot.IsUpdateAvailable,
+            "Le candidat identique ne doit pas être publié comme mise à jour.");
+        Equal(1, client.ManifestRequests,
+            "Le manifeste candidat doit être lu une seule fois.");
+        Equal(0, client.DownloadRequests,
+            "Le check candidat ne doit télécharger aucun package.");
+        Equal(0, finalizer.Calls,
+            "Le check candidat ne doit appeler ni remplacement ni UAC.");
+        Equal(0, activityEvents,
+            "Un résultat NoUpdate ne doit créer aucune activité.");
+        True(operations.IsIdle,
+            "Le coordinateur global doit rester inactif après NoUpdate.");
+        Equal(
+            LauncherSelfUpdateStartStatus.NoUpdate,
+            coordinator.TryStartUpdate().Status,
+            "Aucune mise à jour ne doit pouvoir démarrer après NoUpdate.");
+        True(!timer.IsEnabled,
+            "Le contrôle candidat ponctuel ne doit pas démarrer le timer.");
+
+        Console.WriteLine(
+            "Atlas Launcher 1.2.0 signed candidate OK: signature=valid, "
+            + "package=matching, outcome=NoUpdate, activity=0, download=0, uac=0.");
+        return 0;
+    }
+
     private static void VerifyCanonicalPayloadAndSignatureCoverage()
     {
         using ECDsa signer = ECDsa.Create(ECCurve.NamedCurves.nistP256);
@@ -955,6 +1030,34 @@ internal static class LauncherSelfUpdateSecurityTests
             DownloadRequests++;
             throw new InvalidOperationException(
                 "Le check live ne doit jamais atteindre le téléchargement.");
+        }
+    }
+
+    private sealed class CandidateCheckOnlyClient(
+        LauncherUpdateManifest manifest) : ILauncherSelfUpdateClient
+    {
+        internal int ManifestRequests { get; private set; }
+
+        internal int DownloadRequests { get; private set; }
+
+        public Task<LauncherUpdateManifest> LoadManifestAsync(
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ManifestRequests++;
+            return Task.FromResult(manifest);
+        }
+
+        public Task DownloadAsync(
+            Uri uri,
+            string targetPath,
+            long expectedSize,
+            Action<LauncherSelfUpdateTransferProgress> reportProgress,
+            CancellationToken cancellationToken)
+        {
+            DownloadRequests++;
+            throw new InvalidOperationException(
+                "Le check candidat ne doit jamais atteindre le téléchargement.");
         }
     }
 

@@ -10,18 +10,24 @@
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <PlatformTarget>x64</PlatformTarget>
     <Product>Atlas Launcher</Product>
+    <AssemblyTitle>Atlas Launcher Setup</AssemblyTitle>
     <Company>AnimeClub</Company>
     <Description>Installateur Windows hors ligne d'Atlas Launcher</Description>
     <Copyright>Copyright © 2026 AnimeClub</Copyright>
-    <Version>1.1.2</Version>
-    <AssemblyVersion>1.1.2.0</AssemblyVersion>
-    <FileVersion>1.1.2.0</FileVersion>
+    <Version>1.2.0</Version>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+    <FileVersion>1.2.0.0</FileVersion>
+    <InformationalVersion>1.2.0</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <InstallerPayloadPath>$(MSBuildProjectDirectory)\Payload\WotLK.Launcher.exe</InstallerPayloadPath>
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Payload\WotLK.Launcher.exe" />
+    <EmbeddedResource Include="$(InstallerPayloadPath)"
+                      LogicalName="WotLK.Launcher.Installer.Payload.WotLK.Launcher.exe" />
     <None Remove="Assets\**\*.png" />
     <Resource Include="Assets\**\*.png" />
     <Resource Include="Assets\AppIcon.ico" />
@@ -40,5 +46,31 @@
     <Resource Include="..\WotLK.Launcher\Assets\Fonts\Manrope-ExtraBold.ttf"
               Link="Assets\Fonts\Manrope-ExtraBold.ttf" />
   </ItemGroup>
+
+  <Target Name="GenerateInstallerPayloadMetadata" BeforeTargets="CoreCompile">
+    <Error Condition="!Exists('$(InstallerPayloadPath)')"
+           Text="Le payload Atlas Launcher est absent : $(InstallerPayloadPath)" />
+    <GetFileHash Files="$(InstallerPayloadPath)" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="_InstallerPayloadHash" />
+    </GetFileHash>
+    <PropertyGroup>
+      <_InstallerPayloadMetadataFile>$(IntermediateOutputPath)InstallerPayloadBuildMetadata.g.cs</_InstallerPayloadMetadataFile>
+      <_InstallerPayloadSha256>@(_InstallerPayloadHash->'%(FileHash)')</_InstallerPayloadSha256>
+      <_InstallerPayloadSha256>$([System.String]::Copy('$(_InstallerPayloadSha256)').ToLowerInvariant())</_InstallerPayloadSha256>
+    </PropertyGroup>
+    <ItemGroup>
+      <_InstallerPayloadMetadataLines Include="// &lt;auto-generated /&gt;" />
+      <_InstallerPayloadMetadataLines Include="namespace WotLK.Launcher.Installer.Setup%3B" />
+      <_InstallerPayloadMetadataLines Include="internal static class InstallerPayloadBuildMetadata" />
+      <_InstallerPayloadMetadataLines Include="{" />
+      <_InstallerPayloadMetadataLines Include="    internal const string Sha256 = &quot;$(_InstallerPayloadSha256)&quot;%3B" />
+      <_InstallerPayloadMetadataLines Include="}" />
+      <Compile Include="$(_InstallerPayloadMetadataFile)" Visible="false" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_InstallerPayloadMetadataFile)"
+                      Lines="@(_InstallerPayloadMetadataLines)"
+                      Overwrite="true"
+                      Encoding="UTF-8" />
+  </Target>
 
 </Project>

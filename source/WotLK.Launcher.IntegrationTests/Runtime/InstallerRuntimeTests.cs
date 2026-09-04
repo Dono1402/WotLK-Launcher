@@ -100,7 +100,7 @@ internal static class InstallerRuntimeTests
                 new InstallerRequest(installRoot, true, true),
                 new InlineProgress<InstallerProgress>(progress.Add),
                 CancellationToken.None);
-            Equal(InstallerProduct.PayloadSize, new FileInfo(installed.LauncherPath).Length,
+            Equal(payload.Length, new FileInfo(installed.LauncherPath).Length,
                 "La taille du payload réellement installé est incorrecte.");
             Equal(InstallerProduct.PayloadSha256, Hash(installed.LauncherPath),
                 "Le payload réellement installé est altéré.");
@@ -156,12 +156,13 @@ internal static class InstallerRuntimeTests
     private static void ValidateEmbeddedPayload()
     {
         EmbeddedInstallerPayloadSource payload = new();
-        Equal(79_820_116L, payload.Length, "La taille du payload 1.1.2 est incorrecte.");
+        True(payload.Length > 0, "Le payload 1.2.0 doit contenir le launcher canonique.");
         Equal(
             InstallerProduct.PayloadSha256,
             payload.Sha256,
             "Le SHA-256 déclaré du payload est incorrect.");
         using Stream stream = payload.OpenRead();
+        Equal(payload.Length, stream.Length, "La taille générée doit correspondre au payload embarqué.");
         string actualHash = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
         Equal(payload.Sha256, actualHash, "Le payload embarqué diffère du package validé.");
 
@@ -186,7 +187,7 @@ internal static class InstallerRuntimeTests
         InstallerWizardViewState welcome = InstallerWizardPreviewData.Create(InstallerPreviewScenario.Welcome);
         Equal("Bienvenue dans l’assistant d’installation", welcome.HeaderTitle, "Le titre d'accueil est incorrect.");
         Equal(
-            "Cet assistant va installer Atlas Launcher 1.1.2 sur cet ordinateur.",
+            "Cet assistant va installer Atlas Launcher 1.2.0 sur cet ordinateur.",
             welcome.HeaderSubtitle,
             "Le sous-titre d'accueil est incorrect.");
     }
@@ -248,7 +249,7 @@ internal static class InstallerRuntimeTests
 
     private static void ValidateSetupArtifact(string setupArtifact)
     {
-        Equal("1.1.2.0", FileVersionInfo.GetVersionInfo(setupArtifact).FileVersion,
+        Equal("1.2.0.0", FileVersionInfo.GetVersionInfo(setupArtifact).FileVersion,
             "La version de l'artefact setup est incorrecte.");
 
         using FileStream stream = File.OpenRead(setupArtifact);
@@ -608,9 +609,9 @@ internal static class InstallerRuntimeTests
                 CancellationToken.None);
 
             Equal(InstallerProduct.PayloadSha256, Hash(result.LauncherPath), "Le payload Program Files est altéré.");
-            Equal(InstallerProduct.PayloadSize, new FileInfo(result.LauncherPath).Length, "La taille installée est incorrecte.");
+            Equal(payload.Length, new FileInfo(result.LauncherPath).Length, "La taille installée est incorrecte.");
             Equal(Hash(setupArtifact), Hash(result.UninstallerPath), "Uninstall.exe n'est pas autonome.");
-            Equal("1.1.2.0", FileVersionInfo.GetVersionInfo(result.LauncherPath).FileVersion,
+            Equal("1.2.0.0", FileVersionInfo.GetVersionInfo(result.LauncherPath).FileVersion,
                 "La version du launcher installé est incorrecte.");
             ValidateProgress(progress);
             IReadOnlyDictionary<string, object?> values = registry.Read(registrySubKey);

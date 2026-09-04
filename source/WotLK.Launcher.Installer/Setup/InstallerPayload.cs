@@ -16,6 +16,7 @@ internal sealed class EmbeddedInstallerPayloadSource : IInstallerPayloadSource
 {
     private readonly Assembly _assembly;
     private readonly string _resourceName;
+    private readonly long _length;
 
     internal EmbeddedInstallerPayloadSource()
         : this(typeof(EmbeddedInstallerPayloadSource).Assembly)
@@ -28,17 +29,13 @@ internal sealed class EmbeddedInstallerPayloadSource : IInstallerPayloadSource
         _resourceName = assembly.GetManifestResourceNames().SingleOrDefault(name =>
                 name.EndsWith("Payload.WotLK.Launcher.exe", StringComparison.Ordinal))
             ?? throw new InvalidOperationException(
-                "Le payload Atlas Launcher 1.1.2 est absent de l'installateur.");
+                $"Le payload Atlas Launcher {InstallerProduct.Version} est absent de l'installateur.");
 
         using Stream stream = OpenRead();
-        if (stream.Length != InstallerProduct.PayloadSize)
-        {
-            throw new InvalidDataException(
-                $"Le payload embarqué possède une taille inattendue ({stream.Length} octets)." );
-        }
+        _length = stream.Length;
     }
 
-    public long Length => InstallerProduct.PayloadSize;
+    public long Length => _length;
 
     public string Sha256 => InstallerProduct.PayloadSha256;
 

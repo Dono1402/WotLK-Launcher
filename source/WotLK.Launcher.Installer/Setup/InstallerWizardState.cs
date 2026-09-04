@@ -107,7 +107,7 @@ internal sealed record InstallerWizardViewState(
         _ => Step switch
         {
             InstallerWizardStep.Welcome =>
-                "Cet assistant va installer Atlas Launcher 1.1.2 sur cet ordinateur.",
+                $"Cet assistant va installer Atlas Launcher {InstallerProduct.Version} sur cet ordinateur.",
             InstallerWizardStep.Destination =>
                 "Sélectionne l’emplacement réservé au launcher. Le client WoW reste séparé.",
             InstallerWizardStep.Options =>

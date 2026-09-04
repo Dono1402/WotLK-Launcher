@@ -257,6 +257,12 @@ if (args.Length == 1
     return await LauncherSelfUpdateSecurityTests.RunProductionCheckOnlyAsync();
 }
 
+if (args.Length == 3
+    && string.Equals(args[0], "--secure-self-update-candidate", StringComparison.OrdinalIgnoreCase))
+{
+    return await LauncherSelfUpdateSecurityTests.RunCandidateNoUpdateAsync(args[1], args[2]);
+}
+
 if (args.Length == 1
     && string.Equals(args[0], "--secure-self-update-live", StringComparison.OrdinalIgnoreCase))
 {

@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$DotnetPath = 'C:\Users\Dono\.dotnet\sdk-8.0.424\dotnet.exe',
-    [string]$OutputDirectory
+    [string]$OutputDirectory,
+    [string]$LauncherPayloadPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -17,17 +18,65 @@ if (-not $OutputDirectory.StartsWith($artifactsRoot + [IO.Path]::DirectorySepara
 
 $project = Join-Path $repository 'source\WotLK.Launcher.Installer\WotLK.Launcher.Installer.csproj'
 $payload = Join-Path $repository 'source\WotLK.Launcher.Installer\Payload\WotLK.Launcher.exe'
-$expectedLength = 79820116L
-$expectedHash = '690f0afed2010affef628115f6602815d9017e20189224300b79e3885c7ab2b6'
+$expectedFileVersion = '1.2.0.0'
+$expectedProductVersion = '1.2.0'
+
+function Get-PeMachine([string]$Path) {
+    $stream = [IO.File]::OpenRead($Path)
+    $reader = [IO.BinaryReader]::new($stream)
+    try {
+        $stream.Position = 0x3c
+        $peOffset = $reader.ReadInt32()
+        $stream.Position = $peOffset + 4
+        return $reader.ReadUInt16()
+    }
+    finally {
+        $reader.Dispose()
+        $stream.Dispose()
+    }
+}
 
 if (-not (Test-Path -LiteralPath $DotnetPath -PathType Leaf)) {
     throw "SDK .NET introuvable : $DotnetPath"
 }
 
+if (-not [string]::IsNullOrWhiteSpace($LauncherPayloadPath)) {
+    $LauncherPayloadPath = [IO.Path]::GetFullPath($LauncherPayloadPath)
+    if (-not $LauncherPayloadPath.StartsWith(
+            $artifactsRoot + [IO.Path]::DirectorySeparatorChar,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Le launcher canonique doit provenir de $artifactsRoot."
+    }
+    if (-not (Test-Path -LiteralPath $LauncherPayloadPath -PathType Leaf)) {
+        throw "Launcher canonique introuvable : $LauncherPayloadPath"
+    }
+
+    $candidate = Get-Item -LiteralPath $LauncherPayloadPath
+    $candidateHash = (Get-FileHash -LiteralPath $LauncherPayloadPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if (($candidate.VersionInfo.FileVersion -ne $expectedFileVersion) -or
+        ($candidate.VersionInfo.ProductVersion -ne $expectedProductVersion)) {
+        throw "Les métadonnées du launcher canonique 1.2.0 sont invalides."
+    }
+    if ((Get-PeMachine $LauncherPayloadPath) -ne 0x8664) {
+        throw "Le launcher canonique 1.2.0 n'est pas un exécutable x64."
+    }
+
+    New-Item -ItemType Directory -Path (Split-Path -Parent $payload) -Force | Out-Null
+    Copy-Item -LiteralPath $LauncherPayloadPath -Destination $payload -Force
+}
+
 $payloadFile = Get-Item -LiteralPath $payload
 $payloadHash = (Get-FileHash -LiteralPath $payload -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($payloadFile.Length -ne $expectedLength -or $payloadHash -ne $expectedHash) {
-    throw "Le payload Atlas Launcher 1.1.2 ne correspond pas à la build validée."
+if (($payloadFile.VersionInfo.FileVersion -ne $expectedFileVersion) -or
+    ($payloadFile.VersionInfo.ProductVersion -ne $expectedProductVersion)) {
+    throw "Les métadonnées du payload Atlas Launcher 1.2.0 sont invalides."
+}
+if ((Get-PeMachine $payload) -ne 0x8664) {
+    throw "Le payload Atlas Launcher 1.2.0 n'est pas un exécutable x64."
+}
+if ((-not [string]::IsNullOrWhiteSpace($LauncherPayloadPath)) -and
+    ($payloadFile.Length -ne $candidate.Length -or $payloadHash -ne $candidateHash)) {
+    throw "La copie du launcher canonique vers le payload a été altérée."
 }
 
 $publishDirectory = Join-Path ([IO.Path]::GetTempPath()) ("AtlasLauncherSetup-publish-" + [Guid]::NewGuid().ToString('N'))
@@ -45,6 +94,7 @@ try {
         -p:PublishTrimmed=false `
         -p:DebugType=None `
         -p:DebugSymbols=false `
+        -p:NuGetAudit=false `
         -p:IncludeNativeLibrariesForSelfExtract=true `
         -p:EnableCompressionInSingleFile=true `
         -o $publishDirectory
@@ -64,9 +114,7 @@ try {
     $target = Join-Path $OutputDirectory 'AtlasLauncherSetup.exe'
     Copy-Item -LiteralPath $source -Destination $target
 
-    $bytes = [IO.File]::ReadAllBytes($target)
-    $peOffset = [BitConverter]::ToInt32($bytes, 0x3c)
-    $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
+    $machine = Get-PeMachine $target
     if ($machine -ne 0x8664) {
         throw ('Architecture PE inattendue : 0x{0:x4}' -f $machine)
     }

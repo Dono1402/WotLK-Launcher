@@ -6,9 +6,8 @@ Launcher. Its stable distribution filename is `AtlasLauncherSetup.exe`.
 ## Product contract
 
 - Product: **Atlas Launcher**
-- Bootstrap payload: **1.1.2**
-- Payload size: `79,820,116` bytes
-- Payload SHA-256: `690f0afed2010affef628115f6602815d9017e20189224300b79e3885c7ab2b6`
+- Bootstrap payload: **1.2.0**
+- Payload size and SHA-256: generated from the supplied canonical launcher during setup compilation
 - Technical launcher filename: `WotLK.Launcher.exe`
 - Default destination: `%ProgramFiles%\Atlas Launcher`
 - Publisher: **AnimeClub**
@@ -57,9 +56,8 @@ Bearer-shaped values are redacted.
 The installed `Uninstall.exe` is an exact copy of the standalone setup. This
 keeps uninstall independent of an installed .NET runtime and avoids a fifth
 project, but it duplicates the full setup size inside the installation. For the
-04D.2 Release artifact, the setup/uninstaller is `185,191,513` bytes, the exact
-installed footprint is `265,012,637` bytes, and the free-space check requires
-`332,120,493` bytes after adding the 64 MiB safety margin.
+1.2.0 release candidate sizes and hashes are recorded in the release report
+generated from the final committed sources.
 
 The uninstaller asks for confirmation in interactive mode and supports a tested
 `--quiet` mode used by `QuietUninstallString`. It only removes the files listed by
@@ -74,11 +72,13 @@ the now-empty installation directory.
 From the repository root:
 
 ```powershell
-& '.\scripts\build-atlas-installer.ps1'
+& '.\scripts\build-atlas-installer.ps1' `
+  -LauncherPayloadPath '.\artifacts\05A.2-v1.2.0\package\WotLK-Launcher.exe'
 ```
 
 The script uses `C:\Users\Dono\.dotnet\sdk-8.0.424\dotnet.exe` explicitly,
-validates the payload before publish, and leaves only
+validates and copies the canonical launcher payload without rebuilding it, generates the
+embedded size and SHA-256 metadata from those exact bytes, and leaves only
 `artifacts\AtlasLauncherSetup\AtlasLauncherSetup.exe` in the distribution
 directory.
 

@@ -6,7 +6,7 @@ namespace WotLK.Launcher.Installer.Setup;
 internal static class InstallerProduct
 {
     internal const string Name = "Atlas Launcher";
-    internal const string Version = "1.1.2";
+    internal const string Version = "1.2.0";
     internal const string Publisher = "AnimeClub";
     internal const string LauncherFileName = "WotLK.Launcher.exe";
     internal const string UninstallerFileName = "Uninstall.exe";
@@ -14,9 +14,7 @@ internal static class InstallerProduct
     internal const string RegistryKeyName = "AtlasLauncher";
     internal const string RegistryRoot = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";
     internal const string RegistrySubKey = RegistryRoot + @"\" + RegistryKeyName;
-    internal const long PayloadSize = 79_820_116;
-    internal const string PayloadSha256 =
-        "690f0afed2010affef628115f6602815d9017e20189224300b79e3885c7ab2b6";
+    internal static string PayloadSha256 => InstallerPayloadBuildMetadata.Sha256;
     internal const long FreeSpaceMargin = 64L * 1024 * 1024;
 
     internal static readonly string[] LegacyRegistrySubKeys =

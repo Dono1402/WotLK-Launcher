@@ -253,11 +253,9 @@ internal static class AccountAvatarWpfTests
                 AccountAvatarClientTests.True(
                     accountState.Current.AvatarImage is { IsFrozen: true },
                     "La page Compte doit recevoir l'image figée du cache.");
-                AccountAvatarClientTests.False(
-                    Required<TextBlock>(window.AccountPage, "SecuritySummaryText").Text.Contains(
-                        "sessions",
-                        StringComparison.OrdinalIgnoreCase),
-                    "La page réelle ne doit pas présenter un nombre de sessions fictif.");
+                AccountAvatarClientTests.True(
+                    window.AccountPage.FindName("SecuritySummaryText") is null,
+                    "Le rappel de sécurité redondant doit être absent du profil réel.");
                 AccountAvatarClientTests.Equal(
                     Visibility.Collapsed,
                     Required<StackPanel>(window.AccountPage, "SessionsPreviewList").Visibility,
@@ -576,6 +574,15 @@ internal static class AccountAvatarWpfTests
                 AccountAvatarClientTests.True(
                     window.AccountPage.ContainsDeleteConfirmationFocus(Keyboard.FocusedElement as DependencyObject),
                     "Le focus doit rester dans la confirmation destructive.");
+                RaiseMouseDown(Required<Grid>(window.AccountPage, "DeleteConfirmationLayer"));
+                await PumpAsync(DispatcherPriority.Input);
+                AccountAvatarClientTests.False(window.AccountPage.IsDeleteConfirmationOpen,
+                    "Un clic hors de la confirmation doit l'annuler sans requête.");
+                AccountAvatarClientTests.Equal(0, server.DeleteCalls,
+                    "Fermer la confirmation par son arrière-plan ne doit pas appeler DELETE.");
+
+                RaiseClick(remove);
+                await PumpAsync(DispatcherPriority.Input);
                 window.RaiseEvent(new KeyEventArgs(
                     Keyboard.PrimaryDevice,
                     PresentationSource.FromVisual(window)!,
@@ -776,6 +783,18 @@ internal static class AccountAvatarWpfTests
 
     private static void RaiseClick(Button button) =>
         button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, button));
+
+    private static void RaiseMouseDown(UIElement element)
+    {
+        element.RaiseEvent(new MouseButtonEventArgs(
+            Mouse.PrimaryDevice,
+            Environment.TickCount,
+            MouseButton.Left)
+        {
+            RoutedEvent = UIElement.MouseLeftButtonDownEvent,
+            Source = element
+        });
+    }
 
     private static MouseWheelEventArgs RaiseMouseWheel(UIElement target, int delta)
     {

@@ -199,6 +199,18 @@ internal static class AccountSecuritySessionWpfTests
                     && window.AccountPage.ContainsSensitiveEditorFocus(
                         Keyboard.FocusedElement as DependencyObject),
                     "Le formulaire e-mail réel doit s'ouvrir avec son focus modal.");
+                TextBox newEmail = Required<TextBox>(window.AccountPage, "NewEmailBox");
+                Equal(string.Empty, newEmail.Text,
+                    "La nouvelle adresse e-mail doit commencer vide.");
+                True(Required<Border>(window.AccountPage, "NewEmailField").BorderThickness.Left >= 1,
+                    "Le champ e-mail doit afficher un rectangle de saisie explicite.");
+                RaiseMouseDown(Required<Grid>(window.AccountPage, "EmailEditorLayer"));
+                await PumpAsync(DispatcherPriority.Input);
+                False(accountState.Current.IsEmailEditorOpen,
+                    "Un clic hors du formulaire e-mail doit le fermer.");
+
+                RaiseClick(Required<Button>(window.AccountPage, "ModifyEmailButton"));
+                await PumpAsync(DispatcherPriority.Input);
                 window.RaiseEvent(new KeyEventArgs(
                     Keyboard.PrimaryDevice,
                     PresentationSource.FromVisual(window)!,
@@ -221,6 +233,17 @@ internal static class AccountSecuritySessionWpfTests
                 PasswordBox currentPassword = Required<PasswordBox>(window.AccountPage, "CurrentPasswordBoxV2");
                 PasswordBox newPassword = Required<PasswordBox>(window.AccountPage, "NewPasswordBoxV2");
                 PasswordBox confirmation = Required<PasswordBox>(window.AccountPage, "ConfirmPasswordBoxV2");
+                True(Required<Border>(window.AccountPage, "CurrentPasswordField").BorderThickness.Left >= 1
+                     && Required<Border>(window.AccountPage, "NewPasswordField").BorderThickness.Left >= 1
+                     && Required<Border>(window.AccountPage, "ConfirmPasswordField").BorderThickness.Left >= 1,
+                    "Les trois mots de passe doivent afficher des rectangles de saisie explicites.");
+                RaiseMouseDown(Required<Grid>(window.AccountPage, "PasswordEditorLayer"));
+                await PumpAsync(DispatcherPriority.Input);
+                False(accountState.Current.IsPasswordEditorOpen,
+                    "Un clic hors du formulaire mot de passe doit le fermer.");
+
+                RaiseClick(Required<Button>(window.AccountPage, "ModifyPasswordButton"));
+                await PumpAsync(DispatcherPriority.Input);
                 currentPassword.Password = "CurrentSecret-03A5";
                 newPassword.Password = "ReplacementSecret-03A5";
                 confirmation.Password = "ReplacementSecret-03A5";
@@ -484,6 +507,18 @@ internal static class AccountSecuritySessionWpfTests
 
     private static void RaiseClick(Button button) =>
         button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, button));
+
+    private static void RaiseMouseDown(UIElement element)
+    {
+        element.RaiseEvent(new MouseButtonEventArgs(
+            Mouse.PrimaryDevice,
+            Environment.TickCount,
+            MouseButton.Left)
+        {
+            RoutedEvent = UIElement.MouseLeftButtonDownEvent,
+            Source = element
+        });
+    }
 
     private static async Task DelayAndPumpAsync(int milliseconds)
     {

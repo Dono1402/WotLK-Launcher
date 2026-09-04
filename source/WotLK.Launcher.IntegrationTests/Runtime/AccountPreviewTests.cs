@@ -441,6 +441,14 @@ internal static class AccountPreviewTests
         Equal(Visibility.Collapsed, Required<GameViewV2>(window, "GameView").Visibility, "GameView ne doit pas rester derrière Compte.");
         Equal(ScrollBarVisibility.Disabled, window.AccountPage.ScrollHost.HorizontalScrollBarVisibility, "Aucune barre horizontale n'est autorisée.");
         True(window.AccountPage.ScrollHost.ScrollableWidth <= 0.5, "Le compte ne doit pas déborder horizontalement.");
+        True(window.AccountPage.FindName("SecuritySummaryTitle") is null,
+            "Le rappel Compte protégé doit être retiré de la page Profil.");
+        True(!ContainsText(window.AccountPage, "Session Atlas active"),
+            "Le badge de session redondant ne doit plus occuper l'en-tête du compte.");
+        True(!ContainsText(window.AccountPage, "Cette protection n’est pas encore disponible côté Atlas."),
+            "La ligne explicative redondante de la double authentification doit être retirée.");
+        True(!ContainsText(window.AccountPage, "Utilise entre 10 et 128 caractères."),
+            "La règle de mot de passe ne doit plus être répétée sur la carte Sécurité.");
 
         AccountSection expectedSection = scenario switch
         {
@@ -524,6 +532,10 @@ internal static class AccountPreviewTests
                 "Le scénario mot de passe doit ouvrir son formulaire local.");
             True(window.AccountPage.IsSensitiveEditorOpen,
                 "Le focus doit reconnaître le formulaire mot de passe comme modal.");
+            True(Required<Border>(window.AccountPage, "CurrentPasswordField").BorderThickness.Left >= 1
+                 && Required<Border>(window.AccountPage, "NewPasswordField").BorderThickness.Left >= 1
+                 && Required<Border>(window.AccountPage, "ConfirmPasswordField").BorderThickness.Left >= 1,
+                "Chaque mot de passe doit disposer d'une zone de saisie délimitée.");
         }
 
         if (scenario == AccountPreviewScenario.PasswordError)
@@ -536,6 +548,10 @@ internal static class AccountPreviewTests
         {
             Equal(Visibility.Visible, Required<Grid>(window.AccountPage, "EmailEditorLayer").Visibility,
                 "Le scénario e-mail doit ouvrir son formulaire local.");
+            Equal(string.Empty, Required<TextBox>(window.AccountPage, "NewEmailBox").Text,
+                "Le formulaire ne doit pas préremplir l'adresse e-mail actuelle.");
+            True(Required<Border>(window.AccountPage, "NewEmailField").BorderThickness.Left >= 1,
+                "La nouvelle adresse doit disposer d'une zone de saisie délimitée.");
         }
 
         if (scenario == AccountPreviewScenario.SessionRevokeError)
@@ -615,6 +631,26 @@ internal static class AccountPreviewTests
     {
         return root.FindName(name) as T
             ?? throw new InvalidOperationException($"Contrôle WPF absent : {name}.");
+    }
+
+    private static bool ContainsText(DependencyObject root, string expected)
+    {
+        if (root is TextBlock textBlock
+            && string.Equals(textBlock.Text, expected, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        int childCount = VisualTreeHelper.GetChildrenCount(root);
+        for (int index = 0; index < childCount; index++)
+        {
+            if (ContainsText(VisualTreeHelper.GetChild(root, index), expected))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void RaiseClick(Button button) =>

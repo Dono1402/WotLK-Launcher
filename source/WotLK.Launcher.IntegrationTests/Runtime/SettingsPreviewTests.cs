@@ -12,6 +12,7 @@ using WotLK.Launcher.UI.V2.Localization;
 using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Preview;
 using WotLK.Launcher.UI.V2.Views;
+using Ellipse = System.Windows.Shapes.Ellipse;
 
 internal static class SettingsPreviewTests
 {
@@ -161,6 +162,7 @@ internal static class SettingsPreviewTests
                     ShutdownMode = ShutdownMode.OnExplicitShutdown
                 };
                 LoadV2Resources(application);
+                await ValidateToggleAnimationAsync(application);
                 await ValidateRequestedLayoutsAsync(captureDirectory);
                 await ValidateLocalNavigationAsync();
                 await ValidateSavePreviewStatesAsync();
@@ -175,6 +177,55 @@ internal static class SettingsPreviewTests
                 application?.Shutdown();
                 dispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
             }
+        }
+    }
+
+    private static async Task ValidateToggleAnimationAsync(Application application)
+    {
+        ToggleButton toggle = new()
+        {
+            Width = 44,
+            Height = 24,
+            Style = (Style)application.FindResource("AtlasV2.Toggle")
+        };
+        Window host = new()
+        {
+            Width = 100,
+            Height = 80,
+            Left = -20000,
+            Top = -20000,
+            ShowActivated = false,
+            ShowInTaskbar = false,
+            WindowStartupLocation = WindowStartupLocation.Manual,
+            WindowStyle = WindowStyle.ToolWindow,
+            Content = toggle
+        };
+
+        host.Show();
+        try
+        {
+            await PumpAsync(DispatcherPriority.Loaded);
+            toggle.ApplyTemplate();
+            Ellipse thumb = toggle.Template.FindName("Thumb", toggle) as Ellipse
+                ?? throw new InvalidOperationException("Le curseur de l'interrupteur est absent.");
+            TranslateTransform translation = thumb.RenderTransform as TranslateTransform
+                ?? throw new InvalidOperationException("La translation animée de l'interrupteur est absente.");
+
+            Near(0, translation.X, 0.5,
+                "L'interrupteur désactivé doit commencer à gauche.");
+            toggle.IsChecked = true;
+            await DelayAndPumpAsync(230);
+            Near(20, translation.X, 0.5,
+                "L'interrupteur activé doit animer son curseur vers la droite.");
+
+            toggle.IsChecked = false;
+            await DelayAndPumpAsync(210);
+            Near(0, translation.X, 0.5,
+                "L'interrupteur désactivé doit animer son curseur vers la gauche.");
+        }
+        finally
+        {
+            host.Close();
         }
     }
 

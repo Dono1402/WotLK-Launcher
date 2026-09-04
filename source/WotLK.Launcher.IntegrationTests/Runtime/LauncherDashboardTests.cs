@@ -716,6 +716,8 @@ internal static class LauncherDashboardTests
                 Equal(LauncherShellPage.PatchNotes, window.CurrentPage, "L'onglet doit ouvrir les notes de mise à jour.");
                 Equal(Visibility.Visible, window.PatchNotesPage.Visibility, "La page des notes doit être visible.");
                 Equal(1, window.PatchNotesPage.ListHost.Items.Count, "La liste complète projetée doit alimenter la page.");
+                True(window.PatchNotesPage.FindName("RefreshPatchNotesButton") is null,
+                    "Les notes actualisées automatiquement ne doivent plus afficher de bouton manuel.");
                 Equal(ScrollBarVisibility.Disabled, window.PatchNotesPage.ScrollHost.HorizontalScrollBarVisibility,
                     "La page des notes ne doit jamais défiler horizontalement.");
                 True(window.PatchNotesPage.ScrollHost.ScrollableWidth <= 0.5,

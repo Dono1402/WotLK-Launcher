@@ -30,6 +30,7 @@ internal static class LocalPatchNotesDraft
                 "La barre supérieure est plus légère, avec des raccourcis sans cadre et un accès Amis limité à son icône.",
                 "L’état du serveur de jeu apparaît désormais directement au-dessus du bouton Jouer.",
                 "Le statut du serveur et les notes se mettent désormais à jour automatiquement.",
+                "Les notes de mise à jour n’affichent plus de bouton d’actualisation manuel.",
                 "Atlas Launcher empêche l’ouverture de plusieurs exemplaires et ramène au premier lorsqu’il est déjà lancé.",
                 "La croix range désormais Atlas Launcher dans la zone de notification, avec des actions pour le rouvrir ou le quitter.",
                 "L’icône Atlas reste disponible dans la zone de notification pendant l’utilisation du launcher.",
@@ -51,7 +52,14 @@ internal static class LocalPatchNotesDraft
                 "Le zoom du cadrage se contrôle directement à la molette sur la photo.",
                 "Une nouvelle photo peut être repositionnée immédiatement dans toutes les directions.",
                 "La nouvelle photo apparaît immédiatement après sa validation.",
-                "Une reconnexion depuis le même appareil ne crée plus de doublons dans les appareils connectés."
+                "Une reconnexion depuis le même appareil ne crée plus de doublons dans les appareils connectés.",
+                "La page du profil affiche uniquement les informations utiles, sans rappel de sécurité redondant."
+            ]),
+            new("Compte",
+            [
+                "Les formulaires du compte affichent maintenant clairement les zones de saisie.",
+                "Les formulaires et confirmations peuvent être fermés en cliquant à l’extérieur.",
+                "Le champ de nouvelle adresse e-mail s’ouvre vide pour éviter toute confusion."
             ]),
             new("Paramètres",
             [
@@ -59,6 +67,7 @@ internal static class LocalPatchNotesDraft
                 "L’interface d’Atlas Launcher peut maintenant être utilisée en français ou en anglais.",
                 "Atlas Launcher peut maintenant démarrer automatiquement avec Windows.",
                 "La fermeture par la croix peut être configurée pour ranger Atlas Launcher dans la zone de notification.",
+                "Les interrupteurs réagissent désormais avec une animation fluide.",
                 "La page Mises à jour se concentre désormais sur la version installée et la version disponible."
             ]),
             new("Social",

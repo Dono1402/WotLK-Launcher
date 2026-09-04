@@ -63,10 +63,6 @@
             </Grid.RowDefinitions>
 
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
                 <StackPanel>
                     <TextBlock Text="ATLAS LAUNCHER"
                                Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
@@ -81,20 +77,6 @@
                                Text="Les changements publiés pour Atlas Launcher, regroupés par version."
                                Style="{StaticResource AtlasV2.Text.Body}"/>
                 </StackPanel>
-
-                <Button x:Name="RefreshPatchNotesButton"
-                        Grid.Column="1"
-                        Margin="20,2,0,0"
-                        VerticalAlignment="Top"
-                        Style="{StaticResource AtlasV2.Button.Icon}"
-                        Command="{Binding State.RefreshCommand, ElementName=PatchNotesRoot}"
-                        ToolTip="Actualiser les notes"
-                        AutomationProperties.Name="Actualiser les notes de mise à jour">
-                    <Path Width="17"
-                          Height="17"
-                          Data="{StaticResource AtlasV2.Icon.Refresh}"
-                          Style="{StaticResource AtlasV2.Icon.Stroke}"/>
-                </Button>
             </Grid>
 
             <ProgressBar Grid.Row="1"

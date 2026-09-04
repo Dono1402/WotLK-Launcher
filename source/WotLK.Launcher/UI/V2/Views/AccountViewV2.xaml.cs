@@ -333,12 +333,6 @@ public partial class AccountViewV2 : UserControl
             ? Visibility.Collapsed
             : Visibility.Visible;
         EmailVerificationText.Text = state.IsEmailVerified ? "Vérifiée" : "Non vérifiée";
-        SecuritySummaryTitle.Text = state.IsEmailVerified
-            ? "Compte protégé"
-            : "Vérification recommandée";
-        SecuritySummaryText.Text = state.IsEmailVerified
-            ? "Ton adresse e-mail est vérifiée."
-            : "Vérifie ton adresse e-mail pour renforcer la sécurité du compte.";
         SessionsSummaryText.Text = state.ActiveSessionCount == 1
             ? "1 appareil connecté"
             : $"{state.ActiveSessionCount} appareils connectés";
@@ -442,7 +436,7 @@ public partial class AccountViewV2 : UserControl
         _lastAccountOperation = state.AccountOperation;
         if (emailOpen && !_emailEditorWasOpen)
         {
-            NewEmailBox.Text = state.Email;
+            NewEmailBox.Clear();
             FocusSensitiveEditor();
         }
         if (passwordOpen && !_passwordEditorWasOpen)
@@ -504,8 +498,6 @@ public partial class AccountViewV2 : UserControl
     private void SecurityTabButton_Click(object sender, RoutedEventArgs e) => SelectSection(AccountSection.Security);
 
     private void SessionsTabButton_Click(object sender, RoutedEventArgs e) => SelectSection(AccountSection.Sessions);
-
-    private void SecurityShortcutButton_Click(object sender, RoutedEventArgs e) => SelectSection(AccountSection.Security);
 
     private void ModifyAvatarButton_Click(object sender, RoutedEventArgs e)
     {
@@ -579,6 +571,41 @@ public partial class AccountViewV2 : UserControl
             CurrentPasswordBoxV2.Password,
             NewPasswordBoxV2.Password,
             ConfirmPasswordBoxV2.Password);
+    }
+
+    private void DeleteConfirmationLayer_MouseLeftButtonDown(
+        object sender,
+        MouseButtonEventArgs e)
+    {
+        if (ReferenceEquals(e.OriginalSource, DeleteConfirmationLayer))
+        {
+            TryCancelDeleteConfirmation();
+            e.Handled = true;
+        }
+    }
+
+    private void EmailEditorLayer_MouseLeftButtonDown(
+        object sender,
+        MouseButtonEventArgs e)
+    {
+        if (NewEmailBox.IsEnabled
+            && ReferenceEquals(e.OriginalSource, EmailEditorLayer))
+        {
+            CloseEmailEditor();
+            e.Handled = true;
+        }
+    }
+
+    private void PasswordEditorLayer_MouseLeftButtonDown(
+        object sender,
+        MouseButtonEventArgs e)
+    {
+        if (CurrentPasswordBoxV2.IsEnabled
+            && ReferenceEquals(e.OriginalSource, PasswordEditorLayer))
+        {
+            ClosePasswordEditor();
+            e.Handled = true;
+        }
     }
 
     private void RevokeSessionButton_Click(object sender, RoutedEventArgs e)

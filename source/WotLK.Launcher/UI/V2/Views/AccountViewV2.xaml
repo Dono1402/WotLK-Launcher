@@ -138,10 +138,6 @@
             </Grid.RowDefinitions>
 
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
                 <StackPanel>
                     <TextBlock x:Name="PageEyebrow"
                                Text="COMPTE ATLAS"
@@ -158,26 +154,6 @@
                                Text="Ton identité Atlas, ta sécurité et les appareils connectés."
                                Style="{StaticResource AtlasV2.Text.Body}"/>
                 </StackPanel>
-
-                <Border Grid.Column="1"
-                        Margin="24,4,0,0"
-                        Padding="12,8"
-                        VerticalAlignment="Top"
-                        Background="{StaticResource AtlasV2.Brush.SuccessSurface}"
-                        BorderBrush="{StaticResource AtlasV2.Brush.SuccessBorder}"
-                        BorderThickness="1"
-                        CornerRadius="6">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="7"
-                                 Height="7"
-                                 Margin="0,0,8,0"
-                                 VerticalAlignment="Center"
-                                 Fill="{StaticResource AtlasV2.Brush.Success}"/>
-                        <TextBlock Text="Session Atlas active"
-                                   Style="{StaticResource AtlasV2.Text.Caption}"
-                                   Foreground="{StaticResource AtlasV2.Brush.Success}"/>
-                    </StackPanel>
-                </Border>
             </Grid>
 
             <Border Grid.Row="1"
@@ -423,47 +399,6 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Margin="0,18,0,0"
-                                Padding="24"
-                                Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
-                                BorderBrush="{StaticResource AtlasV2.Brush.Border}"
-                                BorderThickness="1"
-                                CornerRadius="8">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="44"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <Border Width="38"
-                                        Height="38"
-                                        Background="{StaticResource AtlasV2.Brush.CyanSurface}"
-                                        BorderBrush="{StaticResource AtlasV2.Brush.CyanBorder}"
-                                        BorderThickness="1"
-                                        CornerRadius="7">
-                                    <Path Width="18"
-                                          Height="18"
-                                          Data="{StaticResource AtlasV2.Icon.ShieldCheck}"
-                                          Stroke="{StaticResource AtlasV2.Brush.Cyan}"
-                                          Style="{StaticResource AtlasV2.Icon.Stroke}"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" Margin="12,0,20,0">
-                                    <TextBlock x:Name="SecuritySummaryTitle"
-                                               Text="Compte protégé"
-                                               Style="{StaticResource AtlasV2.Text.Body}"
-                                               FontWeight="Bold"
-                                               Foreground="{StaticResource AtlasV2.Brush.Text}"/>
-                                    <TextBlock x:Name="SecuritySummaryText"
-                                               Margin="0,3,0,0"
-                                               Text="Ton adresse e-mail est vérifiée."
-                                               Style="{StaticResource AtlasV2.Text.Caption}"/>
-                                </StackPanel>
-                                <Button Grid.Column="2"
-                                        Content="Voir la sécurité"
-                                        Style="{StaticResource AtlasV2.Button.GhostCompact}"
-                                        Click="SecurityShortcutButton_Click"/>
-                            </Grid>
-                        </Border>
                     </StackPanel>
                 </Grid>
 
@@ -562,9 +497,6 @@
                             <StackPanel Grid.Column="1" Margin="14,0,24,0">
                                 <TextBlock Text="Mot de passe"
                                            Style="{StaticResource AtlasV2.Text.SectionTitle}"/>
-                                <TextBlock Margin="0,4,0,0"
-                                           Text="{Binding Current.LastPasswordChange}"
-                                           Style="{StaticResource AtlasV2.Text.Body}"/>
                             </StackPanel>
                             <Button x:Name="ModifyPasswordButton"
                                     Grid.Column="2"
@@ -597,9 +529,6 @@
                             <StackPanel Grid.Column="1" Margin="14,0,24,0">
                                 <TextBlock Text="Double authentification"
                                            Style="{StaticResource AtlasV2.Text.SectionTitle}"/>
-                                <TextBlock Margin="0,4,0,0"
-                                           Text="Cette protection n’est pas encore disponible côté Atlas."
-                                           Style="{StaticResource AtlasV2.Text.Body}"/>
                             </StackPanel>
                             <Button Grid.Column="2"
                                     Content="À venir"
@@ -830,7 +759,8 @@
               Visibility="Collapsed"
               IsHitTestVisible="False"
               KeyboardNavigation.TabNavigation="Cycle"
-              KeyboardNavigation.ControlTabNavigation="Cycle">
+              KeyboardNavigation.ControlTabNavigation="Cycle"
+              MouseLeftButtonDown="DeleteConfirmationLayer_MouseLeftButtonDown">
             <Border x:Name="DeleteConfirmationPanel"
                     Width="430"
                     Margin="20"
@@ -874,7 +804,8 @@
               IsHitTestVisible="False"
               DataContext="{Binding State, RelativeSource={RelativeSource AncestorType={x:Type views:AccountViewV2}}}"
               KeyboardNavigation.TabNavigation="Cycle"
-              KeyboardNavigation.ControlTabNavigation="Cycle">
+              KeyboardNavigation.ControlTabNavigation="Cycle"
+              MouseLeftButtonDown="EmailEditorLayer_MouseLeftButtonDown">
             <Border x:Name="EmailEditorPanel"
                     Width="480"
                     Margin="20"
@@ -894,10 +825,12 @@
                     <TextBlock Margin="0,22,0,7"
                                Text="NOUVELLE ADRESSE E-MAIL"
                                Style="{StaticResource AtlasV2.Account.Label}"/>
-                    <TextBox x:Name="NewEmailBox"
-                             Height="46"
-                             MaxLength="254"
-                             Style="{StaticResource AtlasV2.TextBox.Field}"/>
+                    <Border x:Name="NewEmailField"
+                            Style="{StaticResource AtlasV2.Field.Container}">
+                        <TextBox x:Name="NewEmailBox"
+                                 MaxLength="254"
+                                 Style="{StaticResource AtlasV2.TextBox.Field}"/>
+                    </Border>
                     <Border x:Name="EmailEditorErrorBanner"
                             Margin="0,14,0,0"
                             Style="{StaticResource AtlasV2.Banner.Error}"
@@ -933,7 +866,8 @@
               IsHitTestVisible="False"
               DataContext="{Binding State, RelativeSource={RelativeSource AncestorType={x:Type views:AccountViewV2}}}"
               KeyboardNavigation.TabNavigation="Cycle"
-              KeyboardNavigation.ControlTabNavigation="Cycle">
+              KeyboardNavigation.ControlTabNavigation="Cycle"
+              MouseLeftButtonDown="PasswordEditorLayer_MouseLeftButtonDown">
             <Border x:Name="PasswordEditorPanel"
                     Width="500"
                     Margin="20"
@@ -955,24 +889,30 @@
                     <TextBlock Margin="0,20,0,7"
                                Text="MOT DE PASSE ACTUEL"
                                Style="{StaticResource AtlasV2.Account.Label}"/>
-                    <PasswordBox x:Name="CurrentPasswordBoxV2"
-                                 Height="46"
-                                 MaxLength="128"
-                                 Style="{StaticResource AtlasV2.PasswordBox.Field}"/>
+                    <Border x:Name="CurrentPasswordField"
+                            Style="{StaticResource AtlasV2.Field.Container}">
+                        <PasswordBox x:Name="CurrentPasswordBoxV2"
+                                     MaxLength="128"
+                                     Style="{StaticResource AtlasV2.PasswordBox.Field}"/>
+                    </Border>
                     <TextBlock Margin="0,14,0,7"
                                Text="NOUVEAU MOT DE PASSE"
                                Style="{StaticResource AtlasV2.Account.Label}"/>
-                    <PasswordBox x:Name="NewPasswordBoxV2"
-                                 Height="46"
-                                 MaxLength="128"
-                                 Style="{StaticResource AtlasV2.PasswordBox.Field}"/>
+                    <Border x:Name="NewPasswordField"
+                            Style="{StaticResource AtlasV2.Field.Container}">
+                        <PasswordBox x:Name="NewPasswordBoxV2"
+                                     MaxLength="128"
+                                     Style="{StaticResource AtlasV2.PasswordBox.Field}"/>
+                    </Border>
                     <TextBlock Margin="0,14,0,7"
                                Text="CONFIRMER LE NOUVEAU MOT DE PASSE"
                                Style="{StaticResource AtlasV2.Account.Label}"/>
-                    <PasswordBox x:Name="ConfirmPasswordBoxV2"
-                                 Height="46"
-                                 MaxLength="128"
-                                 Style="{StaticResource AtlasV2.PasswordBox.Field}"/>
+                    <Border x:Name="ConfirmPasswordField"
+                            Style="{StaticResource AtlasV2.Field.Container}">
+                        <PasswordBox x:Name="ConfirmPasswordBoxV2"
+                                     MaxLength="128"
+                                     Style="{StaticResource AtlasV2.PasswordBox.Field}"/>
+                    </Border>
 
                     <Border x:Name="PasswordEditorErrorBanner"
                             Margin="0,14,0,0"

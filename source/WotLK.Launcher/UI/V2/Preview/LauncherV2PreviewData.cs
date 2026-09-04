@@ -129,7 +129,7 @@ public static class LauncherV2PreviewData
             new GeneralSettingsViewState(
                 InterfaceLanguage: "Français",
                 StartWithWindows: false,
-                WindowCloseBehavior: "Réduire dans la barre des tâches",
+                WindowCloseBehavior: "Réduire dans la zone de notification",
                 CloseLauncherAfterGameStart: false),
             new GameSettingsViewState(
                 InstallPath: @"C:\Program Files (x86)\WotLK",

@@ -30,11 +30,12 @@ internal static class LocalPatchNotesDraft
                 "La barre supérieure est plus légère, avec des raccourcis sans cadre et un accès Amis limité à son icône.",
                 "Le statut d’Arthas et les notes se mettent désormais à jour automatiquement.",
                 "Atlas Launcher empêche l’ouverture de plusieurs exemplaires et ramène au premier lorsqu’il est déjà lancé.",
-                "La croix réduit désormais Atlas Launcher dans la barre des tâches."
+                "La croix range désormais Atlas Launcher dans la zone de notification, avec des actions pour le rouvrir ou le quitter."
             ]),
             new("Jeu",
             [
                 "Le bouton Jouer indique clairement quand le jeu démarre, quand il est ouvert et quand il est de nouveau disponible.",
+                "Les boutons Jouer et Mises à jour sont plus grands et le statut Client prêt a été retiré du visuel principal.",
                 "Une fermeture complète d’Atlas Launcher ferme également le jeu en cours."
             ]),
             new("Profil",

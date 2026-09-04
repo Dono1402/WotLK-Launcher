@@ -100,70 +100,7 @@
                                                    Style="{StaticResource AtlasV2.Text.Body}"
                                                    FontSize="18"
                                                    Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"
-                                                   Margin="0,0,0,17"/>
-                                        <StackPanel Orientation="Horizontal">
-                                            <Path Width="12"
-                                                  Height="12"
-                                                  Margin="0,0,8,0"
-                                                  StrokeThickness="2"
-                                                  StrokeStartLineCap="Round"
-                                                  StrokeEndLineCap="Round"
-                                                  StrokeLineJoin="Round"
-                                                  Stretch="Uniform">
-                                                <Path.Style>
-                                                    <Style TargetType="{x:Type Path}">
-                                                        <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Check}"/>
-                                                        <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
-                                                        <Setter Property="Fill" Value="Transparent"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Scenario}" Value="{x:Static presentation:GamePreviewScenario.NotInstalled}">
-                                                                <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Download}"/>
-                                                                <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Gold}"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Scenario}" Value="{x:Static presentation:GamePreviewScenario.UpdateAvailable}">
-                                                                <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Refresh}"/>
-                                                                <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Gold}"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Scenario}" Value="{x:Static presentation:GamePreviewScenario.Downloading}">
-                                                                <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Download}"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Scenario}" Value="{x:Static presentation:GamePreviewScenario.Installing}">
-                                                                <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Refresh}"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Scenario}" Value="{x:Static presentation:GamePreviewScenario.Verifying}">
-                                                                <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Refresh}"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Scenario}" Value="{x:Static presentation:GamePreviewScenario.Error}">
-                                                                <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.AlertCircle}"/>
-                                                                <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Danger}"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Path.Style>
-                                            </Path>
-                                            <TextBlock Text="{Binding ClientStatus}">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="{x:Type TextBlock}"
-                                                           BasedOn="{StaticResource AtlasV2.Text.Caption}">
-                                                        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextSecondary}"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Neutral}">
-                                                                <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Accent}">
-                                                                <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Warning}">
-                                                                <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Gold}"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding SemanticTone}" Value="{x:Static presentation:GameSemanticTone.Error}">
-                                                                <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Danger}"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </StackPanel>
+                                                   Margin="0"/>
                                     </StackPanel>
                                 </Border>
 
@@ -251,7 +188,8 @@
                                                 HorizontalAlignment="Right"
                                                 VerticalAlignment="Bottom">
                                         <Button x:Name="LatestPatchNoteAction"
-                                                Width="52"
+                                                Width="78"
+                                                Height="78"
                                                 Margin="0,0,12,0"
                                                 Padding="0"
                                                 Style="{StaticResource AtlasV2.Button.Secondary}"
@@ -260,15 +198,17 @@
                                                 ToolTip="Mises à jour"
                                                 AutomationProperties.Name="Mises à jour"
                                                 Click="LatestPatchNoteAction_Click">
-                                            <Path Width="19"
-                                                  Height="19"
+                                            <Path Width="23"
+                                                  Height="23"
                                                   Data="{StaticResource AtlasV2.Icon.FileText}"
                                                   Style="{StaticResource AtlasV2.Icon.Stroke}"
                                                   Stroke="{StaticResource AtlasV2.Brush.Gold}"/>
                                         </Button>
 
                                         <Button x:Name="PrimaryActionButton"
-                                                Width="238"
+                                                Width="285"
+                                                Height="78"
+                                                FontSize="16"
                                                 Style="{StaticResource AtlasV2.Button.Primary}"
                                                 IsEnabled="{Binding IsPrimaryActionEnabled}"
                                                 Command="{Binding PrimaryActionCommand}"
@@ -276,8 +216,8 @@
                                                 ToolTipService.ShowOnDisabled="True"
                                                 AutomationProperties.Name="{Binding PrimaryActionLabel}">
                                             <StackPanel Orientation="Horizontal">
-                                                <Path Width="17"
-                                                      Height="17"
+                                                <Path Width="21"
+                                                      Height="21"
                                                       Margin="0,0,9,0"
                                                       StrokeThickness="2"
                                                       StrokeStartLineCap="Round"

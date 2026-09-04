@@ -111,7 +111,7 @@ internal sealed class SettingsStateAdapter : IDisposable
             new GeneralSettingsViewState(
                 InterfaceLanguage: "Français",
                 StartWithWindows: false,
-                WindowCloseBehavior: "Réduire dans la barre des tâches",
+                WindowCloseBehavior: "Réduire dans la zone de notification",
                 CloseLauncherAfterGameStart: settings.CloseLauncherOnGameStart),
             new GameSettingsViewState(
                 InstallPath: settings.InstallPath,

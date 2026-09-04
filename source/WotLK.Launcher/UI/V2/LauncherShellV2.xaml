@@ -356,8 +356,8 @@
                         </Button>
                         <Button x:Name="CloseWindowButton"
                                 Style="{StaticResource AtlasV2.Button.WindowClose}"
-                                ToolTip="Réduire dans la barre des tâches"
-                                AutomationProperties.Name="Réduire dans la barre des tâches"
+                                ToolTip="Réduire dans la zone de notification"
+                                AutomationProperties.Name="Réduire dans la zone de notification"
                                 Click="CloseWindowButton_Click">
                             <Path Data="{StaticResource AtlasV2.Icon.Close}"
                                   Style="{StaticResource AtlasV2.Icon.Stroke}"/>

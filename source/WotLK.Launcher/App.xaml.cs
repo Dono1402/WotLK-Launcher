@@ -32,6 +32,7 @@ internal enum LauncherStartupMode
 public partial class App : Application
 {
     private LauncherSingleInstanceGate? _singleInstanceGate;
+    private LauncherTrayController? _trayController;
     private int _pendingActivationRequest;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -366,6 +367,24 @@ public partial class App : Application
             accountState,
             avatarCropState,
             activityState);
+        LauncherTrayController? trayController = null;
+        EventHandler? minimizeToTrayHandler = null;
+        try
+        {
+            LauncherTrayController createdTray = new(
+                window,
+                new WindowsLauncherTrayIconHost(),
+                window.Close);
+            trayController = createdTray;
+            _trayController = createdTray;
+            minimizeToTrayHandler = (_, _) => createdTray.HideInTray();
+            window.MinimizeToTrayRequested += minimizeToTrayHandler;
+        }
+        catch (Exception exception)
+        {
+            runtime.WriteRuntimeDiagnostic(
+                $"Zone de notification indisponible: category={exception.GetType().Name}.");
+        }
         AddonsCommands addonsCommands = new(
             runtime.Addons,
             addonsState,
@@ -474,7 +493,14 @@ public partial class App : Application
                 {
                     if (!shutdownStarted && window.IsVisible)
                     {
-                        window.WindowState = WindowState.Minimized;
+                        if (trayController is not null)
+                        {
+                            trayController.HideInTray();
+                        }
+                        else
+                        {
+                            window.WindowState = WindowState.Minimized;
+                        }
                     }
                 }));
         };
@@ -552,6 +578,15 @@ public partial class App : Application
         {
             window.Loaded -= loadedHandler;
             window.Closing -= closingHandler;
+            if (minimizeToTrayHandler is not null)
+            {
+                window.MinimizeToTrayRequested -= minimizeToTrayHandler;
+            }
+            trayController?.Dispose();
+            if (ReferenceEquals(_trayController, trayController))
+            {
+                _trayController = null;
+            }
             DisposePresentation();
             runtime.Dispose();
         };
@@ -564,6 +599,8 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _trayController?.Dispose();
+        _trayController = null;
         if (_singleInstanceGate is not null)
         {
             _singleInstanceGate.ActivationRequested -= SingleInstanceGate_ActivationRequested;
@@ -595,6 +632,12 @@ public partial class App : Application
 
         if (Interlocked.Exchange(ref _pendingActivationRequest, 0) == 0)
         {
+            return;
+        }
+
+        if (_trayController is not null)
+        {
+            _trayController.RestoreWindow();
             return;
         }
 

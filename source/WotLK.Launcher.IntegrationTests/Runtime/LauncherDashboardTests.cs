@@ -588,8 +588,17 @@ internal static class LauncherDashboardTests
                 Button friendsButton = Required<Button>(window, "FriendsButton");
                 GameViewV2 gameView = Required<GameViewV2>(window, "GameView");
                 Button noteAction = Required<Button>(gameView, "LatestPatchNoteAction");
+                Button primaryAction = Required<Button>(gameView, "PrimaryActionButton");
                 Border hero = Required<Border>(gameView, "HeroCard");
                 Border gameContent = Required<Border>(gameView, "ContentFrame");
+                StackPanel heroCopy = Required<StackPanel>(gameView, "HeroCopyContent");
+                FakeLauncherTrayIconHost trayIcon = new();
+                int trayExitRequests = 0;
+                using LauncherTrayController trayController = new(
+                    window,
+                    trayIcon,
+                    () => trayExitRequests++);
+                window.MinimizeToTrayRequested += (_, _) => trayController.HideInTray();
                 True(!noteAction.IsEnabled, "Le lecteur doit rester indisponible sans note réelle.");
                 True(window.FindName("RefreshDashboardButton") is null,
                     "Le rafraîchissement automatique ne doit plus afficher de bouton manuel.");
@@ -599,6 +608,8 @@ internal static class LauncherDashboardTests
                     "Le raccourci Amis ne doit plus afficher de cadre.");
                 Equal(new Thickness(0), activityButton.BorderThickness,
                     "Le centre d'activité ne doit plus afficher de cadre.");
+                Equal(3, heroCopy.Children.Count,
+                    "Le statut Client prêt ne doit plus occuper le héros Jeu.");
                 True(gameView.FindName("OptionsButton") is null,
                     "Le raccourci Options ne doit plus occuper l’action principale de la page Jeu.");
                 True(gameView.FindName("NewsCard") is null && gameView.FindName("InstallCard") is null,
@@ -635,7 +646,10 @@ internal static class LauncherDashboardTests
                 True(noteAction.IsEnabled, "Une note réelle doit activer le bouton Mises à jour.");
                 True(noteAction.Content is System.Windows.Shapes.Path,
                     "Le bouton Mises à jour doit rester limité à son pictogramme.");
-                Equal(52d, noteAction.Width, "Le bouton Mises à jour doit conserver un format carré compact.");
+                Equal(78d, noteAction.Width, "Le bouton Mises à jour doit être agrandi de 50 %.");
+                Equal(78d, noteAction.Height, "Le bouton Mises à jour doit rester carré.");
+                Equal(285d, primaryAction.Width, "Le bouton Jouer large doit être agrandi de 50 %.");
+                Equal(78d, primaryAction.Height, "Le bouton Jouer doit rester aligné avec Mises à jour.");
                 True(Required<Rectangle>(gameView, "HeroArtwork").Fill is ImageBrush { AlignmentX: AlignmentX.Right, ImageSource: BitmapImage heroSource }
                     && heroSource.UriSource.OriginalString.EndsWith("LichKingFrostmourneHero.jpg", StringComparison.Ordinal),
                     "La page Jeu doit utiliser le nouveau visuel du Roi-liche ancré à droite.");
@@ -743,11 +757,26 @@ internal static class LauncherDashboardTests
                 dashboard.SetWideRealmLabel(true);
 
                 Button closeWindow = Required<Button>(window, "CloseWindowButton");
+                window.ShowInTaskbar = true;
                 RaiseClick(closeWindow);
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
-                Equal(WindowState.Minimized, window.WindowState,
-                    "La croix doit réduire Atlas dans la barre des tâches.");
-                window.WindowState = WindowState.Normal;
+                True(!window.IsVisible && !window.ShowInTaskbar,
+                    "La croix doit masquer Atlas et retirer son icône de la barre classique.");
+                True(trayIcon.IsVisible && trayController.IsHiddenInTray,
+                    "La croix doit publier l'icône Atlas dans la zone de notification.");
+                trayIcon.RequestRestore();
+                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
+                True(window.IsVisible && window.ShowInTaskbar && !trayIcon.IsVisible,
+                    "Un clic sur l'icône de notification doit restaurer Atlas.");
+                trayController.HideInTray();
+                trayIcon.RequestExit();
+                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
+                Equal(1, trayExitRequests,
+                    "Quitter depuis la zone de notification doit demander une fermeture réelle unique.");
+                True(!trayIcon.IsVisible,
+                    "L'icône de notification doit disparaître avant la fermeture réelle.");
+                trayController.RestoreWindow();
+                window.ShowInTaskbar = false;
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
 
                 Exception? backgroundPublishFailure = null;
@@ -1075,6 +1104,33 @@ internal static class LauncherDashboardTests
             CurrentSnapshot = snapshot;
             SnapshotChanged?.Invoke(this, new DashboardSnapshotEventArgs(snapshot));
             AvailabilityChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private sealed class FakeLauncherTrayIconHost : ILauncherTrayIconHost
+    {
+        private int _disposeState;
+
+        public event EventHandler? RestoreRequested;
+
+        public event EventHandler? ExitRequested;
+
+        public bool IsVisible { get; set; }
+
+        internal void RequestRestore() => RestoreRequested?.Invoke(this, EventArgs.Empty);
+
+        internal void RequestExit() => ExitRequested?.Invoke(this, EventArgs.Empty);
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposeState, 1) != 0)
+            {
+                return;
+            }
+
+            IsVisible = false;
+            RestoreRequested = null;
+            ExitRequested = null;
         }
     }
 

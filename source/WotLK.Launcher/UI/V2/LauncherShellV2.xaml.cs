@@ -30,6 +30,8 @@ public partial class LauncherShellV2 : Window
     private AddonsCommands? _addonsCommands;
     private ActivityCancelCommand? _activityCancelCommand;
 
+    internal event EventHandler? MinimizeToTrayRequested;
+
     public LauncherShellV2(GamePreviewScenario scenario = GamePreviewScenario.Ready)
         : this(
             LauncherV2PreviewData.CreateShell(scenario),
@@ -630,6 +632,7 @@ public partial class LauncherShellV2 : Window
         AccountState.PropertyChanged -= AccountState_PropertyChanged;
         AddonsState.PropertyChanged -= AddonsState_PropertyChanged;
         DashboardState.PropertyChanged -= DashboardState_PropertyChanged;
+        MinimizeToTrayRequested = null;
         AuthOverlay.SubmissionRequested -= AuthOverlay_SubmissionRequested;
         ProfileMenu.ManageProfileRequested -= ProfileMenu_ManageProfileRequested;
         ProfileMenu.ManageAccountRequested -= ProfileMenu_ManageAccountRequested;
@@ -1392,6 +1395,12 @@ public partial class LauncherShellV2 : Window
 
     private void CloseWindowButton_Click(object sender, RoutedEventArgs e)
     {
+        if (MinimizeToTrayRequested is { } requested)
+        {
+            requested(this, EventArgs.Empty);
+            return;
+        }
+
         WindowState = WindowState.Minimized;
     }
 

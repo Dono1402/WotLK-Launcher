@@ -168,6 +168,18 @@ internal static class AccountPreviewTests
             RaiseClick(Required<Button>(window, "ProfileButton"));
             await DelayAndPumpAsync(180);
             True(window.ProfileState.IsOpen, "Le bouton profil doit ouvrir son menu.");
+            TextBlock profileUsername = Required<TextBlock>(window.ProfileOverlay, "ProfileUsernameText");
+            Grid profileAvatar = Required<Grid>(window.ProfileOverlay, "ProfileIdentityAvatar");
+            True(!ContainsText(window.ProfileOverlay, "Session Atlas active"),
+                "Le menu profil ne doit plus répéter l'état de la session Atlas.");
+            double usernameCenter = profileUsername.TranslatePoint(
+                new Point(0, profileUsername.ActualHeight / 2),
+                window.ProfileOverlay).Y;
+            double avatarCenter = profileAvatar.TranslatePoint(
+                new Point(0, profileAvatar.ActualHeight / 2),
+                window.ProfileOverlay).Y;
+            True(Math.Abs(usernameCenter - avatarCenter) <= 1,
+                "Le pseudo doit être centré verticalement face à l'avatar.");
             Button manageProfile = Required<Button>(window.ProfileOverlay, "ManageProfileButton");
             Button manageAccount = Required<Button>(window.ProfileOverlay, "ManageAccountButton");
             True(manageProfile.IsEnabled, "Gérer mon profil doit être actif dans le preview.");

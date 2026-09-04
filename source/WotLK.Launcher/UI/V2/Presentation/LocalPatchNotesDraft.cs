@@ -53,7 +53,8 @@ internal static class LocalPatchNotesDraft
                 "Une nouvelle photo peut être repositionnée immédiatement dans toutes les directions.",
                 "La nouvelle photo apparaît immédiatement après sa validation.",
                 "Une reconnexion depuis le même appareil ne crée plus de doublons dans les appareils connectés.",
-                "La page du profil affiche uniquement les informations utiles, sans rappel de sécurité redondant."
+                "La page du profil affiche uniquement les informations utiles, sans rappel de sécurité redondant.",
+                "Le menu du profil présente maintenant le pseudo de façon plus claire et mieux centrée."
             ]),
             new("Compte",
             [

@@ -35,7 +35,8 @@
                         <ColumnDefinition Width="34"/>
                     </Grid.ColumnDefinitions>
 
-                    <Grid Width="42"
+                    <Grid x:Name="ProfileIdentityAvatar"
+                          Width="42"
                           Height="42"
                           HorizontalAlignment="Left"
                           VerticalAlignment="Top">
@@ -67,26 +68,15 @@
                                  StrokeThickness="1.5"/>
                     </Grid>
 
-                    <StackPanel Grid.Column="1"
-                                Margin="2,0,8,0"
-                                VerticalAlignment="Center">
-                        <TextBlock x:Name="ProfileUsernameText"
-                                   Text="{Binding Current.Username}"
-                                   Style="{StaticResource AtlasV2.Text.Body}"
-                                   FontWeight="Bold"
-                                   Foreground="{StaticResource AtlasV2.Brush.Text}"
-                                   TextTrimming="CharacterEllipsis"/>
-                        <StackPanel Margin="0,3,0,0" Orientation="Horizontal">
-                            <Ellipse Width="6"
-                                     Height="6"
-                                     Margin="0,0,7,0"
-                                     VerticalAlignment="Center"
-                                     Fill="{StaticResource AtlasV2.Brush.Success}"/>
-                            <TextBlock Text="Session Atlas active"
-                                       Style="{StaticResource AtlasV2.Text.Caption}"
-                                       Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
-                        </StackPanel>
-                    </StackPanel>
+                    <TextBlock x:Name="ProfileUsernameText"
+                               Grid.Column="1"
+                               Margin="2,0,8,0"
+                               VerticalAlignment="Center"
+                               Text="{Binding Current.Username}"
+                               Style="{StaticResource AtlasV2.Text.Body}"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource AtlasV2.Brush.Text}"
+                               TextTrimming="CharacterEllipsis"/>
 
                     <Button x:Name="CloseProfileButton"
                             Grid.Column="2"

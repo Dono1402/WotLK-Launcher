@@ -107,11 +107,10 @@ internal sealed class LauncherRuntimeDependencies
 
     internal Uri AvatarApiBaseUri { get; init; } = AtlasNetwork.LauncherApiBaseUri;
 
-    internal Func<string> GetAvatarCacheRoot { get; init; } = static () => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Atlas Launcher",
-        "cache",
-        "avatars");
+    internal Func<string> GetAvatarCacheRoot { get; init; } =
+        LauncherBuildFlavor.GetAvatarCacheRoot;
+
+    internal bool EnableSelfUpdate { get; init; } = true;
 
     internal Func<HttpClient, Uri, IAvatarMediaClient> CreateAvatarMediaClient { get; init; } =
         static (httpClient, apiBaseUri) => new AvatarMediaClient(httpClient, apiBaseUri);
@@ -133,6 +132,7 @@ internal sealed class LauncherRuntimeDependencies
             WriteRuntimeLog = WriteProductionLog,
             WriteLocalActionLog = WriteProductionLog,
             LocalShellService = LauncherShellService.CreateProduction(),
+            EnableSelfUpdate = LauncherBuildFlavor.IsSelfUpdateEnabled,
             SelfUpdateRecoveryOccurred = selfUpdateRecoveryOccurred,
             CreateAuthorizedHttpClient = static accessTokenProvider => new HttpClient(
                 new AtlasAuthorizationHandler(accessTokenProvider))
@@ -142,7 +142,7 @@ internal sealed class LauncherRuntimeDependencies
             GetLauncherVersion = static () =>
             {
                 Version? version = Assembly.GetExecutingAssembly().GetName().Version;
-                return "v" + (version?.ToString(3) ?? "0.0.0");
+                return LauncherBuildFlavor.FormatVersion(version);
             }
         };
     }
@@ -192,6 +192,11 @@ internal sealed class LauncherRuntime : IDisposable
         ArgumentNullException.ThrowIfNull(dependencies);
 
         Settings = dependencies.LoadSettings();
+        SelfUpdateEnabled = dependencies.EnableSelfUpdate;
+        if (!SelfUpdateEnabled)
+        {
+            Settings.AutomaticLauncherUpdates = false;
+        }
         _writeRuntimeLog = dependencies.WriteRuntimeLog;
         _authentication = dependencies.CreateAuthentication();
         LocalClient = dependencies.GameClientStateReader.Read(Settings);
@@ -305,8 +310,11 @@ internal sealed class LauncherRuntime : IDisposable
             () => _authentication.Session?.Profile,
             dependencies.WriteRuntimeLog,
             dependencies.FriendsTimeProvider);
-        SelfUpdate.ScheduleInitialCheck();
-        SelfUpdate.StartPeriodicChecks();
+        if (SelfUpdateEnabled)
+        {
+            SelfUpdate.ScheduleInitialCheck();
+            SelfUpdate.StartPeriodicChecks();
+        }
     }
 
     internal LauncherSettings Settings { get; }
@@ -314,6 +322,8 @@ internal sealed class LauncherRuntime : IDisposable
     internal GameClientLocalState LocalClient { get; }
 
     internal string LauncherVersion { get; }
+
+    internal bool SelfUpdateEnabled { get; }
 
     internal ILauncherLocalActions LocalActions { get; }
 

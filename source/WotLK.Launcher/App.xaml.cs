@@ -372,7 +372,7 @@ public partial class App : Application
             runtime.WriteRuntimeDiagnostic,
             verifyRepairCommand: verificationCommand.Command,
             showGameForRepair: window.ShowGamePageForSettingsOperation,
-            selfUpdate: runtime.SelfUpdate);
+            selfUpdate: runtime.SelfUpdateEnabled ? runtime.SelfUpdate : null);
         SettingsStateAdapter settingsStateAdapter = new(
             settingsState,
             runtime.SettingsRuntime,

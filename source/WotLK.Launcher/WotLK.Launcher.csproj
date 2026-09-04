@@ -23,6 +23,11 @@
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(AtlasLocalClientBuild)' == 'true'">
+    <DefineConstants>$(DefineConstants);ATLAS_LOCAL_CLIENT</DefineConstants>
+    <InformationalVersion>$(Version)-local</InformationalVersion>
+  </PropertyGroup>
+
 
   <ItemGroup>
     <None Remove="Assets\Fonts\**\*" />

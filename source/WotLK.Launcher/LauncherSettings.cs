@@ -17,7 +17,7 @@ public sealed class LauncherSettings
 
     public static string SettingsDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "WotLK Launcher");
+        LauncherBuildFlavor.SettingsDirectoryName);
 
     public static string SettingsPath => Path.Combine(SettingsDirectory, "settings.json");
 

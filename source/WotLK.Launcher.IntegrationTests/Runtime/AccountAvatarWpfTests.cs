@@ -296,9 +296,15 @@ internal static class AccountAvatarWpfTests
                 await WaitUntilAsync(
                     () => account.CurrentSnapshot.LoadingState == AccountLoadingState.Loaded,
                     "L’actualisation concurrente doit revenir à un état stable.");
-                Slider zoom = Required<Slider>(cropOverlay, "ZoomSlider");
-                zoom.Value = Math.Min(1.7, zoom.Maximum);
-                cropState.SetTransform(zoom.Value, 34, -22);
+                AccountAvatarClientTests.True(
+                    cropOverlay.FindName("ZoomSlider") is null,
+                    "Le crop réel ne doit plus exposer de barre de zoom.");
+                Grid cropViewport = Required<Grid>(cropOverlay, "CropViewport");
+                MouseWheelEventArgs zoomIn = RaiseMouseWheel(cropViewport, 480);
+                AccountAvatarClientTests.True(
+                    zoomIn.Handled && cropState.Current.Zoom > 1,
+                    "La molette doit zoomer directement dans la photo réelle.");
+                cropState.SetTransform(cropState.Current.Zoom, 34, -22);
                 await PumpAsync(DispatcherPriority.Render);
                 AvatarCropLayout visibleLayout = cropState.Current.Layout;
                 AvatarNormalizedCrop sentCrop = visibleLayout.Crop;
@@ -371,9 +377,11 @@ internal static class AccountAvatarWpfTests
                 RaiseClick(modify);
                 await WaitUntilAsync(() => cropState.IsOpen, "Le crop doit pouvoir être rouvert après annulation.");
                 await DelayAndPumpAsync(180);
-                zoom = Required<Slider>(cropOverlay, "ZoomSlider");
-                zoom.Value = Math.Min(1.7, zoom.Maximum);
-                cropState.SetTransform(zoom.Value, 34, -22);
+                zoomIn = RaiseMouseWheel(cropViewport, 480);
+                AccountAvatarClientTests.True(
+                    zoomIn.Handled && cropState.Current.Zoom > 1,
+                    "Le zoom direct doit rester fonctionnel après réouverture du crop.");
+                cropState.SetTransform(cropState.Current.Zoom, 34, -22);
                 await PumpAsync(DispatcherPriority.Render);
                 sentCrop = cropState.Current.Layout.Crop;
                 server.ResetUploadGate();
@@ -756,6 +764,17 @@ internal static class AccountAvatarWpfTests
 
     private static void RaiseClick(Button button) =>
         button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, button));
+
+    private static MouseWheelEventArgs RaiseMouseWheel(UIElement target, int delta)
+    {
+        MouseWheelEventArgs args = new(Mouse.PrimaryDevice, Environment.TickCount, delta)
+        {
+            RoutedEvent = Mouse.PreviewMouseWheelEvent,
+            Source = target
+        };
+        target.RaiseEvent(args);
+        return args;
+    }
 
     private static async Task DelayAndPumpAsync(int milliseconds)
     {

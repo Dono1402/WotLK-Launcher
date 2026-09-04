@@ -228,6 +228,43 @@ internal static class AccountAvatarClientTests
         AvatarCropLayout rotated = AvatarCropGeometry.Calculate(900, 1600, 1.5, 31, -47);
         AvatarCropLayout equivalentPortrait = AvatarCropGeometry.Calculate(900, 1600, 1.5, 31, -47);
         Equal(equivalentPortrait.Crop, rotated.Crop, "Le crop doit être calculé dans l'espace orienté.");
+
+        const double focusX = 260;
+        const double focusY = 120;
+        AvatarCropLayout beforeWheel = AvatarCropGeometry.Calculate(1600, 900, 1.25, 40, -20);
+        AvatarCropLayout afterWheel = AvatarCropGeometry.ZoomAt(
+            1600,
+            900,
+            beforeWheel.Zoom,
+            beforeWheel.OffsetX,
+            beforeWheel.OffsetY,
+            1.8,
+            focusX,
+            focusY);
+        (double beforeX, double beforeY) = SourcePointAt(1600, 900, beforeWheel, focusX, focusY);
+        (double afterX, double afterY) = SourcePointAt(1600, 900, afterWheel, focusX, focusY);
+        Near(beforeX, afterX, 0.000001,
+            "Le zoom direct doit conserver sous le curseur le même point horizontal de l'image.");
+        Near(beforeY, afterY, 0.000001,
+            "Le zoom direct doit conserver sous le curseur le même point vertical de l'image.");
+        Near(1.8, afterWheel.Zoom, 0.000001, "La molette doit atteindre le zoom demandé.");
+    }
+
+    private static (double X, double Y) SourcePointAt(
+        int width,
+        int height,
+        AvatarCropLayout layout,
+        double focusX,
+        double focusY)
+    {
+        double viewport = AvatarCropGeometry.DefaultViewportSize;
+        double baseScale = viewport / Math.Min(width, height);
+        double renderedWidth = width * baseScale * layout.Zoom;
+        double renderedHeight = height * baseScale * layout.Zoom;
+        double displayScale = baseScale * layout.Zoom;
+        return (
+            (focusX + (renderedWidth - viewport) / 2 - layout.OffsetX) / displayScale,
+            (focusY + (renderedHeight - viewport) / 2 - layout.OffsetY) / displayScale);
     }
 
     private static async Task ValidateWpfDecodeAndSelectionAsync()

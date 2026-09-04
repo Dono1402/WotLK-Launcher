@@ -392,10 +392,19 @@ internal static class AccountPreviewTests
         {
             await DelayAndPumpAsync(180);
             AvatarCropOverlayV2 overlay = window.AvatarCropPreviewOverlay;
-            Slider zoom = Required<Slider>(overlay, "ZoomSlider");
-            zoom.Value = 1.62;
+            True(overlay.FindName("ZoomSlider") is null,
+                "La barre de zoom ne doit plus être présente sous la photo.");
+            Grid viewport = Required<Grid>(overlay, "CropViewport");
+            double initialZoom = window.AvatarCropState.Current.Zoom;
+            MouseWheelEventArgs zoomIn = RaiseMouseWheel(viewport, 120);
             await PumpAsync(DispatcherPriority.Input);
-            Equal(1.62, window.AvatarCropState.Current.Zoom, "Le zoom fictif doit mettre à jour l'état local.");
+            True(zoomIn.Handled && window.AvatarCropState.Current.Zoom > initialZoom,
+                "La molette au-dessus de la photo doit augmenter le zoom local.");
+            double increasedZoom = window.AvatarCropState.Current.Zoom;
+            MouseWheelEventArgs zoomOut = RaiseMouseWheel(viewport, -120);
+            await PumpAsync(DispatcherPriority.Input);
+            True(zoomOut.Handled && window.AvatarCropState.Current.Zoom < increasedZoom,
+                "La molette inverse doit réduire le zoom local.");
             window.AvatarCropState.SetTransform(1.62, 24, -19);
             await PumpAsync(DispatcherPriority.Render);
             var layout = window.AvatarCropState.Current.Layout;
@@ -624,6 +633,17 @@ internal static class AccountPreviewTests
             RoutedEvent = Mouse.MouseLeaveEvent,
             Source = target
         });
+
+    private static MouseWheelEventArgs RaiseMouseWheel(UIElement target, int delta)
+    {
+        MouseWheelEventArgs args = new(Mouse.PrimaryDevice, Environment.TickCount, delta)
+        {
+            RoutedEvent = Mouse.PreviewMouseWheelEvent,
+            Source = target
+        };
+        target.RaiseEvent(args);
+        return args;
+    }
 
     private static async Task DelayAndPumpAsync(int milliseconds)
     {

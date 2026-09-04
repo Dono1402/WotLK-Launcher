@@ -92,6 +92,65 @@ internal static class AvatarCropGeometry
             new AvatarNormalizedCrop(cropX, cropY, cropSize));
     }
 
+    internal static AvatarCropLayout ZoomAt(
+        int orientedWidth,
+        int orientedHeight,
+        double currentZoom,
+        double currentOffsetX,
+        double currentOffsetY,
+        double requestedZoom,
+        double focusX,
+        double focusY,
+        double viewportSize = DefaultViewportSize)
+    {
+        AvatarCropLayout current = Calculate(
+            orientedWidth,
+            orientedHeight,
+            currentZoom,
+            currentOffsetX,
+            currentOffsetY,
+            viewportSize);
+        double nextZoom = Math.Clamp(
+            double.IsFinite(requestedZoom) ? requestedZoom : current.Zoom,
+            1,
+            GetMaximumZoom(orientedWidth, orientedHeight));
+        double safeFocusX = Math.Clamp(
+            double.IsFinite(focusX) ? focusX : viewportSize / 2,
+            0,
+            viewportSize);
+        double safeFocusY = Math.Clamp(
+            double.IsFinite(focusY) ? focusY : viewportSize / 2,
+            0,
+            viewportSize);
+        double minimumDimension = Math.Min(orientedWidth, orientedHeight);
+        double baseScale = viewportSize / minimumDimension;
+        double baseWidth = orientedWidth * baseScale;
+        double baseHeight = orientedHeight * baseScale;
+        double currentScale = baseScale * current.Zoom;
+        double sourceFocusX = (
+            safeFocusX
+            + (baseWidth * current.Zoom - viewportSize) / 2
+            - current.OffsetX) / currentScale;
+        double sourceFocusY = (
+            safeFocusY
+            + (baseHeight * current.Zoom - viewportSize) / 2
+            - current.OffsetY) / currentScale;
+        double nextOffsetX = safeFocusX
+            + (baseWidth * nextZoom - viewportSize) / 2
+            - sourceFocusX * baseScale * nextZoom;
+        double nextOffsetY = safeFocusY
+            + (baseHeight * nextZoom - viewportSize) / 2
+            - sourceFocusY * baseScale * nextZoom;
+
+        return Calculate(
+            orientedWidth,
+            orientedHeight,
+            nextZoom,
+            nextOffsetX,
+            nextOffsetY,
+            viewportSize);
+    }
+
     private static void ValidateDimensions(int width, int height)
     {
         if (width <= 0 || height <= 0)

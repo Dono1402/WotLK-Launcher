@@ -13,13 +13,13 @@ namespace WotLK.Launcher.UI.V2.Views;
 public partial class AvatarCropOverlayV2 : UserControl
 {
     private static readonly Duration TransitionDuration = new(TimeSpan.FromMilliseconds(140));
+    private const double WheelZoomFactor = 1.12;
     private AvatarCropUiState? _subscribedState;
     private bool _isDragging;
     private Point _dragStart;
     private double _dragStartX;
     private double _dragStartY;
     private int _transitionVersion;
-    private bool _applyingState;
 
     public static readonly DependencyProperty StateProperty = DependencyProperty.Register(
         nameof(State),
@@ -207,17 +207,7 @@ public partial class AvatarCropOverlayV2 : UserControl
         UploadProgressBar.IsIndeterminate = state.IsProgressIndeterminate;
         UploadProgressBar.Value = state.UploadPercentage ?? 0;
 
-        _applyingState = true;
-        try
-        {
-            ZoomSlider.Maximum = Math.Max(1, state.MaximumZoom);
-            ZoomSlider.Value = state.Zoom;
-            ApplyTransform(state.Zoom, state.OffsetX, state.OffsetY, publish: false);
-        }
-        finally
-        {
-            _applyingState = false;
-        }
+        ApplyTransform(state.Zoom, state.OffsetX, state.OffsetY, publish: false);
     }
 
     private void ApplyOpenState(bool isOpen, bool animate)
@@ -310,8 +300,6 @@ public partial class AvatarCropOverlayV2 : UserControl
             zoom,
             offsetX,
             offsetY);
-        ZoomValueText.Text = $"{Math.Round(layout.Zoom * 100):0} %";
-
         Rect viewbox = new(
             layout.PixelCrop.X,
             layout.PixelCrop.Y,
@@ -365,14 +353,27 @@ public partial class AvatarCropOverlayV2 : UserControl
 
     private void State_PropertyChanged(object? sender, PropertyChangedEventArgs e) => ApplyState();
 
-    private void ZoomSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    private void CropViewport_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if (!IsInitialized || State is null || _applyingState)
+        if (!IsInitialized || State is null || IsBusy || e.Delta == 0)
         {
             return;
         }
 
-        ApplyTransform(e.NewValue, State.Current.OffsetX, State.Current.OffsetY, publish: true);
+        AvatarCropViewState state = State.Current;
+        double requestedZoom = state.Zoom * Math.Pow(WheelZoomFactor, e.Delta / 120d);
+        Point focus = e.GetPosition(CropViewport);
+        AvatarCropLayout layout = AvatarCropGeometry.ZoomAt(
+            Math.Max(1, state.OrientedPixelWidth),
+            Math.Max(1, state.OrientedPixelHeight),
+            state.Zoom,
+            state.OffsetX,
+            state.OffsetY,
+            requestedZoom,
+            focus.X,
+            focus.Y);
+        ApplyTransform(layout.Zoom, layout.OffsetX, layout.OffsetY, publish: true);
+        e.Handled = true;
     }
 
     private void CropViewport_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)

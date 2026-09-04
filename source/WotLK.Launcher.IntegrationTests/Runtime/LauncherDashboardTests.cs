@@ -598,12 +598,13 @@ internal static class LauncherDashboardTests
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
                 window.UpdateLayout();
 
-                TextBlock realmText = Required<TextBlock>(window, "RealmStatusText");
-                Ellipse realmDot = Required<Ellipse>(window, "RealmStatusDot");
                 Button activityButton = Required<Button>(window, "ActivityButton");
                 Button friendsButton = Required<Button>(window, "FriendsButton");
                 Border localBuildBadge = Required<Border>(window, "LocalBuildBadge");
                 GameViewV2 gameView = Required<GameViewV2>(window, "GameView");
+                TextBlock realmText = Required<TextBlock>(gameView, "RealmStatusText");
+                Ellipse realmDot = Required<Ellipse>(gameView, "RealmStatusDot");
+                Grid gameServerStatus = Required<Grid>(gameView, "GameServerStatus");
                 Button noteAction = Required<Button>(gameView, "LatestPatchNoteAction");
                 Button primaryAction = Required<Button>(gameView, "PrimaryActionButton");
                 Border hero = Required<Border>(gameView, "HeroCard");
@@ -616,6 +617,8 @@ internal static class LauncherDashboardTests
                     trayIcon,
                     () => trayExitRequests++);
                 window.MinimizeToTrayRequested += (_, _) => trayController.HideInTray();
+                True(trayIcon.IsVisible,
+                    "L'icône Atlas doit être présente même lorsque la fenêtre est affichée.");
                 True(!noteAction.IsEnabled, "Le lecteur doit rester indisponible sans note réelle.");
                 True(window.FindName("RefreshDashboardButton") is null,
                     "Le rafraîchissement automatique ne doit plus afficher de bouton manuel.");
@@ -627,6 +630,8 @@ internal static class LauncherDashboardTests
                     "Le centre d'activité ne doit plus afficher de cadre.");
                 True(window.FindName("VersionText") is null,
                     "La version complète ne doit plus encombrer la barre supérieure.");
+                True(window.FindName("RealmStatusChip") is null,
+                    "Le statut du serveur ne doit plus encombrer la barre supérieure.");
                 Equal(Visibility.Visible, localBuildBadge.Visibility,
                     "Une build locale doit être identifiable près de la marque.");
                 Equal("LOCAL", Required<TextBlock>(window, "LocalBuildBadgeText").Text,
@@ -662,7 +667,8 @@ internal static class LauncherDashboardTests
                 });
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
                 window.UpdateLayout();
-                Equal("Arthas en ligne", realmText.Text, "Le mode large doit afficher Arthas en ligne.");
+                Equal("Serveur de jeu en ligne", realmText.Text,
+                    "La page Jeu doit afficher clairement l'état du serveur.");
                 EqualBrush(application, "AtlasV2.Brush.Success", realmDot.Fill, "Online doit utiliser le vert.");
                 Equal(afterConstruction + 1, propertyNotifications, "Un snapshot doit produire une notification atomique groupée.");
                 Equal(originalClientStatus, game.ClientStatus, "Le royaume ne doit pas modifier le client.");
@@ -673,6 +679,14 @@ internal static class LauncherDashboardTests
                 Equal(78d, noteAction.Height, "Le bouton Mises à jour doit rester carré.");
                 Equal(285d, primaryAction.Width, "Le bouton Jouer large doit être agrandi de 50 %.");
                 Equal(78d, primaryAction.Height, "Le bouton Jouer doit rester aligné avec Mises à jour.");
+                Equal(primaryAction.Width, gameServerStatus.Width,
+                    "Le statut du serveur doit être aligné sur la largeur du bouton Jouer.");
+                Point statusBottom = gameServerStatus.TranslatePoint(
+                    new Point(0, gameServerStatus.ActualHeight),
+                    gameView);
+                Point playTop = primaryAction.TranslatePoint(new Point(0, 0), gameView);
+                True(statusBottom.Y < playTop.Y,
+                    "Le statut du serveur doit apparaître au-dessus du bouton Jouer.");
                 True(Required<Rectangle>(gameView, "HeroArtwork").Fill is ImageBrush { AlignmentX: AlignmentX.Right, ImageSource: BitmapImage heroSource }
                     && heroSource.UriSource.OriginalString.EndsWith("LichKingFrostmourneHero.jpg", StringComparison.Ordinal),
                     "La page Jeu doit utiliser le nouveau visuel du Roi-liche ancré à droite.");
@@ -774,11 +788,6 @@ internal static class LauncherDashboardTests
                 RaiseClick(Required<Button>(patchNote, "CloseButton"));
                 await DelayAndPumpAsync(190);
                 True(patchNote.IsFullyClosed, "Le bouton X doit fermer le lecteur.");
-                dashboard.SetWideRealmLabel(false);
-                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
-                Equal("En ligne", realmText.Text, "Le mode compact doit afficher En ligne.");
-                dashboard.SetWideRealmLabel(true);
-
                 trayController.ShowNotification("Ami connecté", "Alice est en ligne.", true);
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
                 Equal(1, trayIcon.NotificationCalls,
@@ -797,8 +806,8 @@ internal static class LauncherDashboardTests
                     "La croix doit publier l'icône Atlas dans la zone de notification.");
                 trayIcon.RequestRestore();
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
-                True(window.IsVisible && window.ShowInTaskbar && !trayIcon.IsVisible,
-                    "Un clic sur l'icône de notification doit restaurer Atlas.");
+                True(window.IsVisible && window.ShowInTaskbar && trayIcon.IsVisible,
+                    "Un clic sur l'icône de notification doit restaurer Atlas sans retirer son accès permanent.");
                 trayController.HideInTray();
                 trayIcon.RequestExit();
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
@@ -825,25 +834,25 @@ internal static class LauncherDashboardTests
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
                 window.UpdateLayout();
                 True(backgroundPublishFailure is null, "Une actualisation en arrière-plan ne doit pas notifier les boutons WPF hors Dispatcher.");
-                Equal("Services dégradés", realmText.Text, "Le texte Degraded est incorrect.");
+                Equal("Services de jeu dégradés", realmText.Text, "Le texte Degraded est incorrect.");
                 EqualBrush(application, "AtlasV2.Brush.Gold", realmDot.Fill, "Degraded doit utiliser l'or.");
 
                 runtime.Publish(Snapshot(3, DashboardRealmState.Offline, "Hors ligne", true));
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
                 window.UpdateLayout();
-                Equal("Hors ligne", realmText.Text, "Le texte Offline est incorrect.");
+                Equal("Serveur de jeu hors ligne", realmText.Text, "Le texte Offline est incorrect.");
                 EqualBrush(application, "AtlasV2.Brush.Danger", realmDot.Fill, "Offline doit utiliser le rouge.");
 
                 runtime.Publish(Snapshot(4, DashboardRealmState.Unavailable, "Conservée", true, isStale: true));
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
                 window.UpdateLayout();
-                Equal("Statut indisponible", realmText.Text, "Le texte Unavailable est incorrect.");
+                Equal("État du serveur de jeu indisponible", realmText.Text, "Le texte Unavailable est incorrect.");
                 EqualBrush(application, "AtlasV2.Brush.TextMuted", realmDot.Fill, "Unavailable doit rester neutre.");
                 True(dashboard.Current.LatestPatchNoteMetaText.Contains("données conservées", StringComparison.Ordinal), "La conservation après erreur doit être visible.");
 
                 runtime.Publish(Snapshot(5, DashboardRealmState.Loading, "Conservée", true, isLoading: true));
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
-                Equal("Actualisation…", realmText.Text, "Loading doit être visible.");
+                Equal("Vérification du serveur de jeu…", realmText.Text, "Loading doit être visible.");
                 True(!dashboard.RefreshCommand.CanExecute(null), "Le bouton doit être désactivé pendant Loading.");
 
                 DashboardViewState beforeStaleSequence = dashboard.Current;

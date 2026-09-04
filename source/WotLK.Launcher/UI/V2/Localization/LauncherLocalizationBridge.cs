@@ -141,7 +141,8 @@ internal sealed class LauncherLocalizationBridge : IDisposable
             EventHandler handler = (_, _) =>
             {
                 if (Volatile.Read(ref _disposeState) == 0
-                    && Volatile.Read(ref _translationDepth) == 0)
+                    && Volatile.Read(ref _translationDepth) == 0
+                    && !IsCurrentTranslation(target, property))
                 {
                     CaptureOriginalValue(target, property);
                     TranslateProperty(target, property);
@@ -228,6 +229,23 @@ internal sealed class LauncherLocalizationBridge : IDisposable
         {
             Interlocked.Decrement(ref _translationDepth);
         }
+    }
+
+    private bool IsCurrentTranslation(
+        DependencyObject target,
+        DependencyProperty property)
+    {
+        PropertyKey key = new(target, property);
+        if (!_originalValues.TryGetValue(key, out string? original)
+            || target.GetValue(property) is not string current)
+        {
+            return false;
+        }
+
+        string expected = LauncherLocalization.IsEnglish
+            ? LauncherLocalization.TranslateFromFrench(original)
+            : original;
+        return string.Equals(current, expected, StringComparison.Ordinal);
     }
 
     private void CaptureOriginalValue(

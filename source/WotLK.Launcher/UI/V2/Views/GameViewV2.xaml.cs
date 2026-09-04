@@ -104,6 +104,8 @@ public partial class GameViewV2 : UserControl
             AdaptiveLayoutMode.Compact => new Thickness(40, 24, 40, 36),
             _ => new Thickness(32, 22, 32, 30)
         };
-        PrimaryActionButton.Width = mode == AdaptiveLayoutMode.Stacked ? 261 : 285;
+        double primaryActionWidth = mode == AdaptiveLayoutMode.Stacked ? 261 : 285;
+        PrimaryActionButton.Width = primaryActionWidth;
+        GameServerStatus.Width = primaryActionWidth;
     }
 }

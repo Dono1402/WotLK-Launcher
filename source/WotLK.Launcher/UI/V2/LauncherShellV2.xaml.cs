@@ -679,13 +679,9 @@ public partial class LauncherShellV2 : Window
         ProductGameName.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
         ProductDivider.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
         PatchNotesNavigationLabel.Text = stacked ? "Notes" : "Mises à jour";
-        DashboardState.SetWideRealmLabel(wide);
         TopNavigation.Margin = mode == AdaptiveLayoutMode.Wide
             ? new Thickness(8, 0, 0, 0)
             : new Thickness(0);
-        RealmStatusChip.Padding = stacked
-            ? new Thickness(9, 0, 9, 0)
-            : new Thickness(11, 0, 11, 0);
     }
 
     private void LauncherShellV2_SizeChanged(object sender, SizeChangedEventArgs e)

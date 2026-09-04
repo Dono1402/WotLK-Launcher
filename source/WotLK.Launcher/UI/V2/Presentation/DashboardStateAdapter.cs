@@ -40,9 +40,7 @@ internal sealed class DashboardStateAdapter : IDisposable
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         string compactLabel = GetRealmLabel(snapshot.RealmState);
-        string wideLabel = snapshot.RealmState == DashboardRealmState.Online
-            ? "Arthas en ligne"
-            : compactLabel;
+        string wideLabel = GetGameServerLabel(snapshot.RealmState);
         string patchTitle = snapshot.HasPatchNote
             ? EmptyFallback(snapshot.LatestPatchNoteTitle, "Note de mise à jour")
             : "Aucune note de mise à jour disponible.";
@@ -191,6 +189,19 @@ internal sealed class DashboardStateAdapter : IDisposable
             DashboardRealmState.Loading => "Actualisation…",
             DashboardRealmState.Unavailable => "Statut indisponible",
             _ => "Non vérifié"
+        };
+    }
+
+    private static string GetGameServerLabel(DashboardRealmState state)
+    {
+        return state switch
+        {
+            DashboardRealmState.Online => "Serveur de jeu en ligne",
+            DashboardRealmState.Degraded => "Services de jeu dégradés",
+            DashboardRealmState.Offline => "Serveur de jeu hors ligne",
+            DashboardRealmState.Loading => "Vérification du serveur de jeu…",
+            DashboardRealmState.Unavailable => "État du serveur de jeu indisponible",
+            _ => "Serveur de jeu non vérifié"
         };
     }
 

@@ -184,7 +184,8 @@ internal static class SettingsPreviewTests
         LauncherShellV2 window = CreateSettingsWindow(
             1440,
             860,
-            SettingsPreviewScenario.General);
+            SettingsPreviewScenario.General,
+            GamePreviewScenario.Launching);
         window.Show();
         try
         {
@@ -201,6 +202,13 @@ internal static class SettingsPreviewTests
             Equal("Help and diagnostics", System.Windows.Automation.AutomationProperties.GetName(
                     Required<Button>(settings, "DiagnosticCategoryButton")),
                 "Le diagnostic doit être traduit.");
+            Equal("Browse", Required<Button>(settings, "BrowseInstallPathButton").Content as string,
+                "Parcourir doit être traduit en anglais sans remplacer son libellé français d'origine.");
+            GameViewV2 game = Required<GameViewV2>(window, "GameView");
+            Equal("Launching game", Required<TextBlock>(game, "PrimaryActionLabelText").Text,
+                "Le bouton de lancement dynamique doit basculer réellement en anglais.");
+            Equal("Game server online", Required<TextBlock>(game, "RealmStatusText").Text,
+                "Le statut déplacé du serveur doit lui aussi suivre la langue de l'interface.");
 
             if (!string.IsNullOrWhiteSpace(captureDirectory))
             {
@@ -213,6 +221,12 @@ internal static class SettingsPreviewTests
             await DelayAndPumpAsync(80);
             Equal("Paramètres", Required<TextBlock>(settings, "PageTitle").Text,
                 "Le retour au français doit restaurer le libellé d'origine.");
+            Equal("Parcourir", Required<Button>(settings, "BrowseInstallPathButton").Content as string,
+                "Le retour au français doit restaurer Parcourir après un passage en anglais.");
+            Equal("En cours de lancement", Required<TextBlock>(game, "PrimaryActionLabelText").Text,
+                "Le retour au français doit restaurer le libellé dynamique du lancement.");
+            Equal("Serveur de jeu en ligne", Required<TextBlock>(game, "RealmStatusText").Text,
+                "Le retour au français doit restaurer le statut du serveur.");
         }
         finally
         {
@@ -378,9 +392,10 @@ internal static class SettingsPreviewTests
     private static LauncherShellV2 CreateSettingsWindow(
         double width,
         double height,
-        SettingsPreviewScenario scenario)
+        SettingsPreviewScenario scenario,
+        GamePreviewScenario gameScenario = GamePreviewScenario.Ready)
     {
-        return new LauncherShellV2(GamePreviewScenario.Ready, scenario)
+        return new LauncherShellV2(gameScenario, scenario)
         {
             Width = width,
             Height = height,
@@ -419,6 +434,14 @@ internal static class SettingsPreviewTests
         Equal("fr-FR", Required<ComboBox>(settings, "InterfaceLanguageComboBox").SelectedValue as string, "La langue du launcher doit être visible.");
         True(Required<ToggleButton>(settings, "MinimizeToTrayOnCloseToggle").IsChecked == true, "La réduction à la fermeture doit être visuellement active.");
         True(Required<ToggleButton>(settings, "FriendPresenceNotificationsToggle").IsChecked == true, "La notification des connexions doit être visible.");
+        Equal(System.Windows.Input.Cursors.Hand, Required<ToggleButton>(settings, "MinimizeToTrayOnCloseToggle").Cursor,
+            "Les interrupteurs interactifs doivent afficher le curseur main.");
+        True(settings.FindName("CheckLauncherUpdateButton") is null
+             && settings.FindName("StartLauncherUpdateButton") is null,
+            "Les actions manuelles de mise à jour ne doivent plus être affichées.");
+        True(!ContainsText(settings, "Nouvelles demandes d’amis")
+             && !ContainsText(settings, "Toujours activées"),
+            "La notification automatique des demandes d'ami ne doit plus occuper une option dédiée.");
         Equal("v1.1.0", Required<TextBlock>(settings, "LauncherVersionText").Text, "La version launcher est absente.");
         Equal("3.4.3.54261", Required<TextBlock>(settings, "ClientVersionText").Text, "La version client est absente.");
     }
@@ -493,6 +516,26 @@ internal static class SettingsPreviewTests
     {
         return root.FindName(name) as T
             ?? throw new InvalidOperationException($"Contrôle WPF absent : {name}.");
+    }
+
+    private static bool ContainsText(DependencyObject root, string expected)
+    {
+        if (root is TextBlock textBlock
+            && string.Equals(textBlock.Text, expected, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        int childCount = VisualTreeHelper.GetChildrenCount(root);
+        for (int index = 0; index < childCount; index++)
+        {
+            if (ContainsText(VisualTreeHelper.GetChild(root, index), expected))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void RaiseClick(Button button)

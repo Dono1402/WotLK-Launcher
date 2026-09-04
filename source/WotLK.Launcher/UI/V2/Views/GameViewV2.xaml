@@ -4,6 +4,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:dashboard="clr-namespace:WotLK.Launcher.Dashboard"
              xmlns:presentation="clr-namespace:WotLK.Launcher.UI.V2.Presentation"
              mc:Ignorable="d"
              d:DesignWidth="1440"
@@ -182,40 +183,100 @@
                                         </Border>
                                     </Grid>
 
-                                    <StackPanel x:Name="HeroActionPanel"
+                                    <StackPanel x:Name="HeroActionRegion"
                                                 Grid.Column="2"
-                                                Orientation="Horizontal"
                                                 HorizontalAlignment="Right"
                                                 VerticalAlignment="Bottom">
-                                        <Button x:Name="LatestPatchNoteAction"
-                                                Width="78"
-                                                Height="78"
-                                                Margin="0,0,12,0"
-                                                Padding="0"
-                                                Style="{StaticResource AtlasV2.Button.Secondary}"
-                                                HorizontalContentAlignment="Center"
-                                                IsEnabled="{Binding DashboardState.Current.CanOpenLatestPatchNote, ElementName=Root}"
-                                                ToolTip="Mises à jour"
-                                                AutomationProperties.Name="Mises à jour"
-                                                Click="LatestPatchNoteAction_Click">
-                                            <Path Width="23"
-                                                  Height="23"
-                                                  Data="{StaticResource AtlasV2.Icon.FileText}"
-                                                  Style="{StaticResource AtlasV2.Icon.Stroke}"
-                                                  Stroke="{StaticResource AtlasV2.Brush.Gold}"/>
-                                        </Button>
+                                        <Grid x:Name="GameServerStatus"
+                                              Width="285"
+                                              Margin="0,0,0,14"
+                                              HorizontalAlignment="Right"
+                                              ToolTip="{Binding DashboardState.Current.RealmToolTip, ElementName=Root}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Ellipse x:Name="RealmStatusDot"
+                                                     Width="10"
+                                                     Height="10"
+                                                     Margin="0,0,10,0"
+                                                     VerticalAlignment="Center">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="{x:Type Ellipse}">
+                                                        <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding DashboardState.Current.RealmState, ElementName=Root}" Value="{x:Static dashboard:DashboardRealmState.Online}">
+                                                                <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Success}"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding DashboardState.Current.RealmState, ElementName=Root}" Value="{x:Static dashboard:DashboardRealmState.Degraded}">
+                                                                <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding DashboardState.Current.RealmState, ElementName=Root}" Value="{x:Static dashboard:DashboardRealmState.Offline}">
+                                                                <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Danger}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
+                                            <TextBlock x:Name="RealmStatusText"
+                                                       Grid.Column="1"
+                                                       VerticalAlignment="Center"
+                                                       Text="{Binding DashboardState.Current.RealmStatusWideLabel, ElementName=Root}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       FontSize="20"
+                                                       FontWeight="SemiBold">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="{x:Type TextBlock}"
+                                                           BasedOn="{StaticResource AtlasV2.Text.Body}">
+                                                        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding DashboardState.Current.RealmState, ElementName=Root}" Value="{x:Static dashboard:DashboardRealmState.Online}">
+                                                                <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Success}"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding DashboardState.Current.RealmState, ElementName=Root}" Value="{x:Static dashboard:DashboardRealmState.Degraded}">
+                                                                <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding DashboardState.Current.RealmState, ElementName=Root}" Value="{x:Static dashboard:DashboardRealmState.Offline}">
+                                                                <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Danger}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
 
-                                        <Button x:Name="PrimaryActionButton"
-                                                Width="285"
-                                                Height="78"
-                                                FontSize="16"
-                                                Style="{StaticResource AtlasV2.Button.Primary}"
-                                                IsEnabled="{Binding IsPrimaryActionEnabled}"
-                                                Command="{Binding PrimaryActionCommand}"
-                                                ToolTip="{Binding PrimaryActionUnavailableReason}"
-                                                ToolTipService.ShowOnDisabled="True"
-                                                AutomationProperties.Name="{Binding PrimaryActionLabel}">
-                                            <StackPanel Orientation="Horizontal">
+                                        <StackPanel x:Name="HeroActionPanel"
+                                                    Orientation="Horizontal"
+                                                    HorizontalAlignment="Right">
+                                            <Button x:Name="LatestPatchNoteAction"
+                                                    Width="78"
+                                                    Height="78"
+                                                    Margin="0,0,12,0"
+                                                    Padding="0"
+                                                    Style="{StaticResource AtlasV2.Button.Secondary}"
+                                                    HorizontalContentAlignment="Center"
+                                                    IsEnabled="{Binding DashboardState.Current.CanOpenLatestPatchNote, ElementName=Root}"
+                                                    ToolTip="Mises à jour"
+                                                    AutomationProperties.Name="Mises à jour"
+                                                    Click="LatestPatchNoteAction_Click">
+                                                <Path Width="23"
+                                                      Height="23"
+                                                      Data="{StaticResource AtlasV2.Icon.FileText}"
+                                                      Style="{StaticResource AtlasV2.Icon.Stroke}"
+                                                      Stroke="{StaticResource AtlasV2.Brush.Gold}"/>
+                                            </Button>
+
+                                            <Button x:Name="PrimaryActionButton"
+                                                    Width="285"
+                                                    Height="78"
+                                                    FontSize="16"
+                                                    Style="{StaticResource AtlasV2.Button.Primary}"
+                                                    IsEnabled="{Binding IsPrimaryActionEnabled}"
+                                                    Command="{Binding PrimaryActionCommand}"
+                                                    ToolTip="{Binding PrimaryActionUnavailableReason}"
+                                                    ToolTipService.ShowOnDisabled="True"
+                                                    AutomationProperties.Name="{Binding PrimaryActionLabel}">
+                                                <StackPanel Orientation="Horizontal">
                                                 <Path Width="21"
                                                       Height="21"
                                                       Margin="0,0,9,0"
@@ -280,9 +341,12 @@
                                                         </Style>
                                                     </Path.Style>
                                                 </Path>
-                                                <TextBlock Text="{Binding PrimaryActionLabel}" FontWeight="Bold"/>
-                                            </StackPanel>
-                                        </Button>
+                                                    <TextBlock x:Name="PrimaryActionLabelText"
+                                                               Text="{Binding PrimaryActionLabel}"
+                                                               FontWeight="Bold"/>
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
                                     </StackPanel>
                                 </Grid>
                             </Grid>

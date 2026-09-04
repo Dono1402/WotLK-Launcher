@@ -38,7 +38,7 @@ public sealed record DashboardViewState(
     internal static DashboardViewState Initial { get; } = new(
         RealmState: DashboardRealmState.Unknown,
         RealmStatusLabel: "Non vérifié",
-        RealmStatusWideLabel: "Arthas non vérifié",
+        RealmStatusWideLabel: "Serveur de jeu non vérifié",
         RealmToolTip: "Le statut du royaume n’a pas encore été vérifié.",
         IsLoading: false,
         LatestPatchNoteVersion: string.Empty,

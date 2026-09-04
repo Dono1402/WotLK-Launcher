@@ -538,10 +538,11 @@ internal static class LauncherSettingsRuntimeTests
                 "Settings doit afficher la version installée du coordinateur.");
             Equal("v1.2.0", Required<TextBlock>(view, "AvailableLauncherVersionText").Text,
                 "Settings doit afficher la version réellement disponible.");
-            Button checkLauncherUpdate = Required<Button>(view, "CheckLauncherUpdateButton");
-            Button startLauncherUpdate = Required<Button>(view, "StartLauncherUpdateButton");
-            True(checkLauncherUpdate.IsEnabled, "La recherche manuelle doit être reconnectée.");
-            True(startLauncherUpdate.IsEnabled, "Une version disponible doit rendre l'action réelle accessible.");
+            True(view.FindName("CheckLauncherUpdateButton") is null
+                 && view.FindName("StartLauncherUpdateButton") is null,
+                "Les boutons manuels de mise à jour doivent être retirés de Settings.");
+            True(settingsState.CheckLauncherUpdateCommand.CanExecute(null),
+                "Le coordinateur de mise à jour doit rester fonctionnel sans bouton Settings.");
 
             if (!string.IsNullOrWhiteSpace(captureDirectory))
             {
@@ -555,11 +556,11 @@ internal static class LauncherSettingsRuntimeTests
                 "Le bouton doit déléguer une seule fois au coordinateur partagé.");
             True(settingsState.Current.Updates.IsChecking,
                 "L'état Checking doit être projeté sans créer une opération Activity.");
-            True(!checkLauncherUpdate.IsEnabled,
-                "Un deuxième check manuel doit être refusé pendant la requête active.");
+            True(!settingsState.CheckLauncherUpdateCommand.CanExecute(null),
+                "Un deuxième check doit être refusé pendant la requête active.");
             selfUpdateRuntime.CompleteCheck();
             await PumpAsync(DispatcherPriority.DataBind);
-            True(checkLauncherUpdate.IsEnabled,
+            True(settingsState.CheckLauncherUpdateCommand.CanExecute(null),
                 "La commande doit redevenir disponible après le check coalescé.");
 
             selfUpdateRuntime.PublishError(LauncherSelfUpdateErrorCategory.ManifestUnavailable);
@@ -577,12 +578,6 @@ internal static class LauncherSettingsRuntimeTests
                 "Settings ne doit jamais afficher de barre horizontale à 1080x680.");
             True(view.ScrollHost.ExtentWidth <= view.ScrollHost.ViewportWidth + 1,
                 "Le contenu Updates ne doit pas être coupé horizontalement à 1080x680.");
-            checkLauncherUpdate.BringIntoView();
-            await PumpAsync(DispatcherPriority.ApplicationIdle);
-            Rect checkBounds = checkLauncherUpdate.TransformToAncestor(view)
-                .TransformBounds(new Rect(checkLauncherUpdate.RenderSize));
-            True(checkBounds.Left >= 0 && checkBounds.Right <= view.ActualWidth + 1,
-                "Les actions du self-update doivent rester accessibles à 1080x680.");
             if (!string.IsNullOrWhiteSpace(captureDirectory))
             {
                 SavePng(window, Path.Combine(captureDirectory, "04-settings-runtime-updates-1080x680.png"));

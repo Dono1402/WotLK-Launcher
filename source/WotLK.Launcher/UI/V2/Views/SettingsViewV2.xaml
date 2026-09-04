@@ -610,22 +610,6 @@
                                         </Border>
                                     </Grid>
 
-                                    <Border Style="{StaticResource AtlasV2.Settings.Separator}"/>
-
-                                    <StackPanel HorizontalAlignment="Right"
-                                                Orientation="Horizontal">
-                                            <Button x:Name="CheckLauncherUpdateButton"
-                                                    MinWidth="196"
-                                                    Content="Rechercher les mises à jour"
-                                                    Command="{Binding State.CheckLauncherUpdateCommand, ElementName=SettingsRoot}"
-                                                    Style="{StaticResource AtlasV2.Settings.Action}"/>
-                                            <Button x:Name="StartLauncherUpdateButton"
-                                                    MinWidth="132"
-                                                    Margin="10,0,0,0"
-                                                    Content="Mettre à jour"
-                                                    Command="{Binding State.StartLauncherUpdateCommand, ElementName=SettingsRoot}"
-                                                    Style="{StaticResource AtlasV2.Button.Primary}"/>
-                                    </StackPanel>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -658,19 +642,6 @@
                                                       Focusable="{Binding State.Current.CanChangeFriendPresenceNotifications, ElementName=SettingsRoot}"
                                                       Style="{StaticResource AtlasV2.Toggle}"
                                                       Click="FriendPresenceNotificationsToggle_Click"/>
-                                    </Grid>
-                                    <Border Style="{StaticResource AtlasV2.Settings.Separator}"/>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                        <TextBlock Margin="0,0,20,0"
-                                                   VerticalAlignment="Center"
-                                                   Text="Nouvelles demandes d’amis"
-                                                   Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
-                                        <TextBlock Grid.Column="1"
-                                                   VerticalAlignment="Center"
-                                                   Text="Toujours activées"
-                                                   Style="{StaticResource AtlasV2.Text.Caption}"
-                                                   Foreground="{StaticResource AtlasV2.Brush.Success}"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>

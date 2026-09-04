@@ -25,7 +25,6 @@ internal sealed class LauncherTrayController : IDisposable, ILauncherDesktopNoti
     private readonly Action _requestExit;
     private WindowState _restoreWindowState = WindowState.Normal;
     private bool _isHiddenInTray;
-    private DispatcherTimer? _notificationVisibilityTimer;
     private int _disposeState;
 
     internal LauncherTrayController(
@@ -38,6 +37,7 @@ internal sealed class LauncherTrayController : IDisposable, ILauncherDesktopNoti
         _requestExit = requestExit ?? throw new ArgumentNullException(nameof(requestExit));
         _trayIcon.RestoreRequested += TrayIcon_RestoreRequested;
         _trayIcon.ExitRequested += TrayIcon_ExitRequested;
+        _trayIcon.IsVisible = true;
     }
 
     internal bool IsHiddenInTray => _isHiddenInTray;
@@ -57,7 +57,6 @@ internal sealed class LauncherTrayController : IDisposable, ILauncherDesktopNoti
             }
 
             _trayIcon.IsVisible = true;
-            StopNotificationVisibilityTimer();
             _window.ShowInTaskbar = false;
             _window.Hide();
             _isHiddenInTray = true;
@@ -73,8 +72,7 @@ internal sealed class LauncherTrayController : IDisposable, ILauncherDesktopNoti
                 return;
             }
 
-            _trayIcon.IsVisible = false;
-            StopNotificationVisibilityTimer();
+            _trayIcon.IsVisible = true;
             _window.ShowInTaskbar = true;
             if (!_window.IsVisible)
             {
@@ -101,26 +99,6 @@ internal sealed class LauncherTrayController : IDisposable, ILauncherDesktopNoti
 
             _trayIcon.IsVisible = true;
             _trayIcon.ShowNotification(title, message, playSound);
-            if (_isHiddenInTray)
-            {
-                return;
-            }
-
-            StopNotificationVisibilityTimer();
-            DispatcherTimer timer = new(
-                TimeSpan.FromSeconds(7),
-                DispatcherPriority.Background,
-                (_, _) =>
-                {
-                    StopNotificationVisibilityTimer();
-                    if (!_isHiddenInTray)
-                    {
-                        _trayIcon.IsVisible = false;
-                    }
-                },
-                _window.Dispatcher);
-            _notificationVisibilityTimer = timer;
-            timer.Start();
         });
     }
 
@@ -138,7 +116,6 @@ internal sealed class LauncherTrayController : IDisposable, ILauncherDesktopNoti
 
         _trayIcon.RestoreRequested -= TrayIcon_RestoreRequested;
         _trayIcon.ExitRequested -= TrayIcon_ExitRequested;
-        StopNotificationVisibilityTimer();
         _trayIcon.IsVisible = false;
         _trayIcon.Dispose();
     }
@@ -174,12 +151,6 @@ internal sealed class LauncherTrayController : IDisposable, ILauncherDesktopNoti
         }
     }
 
-    private void StopNotificationVisibilityTimer()
-    {
-        DispatcherTimer? timer = _notificationVisibilityTimer;
-        _notificationVisibilityTimer = null;
-        timer?.Stop();
-    }
 }
 
 internal sealed class WindowsLauncherTrayIconHost : ILauncherTrayIconHost

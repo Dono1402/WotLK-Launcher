@@ -323,7 +323,9 @@ public static class LauncherV2PreviewData
         state.ApplyView(new DashboardViewState(
             realmState,
             realmLabel,
-            realmState == DashboardRealmState.Online ? "Arthas en ligne" : realmLabel,
+            realmState == DashboardRealmState.Online
+                ? "Serveur de jeu en ligne"
+                : "Serveur de jeu hors ligne",
             "Données fictives du mode de prévisualisation.",
             IsLoading: false,
             LatestPatchNoteVersion: "v1.1.0",

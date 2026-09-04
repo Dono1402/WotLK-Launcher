@@ -385,6 +385,9 @@ public sealed class AvatarCropUiState : BindableUiState
     internal void OpenReal(AvatarPreviewImage image)
     {
         ArgumentNullException.ThrowIfNull(image);
+        double initialZoom = AvatarCropGeometry.GetInitialZoom(
+            image.OrientedPixelWidth,
+            image.OrientedPixelHeight);
         Apply(new AvatarCropViewState(
             IsPreview: false,
             IsOpen: true,
@@ -394,7 +397,7 @@ public sealed class AvatarCropUiState : BindableUiState
             StatusMessage: string.Empty,
             UploadPercentage: null,
             IsProgressIndeterminate: false,
-            Zoom: 1,
+            Zoom: initialZoom,
             OffsetX: 0,
             OffsetY: 0,
             OrientedPixelWidth: image.OrientedPixelWidth,

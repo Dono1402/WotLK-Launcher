@@ -211,6 +211,20 @@ internal static class AccountAvatarClientTests
             "Une image carrée doit être sélectionnée intégralement au zoom minimum.");
         Equal(new AvatarNormalizedCrop(0, 0, 1), square.Crop, "Le crop carré minimal doit couvrir l'image.");
 
+        double initialInteractiveZoom = AvatarCropGeometry.GetInitialZoom(1200, 800);
+        Near(1.12, initialInteractiveZoom, 0.000001,
+            "Une image suffisamment grande doit recevoir une légère marge de cadrage initiale.");
+        AvatarCropLayout initialInteractive = AvatarCropGeometry.Calculate(
+            1200,
+            800,
+            initialInteractiveZoom,
+            0,
+            0);
+        True(initialInteractive.MaximumOffsetX > 0 && initialInteractive.MaximumOffsetY > 0,
+            "Le cadrage initial doit pouvoir être déplacé immédiatement sur les deux axes.");
+        Near(1, AvatarCropGeometry.GetInitialZoom(256, 256), 0.000001,
+            "Une petite image ne doit jamais dépasser le zoom maximal autorisé par le serveur.");
+
         double maximum = AvatarCropGeometry.GetMaximumZoom(2048, 1024);
         Near(2.4, maximum, 0.000001, "Le zoom maximal produit doit être plafonné.");
         AvatarCropLayout edge = AvatarCropGeometry.Calculate(2048, 1024, 99, 10000, -10000);

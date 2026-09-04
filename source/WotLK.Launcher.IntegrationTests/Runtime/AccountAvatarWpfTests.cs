@@ -277,6 +277,18 @@ internal static class AccountAvatarWpfTests
                 AccountAvatarClientTests.True(
                     cropState.Current.AvatarImage is { IsFrozen: true },
                     "La preview locale doit être chargée et figée.");
+                AccountAvatarClientTests.True(
+                    cropState.Current.Layout.MaximumOffsetX > 0
+                        && cropState.Current.Layout.MaximumOffsetY > 0,
+                    "Une nouvelle photo doit être déplaçable horizontalement et verticalement dès son ouverture.");
+                cropState.SetTransform(
+                    cropState.Current.Zoom,
+                    cropState.Current.OffsetX,
+                    18);
+                AccountAvatarClientTests.True(
+                    cropState.Current.OffsetY > 0,
+                    "Le déplacement vertical initial doit être accepté par l'état de cadrage réel.");
+                cropState.SetTransform(cropState.Current.Zoom, 0, 0);
                 await DelayAndPumpAsync(180);
                 server.ResetProfileGate();
                 commands.RefreshProfile();

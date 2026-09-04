@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace WotLK.Launcher.Dashboard;
 
 public enum DashboardRealmState
@@ -37,6 +39,7 @@ internal sealed record DashboardSnapshot(
     string RealmStatusLabel,
     DateTimeOffset? LastSuccessfulRefreshAt,
     DashboardFailureCategory FailureCategory,
+    ImmutableArray<LauncherNews> PatchNotes,
     string? LatestPatchNoteId,
     string? LatestPatchNoteCategory,
     string LatestPatchNoteTitle,
@@ -56,6 +59,7 @@ internal sealed record DashboardSnapshot(
         RealmStatusLabel: "Non vérifié",
         LastSuccessfulRefreshAt: null,
         FailureCategory: DashboardFailureCategory.None,
+        PatchNotes: ImmutableArray<LauncherNews>.Empty,
         LatestPatchNoteId: null,
         LatestPatchNoteCategory: null,
         LatestPatchNoteTitle: string.Empty,

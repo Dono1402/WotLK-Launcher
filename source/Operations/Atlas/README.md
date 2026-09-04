@@ -83,3 +83,13 @@ cannot make an uncommitted upload authoritative. Restore review must preserve
 
 Never purge `trash`, downgrade migrations, or delete an old release as part of
 an emergency rollback.
+
+## Patch notes
+
+`PATCH-NOTES-DRAFT.md` is the local editorial source for the next release. It
+contains short user-facing bullets grouped under free-form categories such as
+Launcher, Jeu, PNJ, Addons, Profil, or Social.
+
+The draft must never be copied automatically to
+`/srv/wotlk/launcher-feed/patch-notes.json`. Updating that public feed is a
+separate publication action performed only after Dono explicitly requests it.

@@ -4,7 +4,22 @@
     "category": "Launcher",
     "title": "Atlas Launcher 1.1",
     "summary": "Nouvel écran Jeu, catalogue avec logos officiels des addons, navigation simplifiée, notifications intégrées et suivi détaillé des téléchargements.",
-    "publishedAt": "2026-08-29T21:00:00Z"
+    "publishedAt": "2026-08-29T21:00:00Z",
+    "sections": [
+      {
+        "title": "Launcher",
+        "items": [
+          "L'écran Jeu a été réorganisé pour accéder plus rapidement aux actions principales.",
+          "Les téléchargements disposent d'un suivi plus détaillé."
+        ]
+      },
+      {
+        "title": "Addons",
+        "items": [
+          "Le catalogue affiche les addons compatibles avec leurs visuels officiels."
+        ]
+      }
+    ]
   },
   {
     "id": "atlas-social-friends",

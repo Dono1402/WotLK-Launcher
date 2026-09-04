@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Windows.Threading;
 using WotLK.Launcher.Dashboard;
@@ -33,7 +34,9 @@ internal sealed class DashboardStateAdapter : IDisposable
         }
     }
 
-    internal static DashboardViewState Project(DashboardSnapshot snapshot)
+    internal static DashboardViewState Project(
+        DashboardSnapshot snapshot,
+        bool includeLocalDraft = false)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         string compactLabel = GetRealmLabel(snapshot.RealmState);
@@ -61,6 +64,12 @@ internal sealed class DashboardStateAdapter : IDisposable
             metaText = "Actualisation indisponible";
         }
 
+        ImmutableArray<PatchNoteEntryViewState> patchNotes = ProjectPatchNotes(snapshot.PatchNotes);
+        if (includeLocalDraft)
+        {
+            patchNotes = LocalPatchNotesDraft.PrependTo(patchNotes);
+        }
+
         return new DashboardViewState(
             snapshot.RealmState,
             compactLabel,
@@ -73,7 +82,66 @@ internal sealed class DashboardStateAdapter : IDisposable
             metaText,
             snapshot.HasPatchNote,
             snapshot.IsStale,
-            CanOpenLatestPatchNote: snapshot.HasPatchNote);
+            CanOpenLatestPatchNote: snapshot.HasPatchNote,
+            PatchNotes: patchNotes);
+    }
+
+    private static ImmutableArray<PatchNoteEntryViewState> ProjectPatchNotes(
+        ImmutableArray<LauncherNews> notes)
+    {
+        if (notes.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<PatchNoteEntryViewState>.Empty;
+        }
+
+        ImmutableArray<PatchNoteEntryViewState>.Builder entries =
+            ImmutableArray.CreateBuilder<PatchNoteEntryViewState>(notes.Length);
+        for (int noteIndex = 0; noteIndex < notes.Length; noteIndex++)
+        {
+            LauncherNews note = notes[noteIndex];
+            ImmutableArray<PatchNoteSectionViewState>.Builder sections =
+                ImmutableArray.CreateBuilder<PatchNoteSectionViewState>();
+            if (note.Sections is not null)
+            {
+                foreach (LauncherNewsSection section in note.Sections)
+                {
+                    string[] items = section.Items?
+                        .Where(item => !string.IsNullOrWhiteSpace(item))
+                        .Select(item => item.Trim())
+                        .ToArray() ?? [];
+                    if (!string.IsNullOrWhiteSpace(section.Title) && items.Length > 0)
+                    {
+                        sections.Add(new PatchNoteSectionViewState(
+                            section.Title.Trim(),
+                            items.ToImmutableArray()));
+                    }
+                }
+            }
+
+            bool hasStructuredSections = sections.Count > 0;
+            if (!hasStructuredSections && !string.IsNullOrWhiteSpace(note.Summary))
+            {
+                sections.Add(new PatchNoteSectionViewState(
+                    EmptyFallback(note.Category, "Mise à jour"),
+                    [note.Summary.Trim()]));
+            }
+
+            string intro = hasStructuredSections && !string.IsNullOrWhiteSpace(note.Summary)
+                ? note.Summary.Trim()
+                : string.Empty;
+            entries.Add(new PatchNoteEntryViewState(
+                note.Id,
+                LauncherDashboardCoordinator.ExtractPatchNoteVersion(note),
+                EmptyFallback(note.Title, "Note de mise à jour"),
+                note.PublishedAt.ToLocalTime().ToString("dd MMMM yyyy", FrenchCulture),
+                intro,
+                !string.IsNullOrWhiteSpace(intro),
+                IsLatest: noteIndex == 0,
+                IsDraft: false,
+                sections.ToImmutable()));
+        }
+
+        return entries.ToImmutable();
     }
 
     private void Runtime_SnapshotChanged(
@@ -108,7 +176,7 @@ internal sealed class DashboardStateAdapter : IDisposable
             return;
         }
 
-        DashboardViewState state = Project(snapshot);
+        DashboardViewState state = Project(snapshot, LauncherBuildFlavor.IsLocalClient);
         _latestSequence = snapshot.Sequence;
         _target.ApplyView(state);
     }

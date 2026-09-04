@@ -4,6 +4,7 @@ internal enum LauncherShellPage
 {
     Game,
     Addons,
+    PatchNotes,
     Settings,
     Account
 }

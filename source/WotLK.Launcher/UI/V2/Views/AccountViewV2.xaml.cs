@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using WotLK.Launcher.UI.V2.Commands;
 using WotLK.Launcher.UI.V2.Presentation;
@@ -16,6 +17,7 @@ public partial class AccountViewV2 : UserControl
     private bool _deleteConfirmationWasOpen;
     private bool _emailEditorWasOpen;
     private bool _passwordEditorWasOpen;
+    private bool _avatarActionsVisible;
     private AccountOperationViewState _lastAccountOperation;
 
     public static readonly DependencyProperty StateProperty = DependencyProperty.Register(
@@ -177,6 +179,90 @@ public partial class AccountViewV2 : UserControl
         NewEmailBox.Clear();
         State?.CloseSensitiveEditors();
         AccountScrollViewer.ScrollToTop();
+        SetAvatarActionsVisible(false, animate: false);
+    }
+
+    private void AvatarInteractionArea_MouseEnter(object sender, MouseEventArgs e)
+    {
+        SetAvatarActionsVisible(true);
+    }
+
+    private void AvatarInteractionArea_MouseLeave(object sender, MouseEventArgs e)
+    {
+        if (!AvatarInteractionArea.IsKeyboardFocusWithin)
+        {
+            SetAvatarActionsVisible(false);
+        }
+    }
+
+    private void AvatarInteractionArea_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        SetAvatarActionsVisible(true);
+    }
+
+    private void AvatarInteractionArea_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (!AvatarInteractionArea.IsMouseOver
+            && (e.NewFocus is not DependencyObject target || !AvatarInteractionArea.IsAncestorOf(target)))
+        {
+            SetAvatarActionsVisible(false);
+        }
+    }
+
+    private void SetAvatarActionsVisible(bool visible, bool animate = true)
+    {
+        if (!IsInitialized)
+        {
+            return;
+        }
+
+        if (_avatarActionsVisible == visible && animate)
+        {
+            return;
+        }
+
+        _avatarActionsVisible = visible;
+        AvatarActionsOverlay.IsHitTestVisible = visible;
+        ScaleTransform scale = (ScaleTransform)AvatarActionsOverlay.RenderTransform;
+        double targetOpacity = visible ? 1 : 0;
+        double targetScale = visible ? 1 : 0.9;
+        if (!animate)
+        {
+            AvatarActionsOverlay.BeginAnimation(OpacityProperty, null);
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            AvatarActionsOverlay.Opacity = targetOpacity;
+            scale.ScaleX = targetScale;
+            scale.ScaleY = targetScale;
+            return;
+        }
+
+        Duration duration = new(TimeSpan.FromMilliseconds(visible ? 160 : 120));
+        IEasingFunction easing = new CubicEase
+        {
+            EasingMode = visible ? EasingMode.EaseOut : EasingMode.EaseIn
+        };
+        AvatarActionsOverlay.BeginAnimation(
+            OpacityProperty,
+            new DoubleAnimation(AvatarActionsOverlay.Opacity, targetOpacity, duration)
+            {
+                EasingFunction = easing
+            },
+            HandoffBehavior.SnapshotAndReplace);
+        scale.BeginAnimation(
+            ScaleTransform.ScaleXProperty,
+            new DoubleAnimation(scale.ScaleX, targetScale, duration)
+            {
+                EasingFunction = easing
+            },
+            HandoffBehavior.SnapshotAndReplace);
+        scale.BeginAnimation(
+            ScaleTransform.ScaleYProperty,
+            new DoubleAnimation(scale.ScaleY, targetScale, duration)
+            {
+                EasingFunction = easing
+            },
+            HandoffBehavior.SnapshotAndReplace);
     }
 
     private void ApplyLayout(AdaptiveLayoutMode mode)

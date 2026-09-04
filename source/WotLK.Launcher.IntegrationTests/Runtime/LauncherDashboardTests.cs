@@ -1,4 +1,6 @@
+using System.Collections.Immutable;
 using System.ComponentModel;
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
@@ -6,6 +8,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using WotLK.Launcher;
@@ -20,10 +23,11 @@ using WotLK.Launcher.UI.V2.Views;
 
 internal static class LauncherDashboardTests
 {
-    internal static async Task<int> RunAsync()
+    internal static async Task<int> RunAsync(string? captureDirectory = null)
     {
         MapFiveServicesWithoutFalseOffline();
         SelectLatestPatchNoteWithLegacyOrdering();
+        ProjectCategorizedPatchNotesWithLegacyFallback();
         await RefuseRequestsWithoutSessionAsync();
         await LoadOnceAfterConcurrentSessionRestoreAsync();
         await PublishLoadingAndRejectConcurrentRefreshAsync();
@@ -34,7 +38,7 @@ internal static class LauncherDashboardTests
         await RuntimeShutdownWaitsForDashboardAsync();
         await KeepDashboardOrthogonalToGameAndOperationsAsync();
         await CharacterizeRefreshCommandAsync();
-        await ValidateWpfProjectionAndAtomicLifecycleAsync();
+        await ValidateWpfProjectionAndAtomicLifecycleAsync(captureDirectory);
         Console.WriteLine("Launcher dashboard OK (02E).");
         return 0;
     }
@@ -79,6 +83,59 @@ internal static class LauncherDashboardTests
         });
         Equal("Aucun résumé disponible.", emptySummaryView.LatestPatchNoteSummary, "La présentation doit traiter un résumé vide sans inventer une autre note.");
         True(emptySummaryView.CanOpenLatestPatchNote, "Une note réelle doit pouvoir être ouverte dans le lecteur léger.");
+    }
+
+    private static void ProjectCategorizedPatchNotesWithLegacyFallback()
+    {
+        DateTimeOffset publishedAt = new(2026, 9, 4, 9, 0, 0, TimeSpan.Zero);
+        LauncherNews structured = new(
+            "atlas-launcher-1-2-0",
+            "Launcher",
+            "Atlas Launcher 1.2",
+            "Les changements importants de cette version.",
+            publishedAt,
+            [
+                new LauncherNewsSection("Launcher", ["Navigation simplifiée.", "Suivi des opérations."]),
+                new LauncherNewsSection("Jeu", ["Lancement plus clair."])
+            ]);
+        LauncherNews legacy = new(
+            "atlas-launcher-1-1-0",
+            "Addons",
+            "Atlas Launcher 1.1",
+            "Catalogue des addons amélioré.",
+            publishedAt.AddDays(-1));
+        DashboardViewState projected = DashboardStateAdapter.Project(Snapshot(
+            sequence: 2,
+            DashboardRealmState.Online,
+            title: structured.Title,
+            hasPatchNote: true) with
+        {
+            PatchNotes = ImmutableArray.Create(structured, legacy)
+        });
+
+        Equal(2, projected.PatchNotes.Length, "Toutes les versions doivent rester disponibles dans l'onglet.");
+        Equal(2, projected.PatchNotes[0].Sections.Length, "Les catégories structurées doivent rester séparées.");
+        Equal("Jeu", projected.PatchNotes[0].Sections[1].Title, "La catégorie Jeu a été perdue.");
+        Equal(2, projected.PatchNotes[0].Sections[0].Items.Length, "Chaque changement doit devenir un point distinct.");
+        True(projected.PatchNotes[0].HasIntro, "Le résumé d'une note structurée doit rester une introduction.");
+        Equal(1, projected.PatchNotes[1].Sections.Length, "Une note historique doit conserver un fallback unique.");
+        Equal("Addons", projected.PatchNotes[1].Sections[0].Title, "Le fallback doit reprendre la catégorie historique.");
+        Equal("Catalogue des addons amélioré.", projected.PatchNotes[1].Sections[0].Items[0],
+            "Le résumé historique doit devenir un point lisible.");
+
+        DashboardViewState localClient = DashboardStateAdapter.Project(Snapshot(
+            sequence: 3,
+            DashboardRealmState.Online,
+            title: structured.Title,
+            hasPatchNote: true) with
+        {
+            PatchNotes = ImmutableArray.Create(structured)
+        }, includeLocalDraft: true);
+        True(localClient.PatchNotes[0].IsDraft, "Le client local doit afficher le brouillon avant les notes publiées.");
+        Equal("Non publiée", localClient.PatchNotes[0].PublishedText,
+            "Le brouillon local ne doit jamais paraître déjà publié.");
+        True(localClient.PatchNotes[0].Sections.SelectMany(section => section.Items).All(item => !item.Contains(".cs", StringComparison.OrdinalIgnoreCase)),
+            "Le brouillon utilisateur ne doit pas contenir de détail de code.");
     }
 
     private static async Task RefuseRequestsWithoutSessionAsync()
@@ -386,10 +443,10 @@ internal static class LauncherDashboardTests
         True(!command.Command.CanExecute(null), "La commande disposée doit rester inactive.");
     }
 
-    private static async Task ValidateWpfProjectionAndAtomicLifecycleAsync()
+    private static async Task ValidateWpfProjectionAndAtomicLifecycleAsync(string? captureDirectory)
     {
         TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        Thread thread = new(() => RunWpfHarness(completion))
+        Thread thread = new(() => RunWpfHarness(completion, captureDirectory))
         {
             IsBackground = true,
             Name = "AtlasDashboardWpfHarness"
@@ -399,7 +456,9 @@ internal static class LauncherDashboardTests
         await completion.Task.WaitAsync(TimeSpan.FromSeconds(15));
     }
 
-    private static void RunWpfHarness(TaskCompletionSource completion)
+    private static void RunWpfHarness(
+        TaskCompletionSource completion,
+        string? captureDirectory)
     {
         Dispatcher dispatcher = Dispatcher.CurrentDispatcher;
         SynchronizationContext.SetSynchronizationContext(
@@ -496,7 +555,20 @@ internal static class LauncherDashboardTests
                     Keyboard.FocusedElement,
                     "Le retour vers Jeu doit rendre le focus à l’action principale.");
 
-                runtime.Publish(Snapshot(1, DashboardRealmState.Online, "Vraie note", true));
+                LauncherNews visibleNote = new(
+                    "atlas-launcher-1-1-0",
+                    "Launcher",
+                    "Vraie note",
+                    "Résumé réel",
+                    new DateTimeOffset(2026, 8, 30, 21, 0, 0, TimeSpan.Zero),
+                    [
+                        new LauncherNewsSection("Launcher", ["Navigation simplifiée.", "Téléchargements plus lisibles."]),
+                        new LauncherNewsSection("Jeu", ["L'état du client est plus clair."])
+                    ]);
+                runtime.Publish(Snapshot(1, DashboardRealmState.Online, "Vraie note", true) with
+                {
+                    PatchNotes = ImmutableArray.Create(visibleNote)
+                });
                 await dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
                 window.UpdateLayout();
                 Equal("Arthas en ligne", realmText.Text, "Le mode large doit afficher Arthas en ligne.");
@@ -506,6 +578,56 @@ internal static class LauncherDashboardTests
                 Equal(afterConstruction + 1, propertyNotifications, "Un snapshot doit produire une notification atomique groupée.");
                 Equal(originalClientStatus, game.ClientStatus, "Le royaume ne doit pas modifier le client.");
                 True(noteAction.IsEnabled, "Une note réelle doit activer son lecteur.");
+                Button patchNotesNavigation = Required<Button>(window, "PatchNotesNavigationButton");
+                RaiseClick(patchNotesNavigation);
+                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
+                window.UpdateLayout();
+                Equal(LauncherShellPage.PatchNotes, window.CurrentPage, "L'onglet doit ouvrir les notes de mise à jour.");
+                Equal(Visibility.Visible, window.PatchNotesPage.Visibility, "La page des notes doit être visible.");
+                Equal(1, window.PatchNotesPage.ListHost.Items.Count, "La liste complète projetée doit alimenter la page.");
+                Equal(ScrollBarVisibility.Disabled, window.PatchNotesPage.ScrollHost.HorizontalScrollBarVisibility,
+                    "La page des notes ne doit jamais défiler horizontalement.");
+                True(window.PatchNotesPage.ScrollHost.ScrollableWidth <= 0.5,
+                    "La page des notes ne doit pas déborder horizontalement à 1440 px.");
+                if (!string.IsNullOrWhiteSpace(captureDirectory))
+                {
+                    Directory.CreateDirectory(captureDirectory);
+                    SavePng(window, System.IO.Path.Combine(captureDirectory, "patch-notes-1440x860.png"));
+                }
+
+                window.Width = 1080;
+                window.Height = 680;
+                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+                window.UpdateLayout();
+                Equal("Notes", Required<TextBlock>(window, "PatchNotesNavigationLabel").Text,
+                    "Le libellé compact doit préserver les commandes de fenêtre.");
+                True(window.PatchNotesPage.ScrollHost.ScrollableWidth <= 0.5,
+                    "La page des notes ne doit pas déborder horizontalement à 1080 px.");
+                True(Required<Button>(window, "CloseWindowButton").IsVisible,
+                    "La commande Fermer doit rester accessible à 1080 px.");
+                if (!string.IsNullOrWhiteSpace(captureDirectory))
+                {
+                    SavePng(window, System.IO.Path.Combine(captureDirectory, "patch-notes-1080x680.png"));
+                }
+
+                window.Width = 1920;
+                window.Height = 1080;
+                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+                window.UpdateLayout();
+                True(Required<Grid>(window.PatchNotesPage, "ContentFrame").ActualWidth <= 1181,
+                    "Le contenu des notes ne doit pas s'étirer excessivement à 1920 px.");
+                if (!string.IsNullOrWhiteSpace(captureDirectory))
+                {
+                    SavePng(window, System.IO.Path.Combine(captureDirectory, "patch-notes-1920x1080.png"));
+                }
+
+                window.Width = 1440;
+                window.Height = 860;
+                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+                window.UpdateLayout();
+                RaiseClick(Required<Button>(window, "GameNavigationButton"));
+                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
+                Equal(LauncherShellPage.Game, window.CurrentPage, "Jeu doit rester accessible depuis les notes.");
                 Keyboard.Focus(noteAction);
                 RaiseClick(noteAction);
                 await DelayAndPumpAsync(190);
@@ -704,6 +826,12 @@ internal static class LauncherDashboardTests
         bool isStale = false,
         bool isLoading = false)
     {
+        ImmutableArray<LauncherNews> patchNotes = hasPatchNote
+            ? ImmutableArray.Create(News(
+                "atlas-launcher-1-1-0",
+                new DateTimeOffset(2026, 8, 30, 21, 0, 0, TimeSpan.Zero),
+                title))
+            : ImmutableArray<LauncherNews>.Empty;
         return new DashboardSnapshot(
             sequence,
             isLoading,
@@ -711,6 +839,7 @@ internal static class LauncherDashboardTests
             state.ToString(),
             new DateTimeOffset(2026, 8, 31, 8, 0, 0, TimeSpan.Zero),
             isStale ? DashboardFailureCategory.Network : DashboardFailureCategory.None,
+            patchNotes,
             hasPatchNote ? "atlas-launcher-1-1-0" : null,
             hasPatchNote ? "Launcher" : null,
             title,
@@ -785,6 +914,19 @@ internal static class LauncherDashboardTests
     {
         Brush expected = (Brush)application.FindResource(resourceKey);
         Equal(expected.ToString(), actual.ToString(), message);
+    }
+
+    private static void SavePng(FrameworkElement visual, string path)
+    {
+        visual.UpdateLayout();
+        int width = Math.Max(1, (int)Math.Ceiling(visual.ActualWidth));
+        int height = Math.Max(1, (int)Math.Ceiling(visual.ActualHeight));
+        RenderTargetBitmap bitmap = new(width, height, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+        PngBitmapEncoder encoder = new();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using FileStream stream = File.Create(path);
+        encoder.Save(stream);
     }
 
     private static void LoadV2Resources(Application application)

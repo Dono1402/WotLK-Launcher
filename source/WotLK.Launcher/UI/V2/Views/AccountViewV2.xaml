@@ -26,6 +26,80 @@
             <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
+
+        <Style x:Key="AtlasV2.Account.AvatarAction"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource AtlasV2.Button.Base}">
+            <Setter Property="Width" Value="54"/>
+            <Setter Property="Height" Value="54"/>
+            <Setter Property="Padding" Value="15"/>
+            <Setter Property="Background" Value="#F0DEB75A"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.GoldHover}"/>
+            <Setter Property="Foreground" Value="#111318"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="27">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{StaticResource AtlasV2.Brush.GoldHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{StaticResource AtlasV2.Brush.GoldPressed}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="AtlasV2.Account.AvatarRemoveAction"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource AtlasV2.Button.Base}">
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Padding" Value="9"/>
+            <Setter Property="Background" Value="#E62A171C"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.DangerBorder}"/>
+            <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Danger}"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="17">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{StaticResource AtlasV2.Brush.Danger}"/>
+                                <Setter Property="Foreground" Value="#111318"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -138,7 +212,13 @@
                             BorderThickness="1"
                             CornerRadius="8">
                         <StackPanel HorizontalAlignment="Center">
-                            <Grid Width="160" Height="160">
+                            <Grid x:Name="AvatarInteractionArea"
+                                  Width="160"
+                                  Height="160"
+                                  MouseEnter="AvatarInteractionArea_MouseEnter"
+                                  MouseLeave="AvatarInteractionArea_MouseLeave"
+                                  GotKeyboardFocus="AvatarInteractionArea_GotKeyboardFocus"
+                                  LostKeyboardFocus="AvatarInteractionArea_LostKeyboardFocus">
                                 <Ellipse Fill="{StaticResource AtlasV2.Brush.Gold}"/>
                                 <TextBlock HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
@@ -165,6 +245,44 @@
                                 <Ellipse IsHitTestVisible="False"
                                          Stroke="{StaticResource AtlasV2.Brush.GoldBorder}"
                                          StrokeThickness="2"/>
+
+                                <Grid x:Name="AvatarActionsOverlay"
+                                      Opacity="0"
+                                      IsHitTestVisible="False"
+                                      RenderTransformOrigin="0.5,0.5">
+                                    <Grid.RenderTransform>
+                                        <ScaleTransform ScaleX="0.9" ScaleY="0.9"/>
+                                    </Grid.RenderTransform>
+                                    <Ellipse Fill="#B8070A0E"/>
+                                    <Button x:Name="ModifyAvatarButton"
+                                            Style="{StaticResource AtlasV2.Account.AvatarAction}"
+                                            IsEnabled="{Binding Current.CanModifyAvatar}"
+                                            ToolTip="Changer la photo"
+                                            AutomationProperties.Name="Changer la photo de profil"
+                                            Click="ModifyAvatarButton_Click">
+                                        <Path Width="22"
+                                              Height="22"
+                                              Data="{StaticResource AtlasV2.Icon.Upload}"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                              Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                    </Button>
+                                    <Button x:Name="RemoveAvatarButton"
+                                            Margin="0,10,10,0"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Top"
+                                            Style="{StaticResource AtlasV2.Account.AvatarRemoveAction}"
+                                            IsEnabled="{Binding Current.CanRemoveAvatar}"
+                                            Visibility="{Binding Current.HasProfileAvatar, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
+                                            ToolTip="Supprimer la photo"
+                                            AutomationProperties.Name="Supprimer la photo de profil"
+                                            Click="RemoveAvatarButton_Click">
+                                        <Path Width="15"
+                                              Height="15"
+                                              Data="{StaticResource AtlasV2.Icon.Close}"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                              Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                    </Button>
+                                </Grid>
                             </Grid>
 
                             <TextBlock Margin="0,17,0,0"
@@ -177,47 +295,6 @@
                                        HorizontalAlignment="Center"
                                        Text="{Binding Current.MemberSince}"
                                        Style="{StaticResource AtlasV2.Text.Caption}"/>
-
-                            <Button x:Name="ModifyAvatarButton"
-                                    Height="44"
-                                    Margin="0,22,0,0"
-                                    Padding="15,0"
-                                    HorizontalAlignment="Stretch"
-                                    Style="{StaticResource AtlasV2.Button.Primary}"
-                                    IsEnabled="{Binding Current.CanModifyAvatar}"
-                                    Click="ModifyAvatarButton_Click">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <Path Width="17"
-                                          Height="17"
-                                          Data="{StaticResource AtlasV2.Icon.Camera}"
-                                          Stroke="#111318"
-                                          Style="{StaticResource AtlasV2.Icon.Stroke}"/>
-                                    <TextBlock Margin="9,0,0,0"
-                                               VerticalAlignment="Center"
-                                               Text="Modifier la photo"
-                                               FontWeight="Bold"/>
-                                </StackPanel>
-                            </Button>
-                            <Button x:Name="RemoveAvatarButton"
-                                    Height="42"
-                                    Margin="0,9,0,0"
-                                    Padding="15,0"
-                                    HorizontalAlignment="Stretch"
-                                    Style="{StaticResource AtlasV2.Button.Secondary}"
-                                    IsEnabled="{Binding Current.CanRemoveAvatar}"
-                                    Click="RemoveAvatarButton_Click">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <Path Width="16"
-                                          Height="16"
-                                          Data="{StaticResource AtlasV2.Icon.Trash}"
-                                          Stroke="{StaticResource AtlasV2.Brush.Danger}"
-                                          Style="{StaticResource AtlasV2.Icon.Stroke}"/>
-                                    <TextBlock Margin="9,0,0,0"
-                                               VerticalAlignment="Center"
-                                               Text="Supprimer"
-                                               Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
-                                </StackPanel>
-                            </Button>
 
                             <Border x:Name="AvatarAvailabilityBanner"
                                     Margin="0,14,0,0"

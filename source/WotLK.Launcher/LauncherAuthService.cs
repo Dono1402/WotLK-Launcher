@@ -649,10 +649,15 @@ internal sealed record LauncherNews(
     string Category,
     string Title,
     string Summary,
-    DateTimeOffset PublishedAt)
+    DateTimeOffset PublishedAt,
+    LauncherNewsSection[]? Sections = null)
 {
     public string PublishedText => PublishedAt.ToLocalTime().ToString("dd MMMM yyyy");
 }
+
+internal sealed record LauncherNewsSection(
+    string Title,
+    string[] Items);
 
 internal sealed class LauncherAuthException : Exception
 {

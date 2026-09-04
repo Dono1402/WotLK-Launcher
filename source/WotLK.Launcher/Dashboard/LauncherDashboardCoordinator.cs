@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
@@ -454,9 +455,12 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
                 : "Statut indisponible";
 
             bool notesSucceeded = notesResult.IsSuccess && notesResult.Value is not null;
-            LauncherNews? latest = notesSucceeded
-                ? SelectLatestPatchNote(notesResult.Value!)
-                : null;
+            ImmutableArray<LauncherNews> patchNotes = notesSucceeded
+                ? notesResult.Value!
+                    .OrderByDescending(note => note.PublishedAt)
+                    .ToImmutableArray()
+                : previous.PatchNotes;
+            LauncherNews? latest = notesSucceeded ? patchNotes.FirstOrDefault() : null;
             DashboardFailureCategory failure = FirstFailure(statusResult, notesResult);
             if (!statusSucceeded && failure == DashboardFailureCategory.None)
             {
@@ -479,6 +483,7 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
                 FailureCategory = completeSuccess
                     ? DashboardFailureCategory.None
                     : failure,
+                PatchNotes = patchNotes,
                 LatestPatchNoteId = notesSucceeded ? latest?.Id : previous.LatestPatchNoteId,
                 LatestPatchNoteCategory = notesSucceeded ? latest?.Category : previous.LatestPatchNoteCategory,
                 LatestPatchNoteTitle = notesSucceeded ? latest?.Title ?? string.Empty : previous.LatestPatchNoteTitle,

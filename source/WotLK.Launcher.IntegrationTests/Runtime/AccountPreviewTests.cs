@@ -141,6 +141,7 @@ internal static class AccountPreviewTests
                 LoadV2Resources(application);
                 await ValidateProfileMenuNavigationAsync(captureDirectory);
                 await ValidateRuntimeNavigationActivationAsync();
+                await ValidateAvatarHoverActionsAsync();
                 await ValidateAccountScenariosAndCapturesAsync(captureDirectory);
                 await ValidateCropInteractionAsync();
             }
@@ -293,6 +294,11 @@ internal static class AccountPreviewTests
             try
             {
                 await DelayAndPumpAsync(220);
+                if (scenario == AccountPreviewScenario.Profile)
+                {
+                    RaiseMouseEnter(Required<Grid>(window.AccountPage, "AvatarInteractionArea"));
+                    await DelayAndPumpAsync(180);
+                }
                 ValidateCommonContract(window, scenario);
                 if (!string.IsNullOrWhiteSpace(captureDirectory))
                 {
@@ -317,6 +323,51 @@ internal static class AccountPreviewTests
         finally
         {
             wideWindow.Close();
+            await PumpAsync(DispatcherPriority.Background);
+        }
+    }
+
+    private static async Task ValidateAvatarHoverActionsAsync()
+    {
+        LauncherShellV2 window = CreateWindow(1440, 860, AccountPreviewScenario.Profile, directAccountPreview: true);
+        window.Show();
+        try
+        {
+            await DelayAndPumpAsync(160);
+            Grid interactionArea = Required<Grid>(window.AccountPage, "AvatarInteractionArea");
+            Grid overlay = Required<Grid>(window.AccountPage, "AvatarActionsOverlay");
+            Button modify = Required<Button>(window.AccountPage, "ModifyAvatarButton");
+            Button remove = Required<Button>(window.AccountPage, "RemoveAvatarButton");
+
+            True(!overlay.IsHitTestVisible && overlay.Opacity < 0.01,
+                "Les actions masquées ne doivent pas intercepter l'avatar.");
+            True(modify.Content is System.Windows.Shapes.Path,
+                "Changer la photo doit être une action iconique sans ancien libellé.");
+            True(remove.Content is System.Windows.Shapes.Path,
+                "Supprimer la photo doit être une croix iconique sans ancien libellé.");
+
+            RaiseMouseEnter(interactionArea);
+            await DelayAndPumpAsync(190);
+            True(overlay.IsHitTestVisible && overlay.Opacity > 0.98,
+                "Le survol doit révéler les actions dans le cercle.");
+
+            RaiseMouseLeave(interactionArea);
+            await DelayAndPumpAsync(150);
+            True(!overlay.IsHitTestVisible && overlay.Opacity < 0.02,
+                "La sortie doit masquer les actions et retirer leur hit-test.");
+
+            RaiseMouseEnter(interactionArea);
+            await DelayAndPumpAsync(25);
+            RaiseMouseLeave(interactionArea);
+            await DelayAndPumpAsync(25);
+            RaiseMouseEnter(interactionArea);
+            await DelayAndPumpAsync(190);
+            True(overlay.IsHitTestVisible && overlay.Opacity > 0.98,
+                "Des survols rapides ne doivent pas laisser l'animation dans un état intermédiaire.");
+        }
+        finally
+        {
+            window.Close();
             await PumpAsync(DispatcherPriority.Background);
         }
     }
@@ -425,6 +476,8 @@ internal static class AccountPreviewTests
         {
             Equal(Visibility.Collapsed, Required<System.Windows.Shapes.Ellipse>(window.AccountPage, "ProfileAvatarImage").Visibility, "Le fallback doit masquer la photo.");
             True(!Required<Button>(window.AccountPage, "RemoveAvatarButton").IsEnabled, "Le fallback ne doit pas proposer de suppression.");
+            Equal(Visibility.Collapsed, Required<Button>(window.AccountPage, "RemoveAvatarButton").Visibility,
+                "La croix de suppression doit disparaître sans photo.");
         }
 
         if (scenario == AccountPreviewScenario.Uploading)
@@ -539,6 +592,20 @@ internal static class AccountPreviewTests
 
     private static void RaiseClick(Button button) =>
         button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, button));
+
+    private static void RaiseMouseEnter(UIElement target) =>
+        target.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+        {
+            RoutedEvent = Mouse.MouseEnterEvent,
+            Source = target
+        });
+
+    private static void RaiseMouseLeave(UIElement target) =>
+        target.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+        {
+            RoutedEvent = Mouse.MouseLeaveEvent,
+            Source = target
+        });
 
     private static async Task DelayAndPumpAsync(int milliseconds)
     {

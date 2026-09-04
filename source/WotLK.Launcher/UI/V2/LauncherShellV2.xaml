@@ -100,6 +100,14 @@
                                 IsEnabled="{Binding ShellState.IsNavigationEnabled}"
                                 Focusable="False"
                                 Click="AddonsNavigationButton_Click"/>
+                        <Button x:Name="PatchNotesNavigationButton"
+                                Style="{StaticResource AtlasV2.Button.Nav}"
+                                IsEnabled="{Binding ShellState.IsNavigationEnabled}"
+                                Focusable="False"
+                                Click="PatchNotesNavigationButton_Click">
+                            <TextBlock x:Name="PatchNotesNavigationLabel"
+                                       Text="Mises à jour"/>
+                        </Button>
                     </StackPanel>
 
                     <StackPanel Grid.Column="3"
@@ -388,6 +396,10 @@
                                     Visibility="Collapsed"
                                     State="{Binding AddonsState}"
                                     LayoutMode="{Binding ShellState.LayoutMode}"/>
+                <views:PatchNotesViewV2 x:Name="PatchNotesView"
+                                        Visibility="Collapsed"
+                                        State="{Binding DashboardState}"
+                                        LayoutMode="{Binding ShellState.LayoutMode}"/>
                 <views:SettingsViewV2 x:Name="SettingsView"
                                        Visibility="Collapsed"
                                        State="{Binding SettingsState}"

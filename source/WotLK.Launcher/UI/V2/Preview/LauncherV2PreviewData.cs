@@ -349,10 +349,58 @@ public static class LauncherV2PreviewData
             LatestPatchNoteMetaText: "30 août 2026",
             HasPatchNote: true,
             IsStale: false,
-            CanOpenLatestPatchNote: true));
+            CanOpenLatestPatchNote: true,
+            PatchNotes: CreatePatchNotesPreview()));
         state.AttachRefreshCommand(PreviewCommand.Instance);
         return state;
     }
+
+    private static ImmutableArray<PatchNoteEntryViewState> CreatePatchNotesPreview() =>
+    [
+        LocalPatchNotesDraft.Create(),
+        new(
+            Id: "atlas-launcher-1-2-0",
+            Version: "v1.2.0",
+            Title: "Atlas Launcher 1.2",
+            PublishedText: "4 septembre 2026",
+            Intro: string.Empty,
+            HasIntro: false,
+            IsLatest: false,
+            IsDraft: false,
+            Sections:
+            [
+                new("Launcher",
+                [
+                    "La nouvelle expérience Atlas devient l’interface par défaut.",
+                    "Le centre d’activité permet de suivre les opérations en cours."
+                ]),
+                new("Addons",
+                [
+                    "Le catalogue permet d’installer, mettre à jour et supprimer les addons compatibles."
+                ]),
+                new("Compte et amis",
+                [
+                    "Le profil, les sessions et la liste d’amis sont maintenant synchronisés avec Atlas."
+                ])
+            ]),
+        new(
+            Id: "atlas-launcher-1-1-0",
+            Version: "v1.1.0",
+            Title: "Atlas Launcher 1.1",
+            PublishedText: "29 août 2026",
+            Intro: string.Empty,
+            HasIntro: false,
+            IsLatest: false,
+            IsDraft: false,
+            Sections:
+            [
+                new("Launcher",
+                [
+                    "L’écran Jeu a été réorganisé pour accéder plus rapidement aux actions principales.",
+                    "Les téléchargements disposent d’un suivi plus détaillé."
+                ])
+            ])
+    ];
 
     public static GameUiState CreateGame(GamePreviewScenario scenario)
     {

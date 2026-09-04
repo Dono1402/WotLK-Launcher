@@ -1,0 +1,227 @@
+<UserControl x:Class="WotLK.Launcher.UI.V2.Views.PatchNotesViewV2"
+             x:Name="PatchNotesRoot"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:WotLK.Launcher.UI.V2.Views"
+             Background="Transparent"
+             Focusable="False">
+    <UserControl.Resources>
+        <Style x:Key="AtlasV2.PatchNotes.ReleaseCard" TargetType="{x:Type Border}">
+            <Setter Property="Padding" Value="24"/>
+            <Setter Property="Margin" Value="0,0,0,14"/>
+            <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfaceRaised}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsDraft}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.GoldSurface}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.GoldBorder}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <DataTemplate x:Key="AtlasV2.PatchNotes.BulletTemplate">
+            <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="15"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Ellipse Width="6"
+                         Height="6"
+                         Margin="0,7,0,0"
+                         HorizontalAlignment="Left"
+                         VerticalAlignment="Top"
+                         Fill="{StaticResource AtlasV2.Brush.Cyan}"/>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding}"
+                           TextWrapping="Wrap"
+                           Style="{StaticResource AtlasV2.Text.Body}"
+                           Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <ScrollViewer x:Name="PatchNotesScrollViewer"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  HorizontalContentAlignment="Stretch"
+                  PanningMode="VerticalOnly">
+        <ScrollViewer.Resources>
+            <Style TargetType="{x:Type ScrollBar}"
+                   BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/>
+        </ScrollViewer.Resources>
+
+        <Grid x:Name="ContentFrame"
+              MaxWidth="1180"
+              Margin="34,28,34,42"
+              HorizontalAlignment="Stretch">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="ATLAS LAUNCHER"
+                               Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
+                    <TextBlock x:Name="PageTitle"
+                               Margin="0,6,0,0"
+                               Text="Notes de mise à jour"
+                               FontFamily="{StaticResource AtlasV2.Font.Manrope}"
+                               FontSize="30"
+                               FontWeight="ExtraBold"
+                               Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                    <TextBlock Margin="0,5,0,0"
+                               Text="Les changements publiés pour Atlas Launcher, regroupés par version."
+                               Style="{StaticResource AtlasV2.Text.Body}"/>
+                </StackPanel>
+
+                <Button x:Name="RefreshPatchNotesButton"
+                        Grid.Column="1"
+                        Margin="20,2,0,0"
+                        VerticalAlignment="Top"
+                        Style="{StaticResource AtlasV2.Button.Icon}"
+                        Command="{Binding State.RefreshCommand, ElementName=PatchNotesRoot}"
+                        ToolTip="Actualiser les notes"
+                        AutomationProperties.Name="Actualiser les notes de mise à jour">
+                    <Path Width="17"
+                          Height="17"
+                          Data="{StaticResource AtlasV2.Icon.Refresh}"
+                          Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                </Button>
+            </Grid>
+
+            <ProgressBar Grid.Row="1"
+                         Height="3"
+                         Margin="0,22,0,0"
+                         IsIndeterminate="True"
+                         Style="{StaticResource AtlasV2.Progress.Compact}"
+                         Visibility="{Binding State.Current.IsLoading, ElementName=PatchNotesRoot, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+
+            <Grid Grid.Row="2" Margin="0,24,0,0">
+                <Border Padding="24"
+                        Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                        BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                    <Border.Style>
+                        <Style TargetType="{x:Type Border}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding State.Current.PatchNotes.Count, ElementName=PatchNotesRoot}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel HorizontalAlignment="Center">
+                        <Path Width="24"
+                              Height="24"
+                              Data="{StaticResource AtlasV2.Icon.FileText}"
+                              Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                        <TextBlock Margin="0,12,0,0"
+                                   Text="Aucune note publiée"
+                                   HorizontalAlignment="Center"
+                                   Style="{StaticResource AtlasV2.Text.SectionTitle}"/>
+                        <TextBlock Margin="0,5,0,0"
+                                   Text="Les prochaines nouveautés apparaîtront ici."
+                                   HorizontalAlignment="Center"
+                                   Style="{StaticResource AtlasV2.Text.Body}"/>
+                    </StackPanel>
+                </Border>
+
+                <ItemsControl x:Name="PatchNotesList"
+                              ItemsSource="{Binding State.Current.PatchNotes, ElementName=PatchNotesRoot}">
+                    <ItemsControl.Style>
+                        <Style TargetType="{x:Type ItemsControl}">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding State.Current.PatchNotes.Count, ElementName=PatchNotesRoot}" Value="0">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ItemsControl.Style>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource AtlasV2.PatchNotes.ReleaseCard}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="148"/>
+                                        <ColumnDefinition Width="24"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Version}"
+                                                   FontFamily="{StaticResource AtlasV2.Font.Manrope}"
+                                                   FontSize="17"
+                                                   FontWeight="Bold"
+                                                   Foreground="{StaticResource AtlasV2.Brush.Gold}"/>
+                                        <TextBlock Margin="0,5,0,0"
+                                                   Text="{Binding PublishedText}"
+                                                   Style="{StaticResource AtlasV2.Text.Caption}"/>
+                                        <Border Margin="0,13,0,0"
+                                                Padding="8,4"
+                                                HorizontalAlignment="Left"
+                                                Background="{StaticResource AtlasV2.Brush.GoldSurface}"
+                                                BorderBrush="{StaticResource AtlasV2.Brush.GoldBorder}"
+                                                BorderThickness="1"
+                                                CornerRadius="4"
+                                                Visibility="{Binding IsDraft, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                                            <TextBlock Text="BROUILLON LOCAL"
+                                                       FontFamily="{StaticResource AtlasV2.Font.Manrope}"
+                                                       FontSize="10"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource AtlasV2.Brush.Gold}"/>
+                                        </Border>
+                                    </StackPanel>
+
+                                    <Border Grid.Column="1"
+                                            Width="1"
+                                            Margin="0,0,23,0"
+                                            HorizontalAlignment="Left"
+                                            Background="{StaticResource AtlasV2.Brush.BorderSoft}"/>
+
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="{Binding Title}"
+                                                   Style="{StaticResource AtlasV2.Text.SectionTitle}"/>
+                                        <TextBlock Margin="0,7,0,0"
+                                                   Text="{Binding Intro}"
+                                                   TextWrapping="Wrap"
+                                                   Style="{StaticResource AtlasV2.Text.Body}"
+                                                   Visibility="{Binding HasIntro, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+
+                                        <ItemsControl Margin="0,18,0,0"
+                                                      ItemsSource="{Binding Sections}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Margin="0,0,0,12">
+                                                        <TextBlock Text="{Binding Title}"
+                                                                   FontFamily="{StaticResource AtlasV2.Font.Manrope}"
+                                                                   FontSize="13"
+                                                                   FontWeight="Bold"
+                                                                   Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                                                        <ItemsControl Margin="0,10,0,0"
+                                                                      ItemsSource="{Binding Items}"
+                                                                      ItemTemplate="{StaticResource AtlasV2.PatchNotes.BulletTemplate}"/>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

@@ -47,12 +47,17 @@ public sealed record LauncherStatusResponse(
     bool WorldServer,
     DateTimeOffset CheckedAt);
 
+public sealed record LauncherNewsSection(
+    string Title,
+    string[] Items);
+
 public sealed record LauncherNewsItem(
     string Id,
     string Category,
     string Title,
     string Summary,
-    DateTimeOffset PublishedAt);
+    DateTimeOffset PublishedAt,
+    LauncherNewsSection[]? Sections = null);
 
 public sealed record AccountProfile(
     uint AccountId,

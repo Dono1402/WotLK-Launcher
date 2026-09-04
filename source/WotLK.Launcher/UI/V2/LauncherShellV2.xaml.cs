@@ -421,6 +421,8 @@ public partial class LauncherShellV2 : Window
 
     internal AddonsViewV2 AddonsPage => AddonsView;
 
+    internal PatchNotesViewV2 PatchNotesPage => PatchNotesView;
+
     internal SettingsViewV2 SettingsPage => SettingsView;
 
     internal AccountViewV2 AccountPage => AccountView;
@@ -653,6 +655,7 @@ public partial class LauncherShellV2 : Window
         AvatarCropOverlay.State = null;
         AvatarCropOverlay.IsOpen = false;
         AddonsView.State = null;
+        PatchNotesView.State = null;
         SettingsView.State = null;
         AccountView.State = null;
         DataContext = null;
@@ -670,6 +673,7 @@ public partial class LauncherShellV2 : Window
         ProductDivider.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
         FriendsButtonText.Visibility = stacked ? Visibility.Collapsed : Visibility.Visible;
         VersionText.Visibility = stacked ? Visibility.Collapsed : Visibility.Visible;
+        PatchNotesNavigationLabel.Text = stacked ? "Notes" : "Mises à jour";
         DashboardState.SetWideRealmLabel(wide);
         TopNavigation.Margin = mode == AdaptiveLayoutMode.Wide
             ? new Thickness(8, 0, 0, 0)
@@ -807,6 +811,28 @@ public partial class LauncherShellV2 : Window
 
         NavigateTo(LauncherShellPage.Addons);
         _addonsCommands?.RefreshCatalog();
+    }
+
+    private void PatchNotesNavigationButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ShellState.IsNavigationEnabled
+            || _overlayCoordinator.Current != ShellOverlayKind.None)
+        {
+            return;
+        }
+        if (!IsPreviewMode && !ShellState.IsAuthenticated)
+        {
+            if (!ShellState.IsSessionRestoring && !AuthState.IsOpen)
+            {
+                _authFocusReturnTarget = PatchNotesNavigationButton;
+                AuthState.PrepareForOpen();
+                _overlayCoordinator.OpenAuthentication();
+                FriendsButton.Focusable = false;
+            }
+            return;
+        }
+
+        NavigateTo(LauncherShellPage.PatchNotes);
     }
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
@@ -1305,14 +1331,17 @@ public partial class LauncherShellV2 : Window
         CurrentPage = page;
         bool showGame = page == LauncherShellPage.Game;
         bool showAddons = page == LauncherShellPage.Addons;
+        bool showPatchNotes = page == LauncherShellPage.PatchNotes;
         bool showSettings = page == LauncherShellPage.Settings;
         bool showAccount = page == LauncherShellPage.Account;
         GameView.Visibility = showGame ? Visibility.Visible : Visibility.Collapsed;
         AddonsView.Visibility = showAddons ? Visibility.Visible : Visibility.Collapsed;
+        PatchNotesView.Visibility = showPatchNotes ? Visibility.Visible : Visibility.Collapsed;
         SettingsView.Visibility = showSettings ? Visibility.Visible : Visibility.Collapsed;
         AccountView.Visibility = showAccount ? Visibility.Visible : Visibility.Collapsed;
         GameNavigationButton.Tag = showGame ? "Active" : null;
         AddonsNavigationButton.Tag = showAddons ? "Active" : null;
+        PatchNotesNavigationButton.Tag = showPatchNotes ? "Active" : null;
         SettingsButton.Tag = showSettings ? "Active" : null;
         if (showAddons)
         {
@@ -1324,6 +1353,10 @@ public partial class LauncherShellV2 : Window
         else if (showSettings)
         {
             SettingsView.ScrollHost.ScrollToTop();
+        }
+        else if (showPatchNotes)
+        {
+            PatchNotesView.ScrollHost.ScrollToTop();
         }
         else if (showAccount)
         {

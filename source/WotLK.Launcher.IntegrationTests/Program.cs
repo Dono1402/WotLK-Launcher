@@ -79,10 +79,14 @@ if (args.Length == 1
     return await GameFullVerificationRepairTests.RunAsync();
 }
 
-if (args.Length == 1
+if (args.Length >= 1
     && string.Equals(args[0], "--dashboard", StringComparison.OrdinalIgnoreCase))
 {
-    return await LauncherDashboardTests.RunAsync();
+    string? captureDirectory = args.Length == 3
+        && string.Equals(args[1], "--capture-directory", StringComparison.OrdinalIgnoreCase)
+            ? args[2]
+            : null;
+    return await LauncherDashboardTests.RunAsync(captureDirectory);
 }
 
 if (args.Length >= 1

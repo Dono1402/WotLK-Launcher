@@ -1,8 +1,24 @@
+using System.Collections.Immutable;
 using System.Windows.Input;
 using WotLK.Launcher.Dashboard;
 using WotLK.Launcher.UI.V2.Commands;
 
 namespace WotLK.Launcher.UI.V2.Presentation;
+
+public sealed record PatchNoteSectionViewState(
+    string Title,
+    ImmutableArray<string> Items);
+
+public sealed record PatchNoteEntryViewState(
+    string Id,
+    string Version,
+    string Title,
+    string PublishedText,
+    string Intro,
+    bool HasIntro,
+    bool IsLatest,
+    bool IsDraft,
+    ImmutableArray<PatchNoteSectionViewState> Sections);
 
 public sealed record DashboardViewState(
     DashboardRealmState RealmState,
@@ -16,7 +32,8 @@ public sealed record DashboardViewState(
     string LatestPatchNoteMetaText,
     bool HasPatchNote,
     bool IsStale,
-    bool CanOpenLatestPatchNote)
+    bool CanOpenLatestPatchNote,
+    ImmutableArray<PatchNoteEntryViewState> PatchNotes)
 {
     internal static DashboardViewState Initial { get; } = new(
         RealmState: DashboardRealmState.Unknown,
@@ -30,7 +47,8 @@ public sealed record DashboardViewState(
         LatestPatchNoteMetaText: string.Empty,
         HasPatchNote: false,
         IsStale: false,
-        CanOpenLatestPatchNote: false);
+        CanOpenLatestPatchNote: false,
+        PatchNotes: ImmutableArray<PatchNoteEntryViewState>.Empty);
 }
 
 public sealed class DashboardUiState : BindableUiState

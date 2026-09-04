@@ -9,7 +9,6 @@ public enum SettingsCategory
     Game,
     Updates,
     Notifications,
-    Appearance,
     Diagnostic
 }
 
@@ -24,44 +23,28 @@ public enum SettingsSavePreviewState
 
 public sealed record GeneralSettingsViewState(
     string InterfaceLanguage,
+    string InterfaceLocale,
     bool StartWithWindows,
-    string WindowCloseBehavior,
-    bool CloseLauncherAfterGameStart);
+    bool MinimizeToTrayOnClose);
 
 public sealed record GameSettingsViewState(
     string InstallPath,
     string GameLanguage,
-    string VideoSettingsLocation,
     bool InstantQuestText,
     string ClientVersion,
     string GameLocale = "frFR");
 
 public sealed record UpdateSettingsViewState(
-    bool AutomaticLauncherUpdates,
-    string ClientUpdateBehavior,
-    string ReleaseChannel,
-    string LastUpdateCheck,
     string InstalledLauncherVersion,
     string AvailableLauncherVersion,
     bool IsChecking = false,
     bool IsUpdateAvailable = false,
     bool IsUpdating = false,
     bool CanCheck = false,
-    bool CanStartUpdate = false,
-    string StatusMessage = "Non vérifié");
+    bool CanStartUpdate = false);
 
 public sealed record NotificationSettingsViewState(
-    bool UpdateCompleted,
-    bool Errors,
-    bool FriendRequests,
-    bool FriendPresence,
-    bool Sounds);
-
-public sealed record AppearanceSettingsViewState(
-    bool ReduceAnimations,
-    string InterfaceScale,
-    double EffectsIntensity,
-    string EffectsIntensityLabel);
+    bool FriendPresence);
 
 public sealed record DiagnosticSettingsViewState(
     string LogLocation,
@@ -78,13 +61,15 @@ public sealed record SettingsViewState(
     GameSettingsViewState Game,
     UpdateSettingsViewState Updates,
     NotificationSettingsViewState Notifications,
-    AppearanceSettingsViewState Appearance,
     DiagnosticSettingsViewState Diagnostic,
     bool IsRuntimeConnected = false,
     bool CanChangeInstallPath = false,
     bool CanChangeGameLocale = false,
     bool CanChangeBehavior = false,
     bool CanChangeInstantQuestText = false,
+    bool CanChangeInterfaceLocale = false,
+    bool CanChangeStartWithWindows = false,
+    bool CanChangeFriendPresenceNotifications = false,
     bool AreDeferredControlsEnabled = true,
     string? SaveStatusDetail = null,
     string? SaveStatusTitle = null,
@@ -99,19 +84,21 @@ public sealed class SettingsUiState : BindableUiState
     private ICommand _verifyRepairCommand = DisabledCommand.Instance;
     private ICommand _checkLauncherUpdateCommand = DisabledCommand.Instance;
     private ICommand _startLauncherUpdateCommand = DisabledCommand.Instance;
+    private Func<string, bool> _changeInterfaceLocale = static _ => false;
+    private Func<bool, bool> _changeStartWithWindows = static _ => false;
+    private Func<bool, bool> _changeMinimizeToTrayOnClose = static _ => false;
+    private Func<bool, bool> _changeFriendPresenceNotifications = static _ => false;
     private Func<string, bool> _changeGameLocale = static _ => false;
-    private Func<bool, bool> _changeCloseAfterLaunch = static _ => false;
     private Func<bool, bool> _changeInstantQuestText = static _ => false;
     private Action _showGameForRepair = static () => { };
 
     internal static SettingsUiState Empty { get; } = new(new SettingsViewState(
         SettingsCategory.General,
         SettingsSavePreviewState.None,
-        new GeneralSettingsViewState(string.Empty, false, string.Empty, false),
-        new GameSettingsViewState(string.Empty, string.Empty, string.Empty, false, string.Empty),
-        new UpdateSettingsViewState(false, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty),
-        new NotificationSettingsViewState(false, false, false, false, false),
-        new AppearanceSettingsViewState(false, string.Empty, 0, string.Empty),
+        new GeneralSettingsViewState(string.Empty, "fr-FR", false, true),
+        new GameSettingsViewState(string.Empty, string.Empty, false, string.Empty),
+        new UpdateSettingsViewState(string.Empty, string.Empty),
+        new NotificationSettingsViewState(true),
         new DiagnosticSettingsViewState(
             string.Empty,
             string.Empty,
@@ -180,8 +167,11 @@ public sealed class SettingsUiState : BindableUiState
         ICommand checkLauncherUpdateCommand,
         ICommand startLauncherUpdateCommand,
         Action showGameForRepair,
+        Func<string, bool> changeInterfaceLocale,
+        Func<bool, bool> changeStartWithWindows,
+        Func<bool, bool> changeMinimizeToTrayOnClose,
+        Func<bool, bool> changeFriendPresenceNotifications,
         Func<string, bool> changeGameLocale,
-        Func<bool, bool> changeCloseAfterLaunch,
         Func<bool, bool> changeInstantQuestText)
     {
         BrowseInstallPathCommand = browseInstallPathCommand
@@ -198,10 +188,16 @@ public sealed class SettingsUiState : BindableUiState
             ?? throw new ArgumentNullException(nameof(startLauncherUpdateCommand));
         _showGameForRepair = showGameForRepair
             ?? throw new ArgumentNullException(nameof(showGameForRepair));
+        _changeInterfaceLocale = changeInterfaceLocale
+            ?? throw new ArgumentNullException(nameof(changeInterfaceLocale));
+        _changeStartWithWindows = changeStartWithWindows
+            ?? throw new ArgumentNullException(nameof(changeStartWithWindows));
+        _changeMinimizeToTrayOnClose = changeMinimizeToTrayOnClose
+            ?? throw new ArgumentNullException(nameof(changeMinimizeToTrayOnClose));
+        _changeFriendPresenceNotifications = changeFriendPresenceNotifications
+            ?? throw new ArgumentNullException(nameof(changeFriendPresenceNotifications));
         _changeGameLocale = changeGameLocale
             ?? throw new ArgumentNullException(nameof(changeGameLocale));
-        _changeCloseAfterLaunch = changeCloseAfterLaunch
-            ?? throw new ArgumentNullException(nameof(changeCloseAfterLaunch));
         _changeInstantQuestText = changeInstantQuestText
             ?? throw new ArgumentNullException(nameof(changeInstantQuestText));
     }
@@ -215,9 +211,40 @@ public sealed class SettingsUiState : BindableUiState
         CheckLauncherUpdateCommand = PreviewCommand.Instance;
         StartLauncherUpdateCommand = PreviewCommand.Instance;
         _showGameForRepair = static () => { };
+        _changeInterfaceLocale = static _ => false;
+        _changeStartWithWindows = static _ => false;
+        _changeMinimizeToTrayOnClose = static _ => false;
+        _changeFriendPresenceNotifications = static _ => false;
         _changeGameLocale = static _ => false;
-        _changeCloseAfterLaunch = static _ => false;
         _changeInstantQuestText = static _ => false;
+    }
+
+    internal bool TryChangeInterfaceLocale(string locale)
+    {
+        return Current.IsRuntimeConnected
+            && Current.CanChangeInterfaceLocale
+            && _changeInterfaceLocale(locale);
+    }
+
+    internal bool TryChangeStartWithWindows(bool enabled)
+    {
+        return Current.IsRuntimeConnected
+            && Current.CanChangeStartWithWindows
+            && _changeStartWithWindows(enabled);
+    }
+
+    internal bool TryChangeMinimizeToTrayOnClose(bool enabled)
+    {
+        return Current.IsRuntimeConnected
+            && Current.CanChangeBehavior
+            && _changeMinimizeToTrayOnClose(enabled);
+    }
+
+    internal bool TryChangeFriendPresenceNotifications(bool enabled)
+    {
+        return Current.IsRuntimeConnected
+            && Current.CanChangeFriendPresenceNotifications
+            && _changeFriendPresenceNotifications(enabled);
     }
 
     internal bool TryChangeGameLocale(string locale)
@@ -225,13 +252,6 @@ public sealed class SettingsUiState : BindableUiState
         return Current.IsRuntimeConnected
             && Current.CanChangeGameLocale
             && _changeGameLocale(locale);
-    }
-
-    internal bool TryChangeCloseAfterLaunch(bool closeAfterLaunch)
-    {
-        return Current.IsRuntimeConnected
-            && Current.CanChangeBehavior
-            && _changeCloseAfterLaunch(closeAfterLaunch);
     }
 
     internal bool TryChangeInstantQuestText(bool enabled)

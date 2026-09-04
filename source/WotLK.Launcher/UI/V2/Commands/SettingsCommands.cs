@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using Microsoft.Win32;
 using WotLK.Launcher.Runtime;
+using WotLK.Launcher.UI.V2.Localization;
 using WotLK.Launcher.UI.V2.Presentation;
 
 namespace WotLK.Launcher.UI.V2.Commands;
@@ -120,6 +121,7 @@ internal sealed class SettingsCommands : IDisposable
     private readonly ISettingsFolderPicker _folderPicker;
     private readonly ISettingsGameLocaleApplier _localeApplier;
     private readonly ISettingsGameConfigAccess _gameConfigAccess;
+    private readonly ILauncherStartupRegistration _startupRegistration;
     private readonly ILauncherSelfUpdateRuntime? _selfUpdate;
     private readonly Action<string> _writeLog;
     private readonly DelegateCommand _browseInstallPath;
@@ -138,6 +140,7 @@ internal sealed class SettingsCommands : IDisposable
         ISettingsFolderPicker? folderPicker = null,
         ISettingsGameLocaleApplier? localeApplier = null,
         ISettingsGameConfigAccess? gameConfigAccess = null,
+        ILauncherStartupRegistration? startupRegistration = null,
         ICommand? verifyRepairCommand = null,
         Action? showGameForRepair = null,
         ILauncherSelfUpdateRuntime? selfUpdate = null)
@@ -150,6 +153,7 @@ internal sealed class SettingsCommands : IDisposable
         _folderPicker = folderPicker ?? new SettingsFolderPicker();
         _localeApplier = localeApplier ?? new SettingsGameLocaleApplier();
         _gameConfigAccess = gameConfigAccess ?? new SettingsGameConfigAccess();
+        _startupRegistration = startupRegistration ?? new WindowsLauncherStartupRegistration();
         _selfUpdate = selfUpdate;
         _browseInstallPath = new DelegateCommand(
             BrowseInstallPath,
@@ -180,9 +184,24 @@ internal sealed class SettingsCommands : IDisposable
             _checkLauncherUpdate,
             _startLauncherUpdate,
             showGameForRepair ?? (static () => { }),
+            ChangeInterfaceLocale,
+            ChangeStartWithWindows,
+            ChangeMinimizeToTrayOnClose,
+            ChangeFriendPresenceNotifications,
             ChangeGameLocale,
-            ChangeCloseAfterLaunch,
             ChangeInstantQuestText);
+
+        bool shouldStartWithWindows = _settings.CurrentSnapshot.StartWithWindows;
+        if (_startupRegistration.IsRegistered != shouldStartWithWindows
+            || (shouldStartWithWindows && !_startupRegistration.IsEnabled))
+        {
+            LauncherStartupRegistrationResult repair =
+                _startupRegistration.TrySetEnabled(shouldStartWithWindows);
+            if (!repair.IsApplied)
+            {
+                WriteStartupFailureSafely(repair.FailureCategory);
+            }
+        }
     }
 
     internal ICommand BrowseInstallPathCommand => _browseInstallPath;
@@ -254,10 +273,60 @@ internal sealed class SettingsCommands : IDisposable
         return true;
     }
 
-    private bool ChangeCloseAfterLaunch(bool closeAfterLaunch)
+    private bool ChangeInterfaceLocale(string interfaceLocale)
+    {
+        LauncherSettingsChangeResult result = _settings.TrySetInterfaceLocale(interfaceLocale);
+        if (result.Status is not (LauncherSettingsChangeStatus.Saved
+            or LauncherSettingsChangeStatus.Unchanged))
+        {
+            return false;
+        }
+
+        LauncherLocalization.SetLocale(interfaceLocale);
+        return true;
+    }
+
+    private bool ChangeStartWithWindows(bool enabled)
+    {
+        bool previous = _settings.CurrentSnapshot.StartWithWindows;
+        if (previous == enabled)
+        {
+            return true;
+        }
+
+        LauncherStartupRegistrationResult registration =
+            _startupRegistration.TrySetEnabled(enabled);
+        if (!registration.IsApplied)
+        {
+            WriteStartupFailureSafely(registration.FailureCategory);
+            _state.ShowRuntimeActionFailure(
+                "Le démarrage avec Windows n’a pas pu être modifié.");
+            return false;
+        }
+
+        LauncherSettingsChangeResult result = _settings.TrySetStartWithWindows(enabled);
+        if (result.Status is LauncherSettingsChangeStatus.Saved
+            or LauncherSettingsChangeStatus.Unchanged)
+        {
+            return true;
+        }
+
+        _ = _startupRegistration.TrySetEnabled(previous);
+        return false;
+    }
+
+    private bool ChangeMinimizeToTrayOnClose(bool enabled)
     {
         LauncherSettingsChangeResult result =
-            _settings.TrySetCloseLauncherOnGameStart(closeAfterLaunch);
+            _settings.TrySetMinimizeToTrayOnClose(enabled);
+        return result.Status is LauncherSettingsChangeStatus.Saved
+            or LauncherSettingsChangeStatus.Unchanged;
+    }
+
+    private bool ChangeFriendPresenceNotifications(bool enabled)
+    {
+        LauncherSettingsChangeResult result =
+            _settings.TrySetFriendPresenceNotifications(enabled);
         return result.Status is LauncherSettingsChangeStatus.Saved
             or LauncherSettingsChangeStatus.Unchanged;
     }
@@ -412,6 +481,23 @@ internal sealed class SettingsCommands : IDisposable
                 "Config.wtf V2 non modifié: category="
                 + (string.IsNullOrWhiteSpace(failureCategory)
                     ? "PermissionCancelled"
+                    : failureCategory)
+                + ".");
+        }
+        catch
+        {
+            // A diagnostic failure cannot replace the user-facing result.
+        }
+    }
+
+    private void WriteStartupFailureSafely(string? failureCategory)
+    {
+        try
+        {
+            _writeLog(
+                "Démarrage Windows V2 non modifié: category="
+                + (string.IsNullOrWhiteSpace(failureCategory)
+                    ? "Unknown"
                     : failureCategory)
                 + ".");
         }

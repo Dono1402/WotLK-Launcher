@@ -51,9 +51,18 @@ internal static class LocalPatchNotesDraft
                 "La nouvelle photo apparaît immédiatement après sa validation.",
                 "Une reconnexion depuis le même appareil ne crée plus de doublons dans les appareils connectés."
             ]),
+            new("Paramètres",
+            [
+                "Les paramètres ont été simplifiés pour ne conserver que les options réellement utiles.",
+                "L’interface d’Atlas Launcher peut maintenant être utilisée en français ou en anglais.",
+                "Atlas Launcher peut maintenant démarrer automatiquement avec Windows.",
+                "La fermeture par la croix peut être configurée pour ranger Atlas Launcher dans la zone de notification."
+            ]),
             new("Social",
             [
-                "La photo de profil est synchronisée avec Atlas et visible par les autres utilisateurs."
+                "La photo de profil est synchronisée avec Atlas et visible par les autres utilisateurs.",
+                "Atlas signale désormais les nouvelles demandes d’ami.",
+                "Une notification sonore peut prévenir lorsqu’un ami se connecte, avec une option pour la désactiver."
             ])
         ]);
 

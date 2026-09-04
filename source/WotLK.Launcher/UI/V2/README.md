@@ -72,7 +72,7 @@ L’historique est limité aux dix derniers contrats terminaux explicites de la 
 
 ## Auto-update réel - checkpoint 04B.3b
 
-`LauncherRuntime` compose une seule instance de `LauncherSelfUpdateCoordinator` et un seul timer de 30 secondes. Les vues Paramètres et Activité observent cette instance et ne possèdent ni timer, ni client HTTP, ni pipeline de téléchargement. Paramètres affiche le réglage automatique existant en lecture seule, les versions installée/disponible, la dernière comparaison exploitable et les commandes de recherche puis de mise à jour.
+`LauncherRuntime` compose une seule instance de `LauncherSelfUpdateCoordinator` et un seul timer de 30 secondes. Les vues Paramètres et Activité observent cette instance et ne possèdent ni timer, ni client HTTP, ni pipeline de téléchargement. Paramètres affiche uniquement les versions installée/disponible et les commandes de recherche puis de mise à jour ; le canal, la recherche automatique et les détails internes de comparaison ne sont plus exposés.
 
 Une recherche est coalescée et ne crée aucune Activity. Seul un téléchargement ayant obtenu le bail global `LauncherAutoUpdate` apparaît sous le nom `Atlas Launcher`; ses octets, pourcentage, débit et ETA viennent directement du downloader extrait du legacy. Après validation, l’annulation est fermée et le coordinateur délègue exclusivement au mécanisme atomique de 04B.3a. En cas de récupération d’une transaction interrompue, les retries automatiques sont neutralisés pour le lancement courant afin d’éviter une boucle de rollback.
 

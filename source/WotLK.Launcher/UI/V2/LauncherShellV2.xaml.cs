@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2.Commands;
+using WotLK.Launcher.UI.V2.Localization;
 using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Preview;
 using WotLK.Launcher.UI.V2.Views;
@@ -15,6 +16,7 @@ namespace WotLK.Launcher.UI.V2;
 public partial class LauncherShellV2 : Window
 {
     private readonly ShellOverlayCoordinator _overlayCoordinator;
+    private readonly LauncherLocalizationBridge _localizationBridge;
     private readonly AuthPreviewScenario? _initialAuthPreviewScenario;
     private readonly ProfilePreviewScenario? _initialProfilePreviewScenario;
     private readonly bool _openFriendsOnLoad;
@@ -350,6 +352,7 @@ public partial class LauncherShellV2 : Window
         IsPreviewMode = isPreviewMode;
 
         InitializeComponent();
+        _localizationBridge = new LauncherLocalizationBridge(this);
         Title = isPreviewMode
             ? "Atlas Launcher · Prévisualisation V2"
             : LauncherBuildFlavor.IsLocalClient
@@ -632,6 +635,7 @@ public partial class LauncherShellV2 : Window
         AccountState.PropertyChanged -= AccountState_PropertyChanged;
         AddonsState.PropertyChanged -= AddonsState_PropertyChanged;
         DashboardState.PropertyChanged -= DashboardState_PropertyChanged;
+        _localizationBridge.Dispose();
         MinimizeToTrayRequested = null;
         AuthOverlay.SubmissionRequested -= AuthOverlay_SubmissionRequested;
         ProfileMenu.ManageProfileRequested -= ProfileMenu_ManageProfileRequested;

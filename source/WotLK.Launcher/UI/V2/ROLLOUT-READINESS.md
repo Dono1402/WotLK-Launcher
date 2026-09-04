@@ -76,26 +76,19 @@ Legende : `REAL`, `PREVIEW ONLY`, `READ ONLY`, `A VENIR`, `LEGACY ONLY`, `NON AP
 
 | Categorie | Controle | Etat | Comportement |
 |---|---|---:|---|
-| General | Langue de l'interface | A VENIR | Desactive et identifie comme indisponible. |
-| General | Demarrer avec Windows | A VENIR | Desactive. |
-| General | Action du bouton Fermer | A VENIR | Desactive. |
-| General | Fermer apres lancement du jeu | REAL | Lit/ecrit le reglage legacy. |
+| General | Langue de l'interface | REAL | Bascule immediatement l'interface FR/EN et persiste le choix local. |
+| General | Demarrer avec Windows | REAL | Gere uniquement l'entree exacte du launcher sous HKCU Run. |
+| General | Reduire dans la zone de notification a la fermeture | REAL | Choisit entre masquer dans la zone de notification et quitter completement. |
 | Jeu | Dossier d'installation | REAL | Lecture, selection et sauvegarde legacy. |
 | Jeu | Ouvrir le dossier | REAL | Action locale partagee. |
 | Jeu | Langue du jeu | REAL | Lit/ecrit la valeur existante. |
 | Jeu | Texte de quete instantane | REAL | Modifie uniquement `instantQuestText` dans `Config.wtf`. |
 | Jeu | Verifier et reparer | REAL | Reutilise `VerifyCommand`, navigue vers Jeu et montre la progression. |
-| Mises a jour | Verifier maintenant | REAL | Commande du coordinateur self-update. |
-| Mises a jour | Mise a jour automatique | READ ONLY | Le runtime respecte la valeur legacy stockee ; le controle V2 n'est pas activable. |
-| Mises a jour | Canal de publication | A VENIR | Desactive. |
-| Mises a jour | Comportement de mise a jour client | READ ONLY | Information seulement. |
-| Notifications | Reglages | A VENIR | Controles desactives. |
-| Apparence | Reglages | A VENIR | Controles desactives. |
+| Mises a jour | Versions et verifier maintenant | REAL | Observe et commande le coordinateur self-update partage. |
+| Notifications | Connexions des amis | REAL | Notification Windows sonore, desactivable, fondee sur le rafraichissement social partage. |
+| Notifications | Nouvelles demandes d'ami | REAL | Notification Windows toujours active, sans second timer social. |
 | Diagnostic | Ouvrir les logs | REAL | Meme coordinateur que l'acces Jeu. |
 | Diagnostic | Versions et etats | READ ONLY | Informations runtime. |
-| Diagnostic | Copier le rapport | A VENIR | Desactive. |
-| Diagnostic | Ouvrir le dossier du launcher | A VENIR | Desactive. |
-| Diagnostic | Reinitialiser l'interface | A VENIR | Desactive. |
 
 La barre de sauvegarde differee est masquee en V2 reelle et conservee uniquement dans les previews. Aucun switch visuellement actif n'est reste sans ecriture reelle.
 

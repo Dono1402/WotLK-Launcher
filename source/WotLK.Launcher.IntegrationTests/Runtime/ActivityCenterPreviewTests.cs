@@ -283,9 +283,13 @@ internal static class ActivityCenterPreviewTests
         True(!Descendants<Button>(Required<StackPanel>(window, "TopNavigation"))
                 .Any(button => string.Equals(button.Content?.ToString(), "Actualités", StringComparison.Ordinal)),
             "L’onglet Actualités doit être retiré uniquement de la navigation V2.");
-        True(Descendants<TextBlock>(Required<GameViewV2>(window, "GameView"))
-                .Any(text => string.Equals(text.Text, "Lire la note de mise à jour", StringComparison.Ordinal)),
-            "La carte de dernière note doit rester présente sur Jeu.");
+        Button patchNoteAction = Required<Button>(
+            Required<GameViewV2>(window, "GameView"),
+            "LatestPatchNoteAction");
+        True(patchNoteAction.IsVisible,
+            "L'action compacte des notes de mise à jour doit rester présente sur Jeu.");
+        Equal("Mises à jour", patchNoteAction.ToolTip?.ToString(),
+            "L'action compacte des notes doit conserver un libellé accessible.");
 
         Button activityButton = Required<Button>(window, "ActivityButton");
         Equal("Activité", activityButton.ToolTip?.ToString(),

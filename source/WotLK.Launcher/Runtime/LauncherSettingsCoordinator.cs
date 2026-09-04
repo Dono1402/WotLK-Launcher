@@ -13,7 +13,11 @@ internal enum LauncherSettingsChangeKind
     InstallPath,
     GameLocale,
     CloseLauncherOnGameStart,
-    InstantQuestText
+    InstantQuestText,
+    InterfaceLocale,
+    StartWithWindows,
+    MinimizeToTrayOnClose,
+    FriendPresenceNotifications
 }
 
 internal enum LauncherSettingsChangeStatus
@@ -39,6 +43,10 @@ internal sealed record LauncherSettingsSnapshot(
     bool AutomaticLauncherUpdates,
     bool CloseLauncherOnGameStart,
     bool InstantQuestText,
+    string InterfaceLocale,
+    bool StartWithWindows,
+    bool MinimizeToTrayOnClose,
+    bool FriendPresenceNotifications,
     bool CanChangeInstallPath,
     bool CanChangeGameLocale,
     bool CanChangeBehavior,
@@ -62,6 +70,14 @@ internal interface ILauncherSettingsRuntime
     LauncherSettingsChangeResult TrySetInstallPath(string installPath);
 
     LauncherSettingsChangeResult TrySetGameLocale(string gameLocale);
+
+    LauncherSettingsChangeResult TrySetInterfaceLocale(string interfaceLocale);
+
+    LauncherSettingsChangeResult TrySetStartWithWindows(bool startWithWindows);
+
+    LauncherSettingsChangeResult TrySetMinimizeToTrayOnClose(bool minimizeToTrayOnClose);
+
+    LauncherSettingsChangeResult TrySetFriendPresenceNotifications(bool enabled);
 
     LauncherSettingsChangeResult TrySetCloseLauncherOnGameStart(bool closeAfterLaunch);
 
@@ -142,6 +158,47 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             normalized,
             static settings => settings.GameLocale,
             static (settings, value) => settings.GameLocale = value,
+            pathRequiresIdleUserOperation: false);
+    }
+
+    public LauncherSettingsChangeResult TrySetInterfaceLocale(string interfaceLocale)
+    {
+        string normalized = LauncherSettings.NormalizeInterfaceLocale(interfaceLocale);
+        return TrySave(
+            LauncherSettingsChangeKind.InterfaceLocale,
+            normalized,
+            static settings => settings.InterfaceLocale,
+            static (settings, value) => settings.InterfaceLocale = value,
+            pathRequiresIdleUserOperation: false);
+    }
+
+    public LauncherSettingsChangeResult TrySetStartWithWindows(bool startWithWindows)
+    {
+        return TrySave(
+            LauncherSettingsChangeKind.StartWithWindows,
+            startWithWindows,
+            static settings => settings.StartWithWindows,
+            static (settings, value) => settings.StartWithWindows = value,
+            pathRequiresIdleUserOperation: false);
+    }
+
+    public LauncherSettingsChangeResult TrySetMinimizeToTrayOnClose(bool minimizeToTrayOnClose)
+    {
+        return TrySave(
+            LauncherSettingsChangeKind.MinimizeToTrayOnClose,
+            minimizeToTrayOnClose,
+            static settings => settings.MinimizeToTrayOnClose,
+            static (settings, value) => settings.MinimizeToTrayOnClose = value,
+            pathRequiresIdleUserOperation: false);
+    }
+
+    public LauncherSettingsChangeResult TrySetFriendPresenceNotifications(bool enabled)
+    {
+        return TrySave(
+            LauncherSettingsChangeKind.FriendPresenceNotifications,
+            enabled,
+            static settings => settings.FriendPresenceNotifications,
+            static (settings, value) => settings.FriendPresenceNotifications = value,
             pathRequiresIdleUserOperation: false);
     }
 
@@ -382,6 +439,10 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             AutomaticLauncherUpdates: _settings.AutomaticLauncherUpdates,
             CloseLauncherOnGameStart: _settings.CloseLauncherOnGameStart,
             InstantQuestText: _instantQuestText,
+            InterfaceLocale: _settings.InterfaceLocale,
+            StartWithWindows: _settings.StartWithWindows,
+            MinimizeToTrayOnClose: _settings.MinimizeToTrayOnClose,
+            FriendPresenceNotifications: _settings.FriendPresenceNotifications,
             CanChangeInstallPath: available && !_operations.HasActiveUserCancellableOperation,
             CanChangeGameLocale: available,
             CanChangeBehavior: available,

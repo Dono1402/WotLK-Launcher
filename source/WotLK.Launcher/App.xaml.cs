@@ -5,6 +5,7 @@ using WotLK.Launcher.Account;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2;
 using WotLK.Launcher.UI.V2.Commands;
+using WotLK.Launcher.UI.V2.Localization;
 using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Preview;
 using WotLK.Launcher.UI.V2.Validation;
@@ -278,6 +279,13 @@ public partial class App : Application
         IEnumerable<string> arguments)
     {
         string[] args = arguments as string[] ?? arguments.ToArray();
+        string previewLocale = args.Any(argument => string.Equals(
+            argument,
+            "--ui-v2-language=en",
+            StringComparison.OrdinalIgnoreCase))
+            ? LauncherLocalization.EnglishLocale
+            : LauncherLocalization.FrenchLocale;
+        LauncherLocalization.SetLocale(previewLocale);
         GamePreviewScenario previewScenario = LauncherV2PreviewData.ResolveScenario(args);
         LauncherShellV2 previewWindow = startupMode switch
         {
@@ -332,6 +340,8 @@ public partial class App : Application
             return;
         }
 
+        LauncherLocalization.SetLocale(runtime.Settings.InterfaceLocale);
+
         ShellUiState shellState = LauncherV2RuntimePresentation.CreateShell(runtime);
         GameUiState gameState = LauncherV2RuntimePresentation.CreateGame(runtime.LocalClient);
         AddonsUiState addonsState = new(AddonsStateAdapter.Project(
@@ -377,7 +387,17 @@ public partial class App : Application
                 window.Close);
             trayController = createdTray;
             _trayController = createdTray;
-            minimizeToTrayHandler = (_, _) => createdTray.HideInTray();
+            minimizeToTrayHandler = (_, _) =>
+            {
+                if (runtime.Settings.MinimizeToTrayOnClose)
+                {
+                    createdTray.HideInTray();
+                }
+                else
+                {
+                    window.Close();
+                }
+            };
             window.MinimizeToTrayRequested += minimizeToTrayHandler;
         }
         catch (Exception exception)
@@ -435,6 +455,14 @@ public partial class App : Application
             runtime.Friends,
             window.Dispatcher,
             runtime.AvatarImages);
+        LauncherFriendsNotificationCoordinator? friendsNotificationCoordinator =
+            trayController is null
+                ? null
+                : new LauncherFriendsNotificationCoordinator(
+                    runtime.Friends,
+                    runtime.SettingsRuntime,
+                    trayController,
+                    runtime.WriteRuntimeDiagnostic);
         AccountStateAdapter accountStateAdapter = new(
             accountState,
             avatarCropState,
@@ -518,6 +546,7 @@ public partial class App : Application
             authStateAdapter.Dispose();
             profileStateAdapter.Dispose();
             friendsStateAdapter.Dispose();
+            friendsNotificationCoordinator?.Dispose();
             addonsStateAdapter.Dispose();
             activityStateAdapter.Dispose();
             accountStateAdapter.Dispose();

@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -20,6 +21,7 @@ internal static class LauncherSettingsRuntimeTests
     {
         CharacterizeImmediatePersistence();
         CharacterizePersistenceRollback();
+        CharacterizeStartupRegistration();
         CharacterizeLegacyAvailabilityRules();
         CharacterizeGameProjectionRefresh();
         CharacterizeInstantQuestTextConfigFile();
@@ -50,21 +52,40 @@ internal static class LauncherSettingsRuntimeTests
         string selectedPath = Path.Combine(root.Root, "client", "..");
         LauncherSettingsChangeResult path = coordinator.TrySetInstallPath(selectedPath);
         LauncherSettingsChangeResult locale = coordinator.TrySetGameLocale("ENus");
+        LauncherSettingsChangeResult interfaceLocale =
+            coordinator.TrySetInterfaceLocale("en-GB");
+        LauncherSettingsChangeResult startup = coordinator.TrySetStartWithWindows(true);
+        LauncherSettingsChangeResult minimize =
+            coordinator.TrySetMinimizeToTrayOnClose(false);
+        LauncherSettingsChangeResult notifications =
+            coordinator.TrySetFriendPresenceNotifications(false);
         LauncherSettingsChangeResult close =
             coordinator.TrySetCloseLauncherOnGameStart(true);
 
         Equal(LauncherSettingsChangeStatus.Saved, path.Status, "Le dossier doit être enregistré immédiatement.");
         Equal(LauncherSettingsChangeStatus.Saved, locale.Status, "La langue doit être enregistrée immédiatement.");
+        Equal(LauncherSettingsChangeStatus.Saved, interfaceLocale.Status, "La langue d'interface doit être enregistrée immédiatement.");
+        Equal(LauncherSettingsChangeStatus.Saved, startup.Status, "Le démarrage Windows doit être enregistré immédiatement.");
+        Equal(LauncherSettingsChangeStatus.Saved, minimize.Status, "La fermeture dans la zone de notification doit être enregistrée immédiatement.");
+        Equal(LauncherSettingsChangeStatus.Saved, notifications.Status, "Les notifications d'amis doivent être enregistrées immédiatement.");
         Equal(LauncherSettingsChangeStatus.Saved, close.Status, "Le comportement doit être enregistré immédiatement.");
-        Equal(3, saveCalls, "Chaque changement legacy doit déclencher une écriture immédiate.");
+        Equal(7, saveCalls, "Chaque changement doit déclencher une écriture immédiate.");
         Equal(Path.GetFullPath(Path.Combine(root.Root, "client", "..")), settings.InstallPath, "Le dossier doit utiliser la normalisation legacy.");
         Equal("enUS", settings.GameLocale, "La langue doit utiliser la normalisation legacy.");
+        Equal("en-US", settings.InterfaceLocale, "La langue d'interface doit être normalisée.");
+        True(settings.StartWithWindows, "Le démarrage Windows doit partager l'objet runtime.");
+        True(!settings.MinimizeToTrayOnClose, "La préférence de fermeture doit partager l'objet runtime.");
+        True(!settings.FriendPresenceNotifications, "La préférence d'amis doit partager l'objet runtime.");
         True(settings.CloseLauncherOnGameStart, "La fermeture après lancement doit partager l'objet runtime.");
         EqualSequence(
             new[]
             {
                 LauncherSettingsChangeKind.InstallPath,
                 LauncherSettingsChangeKind.GameLocale,
+                LauncherSettingsChangeKind.InterfaceLocale,
+                LauncherSettingsChangeKind.StartWithWindows,
+                LauncherSettingsChangeKind.MinimizeToTrayOnClose,
+                LauncherSettingsChangeKind.FriendPresenceNotifications,
                 LauncherSettingsChangeKind.CloseLauncherOnGameStart
             },
             changes.ToArray(),
@@ -76,6 +97,41 @@ internal static class LauncherSettingsRuntimeTests
             coordinator.TrySetCloseLauncherOnGameStart(true);
         Equal(LauncherSettingsChangeStatus.Unchanged, unchanged.Status, "Une valeur identique ne doit pas être réécrite.");
         Equal(beforeUnchanged, saveCalls, "Une valeur identique ne doit toucher aucun fichier.");
+    }
+
+    private static void CharacterizeStartupRegistration()
+    {
+        FakeLauncherStartupRegistry registry = new();
+        registry.Values["Atlas Launcher Similar"] = "do-not-touch.exe";
+        WindowsLauncherStartupRegistration registration = new(
+            @"C:\Program Files\Atlas Launcher\AtlasLauncher.exe",
+            registry,
+            "Atlas Launcher Test");
+
+        True(!registration.IsEnabled, "Une valeur absente ne doit pas être considérée active.");
+        True(!registration.IsRegistered, "Une valeur absente ne doit pas être considérée inscrite.");
+        LauncherStartupRegistrationResult enabled = registration.TrySetEnabled(true);
+        True(enabled.IsApplied, "L'inscription HKCU simulée doit réussir.");
+        Equal(
+            "\"C:\\Program Files\\Atlas Launcher\\AtlasLauncher.exe\"",
+            registry.Values["Atlas Launcher Test"],
+            "Le chemin de démarrage doit être absolu et correctement cité.");
+        True(registration.IsEnabled, "La valeur exacte doit être reconnue.");
+        True(registration.IsRegistered, "La valeur exacte doit être détectée.");
+
+        LauncherStartupRegistrationResult disabled = registration.TrySetEnabled(false);
+        True(disabled.IsApplied, "La désactivation simulée doit réussir.");
+        True(!registry.Values.ContainsKey("Atlas Launcher Test"),
+            "Seule la valeur Atlas exacte doit être supprimée.");
+        Equal("do-not-touch.exe", registry.Values["Atlas Launcher Similar"],
+            "Une valeur portant un nom similaire ne doit jamais être modifiée.");
+
+        registry.Values["Atlas Launcher Test"] = "\"C:\\Old Atlas\\AtlasLauncher.exe\"";
+        True(registration.IsRegistered && !registration.IsEnabled,
+            "Une ancienne cible doit être détectée sans être considérée valide.");
+        _ = registration.TrySetEnabled(false);
+        True(!registration.IsRegistered,
+            "La désactivation doit retirer une ancienne cible portant le nom exact.");
     }
 
     private static void CharacterizePersistenceRollback()
@@ -408,18 +464,20 @@ internal static class LauncherSettingsRuntimeTests
         FakeSettingsFolderPicker folderPicker = new(@"C:\Games\WotLK");
         FakeSettingsLocaleApplier localeApplier = new();
         FakeSettingsGameConfigAccess gameConfigAccess = new();
+        FakeLauncherStartupRegistration startupRegistration = new();
         using SettingsCommands commands = new(
             settingsState,
             settingsRuntime,
             localActions,
             window,
             static _ => { },
-            folderPicker,
-            localeApplier,
-            gameConfigAccess,
-            verificationCommand.Command,
-            window.ShowGamePageForSettingsOperation,
-            selfUpdateRuntime);
+            folderPicker: folderPicker,
+            localeApplier: localeApplier,
+            gameConfigAccess: gameConfigAccess,
+            startupRegistration: startupRegistration,
+            verifyRepairCommand: verificationCommand.Command,
+            showGameForRepair: window.ShowGamePageForSettingsOperation,
+            selfUpdate: selfUpdateRuntime);
         using GameStateAdapter gameAdapter = new(
             gameState,
             gameRuntime,
@@ -451,21 +509,22 @@ internal static class LauncherSettingsRuntimeTests
             Button repair = Required<Button>(view, "VerifyRepairButton");
             True(repair.IsHitTestVisible && repair.IsEnabled, "Réparer doit partager le CanExecute réel de la page Jeu.");
             True(ReferenceEquals(gameState.VerifyCommand, settingsState.VerifyRepairCommand), "Jeu et Paramètres doivent exposer exactement le même ICommand.");
-            ToggleButton automaticUpdates = Required<ToggleButton>(view, "AutomaticUpdatesToggle");
-            True(automaticUpdates.IsChecked == true,
-                "Settings doit refléter la recherche automatique activée dans le réglage legacy.");
-            True(!automaticUpdates.IsEnabled,
-                "Le réglage automatique doit refléter le legacy en lecture seule tant que sa mutation V2 n'est pas reconnectée.");
-            True(!Required<ToggleButton>(view, "StartWithWindowsToggle").IsEnabled, "Le démarrage Windows doit être désactivé.");
-            True(!Required<Border>(view, "InterfaceLanguageControl").IsEnabled, "La langue du launcher doit être désactivée.");
-            True(!Required<Border>(view, "WindowCloseBehaviorControl").IsEnabled, "Le comportement du bouton Fermer doit être désactivé.");
-            True(!Required<Border>(view, "ReleaseChannelControl").IsEnabled, "Le canal de publication doit être désactivé.");
-            True(!Required<Border>(view, "ClientUpdateBehaviorControl").IsEnabled, "Le comportement de mise à jour client doit être désactivé.");
-            True(!Required<Border>(view, "NotificationsCard").IsEnabled, "Les notifications doivent être désactivées.");
-            True(!Required<Border>(view, "AppearanceCard").IsEnabled, "L'apparence doit être désactivée.");
-            True(!Required<Button>(view, "CopyDiagnosticButton").IsEnabled, "Le rapport de diagnostic doit être désactivé.");
-            True(!Required<Button>(view, "OpenLauncherFolderButton").IsEnabled, "Le dossier du launcher non raccordé doit être désactivé.");
-            True(!Required<Border>(view, "ResetInterfaceCard").IsEnabled, "La réinitialisation doit être désactivée.");
+            True(Required<ComboBox>(view, "InterfaceLanguageComboBox").IsHitTestVisible,
+                "La langue du launcher doit être réellement modifiable.");
+            True(Required<ToggleButton>(view, "StartWithWindowsToggle").IsHitTestVisible,
+                "Le démarrage Windows doit être réellement modifiable.");
+            True(Required<ToggleButton>(view, "MinimizeToTrayOnCloseToggle").IsHitTestVisible,
+                "La fermeture dans la zone de notification doit être réellement modifiable.");
+            True(Required<ToggleButton>(view, "FriendPresenceNotificationsToggle").IsHitTestVisible,
+                "Les notifications de connexion doivent être réellement modifiables.");
+            True(view.FindName("AppearanceCard") is null,
+                "La catégorie Apparence retirée ne doit plus exister dans l'arbre WPF.");
+            True(view.FindName("AutomaticUpdatesToggle") is null,
+                "L'option de recherche automatique retirée ne doit plus être rendue.");
+            True(view.FindName("ReleaseChannelControl") is null,
+                "Le canal de publication retiré ne doit plus être rendu.");
+            True(view.FindName("ClientUpdateBehaviorControl") is null,
+                "Le comportement de mise à jour client retiré ne doit plus être rendu.");
             Equal(Visibility.Collapsed, Required<Border>(view, "SettingsActionBar").Visibility, "La barre de sauvegarde différée doit être absente en mode réel.");
 
             view.SelectCategory(SettingsCategory.Diagnostic);
@@ -479,10 +538,6 @@ internal static class LauncherSettingsRuntimeTests
                 "Settings doit afficher la version installée du coordinateur.");
             Equal("v1.2.0", Required<TextBlock>(view, "AvailableLauncherVersionText").Text,
                 "Settings doit afficher la version réellement disponible.");
-            True(Required<TextBlock>(view, "LastLauncherUpdateCheckText").Text.Contains("2026", StringComparison.Ordinal),
-                "La dernière vérification exploitable doit être visible.");
-            Equal("Mise à jour disponible", Required<TextBlock>(view, "LauncherUpdateStatusText").Text,
-                "Le statut disponible doit être explicite.");
             Button checkLauncherUpdate = Required<Button>(view, "CheckLauncherUpdateButton");
             Button startLauncherUpdate = Required<Button>(view, "StartLauncherUpdateButton");
             True(checkLauncherUpdate.IsEnabled, "La recherche manuelle doit être reconnectée.");
@@ -498,7 +553,7 @@ internal static class LauncherSettingsRuntimeTests
             await PumpAsync(DispatcherPriority.DataBind);
             Equal(1, selfUpdateRuntime.CheckCalls,
                 "Le bouton doit déléguer une seule fois au coordinateur partagé.");
-            Equal("Recherche en cours", Required<TextBlock>(view, "LauncherUpdateStatusText").Text,
+            True(settingsState.Current.Updates.IsChecking,
                 "L'état Checking doit être projeté sans créer une opération Activity.");
             True(!checkLauncherUpdate.IsEnabled,
                 "Un deuxième check manuel doit être refusé pendant la requête active.");
@@ -509,10 +564,8 @@ internal static class LauncherSettingsRuntimeTests
 
             selfUpdateRuntime.PublishError(LauncherSelfUpdateErrorCategory.ManifestUnavailable);
             await PumpAsync(DispatcherPriority.DataBind);
-            True(Required<TextBlock>(view, "LauncherUpdateStatusText").Text.Contains(
-                    "temporairement indisponible",
-                    StringComparison.OrdinalIgnoreCase),
-                "Une erreur réseau doit rester courte et contrôlée dans Settings.");
+            True(!settingsState.Current.Updates.IsUpdateAvailable,
+                "Une erreur de manifeste doit retirer l'état de mise à jour disponible.");
 
             window.Width = 1080;
             window.Height = 680;
@@ -595,10 +648,44 @@ internal static class LauncherSettingsRuntimeTests
             Equal(1, localeApplier.Calls, "La configuration du jeu doit être appliquée une fois après l'écriture.");
 
             view.SelectCategory(SettingsCategory.General);
-            ToggleButton closeToggle = Required<ToggleButton>(view, "CloseAfterLaunchToggle");
-            closeToggle.IsChecked = true;
-            closeToggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, closeToggle));
-            Equal(true, settings.CloseLauncherOnGameStart, "Le toggle doit modifier l'objet partagé par le lancement du jeu.");
+            ComboBox interfaceLanguage = Required<ComboBox>(view, "InterfaceLanguageComboBox");
+            interfaceLanguage.SelectedValue = "en-US";
+            await PumpAsync(DispatcherPriority.ApplicationIdle);
+            Equal("en-US", settings.InterfaceLocale,
+                "Le choix anglais doit être persisté immédiatement.");
+            Equal("Settings", Required<TextBlock>(view, "PageTitle").Text,
+                "La V2 doit être traduite sans redémarrage.");
+            True(BindingOperations.IsDataBound(
+                    Required<TextBlock>(view, "LauncherVersionText"),
+                    TextBlock.TextProperty),
+                "La traduction ne doit pas détacher les bindings WPF.");
+            interfaceLanguage.SelectedValue = "fr-FR";
+            await PumpAsync(DispatcherPriority.ApplicationIdle);
+            Equal("Paramètres", Required<TextBlock>(view, "PageTitle").Text,
+                "Le retour au français doit restaurer les libellés exacts.");
+
+            ToggleButton startupToggle = Required<ToggleButton>(view, "StartWithWindowsToggle");
+            startupToggle.IsChecked = true;
+            startupToggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, startupToggle));
+            True(settings.StartWithWindows && startupRegistration.IsEnabled,
+                "Le toggle doit écrire la préférence et l'inscription de démarrage.");
+            Equal(1, startupRegistration.SetCalls,
+                "Le démarrage Windows ne doit être écrit qu'une fois.");
+
+            ToggleButton trayToggle = Required<ToggleButton>(view, "MinimizeToTrayOnCloseToggle");
+            trayToggle.IsChecked = false;
+            trayToggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, trayToggle));
+            True(!settings.MinimizeToTrayOnClose,
+                "La préférence de fermeture doit être enregistrée immédiatement.");
+
+            view.SelectCategory(SettingsCategory.Notifications);
+            ToggleButton presenceToggle = Required<ToggleButton>(
+                view,
+                "FriendPresenceNotificationsToggle");
+            presenceToggle.IsChecked = false;
+            presenceToggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, presenceToggle));
+            True(!settings.FriendPresenceNotifications,
+                "La notification de connexion d'amis doit être désactivable.");
 
             commands.OpenGameFolderCommand.Execute(null);
             commands.OpenLogsCommand.Execute(null);
@@ -960,4 +1047,45 @@ internal sealed class FakeSettingsGameConfigAccess : ISettingsGameConfigAccess
     {
         return Result;
     }
+}
+
+internal sealed class FakeLauncherStartupRegistration : ILauncherStartupRegistration
+{
+    public bool IsRegistered { get; private set; }
+
+    public bool IsEnabled { get; private set; }
+
+    internal int SetCalls { get; private set; }
+
+    internal bool FailChanges { get; set; }
+
+    public LauncherStartupRegistrationResult TrySetEnabled(bool enabled)
+    {
+        SetCalls++;
+        if (FailChanges)
+        {
+            return new LauncherStartupRegistrationResult(
+                LauncherStartupRegistrationStatus.Failed,
+                nameof(UnauthorizedAccessException));
+        }
+
+        IsEnabled = enabled;
+        IsRegistered = enabled;
+        return new LauncherStartupRegistrationResult(
+            LauncherStartupRegistrationStatus.Applied);
+    }
+}
+
+internal sealed class FakeLauncherStartupRegistry : ILauncherStartupRegistry
+{
+    internal Dictionary<string, string> Values { get; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public string? Read(string valueName) =>
+        Values.TryGetValue(valueName, out string? value) ? value : null;
+
+    public void Write(string valueName, string command) =>
+        Values[valueName] = command;
+
+    public void Delete(string valueName) => Values.Remove(valueName);
 }

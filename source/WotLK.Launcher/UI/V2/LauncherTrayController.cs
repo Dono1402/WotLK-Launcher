@@ -1,6 +1,8 @@
 using System.Drawing;
+using System.Media;
 using System.Windows;
 using System.Windows.Threading;
+using WotLK.Launcher.UI.V2.Localization;
 using Forms = System.Windows.Forms;
 
 namespace WotLK.Launcher.UI.V2;
@@ -12,15 +14,18 @@ internal interface ILauncherTrayIconHost : IDisposable
     event EventHandler? ExitRequested;
 
     bool IsVisible { get; set; }
+
+    void ShowNotification(string title, string message, bool playSound);
 }
 
-internal sealed class LauncherTrayController : IDisposable
+internal sealed class LauncherTrayController : IDisposable, ILauncherDesktopNotificationSink
 {
     private readonly Window _window;
     private readonly ILauncherTrayIconHost _trayIcon;
     private readonly Action _requestExit;
     private WindowState _restoreWindowState = WindowState.Normal;
     private bool _isHiddenInTray;
+    private DispatcherTimer? _notificationVisibilityTimer;
     private int _disposeState;
 
     internal LauncherTrayController(
@@ -52,6 +57,7 @@ internal sealed class LauncherTrayController : IDisposable
             }
 
             _trayIcon.IsVisible = true;
+            StopNotificationVisibilityTimer();
             _window.ShowInTaskbar = false;
             _window.Hide();
             _isHiddenInTray = true;
@@ -68,6 +74,7 @@ internal sealed class LauncherTrayController : IDisposable
             }
 
             _trayIcon.IsVisible = false;
+            StopNotificationVisibilityTimer();
             _window.ShowInTaskbar = true;
             if (!_window.IsVisible)
             {
@@ -83,6 +90,45 @@ internal sealed class LauncherTrayController : IDisposable
         });
     }
 
+    internal void ShowNotification(string title, string message, bool playSound)
+    {
+        RunOnDispatcher(() =>
+        {
+            if (Volatile.Read(ref _disposeState) != 0)
+            {
+                return;
+            }
+
+            _trayIcon.IsVisible = true;
+            _trayIcon.ShowNotification(title, message, playSound);
+            if (_isHiddenInTray)
+            {
+                return;
+            }
+
+            StopNotificationVisibilityTimer();
+            DispatcherTimer timer = new(
+                TimeSpan.FromSeconds(7),
+                DispatcherPriority.Background,
+                (_, _) =>
+                {
+                    StopNotificationVisibilityTimer();
+                    if (!_isHiddenInTray)
+                    {
+                        _trayIcon.IsVisible = false;
+                    }
+                },
+                _window.Dispatcher);
+            _notificationVisibilityTimer = timer;
+            timer.Start();
+        });
+    }
+
+    void ILauncherDesktopNotificationSink.ShowNotification(
+        string title,
+        string message,
+        bool playSound) => ShowNotification(title, message, playSound);
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposeState, 1) != 0)
@@ -92,6 +138,7 @@ internal sealed class LauncherTrayController : IDisposable
 
         _trayIcon.RestoreRequested -= TrayIcon_RestoreRequested;
         _trayIcon.ExitRequested -= TrayIcon_ExitRequested;
+        StopNotificationVisibilityTimer();
         _trayIcon.IsVisible = false;
         _trayIcon.Dispose();
     }
@@ -125,6 +172,13 @@ internal sealed class LauncherTrayController : IDisposable
         {
             _ = _window.Dispatcher.BeginInvoke(DispatcherPriority.Send, action);
         }
+    }
+
+    private void StopNotificationVisibilityTimer()
+    {
+        DispatcherTimer? timer = _notificationVisibilityTimer;
+        _notificationVisibilityTimer = null;
+        timer?.Stop();
     }
 }
 
@@ -160,6 +214,8 @@ internal sealed class WindowsLauncherTrayIconHost : ILauncherTrayIconHost
         _notifyIcon.MouseClick += NotifyIcon_MouseClick;
         _openItem.Click += OpenItem_Click;
         _exitItem.Click += ExitItem_Click;
+        LauncherLocalization.LocaleChanged += LauncherLocalization_LocaleChanged;
+        ApplyLocalizedText();
     }
 
     public event EventHandler? RestoreRequested;
@@ -178,6 +234,25 @@ internal sealed class WindowsLauncherTrayIconHost : ILauncherTrayIconHost
         }
     }
 
+    public void ShowNotification(string title, string message, bool playSound)
+    {
+        if (Volatile.Read(ref _disposeState) != 0)
+        {
+            return;
+        }
+
+        if (playSound)
+        {
+            SystemSounds.Asterisk.Play();
+        }
+
+        _notifyIcon.ShowBalloonTip(
+            5000,
+            title,
+            message,
+            Forms.ToolTipIcon.None);
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposeState, 1) != 0)
@@ -188,6 +263,7 @@ internal sealed class WindowsLauncherTrayIconHost : ILauncherTrayIconHost
         _notifyIcon.MouseClick -= NotifyIcon_MouseClick;
         _openItem.Click -= OpenItem_Click;
         _exitItem.Click -= ExitItem_Click;
+        LauncherLocalization.LocaleChanged -= LauncherLocalization_LocaleChanged;
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
         _menu.Dispose();
@@ -209,6 +285,15 @@ internal sealed class WindowsLauncherTrayIconHost : ILauncherTrayIconHost
 
     private void ExitItem_Click(object? sender, EventArgs e) =>
         ExitRequested?.Invoke(this, EventArgs.Empty);
+
+    private void LauncherLocalization_LocaleChanged(object? sender, EventArgs e) =>
+        ApplyLocalizedText();
+
+    private void ApplyLocalizedText()
+    {
+        _openItem.Text = LauncherLocalization.Text("Ouvrir Atlas Launcher");
+        _exitItem.Text = LauncherLocalization.Text("Quitter");
+    }
 
     private static Icon LoadApplicationIcon()
     {

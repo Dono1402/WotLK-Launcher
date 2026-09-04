@@ -110,7 +110,6 @@ public static class LauncherV2PreviewData
             SettingsPreviewScenario.Game => SettingsCategory.Game,
             SettingsPreviewScenario.Updates => SettingsCategory.Updates,
             SettingsPreviewScenario.Notifications => SettingsCategory.Notifications,
-            SettingsPreviewScenario.Appearance => SettingsCategory.Appearance,
             SettingsPreviewScenario.Diagnostic => SettingsCategory.Diagnostic,
             _ => SettingsCategory.General
         };
@@ -128,33 +127,18 @@ public static class LauncherV2PreviewData
             saveState,
             new GeneralSettingsViewState(
                 InterfaceLanguage: "Français",
+                InterfaceLocale: "fr-FR",
                 StartWithWindows: false,
-                WindowCloseBehavior: "Réduire dans la zone de notification",
-                CloseLauncherAfterGameStart: false),
+                MinimizeToTrayOnClose: true),
             new GameSettingsViewState(
                 InstallPath: @"C:\Program Files (x86)\WotLK",
                 GameLanguage: "Français",
-                VideoSettingsLocation: @"WTF\Config.wtf",
                 InstantQuestText: true,
                 ClientVersion: "3.4.3.54261"),
             new UpdateSettingsViewState(
-                AutomaticLauncherUpdates: true,
-                ClientUpdateBehavior: "Avant le lancement du jeu",
-                ReleaseChannel: "Stable",
-                LastUpdateCheck: "Aujourd’hui à 08:42",
                 InstalledLauncherVersion: "v1.1.0",
                 AvailableLauncherVersion: "v1.1.0"),
-            new NotificationSettingsViewState(
-                UpdateCompleted: true,
-                Errors: true,
-                FriendRequests: true,
-                FriendPresence: false,
-                Sounds: true),
-            new AppearanceSettingsViewState(
-                ReduceAnimations: false,
-                InterfaceScale: "100 %",
-                EffectsIntensity: 68,
-                EffectsIntensityLabel: "Équilibrée"),
+            new NotificationSettingsViewState(FriendPresence: true),
             new DiagnosticSettingsViewState(
                 LogLocation: @"%LOCALAPPDATA%\Atlas Launcher\Logs",
                 LauncherLocation: @"C:\Program Files\Atlas Launcher",

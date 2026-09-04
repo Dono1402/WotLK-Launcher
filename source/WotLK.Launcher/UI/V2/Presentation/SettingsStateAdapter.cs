@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.IO;
 using System.Windows.Threading;
 using WotLK.Launcher.Dashboard;
@@ -65,15 +64,6 @@ internal sealed class SettingsStateAdapter : IDisposable
             ? "Inconnue"
             : game.InstalledVersion;
         string gameLanguage = settings.GameLocale == "enUS" ? "English" : "Français";
-        string legacyUpdateStatus = game.UpdateKnowledge switch
-        {
-            GameUpdateKnowledge.Checking => "Vérification en cours",
-            GameUpdateKnowledge.Known => game.Action == GameAction.Update
-                ? "Mise à jour disponible"
-                : "Vérifié",
-            GameUpdateKnowledge.Unavailable => "Indisponible",
-            _ => "Non vérifié"
-        };
         string localState = !game.IsPlayable
             ? "Client non installé"
             : game.Action == GameAction.Update
@@ -84,18 +74,6 @@ internal sealed class SettingsStateAdapter : IDisposable
         string? runtimeNotice = settings.SaveStatus == LauncherSettingsSaveStatus.Error
             ? settings.StatusMessage
             : null;
-        string updateStatus = selfUpdate is null
-            ? legacyUpdateStatus
-            : FormatSelfUpdateStatus(selfUpdate);
-        string lastUpdateCheck = selfUpdate is null
-            ? legacyUpdateStatus
-            : selfUpdate.IsChecking
-                ? "Vérification en cours…"
-                : selfUpdate.LastCheckedAt is DateTimeOffset checkedAt
-                    ? checkedAt.ToLocalTime().ToString(
-                        "dd/MM/yyyy HH:mm",
-                        CultureInfo.CurrentCulture)
-                    : "Jamais";
         string availableLauncherVersion = selfUpdate is null
             ? "Non vérifiée"
             : selfUpdate.AvailableVersion
@@ -109,22 +87,17 @@ internal sealed class SettingsStateAdapter : IDisposable
             initialCategory,
             SettingsSavePreviewState.None,
             new GeneralSettingsViewState(
-                InterfaceLanguage: "Français",
-                StartWithWindows: false,
-                WindowCloseBehavior: "Réduire dans la zone de notification",
-                CloseLauncherAfterGameStart: settings.CloseLauncherOnGameStart),
+                InterfaceLanguage: settings.InterfaceLocale == "en-US" ? "English" : "Français",
+                InterfaceLocale: settings.InterfaceLocale,
+                StartWithWindows: settings.StartWithWindows,
+                MinimizeToTrayOnClose: settings.MinimizeToTrayOnClose),
             new GameSettingsViewState(
                 InstallPath: settings.InstallPath,
                 GameLanguage: gameLanguage,
-                VideoSettingsLocation: @"WTF\Config.wtf",
                 InstantQuestText: settings.InstantQuestText,
                 ClientVersion: installedClientVersion,
                 GameLocale: settings.GameLocale),
             new UpdateSettingsViewState(
-                AutomaticLauncherUpdates: settings.AutomaticLauncherUpdates,
-                ClientUpdateBehavior: "Depuis la page Jeu",
-                ReleaseChannel: "Stable",
-                LastUpdateCheck: lastUpdateCheck,
                 InstalledLauncherVersion: selfUpdate?.InstalledVersion ?? launcherVersion,
                 AvailableLauncherVersion: availableLauncherVersion,
                 IsChecking: selfUpdate?.IsChecking == true,
@@ -132,19 +105,8 @@ internal sealed class SettingsStateAdapter : IDisposable
                 IsUpdating: selfUpdate?.IsUpdating == true,
                 CanCheck: selfUpdate is { IsChecking: false, IsUpdating: false },
                 CanStartUpdate: selfUpdate is
-                    { IsUpdateAvailable: true, IsChecking: false, IsUpdating: false },
-                StatusMessage: updateStatus),
-            new NotificationSettingsViewState(
-                UpdateCompleted: true,
-                Errors: true,
-                FriendRequests: true,
-                FriendPresence: false,
-                Sounds: true),
-            new AppearanceSettingsViewState(
-                ReduceAnimations: false,
-                InterfaceScale: "100 %",
-                EffectsIntensity: 68,
-                EffectsIntensityLabel: "Équilibrée"),
+                    { IsUpdateAvailable: true, IsChecking: false, IsUpdating: false }),
+            new NotificationSettingsViewState(settings.FriendPresenceNotifications),
             new DiagnosticSettingsViewState(
                 LogLocation: launcherLogPath,
                 LauncherLocation: AppContext.BaseDirectory.TrimEnd(
@@ -159,6 +121,9 @@ internal sealed class SettingsStateAdapter : IDisposable
             CanChangeGameLocale: settings.CanChangeGameLocale,
             CanChangeBehavior: settings.CanChangeBehavior,
             CanChangeInstantQuestText: settings.CanChangeInstantQuestText,
+            CanChangeInterfaceLocale: settings.CanChangeBehavior,
+            CanChangeStartWithWindows: settings.CanChangeBehavior,
+            CanChangeFriendPresenceNotifications: settings.CanChangeBehavior,
             AreDeferredControlsEnabled: false,
             SaveStatusDetail: settings.StatusMessage,
             RuntimeNoticeMessage: runtimeNotice);
@@ -263,31 +228,4 @@ internal sealed class SettingsStateAdapter : IDisposable
         _state.ApplyRuntimeView(view);
     }
 
-    private static string FormatSelfUpdateStatus(LauncherSelfUpdateSnapshot snapshot)
-    {
-        if (snapshot.IsUpdating)
-        {
-            return snapshot.Phase switch
-            {
-                LauncherSelfUpdatePhase.Downloading => "Téléchargement en cours",
-                LauncherSelfUpdatePhase.Validating => "Validation en cours",
-                LauncherSelfUpdatePhase.WaitingForApply => "Préparation du redémarrage",
-                LauncherSelfUpdatePhase.Restarting => "Redémarrage en cours",
-                _ => "Mise à jour en cours"
-            };
-        }
-        if (snapshot.IsChecking)
-        {
-            return "Recherche en cours";
-        }
-        if (snapshot.IsUpdateAvailable)
-        {
-            return "Mise à jour disponible";
-        }
-        if (snapshot.ErrorCategory is not null)
-        {
-            return LauncherSelfUpdateCoordinator.GetUserMessage(snapshot.ErrorCategory.Value);
-        }
-        return snapshot.LastCheckedAt is null ? "Non vérifié" : "À jour";
-    }
 }

@@ -11,9 +11,17 @@ public sealed class LauncherSettings
 
     public string GameLocale { get; set; } = GetDefaultGameLocale();
 
+    public string InterfaceLocale { get; set; } = GetDefaultInterfaceLocale();
+
     public bool AutomaticLauncherUpdates { get; set; } = true;
 
     public bool CloseLauncherOnGameStart { get; set; }
+
+    public bool StartWithWindows { get; set; }
+
+    public bool MinimizeToTrayOnClose { get; set; } = true;
+
+    public bool FriendPresenceNotifications { get; set; } = true;
 
     public static string SettingsDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -39,6 +47,7 @@ public sealed class LauncherSettings
         settings.InstallPath = NormalizeInstallPath(settings.InstallPath);
         settings.ManifestUrl = GetDefaultManifestUrl();
         settings.GameLocale = NormalizeGameLocale(settings.GameLocale);
+        settings.InterfaceLocale = NormalizeInterfaceLocale(settings.InterfaceLocale);
         return settings;
     }
 
@@ -47,6 +56,7 @@ public sealed class LauncherSettings
         InstallPath = NormalizeInstallPath(InstallPath);
         ManifestUrl = GetDefaultManifestUrl();
         GameLocale = NormalizeGameLocale(GameLocale);
+        InterfaceLocale = NormalizeInterfaceLocale(InterfaceLocale);
         Directory.CreateDirectory(SettingsDirectory);
         var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(SettingsPath, json);
@@ -93,5 +103,14 @@ public sealed class LauncherSettings
     public static string NormalizeGameLocale(string? locale)
     {
         return string.Equals(locale, "enUS", StringComparison.OrdinalIgnoreCase) ? "enUS" : "frFR";
+    }
+
+    public static string GetDefaultInterfaceLocale() => "fr-FR";
+
+    public static string NormalizeInterfaceLocale(string? locale)
+    {
+        return locale?.StartsWith("en", StringComparison.OrdinalIgnoreCase) == true
+            ? "en-US"
+            : "fr-FR";
     }
 }

@@ -6,6 +6,8 @@ using System.Text.Json;
 using WotLK.Launcher;
 using WotLK.Launcher.Account;
 using WotLK.Launcher.Runtime;
+using WotLK.Launcher.UI.V2;
+using WotLK.Launcher.UI.V2.Localization;
 using WotLK.Launcher.UI.V2.Presentation;
 
 internal static class LauncherFriendsTests
@@ -14,6 +16,7 @@ internal static class LauncherFriendsTests
     {
         CharacterizeSecretFreeImmutableState();
         CharacterizeSocialAvatarContractAndQueryShape();
+        CharacterizeDesktopNotifications();
         await RestoreAndLoadRealRelationshipsAsync();
         await RefreshFromOneSessionAwareTimerAsync();
         await CoalesceTimerAndManualRefreshAsync();
@@ -27,6 +30,135 @@ internal static class LauncherFriendsTests
         Console.WriteLine("Atlas friends runtime integration OK (03B.1).\n");
         return 0;
     }
+
+    private static void CharacterizeDesktopNotifications()
+    {
+        LauncherLocalization.SetLocale(LauncherLocalization.FrenchLocale);
+        LauncherSettings settings = new()
+        {
+            FriendPresenceNotifications = true
+        };
+        using LauncherOperationCoordinator operations = new();
+        using LauncherSettingsCoordinator settingsRuntime = new(
+            settings,
+            operations,
+            static _ => { },
+            static _ => { },
+            static _ => { });
+        FakeDesktopNotificationSink notifications = new();
+        using LauncherFriendsNotificationCoordinator coordinator = new(
+            settingsRuntime,
+            notifications,
+            static _ => { });
+
+        coordinator.Observe(NotificationSnapshot(
+            1,
+            friends: [NotificationFriend(2, "Alice", online: false)],
+            incoming: [NotificationRequest(8, "Initiale")]));
+        Equal(0, notifications.Messages.Count,
+            "Le premier chargement doit uniquement établir la baseline.");
+
+        coordinator.Observe(NotificationSnapshot(
+            1,
+            friends: [NotificationFriend(2, "Alice", online: true)],
+            incoming: [NotificationRequest(8, "Initiale")]));
+        Equal(1, notifications.Messages.Count,
+            "Un ami passant hors ligne vers en ligne doit produire une alerte.");
+        Equal("Ami connecté", notifications.Messages[0].Title,
+            "Le titre de présence doit rester utilisateur.");
+        True(notifications.Messages[0].PlaySound,
+            "La connexion d'un ami doit jouer le son discret demandé.");
+
+        coordinator.Observe(NotificationSnapshot(
+            1,
+            friends: [NotificationFriend(2, "Alice", online: true)],
+            incoming: [NotificationRequest(8, "Initiale")]));
+        Equal(1, notifications.Messages.Count,
+            "Un rafraîchissement identique ne doit pas répéter l'alerte.");
+
+        coordinator.Observe(NotificationSnapshot(
+            1,
+            friends: [NotificationFriend(2, "Alice", online: false)],
+            incoming: [NotificationRequest(8, "Initiale")]));
+        _ = settingsRuntime.TrySetFriendPresenceNotifications(false);
+        coordinator.Observe(NotificationSnapshot(
+            1,
+            friends: [NotificationFriend(2, "Alice", online: true)],
+            incoming: [NotificationRequest(8, "Initiale")]));
+        Equal(1, notifications.Messages.Count,
+            "Le réglage désactivé doit couper la notification de connexion.");
+
+        coordinator.Observe(NotificationSnapshot(
+            1,
+            friends: [NotificationFriend(2, "Alice", online: true)],
+            incoming:
+            [
+                NotificationRequest(8, "Initiale"),
+                NotificationRequest(9, "Bob")
+            ]));
+        Equal(2, notifications.Messages.Count,
+            "Une nouvelle demande doit rester notifiée indépendamment du réglage de présence.");
+        Equal("Nouvelle demande d’ami", notifications.Messages[1].Title,
+            "La demande d'ami doit être identifiable sans détail technique.");
+        True(!notifications.Messages[1].PlaySound,
+            "Le son de connexion ne doit pas être joué pour une demande.");
+
+        coordinator.Observe(FriendsRuntimeSnapshot.SignedOut);
+        coordinator.Observe(NotificationSnapshot(
+            1,
+            friends: [NotificationFriend(2, "Alice", online: true)],
+            incoming: [NotificationRequest(10, "Après reconnexion")]));
+        Equal(2, notifications.Messages.Count,
+            "Une reconnexion doit recréer une baseline sans avalanche de notifications.");
+    }
+
+    private static FriendsRuntimeSnapshot NotificationSnapshot(
+        uint currentUserId,
+        IReadOnlyList<FriendRuntimeItem> friends,
+        IReadOnlyList<FriendRuntimeItem> incoming)
+    {
+        return FriendsRuntimeSnapshot.SignedOut with
+        {
+            Sequence = DateTime.UtcNow.Ticks,
+            CurrentUserId = currentUserId,
+            IsAuthenticated = true,
+            LoadState = FriendsLoadState.Loaded,
+            Friends = friends.ToImmutableArray(),
+            IncomingRequests = incoming.ToImmutableArray(),
+            OperationState = FriendsOperationState.None
+        };
+    }
+
+    private static FriendRuntimeItem NotificationFriend(
+        uint accountId,
+        string username,
+        bool online) => new(
+            accountId,
+            username,
+            AvatarKey: null,
+            Avatar: null,
+            FriendRelationship.Accepted,
+            IsOnline: online,
+            CharacterName: null,
+            Level: null,
+            ClassId: null,
+            ZoneId: null,
+            LastSeenAt: null);
+
+    private static FriendRuntimeItem NotificationRequest(
+        uint accountId,
+        string username) => new(
+            accountId,
+            username,
+            AvatarKey: null,
+            Avatar: null,
+            FriendRelationship.Incoming,
+            IsOnline: false,
+            CharacterName: null,
+            Level: null,
+            ClassId: null,
+            ZoneId: null,
+            LastSeenAt: null);
 
     private static void CharacterizeSocialAvatarContractAndQueryShape()
     {
@@ -568,6 +700,21 @@ internal static class LauncherFriendsTests
             throw new InvalidOperationException($"{message} Attendu={expected}; Actuel={actual}.");
         }
     }
+
+    private sealed class FakeDesktopNotificationSink : ILauncherDesktopNotificationSink
+    {
+        internal List<DesktopNotification> Messages { get; } = [];
+
+        public void ShowNotification(string title, string message, bool playSound)
+        {
+            Messages.Add(new DesktopNotification(title, message, playSound));
+        }
+    }
+
+    private sealed record DesktopNotification(
+        string Title,
+        string Message,
+        bool PlaySound);
 
     private sealed class FriendsEnvironment : IAsyncDisposable
     {

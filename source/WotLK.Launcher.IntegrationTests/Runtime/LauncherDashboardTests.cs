@@ -137,6 +137,14 @@ internal static class LauncherDashboardTests
             "Le brouillon local ne doit jamais paraître déjà publié.");
         True(localClient.PatchNotes[0].Sections.SelectMany(section => section.Items).All(item => !item.Contains(".cs", StringComparison.OrdinalIgnoreCase)),
             "Le brouillon utilisateur ne doit pas contenir de détail de code.");
+        True(localClient.PatchNotes[0].Sections.Any(section =>
+                string.Equals(section.Title, "Paramètres", StringComparison.Ordinal)
+                && section.Items.Any(item => item.Contains("français ou en anglais", StringComparison.Ordinal))),
+            "Le brouillon local doit répertorier la langue d'interface dans Paramètres.");
+        True(localClient.PatchNotes[0].Sections.Any(section =>
+                string.Equals(section.Title, "Social", StringComparison.Ordinal)
+                && section.Items.Any(item => item.Contains("demandes d’ami", StringComparison.Ordinal))),
+            "Le brouillon local doit répertorier les notifications sociales.");
     }
 
     private static async Task RefuseRequestsWithoutSessionAsync()
@@ -771,6 +779,14 @@ internal static class LauncherDashboardTests
                 Equal("En ligne", realmText.Text, "Le mode compact doit afficher En ligne.");
                 dashboard.SetWideRealmLabel(true);
 
+                trayController.ShowNotification("Ami connecté", "Alice est en ligne.", true);
+                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
+                Equal(1, trayIcon.NotificationCalls,
+                    "Une notification sociale doit être transmise une seule fois à Windows.");
+                True(trayIcon.IsVisible && trayIcon.LastNotificationPlayedSound,
+                    "Le ballon de présence doit rendre l'icône visible et demander le son.");
+                trayController.RestoreWindow();
+
                 Button closeWindow = Required<Button>(window, "CloseWindowButton");
                 window.ShowInTaskbar = true;
                 RaiseClick(closeWindow);
@@ -1131,6 +1147,16 @@ internal static class LauncherDashboardTests
         public event EventHandler? ExitRequested;
 
         public bool IsVisible { get; set; }
+
+        internal int NotificationCalls { get; private set; }
+
+        internal bool LastNotificationPlayedSound { get; private set; }
+
+        public void ShowNotification(string title, string message, bool playSound)
+        {
+            NotificationCalls++;
+            LastNotificationPlayedSound = playSound;
+        }
 
         internal void RequestRestore() => RestoreRequested?.Invoke(this, EventArgs.Empty);
 

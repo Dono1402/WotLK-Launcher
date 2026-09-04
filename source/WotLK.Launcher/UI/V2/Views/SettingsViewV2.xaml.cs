@@ -134,7 +134,6 @@ public partial class SettingsViewV2 : UserControl
         SetCategoryState(GameCategoryButton, GamePanel, category == SettingsCategory.Game);
         SetCategoryState(UpdatesCategoryButton, UpdatesPanel, category == SettingsCategory.Updates);
         SetCategoryState(NotificationsCategoryButton, NotificationsPanel, category == SettingsCategory.Notifications);
-        SetCategoryState(AppearanceCategoryButton, AppearancePanel, category == SettingsCategory.Appearance);
         SetCategoryState(DiagnosticCategoryButton, DiagnosticPanel, category == SettingsCategory.Diagnostic);
         SettingsScrollViewer.ScrollToTop();
     }
@@ -147,7 +146,6 @@ public partial class SettingsViewV2 : UserControl
             SettingsCategory.Game => GameCategoryButton,
             SettingsCategory.Updates => UpdatesCategoryButton,
             SettingsCategory.Notifications => NotificationsCategoryButton,
-            SettingsCategory.Appearance => AppearanceCategoryButton,
             SettingsCategory.Diagnostic => DiagnosticCategoryButton,
             _ => GeneralCategoryButton
         };
@@ -298,11 +296,6 @@ public partial class SettingsViewV2 : UserControl
         SelectCategory(SettingsCategory.Notifications);
     }
 
-    private void AppearanceCategoryButton_Click(object sender, RoutedEventArgs e)
-    {
-        SelectCategory(SettingsCategory.Appearance);
-    }
-
     private void DiagnosticCategoryButton_Click(object sender, RoutedEventArgs e)
     {
         SelectCategory(SettingsCategory.Diagnostic);
@@ -324,18 +317,68 @@ public partial class SettingsViewV2 : UserControl
         }
     }
 
-    private void CloseAfterLaunchToggle_Click(object sender, RoutedEventArgs e)
+    private void InterfaceLanguageComboBox_SelectionChanged(
+        object sender,
+        SelectionChangedEventArgs e)
+    {
+        if (_isApplyingState
+            || State is null
+            || InterfaceLanguageComboBox.SelectedItem is not ComboBoxItem item)
+        {
+            return;
+        }
+
+        string locale = LauncherSettings.NormalizeInterfaceLocale(item.Tag?.ToString());
+        if (!State.TryChangeInterfaceLocale(locale))
+        {
+            InterfaceLanguageComboBox.SelectedValue =
+                State.Current.General.InterfaceLocale;
+        }
+    }
+
+    private void StartWithWindowsToggle_Click(object sender, RoutedEventArgs e)
     {
         if (_isApplyingState || State is null)
         {
             return;
         }
 
-        bool requested = CloseAfterLaunchToggle.IsChecked == true;
-        if (!State.TryChangeCloseAfterLaunch(requested))
+        bool requested = StartWithWindowsToggle.IsChecked == true;
+        if (!State.TryChangeStartWithWindows(requested))
         {
-            CloseAfterLaunchToggle.IsChecked =
-                State.Current.General.CloseLauncherAfterGameStart;
+            StartWithWindowsToggle.IsChecked = State.Current.General.StartWithWindows;
+        }
+    }
+
+    private void MinimizeToTrayOnCloseToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isApplyingState || State is null)
+        {
+            return;
+        }
+
+        bool requested = MinimizeToTrayOnCloseToggle.IsChecked == true;
+        if (!State.TryChangeMinimizeToTrayOnClose(requested))
+        {
+            MinimizeToTrayOnCloseToggle.IsChecked =
+                State.Current.General.MinimizeToTrayOnClose;
+        }
+    }
+
+    private void FriendPresenceNotificationsToggle_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (_isApplyingState || State is null)
+        {
+            return;
+        }
+
+        bool requested = FriendPresenceNotificationsToggle.IsChecked == true;
+        if (!State.TryChangeFriendPresenceNotifications(requested))
+        {
+            FriendPresenceNotificationsToggle.IsChecked =
+                State.Current.Notifications.FriendPresence;
         }
     }
 

@@ -8,6 +8,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using WotLK.Launcher;
 using WotLK.Launcher.UI.V2;
+using WotLK.Launcher.UI.V2.Localization;
 using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Preview;
 using WotLK.Launcher.UI.V2.Views;
@@ -20,7 +21,6 @@ internal static class SettingsPreviewTests
         (SettingsCategory.Game, "GameCategoryButton", "GamePanel"),
         (SettingsCategory.Updates, "UpdatesCategoryButton", "UpdatesPanel"),
         (SettingsCategory.Notifications, "NotificationsCategoryButton", "NotificationsPanel"),
-        (SettingsCategory.Appearance, "AppearanceCategoryButton", "AppearancePanel"),
         (SettingsCategory.Diagnostic, "DiagnosticCategoryButton", "DiagnosticPanel")
     ];
 
@@ -70,9 +70,10 @@ internal static class SettingsPreviewTests
         Equal(@"C:\Program Files (x86)\WotLK", state.Current.Game.InstallPath, "Le chemin fictif est incorrect.");
         Equal("Français", state.Current.Game.GameLanguage, "La langue du jeu fictive est incorrecte.");
         Equal("Français", state.Current.General.InterfaceLanguage, "La langue du launcher fictive est incorrecte.");
-        True(state.Current.Updates.AutomaticLauncherUpdates, "Le preview doit montrer l'auto-update actif.");
-        True(!state.Current.General.CloseLauncherAfterGameStart, "Le preview doit montrer la fermeture désactivée.");
-        Equal("Stable", state.Current.Updates.ReleaseChannel, "Le canal doit appartenir aux mises à jour.");
+        Equal("fr-FR", state.Current.General.InterfaceLocale, "La locale du launcher fictive est incorrecte.");
+        True(!state.Current.General.StartWithWindows, "Le preview doit montrer le démarrage Windows inactif.");
+        True(state.Current.General.MinimizeToTrayOnClose, "Le preview doit montrer la réduction à la fermeture active.");
+        True(state.Current.Notifications.FriendPresence, "Les connexions d'amis doivent être visibles dans le preview.");
         Equal("v1.1.0", state.Current.Updates.InstalledLauncherVersion, "La version launcher doit rester cohérente.");
 
         True(!state.Current.IsRuntimeConnected, "Le preview ne doit pas se déclarer connecté au runtime.");
@@ -81,8 +82,11 @@ internal static class SettingsPreviewTests
         state.OpenGameFolderCommand.Execute(null);
         state.OpenLogsCommand.Execute(null);
         True(ReferenceEquals(before, state.Current), "Les commandes preview ne doivent modifier aucun état.");
+        True(!state.TryChangeInterfaceLocale("en-US"), "Le preview ne doit pas persister une langue réelle.");
+        True(!state.TryChangeStartWithWindows(true), "Le preview ne doit pas toucher au démarrage Windows.");
+        True(!state.TryChangeMinimizeToTrayOnClose(false), "Le preview ne doit pas modifier la fermeture réelle.");
+        True(!state.TryChangeFriendPresenceNotifications(false), "Le preview ne doit pas modifier les notifications réelles.");
         True(!state.TryChangeGameLocale("enUS"), "Le preview ne doit pas accepter une langue réelle.");
-        True(!state.TryChangeCloseAfterLaunch(true), "Le preview ne doit pas enregistrer un comportement réel.");
     }
 
     private static void CharacterizePreviewScenarios()
@@ -91,7 +95,7 @@ internal static class SettingsPreviewTests
         Equal(SettingsPreviewScenario.Game, Resolve("--preview-settings=game"), "Le scénario Jeu est absent.");
         Equal(SettingsPreviewScenario.Updates, Resolve("--preview-settings=updates"), "Le scénario Mises à jour est absent.");
         Equal(SettingsPreviewScenario.Notifications, Resolve("--preview-settings=notifications"), "Le scénario Notifications est absent.");
-        Equal(SettingsPreviewScenario.Appearance, Resolve("--preview-settings=appearance"), "Le scénario Apparence est absent.");
+        Equal(SettingsPreviewScenario.General, Resolve("--preview-settings=appearance"), "L'ancien scénario Apparence doit revenir sur Général.");
         Equal(SettingsPreviewScenario.Diagnostic, Resolve("--preview-settings=diagnostic"), "Le scénario Diagnostic est absent.");
         Equal(SettingsPreviewScenario.Dirty, Resolve("--preview-settings=dirty"), "Le scénario de modifications est absent.");
         Equal(SettingsPreviewScenario.Saving, Resolve("--preview-settings=saving"), "Le scénario d'enregistrement est absent.");
@@ -160,6 +164,7 @@ internal static class SettingsPreviewTests
                 await ValidateRequestedLayoutsAsync(captureDirectory);
                 await ValidateLocalNavigationAsync();
                 await ValidateSavePreviewStatesAsync();
+                await ValidateEnglishInterfaceAsync(captureDirectory);
             }
             catch (Exception exception)
             {
@@ -173,6 +178,50 @@ internal static class SettingsPreviewTests
         }
     }
 
+    private static async Task ValidateEnglishInterfaceAsync(string? captureDirectory)
+    {
+        LauncherLocalization.SetLocale(LauncherLocalization.FrenchLocale);
+        LauncherShellV2 window = CreateSettingsWindow(
+            1440,
+            860,
+            SettingsPreviewScenario.General);
+        window.Show();
+        try
+        {
+            await DelayAndPumpAsync(100);
+            LauncherLocalization.SetLocale(LauncherLocalization.EnglishLocale);
+            await DelayAndPumpAsync(100);
+
+            SettingsViewV2 settings = window.SettingsPage;
+            Equal("Settings", Required<TextBlock>(settings, "PageTitle").Text,
+                "Le titre Settings doit basculer en anglais immédiatement.");
+            Equal("General", System.Windows.Automation.AutomationProperties.GetName(
+                    Required<Button>(settings, "GeneralCategoryButton")),
+                "La navigation des paramètres doit être traduite.");
+            Equal("Help and diagnostics", System.Windows.Automation.AutomationProperties.GetName(
+                    Required<Button>(settings, "DiagnosticCategoryButton")),
+                "Le diagnostic doit être traduit.");
+
+            if (!string.IsNullOrWhiteSpace(captureDirectory))
+            {
+                SavePng(window, Path.Combine(
+                    captureDirectory,
+                    "08-settings-general-en-1440x860.png"));
+            }
+
+            LauncherLocalization.SetLocale(LauncherLocalization.FrenchLocale);
+            await DelayAndPumpAsync(80);
+            Equal("Paramètres", Required<TextBlock>(settings, "PageTitle").Text,
+                "Le retour au français doit restaurer le libellé d'origine.");
+        }
+        finally
+        {
+            window.Close();
+            LauncherLocalization.SetLocale(LauncherLocalization.FrenchLocale);
+            await PumpAsync(DispatcherPriority.Background);
+        }
+    }
+
     private static async Task ValidateRequestedLayoutsAsync(string? captureDirectory)
     {
         (string FileName, double Width, double Height, AdaptiveLayoutMode Mode, SettingsPreviewScenario Scenario, SettingsCategory Category, bool ShowsActionBar)[] layouts =
@@ -180,6 +229,7 @@ internal static class SettingsPreviewTests
             ("01-settings-general-1440x860.png", 1440, 860, AdaptiveLayoutMode.Wide, SettingsPreviewScenario.General, SettingsCategory.General, false),
             ("02-settings-game-1440x860.png", 1440, 860, AdaptiveLayoutMode.Wide, SettingsPreviewScenario.Game, SettingsCategory.Game, false),
             ("03-settings-updates-1440x860.png", 1440, 860, AdaptiveLayoutMode.Wide, SettingsPreviewScenario.Updates, SettingsCategory.Updates, false),
+            ("04-settings-notifications-1440x860.png", 1440, 860, AdaptiveLayoutMode.Wide, SettingsPreviewScenario.Notifications, SettingsCategory.Notifications, false),
             ("04-settings-diagnostic-1440x860.png", 1440, 860, AdaptiveLayoutMode.Wide, SettingsPreviewScenario.Diagnostic, SettingsCategory.Diagnostic, false),
             ("05-settings-game-1080x680.png", 1080, 680, AdaptiveLayoutMode.Stacked, SettingsPreviewScenario.Game, SettingsCategory.Game, false),
             ("06-settings-general-1920x1080.png", 1920, 1080, AdaptiveLayoutMode.Wide, SettingsPreviewScenario.General, SettingsCategory.General, false),
@@ -364,14 +414,11 @@ internal static class SettingsPreviewTests
         True(!Required<Button>(settings, "OpenGameFolderButton").IsHitTestVisible, "Ouvrir le jeu ne doit lancer aucun processus en preview.");
         True(!Required<Button>(settings, "VerifyRepairButton").IsHitTestVisible, "Vérifier ne doit lancer aucun pipeline en preview.");
         True(!Required<Button>(settings, "OpenLogsButton").IsHitTestVisible, "Ouvrir les journaux ne doit lancer aucun processus en preview.");
-        True(!Required<Button>(settings, "CopyDiagnosticButton").IsHitTestVisible, "Copier ne doit toucher aucun presse-papiers en preview.");
-        True(!Required<Button>(settings, "OpenLauncherFolderButton").IsHitTestVisible, "Ouvrir le launcher ne doit lancer aucun processus en preview.");
-        True(!Required<Button>(settings, "ResetInterfaceButton").IsHitTestVisible, "Réinitialiser ne doit modifier aucun paramètre en preview.");
         Equal(@"C:\Program Files (x86)\WotLK", Required<TextBlock>(settings, "InstallPathText").Text, "Le dossier fictif doit être lisible.");
         Equal("frFR", Required<ComboBox>(settings, "GameLanguageComboBox").SelectedValue as string, "La langue du jeu doit être visible.");
-        Equal("Français", Required<TextBlock>(settings, "InterfaceLanguageText").Text, "La langue du launcher doit être visible.");
-        True(Required<ToggleButton>(settings, "AutomaticUpdatesToggle").IsChecked == true, "L'auto-update doit être visuellement actif.");
-        True(Required<ToggleButton>(settings, "CloseAfterLaunchToggle").IsChecked == false, "La fermeture doit être visuellement inactive.");
+        Equal("fr-FR", Required<ComboBox>(settings, "InterfaceLanguageComboBox").SelectedValue as string, "La langue du launcher doit être visible.");
+        True(Required<ToggleButton>(settings, "MinimizeToTrayOnCloseToggle").IsChecked == true, "La réduction à la fermeture doit être visuellement active.");
+        True(Required<ToggleButton>(settings, "FriendPresenceNotificationsToggle").IsChecked == true, "La notification des connexions doit être visible.");
         Equal("v1.1.0", Required<TextBlock>(settings, "LauncherVersionText").Text, "La version launcher est absente.");
         Equal("3.4.3.54261", Required<TextBlock>(settings, "ClientVersionText").Text, "La version client est absente.");
     }

@@ -468,6 +468,11 @@ internal static class LauncherSettingsRuntimeTests
             True(!Required<Border>(view, "ResetInterfaceCard").IsEnabled, "La réinitialisation doit être désactivée.");
             Equal(Visibility.Collapsed, Required<Border>(view, "SettingsActionBar").Visibility, "La barre de sauvegarde différée doit être absente en mode réel.");
 
+            view.SelectCategory(SettingsCategory.Diagnostic);
+            await PumpAsync(DispatcherPriority.DataBind);
+            Equal("v1.1.0", Required<TextBlock>(view, "DiagnosticLauncherVersionText").Text,
+                "La version complète du launcher doit rester disponible dans Diagnostic.");
+
             view.SelectCategory(SettingsCategory.Updates);
             await PumpAsync(DispatcherPriority.DataBind);
             Equal("v1.1.0", Required<TextBlock>(view, "LauncherVersionText").Text,

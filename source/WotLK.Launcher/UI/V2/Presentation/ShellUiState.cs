@@ -18,6 +18,10 @@ public sealed class ShellUiState : BindableUiState
 
     public string LauncherVersion { get; init; } = "v1.1.0";
 
+    public bool IsLocalBuild => LauncherVersion.EndsWith(
+        "-local",
+        StringComparison.OrdinalIgnoreCase);
+
     public string Username
     {
         get => _username;

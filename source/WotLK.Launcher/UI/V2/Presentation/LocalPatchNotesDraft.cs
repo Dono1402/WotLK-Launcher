@@ -30,7 +30,8 @@ internal static class LocalPatchNotesDraft
                 "La barre supérieure est plus légère, avec des raccourcis sans cadre et un accès Amis limité à son icône.",
                 "Le statut d’Arthas et les notes se mettent désormais à jour automatiquement.",
                 "Atlas Launcher empêche l’ouverture de plusieurs exemplaires et ramène au premier lorsqu’il est déjà lancé.",
-                "La croix range désormais Atlas Launcher dans la zone de notification, avec des actions pour le rouvrir ou le quitter."
+                "La croix range désormais Atlas Launcher dans la zone de notification, avec des actions pour le rouvrir ou le quitter.",
+                "La version complète se trouve dans Diagnostic et les clients de test sont identifiés par un badge LOCAL discret."
             ]),
             new("Jeu",
             [

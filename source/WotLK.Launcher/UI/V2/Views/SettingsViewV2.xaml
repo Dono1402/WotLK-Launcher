@@ -1107,7 +1107,7 @@
                                     <Grid Margin="0,11,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                         <TextBlock Text="Atlas Launcher" Style="{StaticResource AtlasV2.Text.Body}"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding State.Current.Diagnostic.LauncherVersion, ElementName=SettingsRoot}" Style="{StaticResource AtlasV2.Text.Body}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                                        <TextBlock x:Name="DiagnosticLauncherVersionText" Grid.Column="1" Text="{Binding State.Current.Diagnostic.LauncherVersion, ElementName=SettingsRoot}" Style="{StaticResource AtlasV2.Text.Body}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Text}"/>
                                     </Grid>
                                     <Grid Margin="0,11,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>

@@ -563,8 +563,16 @@ internal static class LauncherDashboardTests
                     IsRuntimeConnected = true,
                     AreDeferredControlsEnabled = false
                 };
+                ShellUiState localShell = new()
+                {
+                    LauncherVersion = "v1.2.0-local"
+                };
+                True(localShell.IsLocalBuild,
+                    "Le suffixe local doit activer l'identification visuelle de la build de test.");
+                True(!new ShellUiState { LauncherVersion = "v1.2.0" }.IsLocalBuild,
+                    "Une version publique ne doit jamais afficher le badge LOCAL.");
                 window = new LauncherShellV2(
-                    LauncherV2PreviewData.CreateShell(GamePreviewScenario.Ready),
+                    localShell,
                     game,
                     dashboard,
                     LauncherV2PreviewData.CreateFriends(),
@@ -586,6 +594,7 @@ internal static class LauncherDashboardTests
                 Ellipse realmDot = Required<Ellipse>(window, "RealmStatusDot");
                 Button activityButton = Required<Button>(window, "ActivityButton");
                 Button friendsButton = Required<Button>(window, "FriendsButton");
+                Border localBuildBadge = Required<Border>(window, "LocalBuildBadge");
                 GameViewV2 gameView = Required<GameViewV2>(window, "GameView");
                 Button noteAction = Required<Button>(gameView, "LatestPatchNoteAction");
                 Button primaryAction = Required<Button>(gameView, "PrimaryActionButton");
@@ -608,6 +617,12 @@ internal static class LauncherDashboardTests
                     "Le raccourci Amis ne doit plus afficher de cadre.");
                 Equal(new Thickness(0), activityButton.BorderThickness,
                     "Le centre d'activité ne doit plus afficher de cadre.");
+                True(window.FindName("VersionText") is null,
+                    "La version complète ne doit plus encombrer la barre supérieure.");
+                Equal(Visibility.Visible, localBuildBadge.Visibility,
+                    "Une build locale doit être identifiable près de la marque.");
+                Equal("LOCAL", Required<TextBlock>(window, "LocalBuildBadgeText").Text,
+                    "Le badge local doit rester court et explicite.");
                 Equal(3, heroCopy.Children.Count,
                     "Le statut Client prêt ne doit plus occuper le héros Jeu.");
                 True(gameView.FindName("OptionsButton") is null,

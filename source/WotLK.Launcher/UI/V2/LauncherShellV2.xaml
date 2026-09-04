@@ -58,6 +58,7 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <Image Width="30"
                                Height="30"
@@ -70,14 +71,31 @@
                                    Style="{StaticResource AtlasV2.Text.Body}"
                                    FontWeight="Bold"
                                    Foreground="{StaticResource AtlasV2.Brush.Text}"/>
-                        <Border x:Name="ProductDivider"
+                        <Border x:Name="LocalBuildBadge"
                                 Grid.Column="2"
+                                Margin="8,0,0,0"
+                                Padding="6,2"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource AtlasV2.Brush.CyanSurface}"
+                                BorderBrush="{StaticResource AtlasV2.Brush.CyanBorder}"
+                                BorderThickness="1"
+                                CornerRadius="3"
+                                ToolTip="Version locale de test"
+                                Visibility="{Binding ShellState.IsLocalBuild, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                            <TextBlock x:Name="LocalBuildBadgeText"
+                                       Text="LOCAL"
+                                       FontSize="9"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
+                        </Border>
+                        <Border x:Name="ProductDivider"
+                                Grid.Column="3"
                                 Width="1"
                                 Height="22"
                                 Margin="14,0"
                                 Background="{StaticResource AtlasV2.Brush.Border}"/>
                         <TextBlock x:Name="ProductGameName"
-                                   Grid.Column="3"
+                                   Grid.Column="4"
                                    VerticalAlignment="Center"
                                    Text="{Binding ShellState.GameName}"
                                    Style="{StaticResource AtlasV2.Text.Caption}"
@@ -324,12 +342,6 @@
                                          StrokeThickness="1.5"/>
                             </Grid>
                         </Button>
-
-                        <TextBlock x:Name="VersionText"
-                                   Margin="0,0,8,0"
-                                   VerticalAlignment="Center"
-                                   Text="{Binding ShellState.LauncherVersion}"
-                                   Style="{StaticResource AtlasV2.Text.Caption}"/>
 
                         <Button x:Name="MinimizeWindowButton"
                                 Style="{StaticResource AtlasV2.Button.Window}"

@@ -674,7 +674,6 @@ public partial class LauncherShellV2 : Window
         bool stacked = mode == AdaptiveLayoutMode.Stacked;
         ProductGameName.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
         ProductDivider.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
-        VersionText.Visibility = stacked ? Visibility.Collapsed : Visibility.Visible;
         PatchNotesNavigationLabel.Text = stacked ? "Notes" : "Mises à jour";
         DashboardState.SetWideRealmLabel(wide);
         TopNavigation.Margin = mode == AdaptiveLayoutMode.Wide

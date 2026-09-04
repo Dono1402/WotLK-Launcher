@@ -160,6 +160,28 @@ internal static partial class AvatarBackendTests
             Equal(secondAvatar, await repository.GetActiveDescriptorAsync(42, CancellationToken.None),
                 "Le profil doit pointer vers le nouvel avatar.");
 
+            AvatarDescriptor latestAvatar = secondAvatar;
+            for (int index = 0; index < 5; index++)
+            {
+                AvatarCommandResult repeated = await service.UploadAsync(
+                    42,
+                    (await CreateUploadRequestAsync(
+                        png,
+                        "image/png",
+                        "portrait.png",
+                        0,
+                        0,
+                        1)).Request,
+                    CancellationToken.None);
+                Equal(StatusCodes.Status200OK, repeated.StatusCode,
+                    "Les changements successifs de photo ne doivent pas etre limites.");
+                latestAvatar = repeated.Avatar
+                    ?? throw new InvalidOperationException("Descripteur de remplacement absent.");
+            }
+            Equal(latestAvatar, await repository.GetActiveDescriptorAsync(42, CancellationToken.None),
+                "Le dernier changement successif doit rester l'avatar actif.");
+            secondAvatar = latestAvatar;
+
             FaultingAvatarStorage variantFailureStorage = new(realStorage) { FailVariantSize = 64 };
             AvatarApplicationService variantFailure = CreateService(repository, locks, variantFailureStorage, processor);
             AvatarCommandResult failedVariant = await variantFailure.UploadAsync(
@@ -628,9 +650,6 @@ internal static partial class AvatarBackendTests
         private ulong _version;
 
         internal bool FailNextPublish { get; set; }
-
-        public Task<AvatarRateLimitDecision> TryConsumeUploadPermitAsync(uint accountId, CancellationToken cancellationToken)
-            => Task.FromResult(AvatarRateLimitDecision.Permit());
 
         public Task<AvatarAssetRecord> CreatePendingAsync(uint accountId, CancellationToken cancellationToken)
         {

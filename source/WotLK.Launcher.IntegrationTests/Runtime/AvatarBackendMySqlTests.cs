@@ -11,7 +11,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MySqlConnector;
@@ -48,12 +47,11 @@ internal static partial class AvatarBackendTests
             await ValidateSchemaAndChecksumAsync(options);
             await ValidateAtlasProfileBoundaryAsync(options);
             await ValidateMutationLockLifecycleAsync(options);
-            await ValidateRepositoryRateLimitAsync(options);
             await ValidateHttpContractAsync(options, roots);
             await ValidateDatabaseConcurrencyAsync(options, roots);
             await ValidateFailureAtomicityAsync(options, roots);
-            await ValidateIpRateLimitAsync(options, roots);
-            Console.WriteLine("Avatar backend MySQL/HTTP OK: persistence, API, media cache, limits, concurrency and rollback.");
+            await ValidateAvatarRoutesWithoutRateLimitAsync(options, roots);
+            Console.WriteLine("Avatar backend MySQL/HTTP OK: persistence, API, media cache, unrestricted mutations, concurrency and rollback.");
             return 0;
         }
         finally
@@ -161,45 +159,8 @@ internal static partial class AvatarBackendTests
 
         AvatarRepository repository = new(options);
         await ExpectAsync<InvalidOperationException>(
-            () => repository.TryConsumeUploadPermitAsync(technicalAccountId, CancellationToken.None),
-            "Un compte technique ne doit pas obtenir de quota avatar.");
-        await ExpectAsync<InvalidOperationException>(
             () => repository.CreatePendingAsync(technicalAccountId, CancellationToken.None),
             "Un compte technique ne doit pas creer d'avatar.");
-    }
-
-    private static async Task ValidateRepositoryRateLimitAsync(LauncherServerOptions options)
-    {
-        LauncherDatabase database = CreateDatabase(options);
-        AuthResponse tenMinuteAccount = await RegisterTestAccountAsync(database, "rate10");
-        AvatarRepository repository = new(options);
-        for (int index = 0; index < AvatarLimits.UploadsPerTenMinutes; index++)
-        {
-            AvatarRateLimitDecision permit = await repository.TryConsumeUploadPermitAsync(
-                tenMinuteAccount.Profile.AccountId,
-                CancellationToken.None);
-            True(permit.Allowed, "Les cinq premiers uploads sur dix minutes doivent etre autorises.");
-        }
-        AvatarRateLimitDecision sixth = await repository.TryConsumeUploadPermitAsync(
-            tenMinuteAccount.Profile.AccountId,
-            CancellationToken.None);
-        True(!sixth.Allowed && sixth.RetryAfterSeconds > 0, "Le sixieme upload doit produire 429.");
-
-        AuthResponse dailyAccount = await RegisterTestAccountAsync(database, "rateday");
-        await InsertUploadAttemptsAsync(options.ConnectionString, dailyAccount.Profile.AccountId, 19, minutesAgo: 20);
-        AvatarRateLimitDecision twentieth = await repository.TryConsumeUploadPermitAsync(
-            dailyAccount.Profile.AccountId,
-            CancellationToken.None);
-        True(twentieth.Allowed, "Le vingtieme upload journalier doit etre autorise.");
-        AvatarRateLimitDecision twentyFirst = await repository.TryConsumeUploadPermitAsync(
-            dailyAccount.Profile.AccountId,
-            CancellationToken.None);
-        True(!twentyFirst.Allowed, "Le vingt-et-unieme upload journalier doit etre refuse.");
-        await repository.DeleteActiveAsync(dailyAccount.Profile.AccountId, CancellationToken.None);
-        AvatarRateLimitDecision afterDelete = await repository.TryConsumeUploadPermitAsync(
-            dailyAccount.Profile.AccountId,
-            CancellationToken.None);
-        True(!afterDelete.Allowed, "Une suppression ne doit pas remettre le quota d'upload a zero.");
     }
 
     private static async Task ValidateMutationLockLifecycleAsync(LauncherServerOptions options)
@@ -332,13 +293,13 @@ internal static partial class AvatarBackendTests
         await AssertMediaNotFoundAsync(harness, first.Url64);
         await ValidateMediaContractAsync(harness, replacement);
 
-        using (HttpResponseMessage rateLimited = await SendUploadAsync(
-            harness.Client, harness.AccessToken, png, "image/png", "avatar.png", 0, 0, 1))
+        for (int index = 0; index < 5; index++)
         {
-            await AssertApiErrorAsync(rateLimited, HttpStatusCode.TooManyRequests, "RateLimited");
-            True(rateLimited.Headers.RetryAfter?.Delta is not null
-                || rateLimited.Headers.TryGetValues("Retry-After", out _),
-                "Le quota compte doit fournir Retry-After.");
+            using HttpResponseMessage repeated = await SendUploadAsync(
+                harness.Client, harness.AccessToken, png, "image/png", "avatar.png", 0, 0, 1);
+            Equal(HttpStatusCode.OK, repeated.StatusCode,
+                "Les changements successifs de photo ne doivent plus etre limites.");
+            replacement = await ReadRequiredAsync<AvatarDescriptor>(repeated);
         }
 
         using (HttpRequestMessage delete = Authorized(HttpMethod.Delete, "/api/v1/me/avatar/photo", harness.AccessToken))
@@ -351,9 +312,10 @@ internal static partial class AvatarBackendTests
         AccountProfile deletedProfile = await GetProfileAsync(harness);
         True(deletedProfile.Avatar is null, "Le profil doit revenir au fallback par initiale apres DELETE.");
         Equal("gold", deletedProfile.AvatarKey, "Le contrat legacy avatar_key doit rester independant de la photo.");
-        using (HttpResponseMessage stillLimited = await SendUploadAsync(
+        using (HttpResponseMessage afterDelete = await SendUploadAsync(
             harness.Client, harness.AccessToken, png, "image/png", "avatar.png", 0, 0, 1))
-            await AssertApiErrorAsync(stillLimited, HttpStatusCode.TooManyRequests, "RateLimited");
+            Equal(HttpStatusCode.OK, afterDelete.StatusCode,
+                "Un nouvel upload apres suppression ne doit pas etre limite.");
     }
 
     private static async Task ValidateDatabaseConcurrencyAsync(
@@ -506,24 +468,21 @@ internal static partial class AvatarBackendTests
         }
     }
 
-    private static async Task ValidateIpRateLimitAsync(
+    private static async Task ValidateAvatarRoutesWithoutRateLimitAsync(
         LauncherServerOptions options,
         ICollection<string> roots)
     {
         string root = NewTemporaryRoot();
         roots.Add(root);
-        await using AvatarHttpHarness harness = await AvatarHttpHarness.CreateAsync(options, root, "ip-rate");
-        for (int index = 0; index < 30; index++)
+        await using AvatarHttpHarness harness = await AvatarHttpHarness.CreateAsync(options, root, "no-rate");
+        for (int index = 0; index < 35; index++)
         {
             using HttpRequestMessage request = Authorized(
                 HttpMethod.Delete, "/api/v1/me/avatar/photo", harness.AccessToken);
             using HttpResponseMessage response = await harness.Client.SendAsync(request);
-            Equal(HttpStatusCode.NoContent, response.StatusCode, "Les trente premieres mutations IP doivent passer.");
+            Equal(HttpStatusCode.NoContent, response.StatusCode,
+                "Les routes avatar ne doivent pas appliquer de limite de frequence IP.");
         }
-        using HttpRequestMessage limitedRequest = Authorized(
-            HttpMethod.Delete, "/api/v1/me/avatar/photo", harness.AccessToken);
-        using HttpResponseMessage limited = await harness.Client.SendAsync(limitedRequest);
-        Equal(HttpStatusCode.TooManyRequests, limited.StatusCode, "La protection IP doit refuser sans file d'attente.");
     }
 
     private static async Task ValidateProfileContractAsync(
@@ -735,25 +694,6 @@ internal static partial class AvatarBackendTests
             CancellationToken.None);
     }
 
-    private static async Task InsertUploadAttemptsAsync(
-        string connectionString,
-        uint accountId,
-        int count,
-        int minutesAgo)
-    {
-        await using MySqlConnection connection = new(connectionString);
-        await connection.OpenAsync();
-        await using MySqlCommand command = connection.CreateCommand();
-        command.CommandText = """
-            INSERT INTO atlas_launcher_avatar_upload_attempt (account_id, attempted_at)
-            VALUES (@accountId, UTC_TIMESTAMP(6) - INTERVAL @minutes MINUTE)
-            """;
-        command.Parameters.AddWithValue("@accountId", accountId);
-        command.Parameters.AddWithValue("@minutes", minutesAgo);
-        for (int index = 0; index < count; index++)
-            await command.ExecuteNonQueryAsync();
-    }
-
     private static async Task ResetAvatarSchemaAsync(string connectionString)
     {
         await using MySqlConnection connection = new(connectionString);
@@ -799,8 +739,6 @@ internal static partial class AvatarBackendTests
     {
         internal bool FailNextPublication { get; set; }
 
-        public Task<AvatarRateLimitDecision> TryConsumeUploadPermitAsync(uint accountId, CancellationToken cancellationToken)
-            => inner.TryConsumeUploadPermitAsync(accountId, cancellationToken);
         public Task<AvatarAssetRecord> CreatePendingAsync(uint accountId, CancellationToken cancellationToken)
             => inner.CreatePendingAsync(accountId, cancellationToken);
         public async Task<AvatarPublicationResult> PublishReadyAsync(
@@ -916,14 +854,7 @@ internal static partial class AvatarBackendTests
             builder.Services.AddSingleton(services => new AvatarCleanupInspector(
                 services.GetRequiredService<IAvatarRepository>(),
                 services.GetRequiredService<IAvatarStorage>()));
-            builder.Services.AddRateLimiter(rateLimiter =>
-            {
-                rateLimiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-                rateLimiter.AddAtlasAvatarIpRateLimit();
-            });
-
             WebApplication app = builder.Build();
-            app.UseRateLimiter();
             app.MapAtlasAvatarEndpoints();
             app.MapGet("/api/v1/me", async (
                 HttpContext context,

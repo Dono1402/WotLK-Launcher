@@ -295,7 +295,7 @@ internal sealed class AccountCommands : IDisposable
     {
         return category switch
         {
-            AvatarSelectionFailureCategory.TooLarge => "L’image dépasse la limite de 8 Mo.",
+            AvatarSelectionFailureCategory.TooLarge => "L’image dépasse la limite de 25 Mo.",
             AvatarSelectionFailureCategory.UnsupportedFormat => "Utilise une image JPEG, PNG ou WebP.",
             AvatarSelectionFailureCategory.AccessDenied => "Atlas Launcher ne peut pas lire ce fichier.",
             AvatarSelectionFailureCategory.FileUnavailable => "Le fichier sélectionné n’est plus disponible.",

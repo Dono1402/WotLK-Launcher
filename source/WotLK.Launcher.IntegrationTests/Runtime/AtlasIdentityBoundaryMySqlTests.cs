@@ -155,8 +155,8 @@ internal static partial class AvatarBackendTests
 
         AvatarRepository avatars = new(options);
         await ExpectAsync<InvalidOperationException>(
-            () => avatars.TryConsumeUploadPermitAsync(playerAccountId, CancellationToken.None),
-            "Un joueur sans profil ne doit pas obtenir de quota avatar.");
+            () => avatars.CreatePendingAsync(playerAccountId, CancellationToken.None),
+            "Un joueur sans profil ne doit pas creer d'avatar.");
         await ExpectAsync<InvalidOperationException>(
             () => avatars.CreatePendingAsync(technicalAccountId, CancellationToken.None),
             "Un compte technique sans profil ne doit pas creer d'avatar.");
@@ -222,10 +222,6 @@ internal static partial class AvatarBackendTests
         Equal(AtlasLoginOutcome.Succeeded, login.Outcome, "Une nouvelle connexion apres inscription doit reussir.");
 
         AvatarRepository avatars = new(options);
-        AvatarRateLimitDecision permit = await avatars.TryConsumeUploadPermitAsync(
-            registered.Profile.AccountId,
-            CancellationToken.None);
-        True(permit.Allowed, "Un profil inscrit doit avoir acces aux avatars.");
         AvatarAssetRecord pending = await avatars.CreatePendingAsync(
             registered.Profile.AccountId,
             CancellationToken.None);

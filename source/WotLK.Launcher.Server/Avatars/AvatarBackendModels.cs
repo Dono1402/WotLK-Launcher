@@ -2,10 +2,8 @@ namespace WotLK.Launcher.Server.Avatars;
 
 internal static class AvatarLimits
 {
-    internal const long MaximumFileBytes = 8L * 1024 * 1024;
+    internal const long MaximumFileBytes = 25L * 1024 * 1024;
     internal const long MaximumMultipartBodyBytes = MaximumFileBytes + (64L * 1024);
-    internal const int UploadsPerTenMinutes = 5;
-    internal const int UploadsPerDay = 20;
 }
 
 internal enum AvatarAssetStatus : byte
@@ -68,15 +66,6 @@ internal sealed record AvatarDeletionResult(
     bool HadActiveAvatar,
     AvatarAssetRecord? DeletedAsset);
 
-internal sealed record AvatarRateLimitDecision(
-    bool Allowed,
-    int RetryAfterSeconds)
-{
-    internal static AvatarRateLimitDecision Permit() => new(true, 0);
-    internal static AvatarRateLimitDecision Reject(int retryAfterSeconds)
-        => new(false, Math.Max(1, retryAfterSeconds));
-}
-
 internal sealed record AvatarRepositoryAssetState(
     AvatarAssetRecord Asset,
     bool IsActive);
@@ -87,8 +76,7 @@ internal sealed record AvatarRepositoryInventory(
 internal sealed record AvatarCommandResult(
     int StatusCode,
     AvatarDescriptor? Avatar,
-    AvatarApiError? Error,
-    int? RetryAfterSeconds = null)
+    AvatarApiError? Error)
 {
     internal static AvatarCommandResult Success(AvatarDescriptor avatar)
         => new(StatusCodes.Status200OK, avatar, null);
@@ -100,13 +88,11 @@ internal sealed record AvatarCommandResult(
         int statusCode,
         string code,
         string message,
-        Guid operationId,
-        int? retryAfterSeconds = null)
+        Guid operationId)
         => new(
             statusCode,
             null,
-            new AvatarApiError(code, message, operationId.ToString("N")),
-            retryAfterSeconds);
+            new AvatarApiError(code, message, operationId.ToString("N")));
 }
 
 internal sealed record AvatarMediaContent(

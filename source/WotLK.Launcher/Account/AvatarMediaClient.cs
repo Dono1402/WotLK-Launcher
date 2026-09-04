@@ -27,7 +27,7 @@ internal interface IAvatarMediaClient
 
 internal sealed class AvatarMediaClient : IAvatarMediaClient
 {
-    internal const long MaximumUploadBytes = 8L * 1024 * 1024;
+    internal const long MaximumUploadBytes = 25L * 1024 * 1024;
     internal const long MaximumDownloadedVariantBytes = 4L * 1024 * 1024;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

@@ -90,24 +90,6 @@ builder.Services.AddRateLimiter(rateLimiter =>
         limiter.Window = TimeSpan.FromMinutes(1);
         limiter.QueueLimit = 0;
     });
-    rateLimiter.AddAtlasAvatarIpRateLimit();
-    rateLimiter.OnRejected = async (rejected, cancellationToken) =>
-    {
-        if (rejected.HttpContext.Request.Path.StartsWithSegments("/api/v1/me/avatar/photo"))
-        {
-            if (rejected.Lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan retryAfter))
-            {
-                rejected.HttpContext.Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds))
-                    .ToString(System.Globalization.CultureInfo.InvariantCulture);
-            }
-            await rejected.HttpContext.Response.WriteAsJsonAsync(
-                new AvatarApiError(
-                    "RateLimited",
-                    "Trop de tentatives de modification. Reessaie plus tard.",
-                    Guid.NewGuid().ToString("N")),
-                cancellationToken);
-        }
-    };
 });
 
 WebApplication app = builder.Build();

@@ -64,18 +64,6 @@ internal sealed class AvatarApplicationService
             bool mediaPublished = false;
             try
             {
-                AvatarRateLimitDecision permit =
-                    await _repository.TryConsumeUploadPermitAsync(accountId, cancellationToken);
-                if (!permit.Allowed)
-                {
-                    return AvatarCommandResult.Failure(
-                        StatusCodes.Status429TooManyRequests,
-                        "RateLimited",
-                        "Trop de tentatives de modification. Reessaie plus tard.",
-                        operationId,
-                        permit.RetryAfterSeconds);
-                }
-
                 staging = await _storage.BeginStagingAsync(cancellationToken);
                 StagedAvatarUpload upload = await _multipart.ReadAsync(request, staging.Value, cancellationToken);
                 pending = await _repository.CreatePendingAsync(accountId, cancellationToken);
@@ -156,7 +144,7 @@ internal sealed class AvatarApplicationService
                         ? "AvatarTooLarge"
                         : "InvalidImage",
                     exception.StatusCode == StatusCodes.Status413PayloadTooLarge
-                        ? "L'image depasse la limite de 8 Mio."
+                        ? "L'image depasse la limite de 25 Mio."
                         : "La requete image est invalide.",
                     operationId);
             }
@@ -323,7 +311,7 @@ internal sealed class AvatarApplicationService
     private static (string Code, string Message) MapImageError(string sourceCode)
         => sourceCode switch
         {
-            "file_too_large" => ("AvatarTooLarge", "L'image depasse la limite de 8 Mio."),
+            "file_too_large" => ("AvatarTooLarge", "L'image depasse la limite de 25 Mio."),
             "unsupported_mime" or "unsupported_format" or "mime_mismatch" or "animated_image"
                 => ("UnsupportedFormat", "Le format de l'image n'est pas pris en charge."),
             "dimensions_too_small" or "dimensions_too_large" or "pixel_count_too_large"

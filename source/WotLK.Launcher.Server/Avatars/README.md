@@ -47,14 +47,14 @@ checksums, and an external copy.
 
 Authenticated routes are:
 
-- `POST /api/v1/me/avatar/photo` for an 8 MiB maximum JPEG, PNG, or static WebP;
+- `POST /api/v1/me/avatar/photo` for a 25 MiB maximum JPEG, PNG, or static WebP;
 - `DELETE /api/v1/me/avatar/photo` for an idempotent detach;
 - `GET /media/avatars/{avatarId}/{version}/{size}.png` for private immutable
   media at 32, 64, 128, or 256 pixels.
 
 Authentication alone is not sufficient: the account must own an
 `atlas_launcher_profile`. AzerothCore-only accounts, including Playerbots, can
-never reserve upload quota, create an asset, or expose an `AvatarDescriptor`.
+never create an asset or expose an `AvatarDescriptor`.
 
 Uploads stream into staging, apply EXIF orientation, validate a normalized
 square crop, generate fresh PNG surfaces, and publish the complete variant
@@ -67,9 +67,9 @@ on a best-effort basis; a later maintenance policy owns physical trash purging.
 `AvatarMutationLockProvider` obtains `GET_LOCK` with a timeout of zero on a
 dedicated MySQL connection. A second upload or delete for the same account is
 therefore rejected immediately with `409`; closing or losing the connection
-releases the lock. Upload attempts are persisted and limited to five per ten
-minutes and twenty per rolling day per account. ASP.NET Core also applies a
-queue-free IP limit of thirty avatar mutations per ten minutes.
+releases the lock. Avatar mutations intentionally have no frequency quota. The
+legacy `atlas_launcher_avatar_upload_attempt` table remains untouched for schema
+compatibility, but the runtime no longer reads from or writes to it.
 
 `AvatarCleanupInspector` is inspection-only in 03A.2b. It reports stale staging,
 abandoned Pending assets, published media not belonging to the active Ready

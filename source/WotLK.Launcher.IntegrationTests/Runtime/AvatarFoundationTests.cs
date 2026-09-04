@@ -168,7 +168,7 @@ internal static class AvatarFoundationTests
                     tooLarge,
                     new MemoryStream(new byte[AvatarLimits.MaximumFileBytes + 1], false),
                     CancellationToken.None),
-                "La limite de 8 Mio doit etre appliquee par le stockage.");
+                "La limite de 25 Mio doit etre appliquee par le stockage.");
             await storage.DiscardStagingAsync(tooLarge, CancellationToken.None);
 
             await ExpectAsync<ArgumentException>(

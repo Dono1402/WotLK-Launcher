@@ -5,7 +5,6 @@ namespace WotLK.Launcher.Server.Avatars;
 
 internal interface IAvatarRepository
 {
-    Task<AvatarRateLimitDecision> TryConsumeUploadPermitAsync(uint accountId, CancellationToken cancellationToken);
     Task<AvatarAssetRecord> CreatePendingAsync(uint accountId, CancellationToken cancellationToken);
     Task<AvatarPublicationResult> PublishReadyAsync(
         uint accountId,
@@ -30,76 +29,6 @@ internal sealed class AvatarRepository : IAvatarRepository
     internal AvatarRepository(LauncherServerOptions options)
     {
         _connectionString = options.ConnectionString;
-    }
-
-    public async Task<AvatarRateLimitDecision> TryConsumeUploadPermitAsync(
-        uint accountId,
-        CancellationToken cancellationToken)
-    {
-        await using MySqlConnection connection = await OpenAsync(cancellationToken);
-        await using MySqlTransaction transaction =
-            await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
-
-        await using (MySqlCommand profileLock = connection.CreateCommand())
-        {
-            profileLock.Transaction = transaction;
-            profileLock.CommandText =
-                "SELECT account_id FROM atlas_launcher_profile WHERE account_id = @accountId FOR UPDATE";
-            profileLock.Parameters.AddWithValue("@accountId", accountId);
-            if (await profileLock.ExecuteScalarAsync(cancellationToken) is null)
-                throw new InvalidOperationException("Profil Atlas introuvable.");
-        }
-
-        await using (MySqlCommand cleanup = connection.CreateCommand())
-        {
-            cleanup.Transaction = transaction;
-            cleanup.CommandText = """
-                DELETE FROM atlas_launcher_avatar_upload_attempt
-                WHERE account_id = @accountId
-                  AND attempted_at < UTC_TIMESTAMP(6) - INTERVAL 2 DAY
-                """;
-            cleanup.Parameters.AddWithValue("@accountId", accountId);
-            await cleanup.ExecuteNonQueryAsync(cancellationToken);
-        }
-
-        int recent;
-        int daily;
-        await using (MySqlCommand count = connection.CreateCommand())
-        {
-            count.Transaction = transaction;
-            count.CommandText = """
-                SELECT
-                    COALESCE(SUM(attempted_at > UTC_TIMESTAMP(6) - INTERVAL 10 MINUTE), 0),
-                    COALESCE(SUM(attempted_at > UTC_TIMESTAMP(6) - INTERVAL 1 DAY), 0)
-                FROM atlas_launcher_avatar_upload_attempt
-                WHERE account_id = @accountId
-                """;
-            count.Parameters.AddWithValue("@accountId", accountId);
-            await using MySqlDataReader reader = await count.ExecuteReaderAsync(cancellationToken);
-            await reader.ReadAsync(cancellationToken);
-            recent = Convert.ToInt32(reader.GetValue(0), System.Globalization.CultureInfo.InvariantCulture);
-            daily = Convert.ToInt32(reader.GetValue(1), System.Globalization.CultureInfo.InvariantCulture);
-        }
-
-        if (recent >= AvatarLimits.UploadsPerTenMinutes || daily >= AvatarLimits.UploadsPerDay)
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            return AvatarRateLimitDecision.Reject(
-                recent >= AvatarLimits.UploadsPerTenMinutes ? 600 : 86400);
-        }
-
-        await using (MySqlCommand insert = connection.CreateCommand())
-        {
-            insert.Transaction = transaction;
-            insert.CommandText = """
-                INSERT INTO atlas_launcher_avatar_upload_attempt (account_id, attempted_at)
-                VALUES (@accountId, UTC_TIMESTAMP(6))
-                """;
-            insert.Parameters.AddWithValue("@accountId", accountId);
-            await insert.ExecuteNonQueryAsync(cancellationToken);
-        }
-        await transaction.CommitAsync(cancellationToken);
-        return AvatarRateLimitDecision.Permit();
     }
 
     public async Task<AvatarAssetRecord> CreatePendingAsync(

@@ -379,7 +379,7 @@ internal sealed class AccountStateAdapter : IDisposable
         {
             AccountAvatarErrorCategory.None => string.Empty,
             AccountAvatarErrorCategory.InvalidImage => "Cette image ne peut pas être utilisée.",
-            AccountAvatarErrorCategory.AvatarTooLarge => "L’image dépasse la limite de 8 Mo.",
+            AccountAvatarErrorCategory.AvatarTooLarge => "L’image dépasse la limite de 25 Mo.",
             AccountAvatarErrorCategory.UnsupportedFormat => "Utilise une image JPEG, PNG ou WebP.",
             AccountAvatarErrorCategory.InvalidDimensions => "Les dimensions de cette image ne sont pas compatibles.",
             AccountAvatarErrorCategory.InvalidCrop => "Le recadrage de cette image n’est pas valide.",

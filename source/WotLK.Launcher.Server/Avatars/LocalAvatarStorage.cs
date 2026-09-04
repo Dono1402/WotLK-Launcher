@@ -309,7 +309,7 @@ internal sealed class LocalAvatarStorage : IAvatarStorage
                 break;
             total += read;
             if (total > maximumBytes)
-                throw new AvatarStorageException("L'image originale depasse 8 Mio.");
+                throw new AvatarStorageException("L'image originale depasse 25 Mio.");
             await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
         }
     }

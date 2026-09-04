@@ -93,7 +93,7 @@ internal sealed class AvatarMultipartUploadReader
                         await _storage.WriteOriginalAsync(staging, section.Body, cancellationToken);
                     }
                     catch (AvatarStorageException exception)
-                        when (exception.Message.Contains("8 Mio", StringComparison.Ordinal))
+                        when (exception.Message.Contains("25 Mio", StringComparison.Ordinal))
                     {
                         throw TooLarge();
                     }
@@ -164,5 +164,5 @@ internal sealed class AvatarMultipartUploadReader
         => new(code, message, StatusCodes.Status400BadRequest);
 
     private static AvatarRequestValidationException TooLarge()
-        => new("AvatarTooLarge", "L'image depasse la limite de 8 Mio.", StatusCodes.Status413PayloadTooLarge);
+        => new("AvatarTooLarge", "L'image depasse la limite de 25 Mio.", StatusCodes.Status413PayloadTooLarge);
 }

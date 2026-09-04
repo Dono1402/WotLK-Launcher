@@ -296,7 +296,7 @@ internal sealed class SkiaAvatarImageProcessor : IAvatarImageProcessor, IDisposa
             if (read == 0)
                 break;
             if (buffer.Length + read > maximumBytes)
-                throw Invalid("file_too_large", "L'image depasse 8 Mio.");
+                throw Invalid("file_too_large", "L'image depasse 25 Mio.");
             await buffer.WriteAsync(chunk.AsMemory(0, read), cancellationToken);
         }
         return buffer.ToArray();

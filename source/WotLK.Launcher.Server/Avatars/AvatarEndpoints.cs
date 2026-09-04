@@ -1,6 +1,4 @@
-using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Primitives;
 using MySqlConnector;
 
@@ -8,8 +6,6 @@ namespace WotLK.Launcher.Server.Avatars;
 
 internal static class AvatarEndpoints
 {
-    internal const string IpRateLimitPolicy = "avatar-ip";
-
     internal static IServiceCollection AddAtlasAvatarBackend(
         this IServiceCollection services,
         LauncherServerOptions options)
@@ -33,29 +29,10 @@ internal static class AvatarEndpoints
         return services;
     }
 
-    internal static RateLimiterOptions AddAtlasAvatarIpRateLimit(
-        this RateLimiterOptions options)
-    {
-        options.AddPolicy(IpRateLimitPolicy, context =>
-            RateLimitPartition.GetFixedWindowLimiter(
-                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = 30,
-                    Window = TimeSpan.FromMinutes(10),
-                    QueueLimit = 0,
-                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                    AutoReplenishment = true
-                }));
-        return options;
-    }
-
     internal static IEndpointRouteBuilder MapAtlasAvatarEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/api/v1/me/avatar/photo", UploadAsync)
-            .RequireRateLimiting(IpRateLimitPolicy);
-        endpoints.MapDelete("/api/v1/me/avatar/photo", DeleteAsync)
-            .RequireRateLimiting(IpRateLimitPolicy);
+        endpoints.MapPost("/api/v1/me/avatar/photo", UploadAsync);
+        endpoints.MapDelete("/api/v1/me/avatar/photo", DeleteAsync);
         endpoints.MapGet("/media/avatars/{avatarId:guid}/{version:long}/{size:int}.png", GetMediaAsync);
         return endpoints;
     }
@@ -81,7 +58,7 @@ internal static class AvatarEndpoints
             account.AccountId,
             context.Request,
             cancellationToken);
-        return ToHttpResult(context, result);
+        return ToHttpResult(result);
     }
 
     internal static async Task<IResult> DeleteAsync(
@@ -98,7 +75,7 @@ internal static class AvatarEndpoints
             return Results.Unauthorized();
 
         AvatarCommandResult result = await avatars.DeleteAsync(account.AccountId, cancellationToken);
-        return ToHttpResult(context, result);
+        return ToHttpResult(result);
     }
 
     internal static async Task GetMediaAsync(
@@ -174,10 +151,8 @@ internal static class AvatarEndpoints
         }
     }
 
-    private static IResult ToHttpResult(HttpContext context, AvatarCommandResult result)
+    private static IResult ToHttpResult(AvatarCommandResult result)
     {
-        if (result.RetryAfterSeconds is int retryAfter)
-            context.Response.Headers.RetryAfter = retryAfter.ToString(System.Globalization.CultureInfo.InvariantCulture);
         if (result.StatusCode == StatusCodes.Status204NoContent)
             return Results.NoContent();
         if (result.Avatar is not null)

@@ -265,7 +265,7 @@ internal static class AccountAvatarClientTests
                 }
                 Equal(AvatarSelectionFailureCategory.TooLarge,
                     (await ExpectAsync<AvatarSelectionException>(() => SelectAsync(tooLarge)))!.Category,
-                    "La limite locale 8 Mio doit être appliquée.");
+                    "La limite locale de 25 Mio doit être appliquée.");
 
                 string unsupported = Path.Combine(root, "avatar.gif");
                 await File.WriteAllBytesAsync(unsupported, [0x47, 0x49, 0x46]);

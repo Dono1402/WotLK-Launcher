@@ -235,9 +235,9 @@ internal static class AccountAvatarWpfTests
                 AccountAvatarClientTests.Equal(0, server.ProfileCalls,
                     "Ouvrir ProfileMenu ne doit pas relire le profil.");
                 SaveCapture(window, captureDirectory, "02-global-avatar-profile-menu-1440x860.png");
-                Button manage = Required<Button>(window.ProfileOverlay, "ManageAccountButton");
+                Button manage = Required<Button>(window.ProfileOverlay, "ManageProfileButton");
                 AccountAvatarClientTests.True(manage.IsEnabled,
-                    "Gérer mon compte doit être actif dans la V2 réelle authentifiée.");
+                    "Gérer mon profil doit être actif dans la V2 réelle authentifiée.");
                 RaiseClick(manage);
                 await WaitUntilAsync(
                     () => accountState.Current.IsAvatarBackendAvailable
@@ -267,7 +267,7 @@ internal static class AccountAvatarWpfTests
                     Required<ItemsControl>(window.AccountPage, "SessionsRealList").Visibility,
                     "La page réelle doit réserver sa liste aux sessions Atlas réelles.");
                 AccountAvatarClientTests.True(server.ProfileCalls >= 1,
-                    "Gérer mon compte conserve l'actualisation explicite existante.");
+                    "Gérer mon profil conserve l'actualisation explicite existante.");
                 SaveCapture(window, captureDirectory, "03-global-avatar-account-1440x860.png");
 
                 Button modify = Required<Button>(window.AccountPage, "ModifyAvatarButton");
@@ -377,7 +377,7 @@ internal static class AccountAvatarWpfTests
                 AccountAvatarClientTests.True(profileState.IsOpen,
                     "Le menu Profil doit rester testable pendant un changement d'avatar.");
                 AccountAvatarClientTests.True(ReferenceEquals(manage, profileFocusBeforeUpdate),
-                    "Le contrôle Gérer mon compte doit recevoir le focus avant la mise à jour.");
+                    "Le contrôle Gérer mon profil doit recevoir le focus avant la mise à jour.");
                 server.ResetUploadGate();
                 AccountActionStartResult versionThreeUpload = account.TryUpload(new AvatarUploadRequest(
                     AccountAvatarClientTests.CreatePng(8, 8),
@@ -494,7 +494,7 @@ internal static class AccountAvatarWpfTests
 
                 RaiseClick(Required<Button>(window, "ProfileButton"));
                 await PumpAsync(DispatcherPriority.Input);
-                RaiseClick(Required<Button>(window.ProfileOverlay, "ManageAccountButton"));
+                RaiseClick(Required<Button>(window.ProfileOverlay, "ManageProfileButton"));
                 await WaitUntilAsync(
                     () => window.CurrentPage == LauncherShellPage.Account,
                     "Le second compte doit rouvrir explicitement sa page Compte.");

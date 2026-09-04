@@ -140,6 +140,7 @@ internal static class AccountPreviewTests
                 };
                 LoadV2Resources(application);
                 await ValidateProfileMenuNavigationAsync(captureDirectory);
+                await ValidateRuntimeNavigationActivationAsync();
                 await ValidateAccountScenariosAndCapturesAsync(captureDirectory);
                 await ValidateCropInteractionAsync();
             }
@@ -166,18 +167,89 @@ internal static class AccountPreviewTests
             RaiseClick(Required<Button>(window, "ProfileButton"));
             await DelayAndPumpAsync(180);
             True(window.ProfileState.IsOpen, "Le bouton profil doit ouvrir son menu.");
+            Button manageProfile = Required<Button>(window.ProfileOverlay, "ManageProfileButton");
             Button manageAccount = Required<Button>(window.ProfileOverlay, "ManageAccountButton");
+            True(manageProfile.IsEnabled, "Gérer mon profil doit être actif dans le preview.");
             True(manageAccount.IsEnabled, "Gérer mon compte doit être actif dans le preview.");
             if (!string.IsNullOrWhiteSpace(captureDirectory))
             {
                 Directory.CreateDirectory(captureDirectory);
                 SavePng(window, Path.Combine(captureDirectory, "00-profile-menu-manage-account-1440x860.png"));
             }
-            RaiseClick(manageAccount);
+            RaiseClick(manageProfile);
             await DelayAndPumpAsync(180);
-            Equal(LauncherShellPage.Account, window.CurrentPage, "Gérer mon compte doit ouvrir AccountViewV2.");
+            Equal(LauncherShellPage.Account, window.CurrentPage, "Gérer mon profil doit ouvrir AccountViewV2.");
+            Equal(AccountSection.Profile, window.AccountPage.SelectedSection,
+                "Gérer mon profil doit ouvrir directement la personnalisation.");
+            Equal("Mon profil", Required<TextBlock>(window.AccountPage, "PageTitle").Text,
+                "L'accès Profil doit être identifié comme une personnalisation.");
             Equal(Visibility.Visible, window.AccountPage.Visibility, "AccountViewV2 doit être visible.");
             True(!window.ProfileState.IsOpen, "Le menu profil doit se fermer après navigation.");
+
+            RaiseClick(Required<Button>(window, "ProfileButton"));
+            await DelayAndPumpAsync(180);
+            RaiseClick(manageAccount);
+            await DelayAndPumpAsync(180);
+            Equal(AccountSection.Security, window.AccountPage.SelectedSection,
+                "Gérer mon compte doit ouvrir directement la sécurité.");
+            Equal("Mon compte", Required<TextBlock>(window.AccountPage, "PageTitle").Text,
+                "L'accès Compte doit conserver son identité dédiée.");
+        }
+        finally
+        {
+            window.Close();
+            await PumpAsync(DispatcherPriority.Background);
+        }
+    }
+
+    private static async Task ValidateRuntimeNavigationActivationAsync()
+    {
+        AccountUiState accountState = new(AccountUiState.Empty.Current);
+        LauncherShellV2 window = new(
+            LauncherV2PreviewData.CreateShell(GamePreviewScenario.Ready, isAuthenticated: true),
+            LauncherV2PreviewData.CreateGame(GamePreviewScenario.Ready),
+            LauncherV2PreviewData.CreateDashboard(GamePreviewScenario.Ready),
+            LauncherV2PreviewData.CreateFriends(),
+            LauncherV2PreviewData.CreateProfile(ProfilePreviewScenario.SignedIn),
+            LauncherV2PreviewData.CreateSettings(),
+            accountState,
+            new AvatarCropUiState(AvatarCropUiState.Empty.Current))
+        {
+            Width = 1440,
+            Height = 860,
+            Left = -20000,
+            Top = -20000,
+            WindowStartupLocation = WindowStartupLocation.Manual,
+            ShowInTaskbar = false,
+            ShowActivated = false
+        };
+        window.Show();
+        try
+        {
+            await PumpAsync(DispatcherPriority.DataBind);
+            Button manageProfile = Required<Button>(window.ProfileOverlay, "ManageProfileButton");
+            Button manageAccount = Required<Button>(window.ProfileOverlay, "ManageAccountButton");
+            True(!manageProfile.IsEnabled && !manageAccount.IsEnabled,
+                "La navigation Compte doit attendre la restauration de session.");
+
+            AccountViewState authenticated = LauncherV2PreviewData
+                .CreateAccount(AccountPreviewScenario.Profile)
+                .Current with
+            {
+                IsPreview = false,
+                IsRuntimeConnected = true
+            };
+            accountState.ApplyRuntimeView(authenticated);
+            await PumpAsync(DispatcherPriority.DataBind);
+            True(manageProfile.IsEnabled && manageAccount.IsEnabled,
+                "La restauration de session doit activer les deux accès sans recréer la fenêtre.");
+
+            RaiseClick(Required<Button>(window, "ProfileButton"));
+            RaiseClick(manageAccount);
+            Equal(LauncherShellPage.Account, window.CurrentPage,
+                "Le compte restauré doit être accessible immédiatement.");
+            Equal(AccountSection.Security, window.AccountPage.SelectedSection,
+                "L'accès Compte restauré doit cibler la sécurité.");
         }
         finally
         {

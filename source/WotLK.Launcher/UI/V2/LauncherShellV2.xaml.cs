@@ -348,7 +348,11 @@ public partial class LauncherShellV2 : Window
         IsPreviewMode = isPreviewMode;
 
         InitializeComponent();
-        Title = isPreviewMode ? "Atlas Launcher · Prévisualisation V2" : "Atlas Launcher";
+        Title = isPreviewMode
+            ? "Atlas Launcher · Prévisualisation V2"
+            : LauncherBuildFlavor.IsLocalClient
+                ? "Atlas Launcher · Client local"
+                : "Atlas Launcher";
         DataContext = this;
 
         SizeChanged += LauncherShellV2_SizeChanged;
@@ -389,9 +393,7 @@ public partial class LauncherShellV2 : Window
 
     public bool IsSettingsNavigationEnabled => IsPreviewMode || SettingsState.Current.IsRuntimeConnected;
 
-    public bool IsAccountNavigationEnabled => IsPreviewMode
-        ? AccountState.Current.IsPreview
-        : AccountState.Current.IsRuntimeConnected;
+    public bool IsAccountNavigationEnabled => AccountState.IsNavigationEnabled;
 
     public bool IsAccountPreviewAvailable => IsPreviewMode && AccountState.Current.IsPreview;
 
@@ -627,6 +629,7 @@ public partial class LauncherShellV2 : Window
         AddonsState.PropertyChanged -= AddonsState_PropertyChanged;
         DashboardState.PropertyChanged -= DashboardState_PropertyChanged;
         AuthOverlay.SubmissionRequested -= AuthOverlay_SubmissionRequested;
+        ProfileMenu.ManageProfileRequested -= ProfileMenu_ManageProfileRequested;
         ProfileMenu.ManageAccountRequested -= ProfileMenu_ManageAccountRequested;
         _authCommands = null;
         _accountCommands = null;
@@ -915,11 +918,22 @@ public partial class LauncherShellV2 : Window
 
     private void ProfileMenu_ManageAccountRequested(object? sender, EventArgs e)
     {
+        OpenAccountSection(AccountSection.Security);
+    }
+
+    private void ProfileMenu_ManageProfileRequested(object? sender, EventArgs e)
+    {
+        OpenAccountSection(AccountSection.Profile);
+    }
+
+    private void OpenAccountSection(AccountSection section)
+    {
         if (!IsAccountNavigationEnabled)
         {
             return;
         }
 
+        AccountState.SelectSection(section);
         _overlayCoordinator.CloseProfile();
         NavigateTo(LauncherShellPage.Account);
         _accountCommands?.RefreshProfile();

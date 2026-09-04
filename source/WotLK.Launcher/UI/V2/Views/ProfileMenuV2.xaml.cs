@@ -35,6 +35,12 @@ public partial class ProfileMenuV2 : UserControl
         typeof(ProfileMenuV2),
         new PropertyMetadata(false));
 
+    public static readonly DependencyProperty IsManageProfileEnabledProperty = DependencyProperty.Register(
+        nameof(IsManageProfileEnabled),
+        typeof(bool),
+        typeof(ProfileMenuV2),
+        new PropertyMetadata(false));
+
     public ProfileMenuV2()
     {
         InitializeComponent();
@@ -42,6 +48,8 @@ public partial class ProfileMenuV2 : UserControl
     }
 
     public event EventHandler? CloseRequested;
+
+    public event EventHandler? ManageProfileRequested;
 
     public event EventHandler? ManageAccountRequested;
 
@@ -65,6 +73,12 @@ public partial class ProfileMenuV2 : UserControl
         set => SetValue(IsManageAccountEnabledProperty, value);
     }
 
+    public bool IsManageProfileEnabled
+    {
+        get => (bool)GetValue(IsManageProfileEnabledProperty);
+        set => SetValue(IsManageProfileEnabledProperty, value);
+    }
+
     internal bool IsFullyClosed => Visibility == Visibility.Collapsed
         && !IsHitTestVisible;
 
@@ -77,8 +91,10 @@ public partial class ProfileMenuV2 : UserControl
     {
         Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
-            () => Keyboard.Focus(ManageAccountButton.IsEnabled
-                ? ManageAccountButton
+            () => Keyboard.Focus(ManageProfileButton.IsEnabled
+                ? ManageProfileButton
+                : ManageAccountButton.IsEnabled
+                    ? ManageAccountButton
                 : LogoutButton.IsEnabled
                     ? LogoutButton
                     : CloseProfileButton));
@@ -227,6 +243,14 @@ public partial class ProfileMenuV2 : UserControl
         if (IsManageAccountEnabled)
         {
             ManageAccountRequested?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private void ManageProfileButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (IsManageProfileEnabled)
+        {
+            ManageProfileRequested?.Invoke(this, EventArgs.Empty);
         }
     }
 }

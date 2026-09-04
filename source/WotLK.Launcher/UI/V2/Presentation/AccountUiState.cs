@@ -140,6 +140,8 @@ public sealed class AccountUiState : BindableUiState
 
     public AccountViewState Current => _current;
 
+    public bool IsNavigationEnabled => _current.IsPreview || _current.IsRuntimeConnected;
+
     internal void SelectSection(AccountSection section)
     {
         if (_current.SelectedSection != section)

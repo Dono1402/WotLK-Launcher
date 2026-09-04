@@ -219,6 +219,14 @@ public partial class AccountViewV2 : UserControl
         }
 
         AccountSection section = State.Current.SelectedSection;
+        PageEyebrow.Text = section == AccountSection.Profile ? "PROFIL ATLAS" : "COMPTE ATLAS";
+        PageTitle.Text = section == AccountSection.Profile ? "Mon profil" : "Mon compte";
+        PageSubtitle.Text = section switch
+        {
+            AccountSection.Profile => "Personnalise ton apparence et ton identité visible dans Atlas.",
+            AccountSection.Security => "Gère ton adresse e-mail, ton mot de passe et la sécurité.",
+            _ => "Consulte les appareils connectés à ton compte Atlas."
+        };
         ProfilePanel.Visibility = section == AccountSection.Profile ? Visibility.Visible : Visibility.Collapsed;
         SecurityPanel.Visibility = section == AccountSection.Security ? Visibility.Visible : Visibility.Collapsed;
         SessionsPanel.Visibility = section == AccountSection.Sessions ? Visibility.Visible : Visibility.Collapsed;

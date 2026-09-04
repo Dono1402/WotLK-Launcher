@@ -443,8 +443,10 @@
                                  Panel.ZIndex="150"
                                   State="{Binding ProfileState}"
                                   IsOpen="{Binding ProfileState.IsOpen, Mode=TwoWay}"
-                                  IsManageAccountEnabled="{Binding IsAccountNavigationEnabled}"
+                                  IsManageProfileEnabled="{Binding AccountState.IsNavigationEnabled}"
+                                  IsManageAccountEnabled="{Binding AccountState.IsNavigationEnabled}"
                                   CloseRequested="ProfileMenu_CloseRequested"
+                                  ManageProfileRequested="ProfileMenu_ManageProfileRequested"
                                   ManageAccountRequested="ProfileMenu_ManageAccountRequested"
                                   Closed="ProfileMenu_Closed"/>
         </Grid>

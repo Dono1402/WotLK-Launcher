@@ -24,8 +24,8 @@ if [ ! -f "$WORLD_CONF" ]; then
   echo "missing world config: $WORLD_CONF" >&2
   exit 1
 fi
-if [ "$MAX_SCHEMA_VERSION" != "3" ]; then
-  echo "WOTLK_LAUNCHER_MAX_SCHEMA_VERSION=3 must be provided explicitly" >&2
+if [ "$MAX_SCHEMA_VERSION" != "5" ]; then
+  echo "WOTLK_LAUNCHER_MAX_SCHEMA_VERSION=5 must be provided explicitly" >&2
   exit 1
 fi
 
@@ -101,7 +101,7 @@ install -d -m 0755 "$ENV_DIR"
 } > "$ENV_FILE"
 chown root:root "$ENV_FILE"
 chmod 0600 "$ENV_FILE"
-if ! grep -Fxq 'WOTLK_LAUNCHER_MAX_SCHEMA_VERSION=3' "$ENV_FILE"; then
+if ! grep -Fxq 'WOTLK_LAUNCHER_MAX_SCHEMA_VERSION=5' "$ENV_FILE"; then
   echo "migration ceiling preflight failed" >&2
   exit 1
 fi

@@ -17,12 +17,53 @@ internal static class AccountSecuritySessionTests
         ValidateDeviceNamePolicy();
         await ValidateSnapshotAndSessionsAsync();
         await ValidateEmailMutationsAsync();
+        await ValidateSocialProfileMutationAsync();
         await ValidatePasswordMutationsAsync();
         await ValidateSessionRevocationAsync();
         await ValidateCompatibilityAndLifecycleAsync();
         await AccountSecuritySessionWpfTests.RunAsync(captureDirectory);
         Console.WriteLine("Account security and sessions OK: runtime, errors, lifecycle and WPF.");
         return 0;
+    }
+
+    private static async Task ValidateSocialProfileMutationAsync()
+    {
+        using TestContext context = await TestContext.CreateAsync(
+            emailVerified: true,
+            sessions: DefaultSessions());
+        _ = await CompleteAsync(context.Account.TryRefresh());
+        context.Authentication.UpdateSocialProfileHandler = (status, bio, _) =>
+        {
+            Equal("Disponible pour un raid", status,
+                "Le statut doit être normalisé avant l’appel API.");
+            Equal("Mage de Norfendre.", bio,
+                "La bio doit être normalisée avant l’appel API.");
+            LauncherProfile profile = context.Authentication.Session!.Profile with
+            {
+                StatusMessage = status,
+                Bio = bio
+            };
+            return Task.FromResult(profile);
+        };
+
+        AccountActionCompletion updated = await CompleteAsync(
+            context.Account.TryUpdateSocialProfile(
+                "  Disponible pour un raid  ",
+                "  Mage de Norfendre.  "));
+        Equal(AccountActionCompletionStatus.Succeeded, updated.Status,
+            "Le profil public doit être enregistré par le coordinateur de compte.");
+        Equal("Disponible pour un raid", updated.Snapshot.StatusMessage,
+            "Le statut renvoyé doit rejoindre le snapshot.");
+        Equal("Mage de Norfendre.", updated.Snapshot.Bio,
+            "La bio renvoyée doit rejoindre le snapshot.");
+        Equal(AccountNoticeKind.ProfileUpdated, updated.Snapshot.Notice,
+            "La réussite doit être annoncée sans message serveur brut.");
+
+        Equal(AccountActionStartStatus.InvalidRequest,
+            context.Account.TryUpdateSocialProfile(new string('x', 81), string.Empty).Status,
+            "Un statut trop long doit être refusé avant le réseau.");
+        Equal(1, context.Authentication.UpdateSocialProfileCalls,
+            "La validation locale ne doit pas produire un second appel API.");
     }
 
     private static void ValidateDeviceNamePolicy()

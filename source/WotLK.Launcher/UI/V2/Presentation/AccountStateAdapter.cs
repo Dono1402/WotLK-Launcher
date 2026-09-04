@@ -93,6 +93,7 @@ internal sealed class AccountStateAdapter : IDisposable
             AccountOperationState.ResendingVerification => AccountOperationViewState.ResendingVerification,
             AccountOperationState.ChangingPassword => AccountOperationViewState.ChangingPassword,
             AccountOperationState.RevokingSession => AccountOperationViewState.RevokingSession,
+            AccountOperationState.UpdatingProfile => AccountOperationViewState.UpdatingProfile,
             _ => AccountOperationViewState.None
         };
         var sessions = snapshot.Sessions.Select(session => new AccountSessionViewState(
@@ -132,6 +133,7 @@ internal sealed class AccountStateAdapter : IDisposable
             AccountNoticeKind.VerificationEmailSent => AccountNoticeViewState.VerificationEmailSent,
             AccountNoticeKind.PasswordChanged => AccountNoticeViewState.PasswordChanged,
             AccountNoticeKind.SessionRevoked => AccountNoticeViewState.SessionRevoked,
+            AccountNoticeKind.ProfileUpdated => AccountNoticeViewState.ProfileUpdated,
             _ => AccountNoticeViewState.None
         };
         return new AccountViewState(
@@ -163,6 +165,7 @@ internal sealed class AccountStateAdapter : IDisposable
                 AccountOperationState.ResendingVerification => AccountOperationViewState.ResendingVerification,
                 AccountOperationState.ChangingPassword => AccountOperationViewState.ChangingPassword,
                 AccountOperationState.RevokingSession => AccountOperationViewState.RevokingSession,
+                AccountOperationState.UpdatingProfile => AccountOperationViewState.UpdatingProfile,
                 _ => AccountOperationViewState.None
             },
             AccountErrorMessage: MapAccountError(snapshot.AccountError.Category),
@@ -175,7 +178,10 @@ internal sealed class AccountStateAdapter : IDisposable
             IsPasswordEditorOpen: false,
             SessionsState: sessionsState,
             Sessions: sessions,
-            SessionsMessage: sessionsMessage);
+            SessionsMessage: sessionsMessage,
+            StatusMessage: snapshot.StatusMessage,
+            Bio: snapshot.Bio,
+            CanUpdateSocialProfile: canMutateAccount);
     }
 
     public void Dispose()
@@ -313,6 +319,12 @@ internal sealed class AccountStateAdapter : IDisposable
         BitmapSource? chromeImage,
         BitmapSource? accountImage)
     {
+        // A cached image can arrive before AuthStateAdapter projects the same login.
+        // Align the identity first so that projection does not clear the new avatar.
+        if (snapshot.IsAuthenticated)
+        {
+            _shell.ApplyAuthenticatedUser(snapshot.Username);
+        }
         _shell.ApplyProfileAvatar(chromeImage);
         _profile.ApplyAccountIdentity(snapshot.Username, snapshot.EmailVerified);
         _profile.ApplyAvatarImage(chromeImage);
@@ -406,6 +418,7 @@ internal sealed class AccountStateAdapter : IDisposable
             AccountErrorCategory.EmailAlreadyUsed => "Cette adresse e-mail est déjà utilisée.",
             AccountErrorCategory.CurrentPasswordIncorrect => "Le mot de passe actuel est incorrect.",
             AccountErrorCategory.InvalidPassword => "Le nouveau mot de passe doit contenir entre 10 et 128 caractères.",
+            AccountErrorCategory.InvalidSocialProfile => "Le statut ou la bio dépasse la longueur autorisée.",
             AccountErrorCategory.SessionExpired => "Ta session Atlas a expiré. Reconnecte-toi.",
             AccountErrorCategory.SessionNotFound => "Cette session n’est plus active.",
             AccountErrorCategory.RateLimited => "Trop de tentatives. Réessaie dans quelques instants.",
@@ -429,6 +442,7 @@ internal sealed class AccountStateAdapter : IDisposable
                 "Un message de validation a été envoyé.",
             AccountNoticeKind.PasswordChanged => "Mot de passe modifié.",
             AccountNoticeKind.SessionRevoked => "Appareil déconnecté.",
+            AccountNoticeKind.ProfileUpdated => "Profil public enregistré.",
             _ => string.Empty
         };
     }

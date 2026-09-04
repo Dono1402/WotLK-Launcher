@@ -365,6 +365,7 @@ public partial class LauncherShellV2 : Window
         PreviewKeyDown += LauncherShellV2_PreviewKeyDown;
         PreviewMouseDown += LauncherShellV2_PreviewMouseDown;
         PreviewGotKeyboardFocus += LauncherShellV2_PreviewGotKeyboardFocus;
+        ShellState.PropertyChanged += ShellState_PropertyChanged;
         AccountState.PropertyChanged += AccountState_PropertyChanged;
         AddonsState.PropertyChanged += AddonsState_PropertyChanged;
         DashboardState.PropertyChanged += DashboardState_PropertyChanged;
@@ -525,7 +526,9 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
-        _authFocusReturnTarget = ProfileButton;
+        _authFocusReturnTarget = ProfileButton.Visibility == Visibility.Visible
+            ? ProfileButton
+            : SettingsButton;
         SuppressFriendsFocusRestore();
         AuthState.ApplyPreviewScenario(scenario);
         AuthOverlay.PreparePreviewScenario(scenario);
@@ -622,6 +625,8 @@ public partial class LauncherShellV2 : Window
             _avatarCropFocusReturnTarget = AccountView.AvatarActionFocusTarget;
             AvatarCropOverlay.FocusFirstControl();
         }
+
+        ApplyAuthenticationGate();
     }
 
     private void LauncherShellV2_Closed(object? sender, EventArgs e)
@@ -632,6 +637,7 @@ public partial class LauncherShellV2 : Window
         PreviewKeyDown -= LauncherShellV2_PreviewKeyDown;
         PreviewMouseDown -= LauncherShellV2_PreviewMouseDown;
         PreviewGotKeyboardFocus -= LauncherShellV2_PreviewGotKeyboardFocus;
+        ShellState.PropertyChanged -= ShellState_PropertyChanged;
         AccountState.PropertyChanged -= AccountState_PropertyChanged;
         AddonsState.PropertyChanged -= AddonsState_PropertyChanged;
         DashboardState.PropertyChanged -= DashboardState_PropertyChanged;
@@ -1175,6 +1181,14 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
+        if (e.Key == Key.Escape
+            && FriendsState.IsOpen
+            && FriendsOverlay.TryCloseTransientPanel())
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.Escape && FriendsState.IsOpen)
         {
             FriendsState.IsOpen = false;
@@ -1292,8 +1306,52 @@ public partial class LauncherShellV2 : Window
 
     private void CloseAuthenticationFromUser()
     {
+        if (!CanCloseAuthentication)
+        {
+            AuthOverlay.FocusFirstControl();
+            return;
+        }
+
         _authCommands?.CancelCurrent();
         _overlayCoordinator.CloseAuthentication();
+    }
+
+    private bool CanCloseAuthentication => IsPreviewMode || ShellState.IsAuthenticated;
+
+    private void ShellState_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (IsPreviewMode
+            || (!string.IsNullOrEmpty(e.PropertyName)
+                && e.PropertyName != nameof(ShellUiState.IsAuthenticated)
+                && e.PropertyName != nameof(ShellUiState.IsSessionRestoring)))
+        {
+            return;
+        }
+
+        ApplyAuthenticationGate();
+    }
+
+    private void ApplyAuthenticationGate()
+    {
+        AuthOverlay.CanClose = CanCloseAuthentication;
+        if (IsPreviewMode || ShellState.IsSessionRestoring || ShellState.IsAuthenticated)
+        {
+            return;
+        }
+
+        _authFocusReturnTarget = null;
+        SuppressFriendsFocusRestore();
+        if (!AuthState.IsOpen)
+        {
+            AuthState.PrepareForOpen();
+        }
+
+        _overlayCoordinator.OpenAuthentication();
+        FriendsButton.Focusable = false;
+        if (IsLoaded)
+        {
+            AuthOverlay.FocusFirstControl();
+        }
     }
 
     private void NavigateTo(LauncherShellPage page)

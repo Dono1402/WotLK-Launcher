@@ -247,10 +247,13 @@ internal static class AuthOverlayPreviewTests
             TextBox username = Required<TextBox>(overlay, "LoginUsernameBox");
             PasswordBox password = Required<PasswordBox>(overlay, "LoginPasswordBox");
             Button profile = Required<Button>(window, "ProfileButton");
+            Button settings = Required<Button>(window, "SettingsButton");
             Button close = Required<Button>(overlay, "CloseButton");
 
-            Style expectedFieldFocus = (Style)Application.Current.FindResource("AtlasV2.FocusVisual.Field");
-            Equal(expectedFieldFocus, username.FocusVisualStyle, "Le champ doit utiliser le focus visuel cyan du design system.");
+            Equal(Visibility.Collapsed, profile.Visibility,
+                "Le faux avatar de compte ne doit pas apparaître derrière la connexion.");
+            True(username.FocusVisualStyle is null, "Le champ texte ne doit pas ajouter un second contour bleu au focus clavier.");
+            True(password.FocusVisualStyle is null, "Le champ mot de passe ne doit pas ajouter un second contour bleu au focus clavier.");
             True(!string.IsNullOrWhiteSpace(System.Windows.Automation.AutomationProperties.GetName(username)), "Le champ doit exposer un nom accessible.");
             True(!string.IsNullOrWhiteSpace(System.Windows.Automation.AutomationProperties.GetName(close)), "Fermer doit exposer un nom accessible.");
 
@@ -289,7 +292,8 @@ internal static class AuthOverlayPreviewTests
             Equal(string.Empty, state.LoginUsername, "Le nom fictif doit être vidé à la fermeture complète.");
             IInputElement? returnedFocus = Keyboard.FocusedElement
                 ?? FocusManager.GetFocusedElement(window);
-            Equal(profile, returnedFocus, "Le focus doit revenir au bouton Compte.");
+            Equal(settings, returnedFocus,
+                "Le focus doit revenir à un contrôle visible lorsque le compte est masqué.");
 
             window.SetFriendsDrawerOpenForPreview();
             await DelayAndPumpAsync(220);

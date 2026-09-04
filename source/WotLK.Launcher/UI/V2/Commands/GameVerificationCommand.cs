@@ -6,12 +6,16 @@ namespace WotLK.Launcher.UI.V2.Commands;
 internal sealed class GameVerificationCommand : IDisposable
 {
     private readonly IGameVerificationRuntime _runtime;
+    private readonly Func<bool> _ensureWritable;
     private readonly DelegateCommand _command;
     private int _disposeState;
 
-    internal GameVerificationCommand(IGameVerificationRuntime runtime)
+    internal GameVerificationCommand(
+        IGameVerificationRuntime runtime,
+        Func<bool>? ensureWritable = null)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+        _ensureWritable = ensureWritable ?? (static () => true);
         _command = new DelegateCommand(
             Execute,
             () => _runtime.CanVerify);
@@ -33,7 +37,10 @@ internal sealed class GameVerificationCommand : IDisposable
 
     private void Execute()
     {
-        _ = _runtime.TryStartFullRepair();
+        if (_ensureWritable())
+        {
+            _ = _runtime.TryStartFullRepair();
+        }
     }
 
     private void Runtime_AvailabilityChanged(object? sender, EventArgs e)

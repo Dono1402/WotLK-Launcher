@@ -326,6 +326,27 @@ public partial class AccountViewV2 : UserControl
         AvatarOperationProgress.IsIndeterminate = true;
         ModifyAvatarButton.IsEnabled = state.CanModifyAvatar;
         RemoveAvatarButton.IsEnabled = state.CanRemoveAvatar;
+        bool updatingProfile = state.AccountOperation == AccountOperationViewState.UpdatingProfile;
+        SaveSocialProfileButton.Content = updatingProfile ? "Enregistrement…" : "Enregistrer";
+        SocialStatusBox.IsEnabled = state.CanUpdateSocialProfile;
+        SocialBioBox.IsEnabled = state.CanUpdateSocialProfile;
+        if (state.AccountErrorOperation == AccountOperationViewState.UpdatingProfile
+            && !string.IsNullOrWhiteSpace(state.AccountErrorMessage))
+        {
+            SocialProfileFeedbackText.Text = state.AccountErrorMessage;
+            SocialProfileFeedbackText.Foreground = (Brush)FindResource("AtlasV2.Brush.Danger");
+            SocialProfileFeedbackText.Visibility = Visibility.Visible;
+        }
+        else if (state.AccountNotice == AccountNoticeViewState.ProfileUpdated)
+        {
+            SocialProfileFeedbackText.Text = state.AccountNoticeMessage;
+            SocialProfileFeedbackText.Foreground = (Brush)FindResource("AtlasV2.Brush.Success");
+            SocialProfileFeedbackText.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            SocialProfileFeedbackText.Visibility = Visibility.Collapsed;
+        }
         AvatarAvailabilityBanner.Visibility = string.IsNullOrWhiteSpace(state.AvatarAvailabilityMessage)
             ? Visibility.Collapsed
             : Visibility.Visible;
@@ -348,10 +369,12 @@ public partial class AccountViewV2 : UserControl
                 : Visibility.Collapsed;
         AccountNoticeBanner.Visibility = string.IsNullOrWhiteSpace(state.AccountNoticeMessage)
             || state.AccountNotice == AccountNoticeViewState.SessionRevoked
+            || state.AccountNotice == AccountNoticeViewState.ProfileUpdated
             ? Visibility.Collapsed
             : Visibility.Visible;
         AccountErrorBanner.Visibility = string.IsNullOrWhiteSpace(state.AccountErrorMessage)
             || state.AccountErrorOperation == AccountOperationViewState.RevokingSession
+            || state.AccountErrorOperation == AccountOperationViewState.UpdatingProfile
             || state.SessionsState == AccountSessionsViewState.Failed
             || state.IsEmailEditorOpen
                 && state.AccountErrorOperation == AccountOperationViewState.ChangingEmail
@@ -446,6 +469,16 @@ public partial class AccountViewV2 : UserControl
         }
         _emailEditorWasOpen = emailOpen;
         _passwordEditorWasOpen = passwordOpen;
+    }
+
+    private void SaveSocialProfileButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (State is null || _commands is null)
+        {
+            return;
+        }
+
+        _commands.TryUpdateSocialProfile(State.StatusMessageDraft, State.BioDraft);
     }
 
     private void ReplaceStateSubscription(AccountUiState? oldState, AccountUiState? newState)

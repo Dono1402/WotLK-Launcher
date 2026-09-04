@@ -399,6 +399,89 @@
                             </StackPanel>
                         </Border>
 
+                        <Border Margin="0,18,0,0"
+                                Padding="24"
+                                Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                                BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <StackPanel>
+                                <TextBlock Text="Profil public"
+                                           Style="{StaticResource AtlasV2.Text.SectionTitle}"/>
+
+                                <Grid Margin="0,18,0,0">
+                                    <TextBlock Text="STATUT PERSONNEL"
+                                               Style="{StaticResource AtlasV2.Account.Label}"/>
+                                    <TextBlock HorizontalAlignment="Right"
+                                               Text="{Binding StatusLengthText}"
+                                               Style="{StaticResource AtlasV2.Text.Caption}"/>
+                                </Grid>
+                                <Border Height="42"
+                                        Margin="0,7,0,0"
+                                        Background="{StaticResource AtlasV2.Brush.Field}"
+                                        BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                                        BorderThickness="1"
+                                        CornerRadius="6">
+                                    <TextBox x:Name="SocialStatusBox"
+                                             Margin="12,0"
+                                             MaxLength="80"
+                                             Text="{Binding StatusMessageDraft, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource AtlasV2.TextBox.Field}"
+                                             AutomationProperties.Name="Statut personnel"/>
+                                </Border>
+
+                                <Grid Margin="0,17,0,0">
+                                    <TextBlock Text="BIO"
+                                               Style="{StaticResource AtlasV2.Account.Label}"/>
+                                    <TextBlock HorizontalAlignment="Right"
+                                               Text="{Binding BioLengthText}"
+                                               Style="{StaticResource AtlasV2.Text.Caption}"/>
+                                </Grid>
+                                <Border Height="112"
+                                        Margin="0,7,0,0"
+                                        Padding="12,9"
+                                        Background="{StaticResource AtlasV2.Brush.Field}"
+                                        BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                                        BorderThickness="1"
+                                        CornerRadius="6">
+                                    <TextBox x:Name="SocialBioBox"
+                                             MaxLength="280"
+                                             AcceptsReturn="True"
+                                             TextWrapping="Wrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             VerticalContentAlignment="Top"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             FocusVisualStyle="{x:Null}"
+                                             Foreground="{StaticResource AtlasV2.Brush.Text}"
+                                             CaretBrush="{StaticResource AtlasV2.Brush.Cyan}"
+                                             SelectionBrush="{StaticResource AtlasV2.Brush.Cyan}"
+                                             FontFamily="{StaticResource AtlasV2.Font.Manrope}"
+                                             FontSize="14"
+                                             Text="{Binding BioDraft, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Bio publique"/>
+                                </Border>
+
+                                <Grid Margin="0,16,0,0">
+                                    <TextBlock x:Name="SocialProfileFeedbackText"
+                                               MaxWidth="420"
+                                               Margin="0,0,16,0"
+                                               VerticalAlignment="Center"
+                                               TextWrapping="Wrap"
+                                               Style="{StaticResource AtlasV2.Text.Caption}"
+                                               Visibility="Collapsed"/>
+                                    <Button x:Name="SaveSocialProfileButton"
+                                            Width="150"
+                                            Height="42"
+                                            HorizontalAlignment="Right"
+                                            Style="{StaticResource AtlasV2.Button.Primary}"
+                                            IsEnabled="{Binding CanSaveSocialProfile}"
+                                            Content="Enregistrer"
+                                            Click="SaveSocialProfileButton_Click"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
                     </StackPanel>
                 </Grid>
 

@@ -260,6 +260,24 @@ internal sealed class LauncherAccountCoordinator : IDisposable
             lease => RunChangeEmailAsync(lease, normalizedEmail));
     }
 
+    internal AccountActionStartResult TryUpdateSocialProfile(string statusMessage, string bio)
+    {
+        string normalizedStatus = statusMessage?.Trim() ?? string.Empty;
+        string normalizedBio = bio?.Trim() ?? string.Empty;
+        if (normalizedStatus.Length > 80 || normalizedBio.Length > 280)
+        {
+            return RejectAccountValidation(
+                AccountOperationState.UpdatingProfile,
+                AccountErrorCategory.InvalidSocialProfile);
+        }
+
+        return TryStartAccountMutation(
+            LauncherOperationKind.AccountProfileUpdate,
+            AccountOperationState.UpdatingProfile,
+            targetSessionId: null,
+            lease => RunUpdateSocialProfileAsync(lease, normalizedStatus, normalizedBio));
+    }
+
     internal AccountActionStartResult TryResendVerification()
     {
         lock (_sync)
@@ -630,6 +648,8 @@ internal sealed class LauncherAccountCoordinator : IDisposable
                     Username = result.Profile.Username,
                     Email = result.Profile.Email,
                     EmailVerified = result.Profile.EmailVerified,
+                    StatusMessage = result.Profile.StatusMessage,
+                    Bio = result.Profile.Bio,
                     Avatar = result.Profile.Avatar,
                     AvatarAvailability = result.SupportsProfilePhotos
                         ? AvatarBackendAvailability.Available
@@ -715,6 +735,62 @@ internal sealed class LauncherAccountCoordinator : IDisposable
         }
     }
 
+    private async Task<AccountActionCompletion> RunUpdateSocialProfileAsync(
+        LauncherOperationLease lease,
+        string statusMessage,
+        string bio)
+    {
+        const AccountOperationState operation = AccountOperationState.UpdatingProfile;
+        try
+        {
+            AccountActionCompletion? preparationFailure = await PrepareAccountMutationAsync(
+                lease,
+                operation).ConfigureAwait(false);
+            if (preparationFailure is not null)
+            {
+                return preparationFailure;
+            }
+
+            LauncherProfile profile = await _authentication
+                .UpdateSocialProfileAsync(statusMessage, bio, lease.CancellationToken)
+                .ConfigureAwait(false);
+            return CompleteAccountMutationSuccess(
+                lease,
+                snapshot => snapshot with
+                {
+                    StatusMessage = profile.StatusMessage,
+                    Bio = profile.Bio,
+                    Notice = AccountNoticeKind.ProfileUpdated
+                });
+        }
+        catch (OperationCanceledException) when (lease.CancellationToken.IsCancellationRequested)
+        {
+            return CompleteAccountMutationCancelled(lease);
+        }
+        catch (OperationCanceledException exception)
+        {
+            WriteAccountFailureSafely(operation, AccountErrorCategory.Timeout, exception);
+            return CompleteAccountMutationFailure(lease, operation, AccountErrorCategory.Timeout);
+        }
+        catch (LauncherAuthException exception)
+        {
+            AccountErrorCategory category = MapAccountFailure(operation, exception);
+            HandleUnauthorized(category);
+            WriteAccountFailureSafely(operation, category, exception);
+            return CompleteAccountMutationFailure(lease, operation, category);
+        }
+        catch (HttpRequestException exception)
+        {
+            WriteAccountFailureSafely(operation, AccountErrorCategory.Network, exception);
+            return CompleteAccountMutationFailure(lease, operation, AccountErrorCategory.Network);
+        }
+        catch (Exception exception)
+        {
+            WriteAccountFailureSafely(operation, AccountErrorCategory.Unknown, exception);
+            return CompleteAccountMutationFailure(lease, operation, AccountErrorCategory.Unknown);
+        }
+    }
+
     private static async Task<AccountActionCompletion> RunAfterGateAsync(
         Task gate,
         Func<Task<AccountActionCompletion>> action)
@@ -747,6 +823,8 @@ internal sealed class LauncherAccountCoordinator : IDisposable
                     Username = result.Profile.Username,
                     Email = result.Profile.Email,
                     EmailVerified = result.Profile.EmailVerified,
+                    StatusMessage = result.Profile.StatusMessage,
+                    Bio = result.Profile.Bio,
                     SecurityState = AccountSecurityState.Ready,
                     Notice = result.VerificationEmailSent
                         ? AccountNoticeKind.EmailChangedVerificationSent
@@ -1604,7 +1682,9 @@ internal sealed class LauncherAccountCoordinator : IDisposable
             AccountOperation: AccountOperationState.None,
             TargetSessionId: null,
             AccountError: AccountRuntimeError.None,
-            Notice: AccountNoticeKind.None);
+            Notice: AccountNoticeKind.None,
+            StatusMessage: profile?.StatusMessage ?? string.Empty,
+            Bio: profile?.Bio ?? string.Empty);
     }
 
     private AccountRuntimeSnapshot SetSnapshotUnsafe(AccountRuntimeSnapshot snapshot)
@@ -1698,6 +1778,8 @@ internal sealed class LauncherAccountCoordinator : IDisposable
                 AccountErrorCategory.InvalidEmail,
             HttpStatusCode.BadRequest when operation == AccountOperationState.ChangingPassword =>
                 AccountErrorCategory.InvalidPassword,
+            HttpStatusCode.BadRequest when operation == AccountOperationState.UpdatingProfile =>
+                AccountErrorCategory.InvalidSocialProfile,
             HttpStatusCode.Conflict when operation == AccountOperationState.ChangingEmail =>
                 AccountErrorCategory.EmailAlreadyUsed,
             HttpStatusCode.Unauthorized => AccountErrorCategory.SessionExpired,

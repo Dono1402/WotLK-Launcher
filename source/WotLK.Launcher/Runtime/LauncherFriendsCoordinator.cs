@@ -794,7 +794,18 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
                 item.Level,
                 item.ClassId,
                 item.ZoneId,
-                item.LastSeenAt);
+                item.LastSeenAt,
+                item.StatusMessage?.Trim() ?? string.Empty,
+                item.Bio?.Trim() ?? string.Empty,
+                (item.Characters ?? [])
+                    .Select(character => new FriendCharacterRuntimeItem(
+                        character.Name,
+                        character.Level,
+                        character.ClassId,
+                        character.ZoneId,
+                        character.Online,
+                        character.LastSeenAt))
+                    .ToImmutableArray());
             switch (relationship)
             {
                 case FriendRelationship.Incoming:

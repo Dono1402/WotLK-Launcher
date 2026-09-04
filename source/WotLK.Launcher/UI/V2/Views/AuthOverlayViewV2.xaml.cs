@@ -31,6 +31,12 @@ public partial class AuthOverlayViewV2 : UserControl
         typeof(AuthOverlayViewV2),
         new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, IsOpenChanged));
 
+    public static readonly DependencyProperty CanCloseProperty = DependencyProperty.Register(
+        nameof(CanClose),
+        typeof(bool),
+        typeof(AuthOverlayViewV2),
+        new PropertyMetadata(true));
+
     public AuthOverlayViewV2()
     {
         InitializeComponent();
@@ -54,6 +60,12 @@ public partial class AuthOverlayViewV2 : UserControl
     {
         get => (bool)GetValue(IsOpenProperty);
         set => SetValue(IsOpenProperty, value);
+    }
+
+    public bool CanClose
+    {
+        get => (bool)GetValue(CanCloseProperty);
+        set => SetValue(CanCloseProperty, value);
     }
 
     internal AuthPreviewScenario? PreviewScenario { get; set; }
@@ -469,6 +481,12 @@ public partial class AuthOverlayViewV2 : UserControl
 
     private void RequestClose()
     {
+        if (!CanClose)
+        {
+            FocusFirstControl();
+            return;
+        }
+
         CloseRequested?.Invoke(this, EventArgs.Empty);
     }
 

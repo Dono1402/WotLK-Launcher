@@ -15,6 +15,47 @@ public sealed partial class LauncherDatabase
             END AS friend_account_id,
             p.display_username,
             p.avatar_key,
+            p.status_message,
+            p.bio,
+            CASE
+                WHEN f.accepted_at IS NOT NULL THEN 'accepted'
+                WHEN f.requested_by_id = @accountId THEN 'outgoing'
+                ELSE 'incoming'
+            END AS relationship,
+            aa.id AS avatar_photo_id,
+            aa.version AS avatar_photo_version
+        FROM atlas_launcher_friendship f
+        INNER JOIN atlas_launcher_profile p
+            ON p.account_id = CASE
+                WHEN f.account_low_id = @accountId THEN f.account_high_id
+                ELSE f.account_low_id
+            END
+        LEFT JOIN atlas_launcher_profile_avatar pa
+            ON pa.account_id = p.account_id
+        LEFT JOIN atlas_launcher_avatar_asset aa
+            ON aa.id = pa.current_avatar_asset_id
+           AND aa.status = 1
+        WHERE f.account_low_id = @accountId
+           OR f.account_high_id = @accountId
+        ORDER BY
+            CASE
+                WHEN f.accepted_at IS NULL AND f.requested_by_id <> @accountId THEN 0
+                WHEN f.accepted_at IS NULL THEN 1
+                ELSE 2
+            END,
+            p.display_username;
+        """;
+
+    private const string LegacyFriendAccountsQuery = """
+        SELECT
+            CASE
+                WHEN f.account_low_id = @accountId THEN f.account_high_id
+                ELSE f.account_low_id
+            END AS friend_account_id,
+            p.display_username,
+            p.avatar_key,
+            NULL AS status_message,
+            NULL AS bio,
             CASE
                 WHEN f.accepted_at IS NOT NULL THEN 'accepted'
                 WHEN f.requested_by_id = @accountId THEN 'outgoing'
@@ -52,7 +93,9 @@ public sealed partial class LauncherDatabase
         List<FriendAccountRow> accounts = [];
         await using (MySqlCommand command = connection.CreateCommand())
         {
-            command.CommandText = FriendAccountsQuery;
+            command.CommandText = SocialProfilesAvailable
+                ? FriendAccountsQuery
+                : LegacyFriendAccountsQuery;
             command.Parameters.AddWithValue("@accountId", accountId);
             await using MySqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
@@ -61,6 +104,8 @@ public sealed partial class LauncherDatabase
                     reader.GetUInt32("friend_account_id"),
                     reader.GetString("display_username"),
                     reader.IsDBNull("avatar_key") ? null : reader.GetString("avatar_key"),
+                    reader.IsDBNull("status_message") ? string.Empty : reader.GetString("status_message"),
+                    reader.IsDBNull("bio") ? string.Empty : reader.GetString("bio"),
                     reader.GetString("relationship"),
                     reader.IsDBNull("avatar_photo_id")
                         ? null
@@ -70,12 +115,20 @@ public sealed partial class LauncherDatabase
             }
         }
 
-        IReadOnlyDictionary<uint, FriendCharacterRow> characters =
-            await LoadFriendCharactersAsync(connection, accounts, cancellationToken);
+        FriendAccountRow[] acceptedAccounts = accounts
+            .Where(account => account.Relationship == "accepted")
+            .ToArray();
+        IReadOnlyDictionary<uint, IReadOnlyList<FriendCharacterRow>> characters =
+            await LoadFriendCharactersAsync(connection, acceptedAccounts, cancellationToken);
         List<LauncherFriend> friends = new(accounts.Count);
         foreach (FriendAccountRow account in accounts)
         {
-            characters.TryGetValue(account.AccountId, out FriendCharacterRow? character);
+            IReadOnlyList<FriendCharacterRow> accountCharacters =
+                account.Relationship == "accepted"
+                && characters.TryGetValue(account.AccountId, out IReadOnlyList<FriendCharacterRow>? loaded)
+                    ? loaded
+                    : [];
+            FriendCharacterRow? character = accountCharacters.FirstOrDefault();
             friends.Add(new LauncherFriend(
                 account.AccountId,
                 account.Username,
@@ -87,7 +140,10 @@ public sealed partial class LauncherDatabase
                 character?.ClassId,
                 character?.ZoneId,
                 character?.LastSeenAt,
-                account.Avatar));
+                account.Avatar,
+                account.Relationship == "accepted" ? account.StatusMessage : string.Empty,
+                account.Relationship == "accepted" ? account.Bio : string.Empty,
+                accountCharacters.Select(ToContract).ToArray()));
         }
 
         return friends;
@@ -238,14 +294,14 @@ public sealed partial class LauncherDatabase
             : null;
     }
 
-    private async Task<IReadOnlyDictionary<uint, FriendCharacterRow>> LoadFriendCharactersAsync(
+    private async Task<IReadOnlyDictionary<uint, IReadOnlyList<FriendCharacterRow>>> LoadFriendCharactersAsync(
         MySqlConnection connection,
         IReadOnlyList<FriendAccountRow> accounts,
         CancellationToken cancellationToken)
     {
         if (accounts.Count == 0)
         {
-            return new Dictionary<uint, FriendCharacterRow>();
+            return new Dictionary<uint, IReadOnlyList<FriendCharacterRow>>();
         }
 
         await using MySqlCommand command = connection.CreateCommand();
@@ -263,18 +319,19 @@ public sealed partial class LauncherDatabase
             command.Parameters.AddWithValue(parameterNames[index], accounts[index].AccountId);
         }
 
-        Dictionary<uint, FriendCharacterRow> characters = [];
+        Dictionary<uint, List<FriendCharacterRow>> characters = [];
         await using MySqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
             uint characterAccountId = reader.GetUInt32("account");
-            if (characters.ContainsKey(characterAccountId))
+            if (!characters.TryGetValue(characterAccountId, out List<FriendCharacterRow>? accountCharacters))
             {
-                continue;
+                accountCharacters = [];
+                characters.Add(characterAccountId, accountCharacters);
             }
 
             uint logoutTime = reader.GetUInt32("logout_time");
-            characters.Add(characterAccountId, new FriendCharacterRow(
+            accountCharacters.Add(new FriendCharacterRow(
                 reader.GetString("name"),
                 reader.GetByte("level"),
                 reader.GetByte("class"),
@@ -283,13 +340,25 @@ public sealed partial class LauncherDatabase
                 logoutTime == 0 ? null : DateTimeOffset.FromUnixTimeSeconds(logoutTime)));
         }
 
-        return characters;
+        return characters.ToDictionary(
+            pair => pair.Key,
+            pair => (IReadOnlyList<FriendCharacterRow>)pair.Value);
     }
+
+    private static LauncherFriendCharacter ToContract(FriendCharacterRow character) => new(
+        character.Name,
+        character.Level,
+        character.ClassId,
+        character.ZoneId,
+        character.Online,
+        character.LastSeenAt);
 
     private sealed record FriendAccountRow(
         uint AccountId,
         string Username,
         string? AvatarKey,
+        string StatusMessage,
+        string Bio,
         string Relationship,
         Avatars.AvatarDescriptor? Avatar);
 

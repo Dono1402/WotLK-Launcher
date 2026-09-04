@@ -26,6 +26,7 @@ internal static class GameRuntimeCoordinatorTests
         await CategorizeFailuresAndRetryWithNewOperationAsync();
         await IgnoreStaleCallbacksAndCoalesceProgressAsync();
         await CancelEveryPhaseForShutdownWithoutLateSnapshotsAsync();
+        await RequireDirectoryAccessBeforeMutatingCommandsAsync();
         KeepPreviewCommandsIsolated();
         await VerifyWpfPrimaryActionAndAtomicStateAsync();
         Console.WriteLine("V2 install/update runtime coordination OK (02D.2).");
@@ -413,6 +414,68 @@ internal static class GameRuntimeCoordinatorTests
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         return completion.Task;
+    }
+
+    private static async Task RequireDirectoryAccessBeforeMutatingCommandsAsync()
+    {
+        using (RuntimeGameEnvironment denied = new(playable: false, authenticated: true))
+        {
+            int accessChecks = 0;
+            using PrimaryActionCommand command = new(
+                denied.Coordinator,
+                ensureWritable: () =>
+                {
+                    accessChecks++;
+                    return false;
+                });
+
+            command.Command.Execute(null);
+            Equal(1, accessChecks, "Installer doit vérifier les droits du dossier une fois.");
+            Equal(0, denied.Maintenance.Calls, "Un refus de droits doit bloquer l'installation avant toute maintenance.");
+            True(!denied.Coordinator.CurrentSnapshot.IsMaintenanceActive, "Un refus de droits ne doit acquérir aucun bail d'installation.");
+        }
+
+        using (RuntimeGameEnvironment cancellation = new(playable: false, authenticated: true))
+        {
+            int accessChecks = 0;
+            TaskCompletionSource started = NewSignal();
+            cancellation.Maintenance.Handler = async (_, lease, _) =>
+            {
+                started.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, lease.CancellationToken);
+                throw new InvalidOperationException("Unreachable");
+            };
+            using PrimaryActionCommand command = new(
+                cancellation.Coordinator,
+                ensureWritable: () =>
+                {
+                    accessChecks++;
+                    return true;
+                });
+
+            command.Command.Execute(null);
+            await started.Task;
+            command.Command.Execute(null);
+            await cancellation.Coordinator.WaitForIdleAsync();
+            Equal(1, accessChecks, "Annuler ne doit pas redemander les droits du dossier.");
+            Equal(1, cancellation.Maintenance.Calls, "L'installation autorisée doit démarrer exactement une fois.");
+        }
+
+        using (RuntimeGameEnvironment repair = new(playable: true, authenticated: true))
+        {
+            int accessChecks = 0;
+            using GameVerificationCommand command = new(
+                repair.Coordinator,
+                () =>
+                {
+                    accessChecks++;
+                    return false;
+                });
+
+            command.Command.Execute(null);
+            Equal(1, accessChecks, "Vérifier et réparer doit contrôler les droits du dossier.");
+            Equal(0, repair.Maintenance.RepairCalls, "Un refus de droits doit bloquer la réparation avant son démarrage.");
+        }
     }
 
     private static void RunWpfHarness(TaskCompletionSource completion)

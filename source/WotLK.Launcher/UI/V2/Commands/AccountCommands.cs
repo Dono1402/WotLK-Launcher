@@ -51,6 +51,13 @@ internal sealed class AccountCommands : IDisposable
             "L’adresse e-mail ne peut pas être modifiée pour le moment.");
     }
 
+    internal bool TryUpdateSocialProfile(string statusMessage, string bio)
+    {
+        return StartAccountAction(
+            () => _runtime.TryUpdateSocialProfile(statusMessage, bio),
+            "Le profil public ne peut pas être enregistré pour le moment.");
+    }
+
     internal bool TryResendVerification()
     {
         return StartAccountAction(

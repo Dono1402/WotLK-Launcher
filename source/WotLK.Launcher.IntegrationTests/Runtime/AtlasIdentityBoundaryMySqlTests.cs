@@ -57,22 +57,30 @@ internal static partial class AvatarBackendTests
 
             LauncherSchemaMigrator migrator = new(options);
             IReadOnlyList<LauncherSchemaMigrationOutcome> firstRun = await migrator.MigrateAsync();
-            Equal(4, firstRun.Count, "Les quatre migrations doivent etre connues.");
+            Equal(5, firstRun.Count, "Les cinq migrations doivent etre connues.");
             True(
                 firstRun.Take(3).All(item => item.State == LauncherSchemaMigrationState.AlreadyApplied)
                 && firstRun[3].Version == 4
-                && firstRun[3].State == LauncherSchemaMigrationState.Applied,
-                "La copie 0001-0003 doit appliquer uniquement 0004.");
+                && firstRun[3].State == LauncherSchemaMigrationState.Applied
+                && firstRun[4].Version == 5
+                && firstRun[4].State == LauncherSchemaMigrationState.Applied,
+                "La copie 0001-0003 doit appliquer 0004 puis 0005.");
 
             IdentitySnapshot after = await CaptureIdentitySnapshotAsync(connection);
             AssertIdentitySnapshotUnchanged(before, after);
-            await ValidateHistoryAsync(connection, [1U, 2U, 3U, 4U]);
+            await ValidateHistoryAsync(connection, [1U, 2U, 3U, 4U, 5U]);
             await ValidateProfileScopedForeignKeysAsync(connection);
             await ValidateNoIdentityOrphansAsync(connection);
+            Equal(
+                0L,
+                await IdentityCountAsync(
+                    connection,
+                    "SELECT COUNT(*) FROM atlas_launcher_profile WHERE status_message IS NOT NULL OR bio IS NOT NULL"),
+                "0005 doit conserver les profils publics existants vides.");
 
             IReadOnlyList<LauncherSchemaMigrationOutcome> secondRun = await migrator.MigrateAsync();
             True(
-                secondRun.Count == 4
+                secondRun.Count == 5
                 && secondRun.All(item => item.State == LauncherSchemaMigrationState.AlreadyApplied),
                 "Une seconde execution doit etre strictement idempotente.");
 
@@ -476,8 +484,8 @@ internal static partial class AvatarBackendTests
     private static async Task<IdentitySnapshot> CaptureIdentitySnapshotAsync(MySqlConnection connection)
     {
         Dictionary<string, TableFingerprint> tables = new(StringComparer.Ordinal);
-        foreach ((string table, string orderBy) in IdentityTables)
-            tables.Add(table, await FingerprintTableAsync(connection, table, orderBy));
+        foreach ((string table, string projection, string orderBy) in IdentityTables)
+            tables.Add(table, await FingerprintTableAsync(connection, table, projection, orderBy));
 
         List<uint> missing = [];
         await using (MySqlCommand command = connection.CreateCommand())
@@ -539,30 +547,31 @@ internal static partial class AvatarBackendTests
         IdentitySnapshot before,
         IdentitySnapshot after)
     {
-        Equal(before.AccountCount, after.AccountCount, "0004 ne doit supprimer aucun compte.");
-        Equal(before.RndbotCount, after.RndbotCount, "0004 doit conserver tous les rndbot.");
-        Equal(before.NormalAccountCount, after.NormalAccountCount, "0004 doit conserver tous les joueurs.");
-        Equal(before.ProfileCount, after.ProfileCount, "0004 ne doit creer ni supprimer de profil.");
-        Equal(before.RndbotWithProfileCount, after.RndbotWithProfileCount, "0004 ne doit profiler aucun rndbot.");
+        Equal(before.AccountCount, after.AccountCount, "Les migrations Atlas ne doivent supprimer aucun compte.");
+        Equal(before.RndbotCount, after.RndbotCount, "Les migrations Atlas doivent conserver tous les rndbot.");
+        Equal(before.NormalAccountCount, after.NormalAccountCount, "Les migrations Atlas doivent conserver tous les joueurs.");
+        Equal(before.ProfileCount, after.ProfileCount, "Les migrations Atlas ne doivent creer ni supprimer de profil.");
+        Equal(before.RndbotWithProfileCount, after.RndbotWithProfileCount, "Les migrations Atlas ne doivent profiler aucun rndbot.");
         True(
             before.NormalAccountIdsWithoutProfile.SequenceEqual(after.NormalAccountIdsWithoutProfile),
-            "0004 ne doit modifier aucun compte joueur sans profil.");
+            "Les migrations Atlas ne doivent modifier aucun compte joueur sans profil.");
 
         foreach ((string table, TableFingerprint expected) in before.Tables)
         {
             TableFingerprint actual = after.Tables[table];
-            Equal(expected.RowCount, actual.RowCount, $"0004 a modifie le nombre de lignes de {table}.");
-            Equal(expected.Sha256, actual.Sha256, $"0004 a modifie les donnees de {table}.");
+            Equal(expected.RowCount, actual.RowCount, $"Les migrations Atlas ont modifie le nombre de lignes de {table}.");
+            Equal(expected.Sha256, actual.Sha256, $"Les migrations Atlas ont modifie les donnees de {table}.");
         }
     }
 
     private static async Task<TableFingerprint> FingerprintTableAsync(
         MySqlConnection connection,
         string table,
+        string projection,
         string orderBy)
     {
         await using MySqlCommand command = connection.CreateCommand();
-        command.CommandText = $"SELECT * FROM `{table}` ORDER BY {orderBy}";
+        command.CommandText = $"SELECT {projection} FROM `{table}` ORDER BY {orderBy}";
         await using MySqlDataReader reader = await command.ExecuteReaderAsync();
         using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         long count = 0;
@@ -742,19 +751,21 @@ internal static partial class AvatarBackendTests
         Equal(long.Parse(raw, CultureInfo.InvariantCulture), actual, $"La fixture ne correspond pas a {variable}.");
     }
 
-    private static readonly (string Table, string OrderBy)[] IdentityTables =
+    private static readonly (string Table, string Projection, string OrderBy)[] IdentityTables =
     [
-        ("account", "id"),
-        ("realmcharacters", "realmid, acctid"),
-        ("hermes_bnet_credentials", "username"),
-        ("atlas_launcher_profile", "account_id"),
-        ("atlas_launcher_session", "id"),
-        ("atlas_launcher_email_verification", "id"),
-        ("atlas_launcher_friendship", "account_low_id, account_high_id"),
-        ("atlas_launcher_avatar_asset", "id"),
-        ("atlas_launcher_avatar_variant", "avatar_asset_id, size"),
-        ("atlas_launcher_profile_avatar", "account_id"),
-        ("atlas_launcher_avatar_upload_attempt", "id")
+        ("account", "*", "id"),
+        ("realmcharacters", "*", "realmid, acctid"),
+        ("hermes_bnet_credentials", "*", "username"),
+        ("atlas_launcher_profile",
+            "account_id, display_username, email_normalized, email_verified_at, avatar_key, two_factor_enabled, recovery_codes_generated, created_at, updated_at",
+            "account_id"),
+        ("atlas_launcher_session", "*", "id"),
+        ("atlas_launcher_email_verification", "*", "id"),
+        ("atlas_launcher_friendship", "*", "account_low_id, account_high_id"),
+        ("atlas_launcher_avatar_asset", "*", "id"),
+        ("atlas_launcher_avatar_variant", "*", "avatar_asset_id, size"),
+        ("atlas_launcher_profile_avatar", "*", "account_id"),
+        ("atlas_launcher_avatar_upload_attempt", "*", "id")
     ];
 
     private sealed record IdentitySnapshot(

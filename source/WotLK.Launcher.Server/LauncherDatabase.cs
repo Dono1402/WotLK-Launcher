@@ -11,6 +11,9 @@ public sealed partial class LauncherDatabase
     private readonly TokenService _tokens;
     private readonly LauncherSchemaMigrator _schemaMigrator;
 
+    internal bool SocialProfilesAvailable =>
+        _options.MaximumSchemaVersion is null or >= 5;
+
     internal LauncherDatabase(
         LauncherServerOptions options,
         TokenService tokens,
@@ -432,6 +435,37 @@ public sealed partial class LauncherDatabase
             connection, transaction, accountId, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return profile;
+    }
+
+    public async Task<AccountProfile> UpdateSocialProfileAsync(
+        uint accountId,
+        string statusMessage,
+        string bio,
+        CancellationToken cancellationToken)
+    {
+        if (!SocialProfilesAvailable)
+        {
+            throw new InvalidOperationException(
+                "Le profil social requiert la migration Atlas 0005.");
+        }
+
+        await using MySqlConnection connection = await OpenAsync(cancellationToken);
+        await using MySqlCommand command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE atlas_launcher_profile
+            SET status_message = @statusMessage,
+                bio = @bio
+            WHERE account_id = @accountId;
+            """;
+        command.Parameters.AddWithValue(
+            "@statusMessage",
+            string.IsNullOrWhiteSpace(statusMessage) ? DBNull.Value : statusMessage);
+        command.Parameters.AddWithValue(
+            "@bio",
+            string.IsNullOrWhiteSpace(bio) ? DBNull.Value : bio);
+        command.Parameters.AddWithValue("@accountId", accountId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        return await LoadProfileAsync(connection, null, accountId, cancellationToken);
     }
 
     public async Task<EmailVerificationChallenge?> CreateEmailVerificationAsync(
@@ -931,7 +965,7 @@ public sealed partial class LauncherDatabase
         return await command.ExecuteScalarAsync(cancellationToken) is not null;
     }
 
-    private static async Task<AccountProfile> LoadProfileAsync(
+    private async Task<AccountProfile> LoadProfileAsync(
         MySqlConnection connection,
         MySqlTransaction? transaction,
         uint accountId,
@@ -939,9 +973,24 @@ public sealed partial class LauncherDatabase
     {
         await using MySqlCommand command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = """
+        command.CommandText = SocialProfilesAvailable
+            ? """
+            SELECT p.account_id, p.display_username, p.email_normalized,
+                   p.email_verified_at, p.avatar_key, p.status_message, p.bio,
+                   p.two_factor_enabled, p.recovery_codes_generated,
+                   aa.id AS avatar_photo_id, aa.version AS avatar_photo_version
+            FROM atlas_launcher_profile p
+            LEFT JOIN atlas_launcher_profile_avatar pa ON pa.account_id = p.account_id
+            LEFT JOIN atlas_launcher_avatar_asset aa
+              ON aa.id = pa.current_avatar_asset_id
+             AND aa.status = 1
+            WHERE p.account_id = @accountId
+            LIMIT 1;
+            """
+            : """
             SELECT p.account_id, p.display_username, p.email_normalized,
                    p.email_verified_at, p.avatar_key,
+                   NULL AS status_message, NULL AS bio,
                    p.two_factor_enabled, p.recovery_codes_generated,
                    aa.id AS avatar_photo_id, aa.version AS avatar_photo_version
             FROM atlas_launcher_profile p
@@ -981,7 +1030,9 @@ public sealed partial class LauncherDatabase
             twoFactor,
             recovery,
             completion,
-            photo);
+            photo,
+            reader.IsDBNull("status_message") ? string.Empty : reader.GetString("status_message"),
+            reader.IsDBNull("bio") ? string.Empty : reader.GetString("bio"));
     }
 
     private static AuthResponse ToAuthResponse(SessionTokens session, AccountProfile profile)

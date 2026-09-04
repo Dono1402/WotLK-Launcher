@@ -14,6 +14,7 @@ internal enum LauncherOperationKind
     AccountEmailVerification,
     AccountPasswordChange,
     AccountSessionRevoke,
+    AccountProfileUpdate,
     Logout,
     Play
 }
@@ -558,6 +559,7 @@ internal sealed class LauncherOperationCoordinator : IDisposable
             LauncherOperationKind.AccountEmailVerification => LauncherOperationType.AccountEmailVerification,
             LauncherOperationKind.AccountPasswordChange => LauncherOperationType.AccountPasswordChange,
             LauncherOperationKind.AccountSessionRevoke => LauncherOperationType.AccountSessionRevoke,
+            LauncherOperationKind.AccountProfileUpdate => LauncherOperationType.AccountProfileUpdate,
             LauncherOperationKind.Logout => LauncherOperationType.Logout,
             LauncherOperationKind.Play => LauncherOperationType.Play,
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
@@ -590,6 +592,8 @@ internal sealed class LauncherOperationCoordinator : IDisposable
                 operationType == LauncherOperationType.AccountPasswordChange,
             LauncherOperationKind.AccountSessionRevoke =>
                 operationType == LauncherOperationType.AccountSessionRevoke,
+            LauncherOperationKind.AccountProfileUpdate =>
+                operationType == LauncherOperationType.AccountProfileUpdate,
             LauncherOperationKind.Logout => operationType == LauncherOperationType.Logout,
             LauncherOperationKind.Play => operationType == LauncherOperationType.Play,
             _ => false

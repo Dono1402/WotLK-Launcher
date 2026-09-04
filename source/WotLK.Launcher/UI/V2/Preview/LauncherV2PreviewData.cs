@@ -237,7 +237,10 @@ public static class LauncherV2PreviewData
                 or AccountPreviewScenario.PasswordError,
             SessionsState: AccountSessionsViewState.Loaded,
             Sessions: [],
-            SessionsMessage: string.Empty));
+            SessionsMessage: string.Empty,
+            StatusMessage: "Disponible pour les donjons",
+            Bio: "Joueur de Norfendre, amateur de raids et de hauts faits.",
+            CanUpdateSocialProfile: !accountBusy));
     }
 
     internal static AccountAvatarPreviewComposition CreateAccountAvatarComposition(
@@ -507,12 +510,12 @@ public static class LauncherV2PreviewData
         BitmapSource changedAvatar = CreatePreviewAvatar(ChangedPreviewAvatarUri);
         ImmutableArray<FriendUiItem> populated =
         [
-            Friend(2, "warthoon", "Ophntfranck", "Mage · niveau 12", true, "En jeu", "#DEB75A", true, avatar),
-            Friend(3, "lyssara", "Lyssara", "Prêtre · niveau 32", true, "En jeu", "#61D5E8", true, avatar),
-            Friend(4, "kaelorn", "Kaelorn", "Paladin · niveau 28", false, "Hors ligne · vu hier à 22:14", "#51D7A2", true, avatar),
-            Friend(5, "nerya-au-nom-particulièrement-long", "Nerya", "Druide · niveau 18", false, "Hors ligne", "#DEB75A", false),
-            Friend(6, "thalion", "Thalion", "Guerrier · niveau 44", false, "Hors ligne · vu le 29/08 à 18:02", "#EE6571", true, avatar),
-            Friend(7, "elyndra", "Elyndra", "Chasseur · niveau 26", false, "Hors ligne", "#61D5E8", true)
+            Friend(2, "warthoon", "Ophntfranck", "Mage niveau 12", true, "En jeu · Couronne de glace", "#DEB75A", true, avatar),
+            Friend(3, "lyssara", "Lyssara", "Prêtre niveau 32", true, "En jeu · Dalaran", "#61D5E8", true, avatar),
+            Friend(4, "kaelorn", "Kaelorn", "Paladin niveau 28", false, "Hier à 22:14", "#51D7A2", true, avatar),
+            Friend(5, "nerya-au-nom-particulièrement-long", "Nerya", "Druide niveau 18", false, "Hors ligne", "#DEB75A", false),
+            Friend(6, "thalion", "Thalion", "Guerrier niveau 44", false, "Vu le 29/08 à 18:02", "#EE6571", true, avatar),
+            Friend(7, "elyndra", "Elyndra", "Chasseur niveau 26", false, "Hors ligne", "#61D5E8", true)
         ];
         ImmutableArray<FriendUiItem> incoming =
         [
@@ -539,9 +542,9 @@ public static class LauncherV2PreviewData
                 (uint)(1000 + index),
                 $"aventurier{index:000}",
                 $"Personnage{index:000}",
-                $"{(index % 2 == 0 ? "Mage" : "Paladin")} · niveau {(index % 80) + 1}",
+                $"{(index % 2 == 0 ? "Mage" : "Paladin")} niveau {(index % 80) + 1}",
                 online: index <= 14,
-                presence: index <= 14 ? "En jeu" : "Hors ligne",
+                presence: index <= 14 ? "En jeu · Dalaran" : "Hors ligne",
                 color: index % 2 == 0 ? "#61D5E8" : "#DEB75A",
                 themed: index % 3 != 0,
                 avatar: index % 3 == 0 ? null : avatar))
@@ -554,20 +557,20 @@ public static class LauncherV2PreviewData
                 ImmutableArray<FriendUiItem>.Empty,
                 string.Empty),
             FriendsPreviewScenario.IncomingRequests => PreviewFriendsView(
-                populated[..2], incoming, ImmutableArray<FriendUiItem>.Empty, "2 amis Atlas"),
+                populated[..2], incoming, ImmutableArray<FriendUiItem>.Empty, string.Empty),
             FriendsPreviewScenario.OutgoingRequests => PreviewFriendsView(
-                populated[..2], ImmutableArray<FriendUiItem>.Empty, outgoing, "2 amis Atlas"),
+                populated[..2], ImmutableArray<FriendUiItem>.Empty, outgoing, string.Empty),
             FriendsPreviewScenario.AddFriend => PreviewFriendsView(
-                populated[..3], ImmutableArray<FriendUiItem>.Empty, outgoing, "3 amis Atlas",
+                populated[..3], ImmutableArray<FriendUiItem>.Empty, outgoing, string.Empty,
                 notice: "Demande d’ami envoyée."),
             FriendsPreviewScenario.AddFriendError => PreviewFriendsView(
                 populated[..3], ImmutableArray<FriendUiItem>.Empty, ImmutableArray<FriendUiItem>.Empty,
-                "3 amis Atlas", error: "Aucun compte Atlas ne porte ce nom."),
+                string.Empty, error: "Aucun compte Atlas ne porte ce nom."),
             FriendsPreviewScenario.AvatarFallback => PreviewFriendsView(
                 [Friend(23, "sansavatar", "", "", false, "Hors ligne", "#DEB75A", false)],
                 ImmutableArray<FriendUiItem>.Empty,
                 ImmutableArray<FriendUiItem>.Empty,
-                "1 ami Atlas"),
+                string.Empty),
             FriendsPreviewScenario.NetworkError => PreviewFriendsView(
                 ImmutableArray<FriendUiItem>.Empty,
                 ImmutableArray<FriendUiItem>.Empty,
@@ -585,30 +588,30 @@ public static class LauncherV2PreviewData
                     HasAvatarImage = true
                 }).ToImmutableArray(),
                 outgoing,
-                "6 amis Atlas"),
+                string.Empty),
             FriendsPreviewScenario.MixedAvatars => PreviewFriendsView(
                 populated,
                 incoming,
                 outgoing,
-                "6 amis Atlas"),
+                string.Empty),
             FriendsPreviewScenario.AvatarChanged => PreviewFriendsView(
-                [Friend(2, "warthoon", "Ophntfranck", "Mage · niveau 12", true, "En jeu", "#DEB75A", true, changedAvatar, avatarVersion: 2)],
+                [Friend(2, "warthoon", "Ophntfranck", "Mage niveau 12", true, "En jeu · Couronne de glace", "#DEB75A", true, changedAvatar, avatarVersion: 2)],
                 ImmutableArray<FriendUiItem>.Empty,
                 ImmutableArray<FriendUiItem>.Empty,
-                "1 ami Atlas",
+                string.Empty,
                 notice: "Photo de profil actualisée."),
             FriendsPreviewScenario.NetworkStale => PreviewFriendsView(
                 populated[..3],
                 incoming[..1],
                 ImmutableArray<FriendUiItem>.Empty,
-                "3 amis Atlas · actualisation indisponible",
+                "Données précédentes conservées · actualisation indisponible.",
                 isStale: true),
             FriendsPreviewScenario.ManyFriends => PreviewFriendsView(
                 manyFriends,
                 incoming,
                 outgoing,
-                "100 amis Atlas"),
-            _ => PreviewFriendsView(populated, incoming, outgoing, "6 amis Atlas")
+                string.Empty),
+            _ => PreviewFriendsView(populated, incoming, outgoing, string.Empty)
         };
         FriendsUiState state = new(view)
         {
@@ -678,7 +681,22 @@ public static class LauncherV2PreviewData
             CanAccept: false,
             CanReject: false,
             CanCancel: false,
-            CanRemove: true);
+            CanRemove: true,
+            StatusMessage: online ? "Disponible pour jouer" : string.Empty,
+            Bio: accountId == 2
+                ? "Mage de la Horde, toujours partant pour explorer Norfendre."
+                : string.Empty,
+            CharacterZone: accountId == 2 ? "Couronne de glace" : string.Empty,
+            Characters: character.Length == 0
+                ? ImmutableArray<FriendCharacterUiItem>.Empty
+                : accountId == 2
+                    ?
+                    [
+                        new FriendCharacterUiItem(character, "Mage", 12, "Couronne de glace", online, presence),
+                        new FriendCharacterUiItem("Frostoon", "Chevalier de la mort", 80, "Dalaran", false, "Vu le 03/09/2026 à 22:14"),
+                        new FriendCharacterUiItem("Warthheal", "Prêtre", 74, "Les Grisonnes", false, "Vu le 30/08/2026 à 18:42")
+                    ]
+                    : [new FriendCharacterUiItem(character, details.Split(' ')[0], 80, string.Empty, online, presence)]);
     }
 
     private static FriendUiItem Request(

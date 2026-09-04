@@ -252,8 +252,9 @@
                                 Margin="0,0,8,0"
                                 Padding="0"
                                 Style="{StaticResource AtlasV2.Button.TopBarIcon}"
-                                ToolTip="{Binding ShellState.ProfileToolTip}"
-                                IsEnabled="{Binding ShellState.IsProfileActionEnabled}"
+                                 ToolTip="{Binding ShellState.ProfileToolTip}"
+                                 IsEnabled="{Binding ShellState.IsProfileActionEnabled}"
+                                 Visibility="{Binding ShellState.IsAuthenticated, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
                                 Focusable="True"
                                 AutomationProperties.Name="{Binding ShellState.ProfileToolTip}"
                                 Click="ProfileButton_Click">

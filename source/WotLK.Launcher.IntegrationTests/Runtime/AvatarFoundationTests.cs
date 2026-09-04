@@ -40,12 +40,13 @@ internal static class AvatarFoundationTests
 
         LauncherSchemaMigrator firstMigrator = new(options, source, validator, "03A.2a-test");
         IReadOnlyList<LauncherSchemaMigrationOutcome> first = await firstMigrator.MigrateAsync();
-        Equal(4, first.Count, "Quatre migrations doivent etre connues.");
+        Equal(5, first.Count, "Cinq migrations doivent etre connues.");
         Equal(LauncherSchemaMigrationState.Adopted, first[0].State, "La copie reelle doit etre adoptee comme baseline.");
         Equal(LauncherSchemaMigrationState.Applied, first[1].State, "Le schema avatar doit etre applique.");
         Equal(LauncherSchemaMigrationState.Applied, first[2].State, "Le backend avatar doit etre applique.");
         Equal(LauncherSchemaMigrationState.Applied, first[3].State, "La frontiere des profils Atlas doit etre appliquee.");
-        await AssertHistoryCountAsync(builder.ConnectionString, 4);
+        Equal(LauncherSchemaMigrationState.Applied, first[4].State, "Le profil social doit etre applique.");
+        await AssertHistoryCountAsync(builder.ConnectionString, 5);
 
         IReadOnlyList<LauncherSchemaMigrationOutcome> second = await firstMigrator.MigrateAsync();
         True(second.All(item => item.State == LauncherSchemaMigrationState.AlreadyApplied), "La seconde execution doit etre sans effet.");
@@ -59,7 +60,7 @@ internal static class AvatarFoundationTests
         await ExpectAsync<InvalidOperationException>(
             () => new LauncherSchemaMigrator(
                 options,
-                new FixedMigrationSource([originals[0], changed, originals[2], originals[3]]),
+                new FixedMigrationSource([originals[0], changed, originals[2], originals[3], originals[4]]),
                 validator,
                 "03A.2a-test").MigrateAsync(),
             "Un checksum modifie doit etre refuse.");
@@ -73,19 +74,19 @@ internal static class AvatarFoundationTests
         await ExpectAsync<MySqlException>(
             () => new LauncherSchemaMigrator(
                 options,
-                new FixedMigrationSource([originals[0], failing, originals[2], originals[3]]),
+                new FixedMigrationSource([originals[0], failing, originals[2], originals[3], originals[4]]),
                 validator,
                 "03A.2a-test").MigrateAsync(),
             "Une migration SQL invalide doit echouer.");
         await AssertHistoryCountAsync(builder.ConnectionString, 1);
         await firstMigrator.MigrateAsync();
-        await AssertHistoryCountAsync(builder.ConnectionString, 4);
+        await AssertHistoryCountAsync(builder.ConnectionString, 5);
 
         await ResetToLegacyAsync(builder.ConnectionString);
         LauncherSchemaMigrator concurrentA = new(options, source, validator, "03A.2a-concurrent-a");
         LauncherSchemaMigrator concurrentB = new(options, source, validator, "03A.2a-concurrent-b");
         await Task.WhenAll(concurrentA.MigrateAsync(), concurrentB.MigrateAsync());
-        await AssertHistoryCountAsync(builder.ConnectionString, 4);
+        await AssertHistoryCountAsync(builder.ConnectionString, 5);
 
         Console.WriteLine("Avatar MySQL migrations OK: adoption, idempotence, checksum, failure recovery and concurrency.");
         return 0;
@@ -94,7 +95,7 @@ internal static class AvatarFoundationTests
     private static void ValidateEmbeddedMigrations()
     {
         IReadOnlyList<LauncherSchemaMigration> migrations = new EmbeddedLauncherSchemaMigrationSource().Load();
-        Equal(4, migrations.Count, "Le serveur doit embarquer exactement quatre migrations.");
+        Equal(5, migrations.Count, "Le serveur doit embarquer exactement cinq migrations.");
         Equal((uint)1, migrations[0].Version, "La baseline doit etre 0001.");
         Equal("legacy_baseline", migrations[0].Name, "Le nom de la baseline est incorrect.");
         Equal((uint)2, migrations[1].Version, "Le schema avatar doit etre 0002.");
@@ -103,6 +104,8 @@ internal static class AvatarFoundationTests
         Equal("avatar_backend", migrations[2].Name, "Le nom de la migration backend est incorrect.");
         Equal((uint)4, migrations[3].Version, "La frontiere des profils Atlas doit etre 0004.");
         Equal("atlas_profile_identity_boundary", migrations[3].Name, "Le nom de la migration de frontiere est incorrect.");
+        Equal((uint)5, migrations[4].Version, "Le profil social doit etre 0005.");
+        Equal("social_profile", migrations[4].Name, "Le nom de la migration sociale est incorrect.");
         True(migrations.All(item => item.Sha256.Length == 32), "Chaque migration doit posseder un SHA-256.");
         True(migrations[0].Sql.Contains("avatar_key", StringComparison.Ordinal), "La compatibilite avatar_key doit rester dans la baseline.");
         True(
@@ -112,6 +115,10 @@ internal static class AvatarFoundationTests
             !migrations[3].Sql.Contains("DELETE FROM account", StringComparison.OrdinalIgnoreCase)
             && !migrations[3].Sql.Contains("DROP TABLE account", StringComparison.OrdinalIgnoreCase),
             "La migration ne doit jamais toucher aux lignes AzerothCore.");
+        True(
+            migrations[4].Sql.Contains("status_message", StringComparison.Ordinal)
+            && migrations[4].Sql.Contains("bio", StringComparison.Ordinal),
+            "La migration sociale doit ajouter le statut et la bio.");
     }
 
     private static async Task ValidateLocalStorageAsync()
@@ -203,6 +210,8 @@ internal static class AvatarFoundationTests
     {
         await using MySqlConnection connection = new(connectionString);
         await connection.OpenAsync();
+        await DropProfileColumnIfPresentAsync(connection, "bio");
+        await DropProfileColumnIfPresentAsync(connection, "status_message");
         await using MySqlCommand command = connection.CreateCommand();
         command.CommandText = """
             SET FOREIGN_KEY_CHECKS = 0;
@@ -237,6 +246,32 @@ internal static class AvatarFoundationTests
             SET FOREIGN_KEY_CHECKS = 1;
             """;
         await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task DropProfileColumnIfPresentAsync(
+        MySqlConnection connection,
+        string columnName)
+    {
+        await using MySqlCommand exists = connection.CreateCommand();
+        exists.CommandText = """
+            SELECT COUNT(*)
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'atlas_launcher_profile'
+              AND COLUMN_NAME = @columnName;
+            """;
+        exists.Parameters.AddWithValue("@columnName", columnName);
+        if (Convert.ToInt32(await exists.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture) == 0)
+            return;
+
+        await using MySqlCommand drop = connection.CreateCommand();
+        drop.CommandText = columnName switch
+        {
+            "bio" => "ALTER TABLE atlas_launcher_profile DROP COLUMN bio;",
+            "status_message" => "ALTER TABLE atlas_launcher_profile DROP COLUMN status_message;",
+            _ => throw new ArgumentOutOfRangeException(nameof(columnName))
+        };
+        await drop.ExecuteNonQueryAsync();
     }
 
     private static async Task AssertHistoryCountAsync(string connectionString, int expected)

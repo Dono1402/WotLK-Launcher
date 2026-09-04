@@ -18,8 +18,8 @@ if (-not $OutputDirectory.StartsWith($artifactsRoot + [IO.Path]::DirectorySepara
 
 $project = Join-Path $repository 'source\WotLK.Launcher.Installer\WotLK.Launcher.Installer.csproj'
 $payload = Join-Path $repository 'source\WotLK.Launcher.Installer\Payload\WotLK.Launcher.exe'
-$expectedFileVersion = '1.2.0.0'
-$expectedProductVersion = '1.2.0'
+$expectedFileVersion = '1.3.0.0'
+$expectedProductVersion = '1.3.0'
 
 function Get-PeMachine([string]$Path) {
     $stream = [IO.File]::OpenRead($Path)
@@ -55,10 +55,10 @@ if (-not [string]::IsNullOrWhiteSpace($LauncherPayloadPath)) {
     $candidateHash = (Get-FileHash -LiteralPath $LauncherPayloadPath -Algorithm SHA256).Hash.ToLowerInvariant()
     if (($candidate.VersionInfo.FileVersion -ne $expectedFileVersion) -or
         ($candidate.VersionInfo.ProductVersion -ne $expectedProductVersion)) {
-        throw "Les métadonnées du launcher canonique 1.2.0 sont invalides."
+        throw "Les métadonnées du launcher canonique 1.3.0 sont invalides."
     }
     if ((Get-PeMachine $LauncherPayloadPath) -ne 0x8664) {
-        throw "Le launcher canonique 1.2.0 n'est pas un exécutable x64."
+        throw "Le launcher canonique 1.3.0 n'est pas un exécutable x64."
     }
 
     New-Item -ItemType Directory -Path (Split-Path -Parent $payload) -Force | Out-Null
@@ -69,10 +69,10 @@ $payloadFile = Get-Item -LiteralPath $payload
 $payloadHash = (Get-FileHash -LiteralPath $payload -Algorithm SHA256).Hash.ToLowerInvariant()
 if (($payloadFile.VersionInfo.FileVersion -ne $expectedFileVersion) -or
     ($payloadFile.VersionInfo.ProductVersion -ne $expectedProductVersion)) {
-    throw "Les métadonnées du payload Atlas Launcher 1.2.0 sont invalides."
+    throw "Les métadonnées du payload Atlas Launcher 1.3.0 sont invalides."
 }
 if ((Get-PeMachine $payload) -ne 0x8664) {
-    throw "Le payload Atlas Launcher 1.2.0 n'est pas un exécutable x64."
+    throw "Le payload Atlas Launcher 1.3.0 n'est pas un exécutable x64."
 }
 if ((-not [string]::IsNullOrWhiteSpace($LauncherPayloadPath)) -and
     ($payloadFile.Length -ne $candidate.Length -or $payloadHash -ne $candidateHash)) {

@@ -25,6 +25,19 @@ public enum FriendsViewOperation
     RemovingFriend
 }
 
+public sealed record FriendCharacterUiItem(
+    string Name,
+    string ClassName,
+    byte Level,
+    string ZoneName,
+    bool IsOnline,
+    string PresenceText)
+{
+    public string Details => $"{ClassName} · niveau {Level}";
+
+    public bool HasZone => !string.IsNullOrWhiteSpace(ZoneName);
+}
+
 public sealed record FriendUiItem(
     uint AccountId,
     string Username,
@@ -44,7 +57,36 @@ public sealed record FriendUiItem(
     bool CanAccept,
     bool CanReject,
     bool CanCancel,
-    bool CanRemove);
+    bool CanRemove,
+    string StatusMessage = "",
+    string Bio = "",
+    string CharacterZone = "",
+    ImmutableArray<FriendCharacterUiItem> Characters = default)
+{
+    public string CharacterSummary => !HasCharacter
+        ? string.Empty
+        : string.IsNullOrWhiteSpace(CharacterDetails)
+            ? CharacterName
+            : $"{CharacterName} · {CharacterDetails}";
+
+    public bool HasStatusMessage => !string.IsNullOrWhiteSpace(StatusMessage);
+
+    public bool HasBio => !string.IsNullOrWhiteSpace(Bio);
+
+    public string DisplayStatusMessage => HasStatusMessage ? StatusMessage : "Aucun statut personnel";
+
+    public string DisplayBio => HasBio ? Bio : "Aucune bio renseignée.";
+
+    public bool HasCharacterZone => !string.IsNullOrWhiteSpace(CharacterZone);
+
+    public ImmutableArray<FriendCharacterUiItem> AllCharacters => Characters.IsDefault
+        ? ImmutableArray<FriendCharacterUiItem>.Empty
+        : Characters;
+
+    public bool HasCharacters => !Characters.IsDefaultOrEmpty;
+
+    public override string ToString() => Username;
+}
 
 public sealed record FriendsViewState(
     bool IsPreview,
@@ -63,7 +105,21 @@ public sealed record FriendsViewState(
 {
     public int OnlineCount => Friends.Count(friend => friend.IsOnline);
 
+    public ImmutableArray<FriendUiItem> OnlineFriends => Friends
+        .Where(friend => friend.IsOnline)
+        .ToImmutableArray();
+
+    public ImmutableArray<FriendUiItem> OfflineFriends => Friends
+        .Where(friend => !friend.IsOnline)
+        .ToImmutableArray();
+
+    public string FriendsSummary => $"{Friends.Length} ami{(Friends.Length > 1 ? "s" : string.Empty)} · {OnlineCount} en jeu";
+
     public bool HasFriends => !Friends.IsDefaultOrEmpty;
+
+    public bool HasOnlineFriends => OnlineCount > 0;
+
+    public bool HasOfflineFriends => Friends.Length > OnlineCount;
 
     public bool HasIncomingRequests => !IncomingRequests.IsDefaultOrEmpty;
 
@@ -86,6 +142,7 @@ public sealed class FriendsUiState : BindableUiState
     private FriendsViewState _current;
     private bool _isOpen;
     private string _searchText = string.Empty;
+    private uint? _selectedFriendAccountId;
 
     internal FriendsUiState(FriendsViewState? current = null)
     {
@@ -123,6 +180,12 @@ public sealed class FriendsUiState : BindableUiState
         get => _searchText;
         set => SetProperty(ref _searchText, value ?? string.Empty);
     }
+
+    public FriendUiItem? SelectedFriend => _selectedFriendAccountId is uint accountId
+        ? _current.Friends.FirstOrDefault(friend => friend.AccountId == accountId)
+        : null;
+
+    public bool IsFriendProfileOpen => SelectedFriend is not null;
 
     public ICommand RefreshCommand { get; private set; } = DisabledCommand.Instance;
 
@@ -171,8 +234,38 @@ public sealed class FriendsUiState : BindableUiState
         {
             _isOpen = false;
             _searchText = string.Empty;
+            _selectedFriendAccountId = null;
+        }
+        else if (_selectedFriendAccountId is uint accountId
+                 && !state.Friends.Any(friend => friend.AccountId == accountId))
+        {
+            _selectedFriendAccountId = null;
         }
         RaisePropertyChanged(string.Empty);
+    }
+
+    internal void OpenFriendProfile(FriendUiItem friend)
+    {
+        ArgumentNullException.ThrowIfNull(friend);
+        if (_current.Friends.Any(item => item.AccountId == friend.AccountId))
+        {
+            _selectedFriendAccountId = friend.AccountId;
+            RaisePropertyChanged(nameof(SelectedFriend));
+            RaisePropertyChanged(nameof(IsFriendProfileOpen));
+        }
+    }
+
+    internal bool CloseFriendProfile()
+    {
+        if (_selectedFriendAccountId is null)
+        {
+            return false;
+        }
+
+        _selectedFriendAccountId = null;
+        RaisePropertyChanged(nameof(SelectedFriend));
+        RaisePropertyChanged(nameof(IsFriendProfileOpen));
+        return true;
     }
 
     internal void ClearSearchText()

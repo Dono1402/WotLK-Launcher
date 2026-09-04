@@ -8,6 +8,7 @@ public sealed record RefreshRequest(string RefreshToken);
 public sealed record ChangeEmailRequest(string Email);
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public sealed record ChangeAvatarRequest(string? AvatarKey);
+public sealed record UpdateSocialProfileRequest(string? StatusMessage, string? Bio);
 
 public sealed record ChangeEmailResponse(
     AccountProfile Profile,
@@ -68,7 +69,9 @@ public sealed record AccountProfile(
     bool TwoFactorEnabled,
     bool RecoveryCodesGenerated,
     int Completion,
-    Avatars.AvatarDescriptor? Avatar);
+    Avatars.AvatarDescriptor? Avatar,
+    string StatusMessage = "",
+    string Bio = "");
 
 public sealed record AuthResponse(
     string AccessToken,

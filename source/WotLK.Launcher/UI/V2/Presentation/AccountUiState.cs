@@ -27,7 +27,8 @@ public enum AccountOperationViewState
     ChangingEmail,
     ResendingVerification,
     ChangingPassword,
-    RevokingSession
+    RevokingSession,
+    UpdatingProfile
 }
 
 public enum AccountSessionsViewState
@@ -44,7 +45,8 @@ public enum AccountNoticeViewState
     EmailChanged,
     VerificationEmailSent,
     PasswordChanged,
-    SessionRevoked
+    SessionRevoked,
+    ProfileUpdated
 }
 
 public sealed record AccountSessionViewState(
@@ -91,15 +93,23 @@ public sealed record AccountViewState(
     bool IsPasswordEditorOpen,
     AccountSessionsViewState SessionsState,
     ImmutableArray<AccountSessionViewState> Sessions,
-    string SessionsMessage);
+    string SessionsMessage,
+    string StatusMessage = "",
+    string Bio = "",
+    bool CanUpdateSocialProfile = false);
 
 public sealed class AccountUiState : BindableUiState
 {
     private AccountViewState _current;
+    private string _statusMessageDraft;
+    private string _bioDraft;
+    private bool _socialProfileDirty;
 
     internal AccountUiState(AccountViewState current)
     {
         _current = current ?? throw new ArgumentNullException(nameof(current));
+        _statusMessageDraft = _current.StatusMessage;
+        _bioDraft = _current.Bio;
     }
 
     public static AccountUiState Empty { get; } = new(new AccountViewState(
@@ -139,6 +149,36 @@ public sealed class AccountUiState : BindableUiState
         SessionsMessage: string.Empty));
 
     public AccountViewState Current => _current;
+
+    public string StatusMessageDraft
+    {
+        get => _statusMessageDraft;
+        set
+        {
+            if (SetProperty(ref _statusMessageDraft, value ?? string.Empty))
+            {
+                SetSocialProfileDirty();
+            }
+        }
+    }
+
+    public string BioDraft
+    {
+        get => _bioDraft;
+        set
+        {
+            if (SetProperty(ref _bioDraft, value ?? string.Empty))
+            {
+                SetSocialProfileDirty();
+            }
+        }
+    }
+
+    public bool CanSaveSocialProfile => _current.CanUpdateSocialProfile && _socialProfileDirty;
+
+    public string StatusLengthText => $"{_statusMessageDraft.Length}/80";
+
+    public string BioLengthText => $"{_bioDraft.Length}/280";
 
     public bool IsNavigationEnabled => _current.IsPreview || _current.IsRuntimeConnected;
 
@@ -186,6 +226,9 @@ public sealed class AccountUiState : BindableUiState
     internal void ApplyRuntimeView(AccountViewState state)
     {
         ArgumentNullException.ThrowIfNull(state);
+        bool synchronizeSocialDrafts = !_socialProfileDirty
+            || state.AccountNotice == AccountNoticeViewState.ProfileUpdated
+            || !state.IsRuntimeConnected;
         Apply(state with
         {
             SelectedSection = _current.SelectedSection,
@@ -196,6 +239,17 @@ public sealed class AccountUiState : BindableUiState
             IsPasswordEditorOpen = _current.IsPasswordEditorOpen
                 && state.AccountNotice != AccountNoticeViewState.PasswordChanged
         });
+        if (synchronizeSocialDrafts)
+        {
+            _statusMessageDraft = state.StatusMessage;
+            _bioDraft = state.Bio;
+            _socialProfileDirty = false;
+            RaisePropertyChanged(nameof(StatusMessageDraft));
+            RaisePropertyChanged(nameof(BioDraft));
+            RaisePropertyChanged(nameof(StatusLengthText));
+            RaisePropertyChanged(nameof(BioLengthText));
+            RaisePropertyChanged(nameof(CanSaveSocialProfile));
+        }
     }
 
     internal void OpenEmailEditor()
@@ -291,6 +345,21 @@ public sealed class AccountUiState : BindableUiState
     {
         _current = state;
         RaisePropertyChanged(string.Empty);
+    }
+
+    private void SetSocialProfileDirty()
+    {
+        _socialProfileDirty = !string.Equals(
+                _statusMessageDraft.Trim(),
+                _current.StatusMessage,
+                StringComparison.Ordinal)
+            || !string.Equals(
+                _bioDraft.Trim(),
+                _current.Bio,
+                StringComparison.Ordinal);
+        RaisePropertyChanged(nameof(StatusLengthText));
+        RaisePropertyChanged(nameof(BioLengthText));
+        RaisePropertyChanged(nameof(CanSaveSocialProfile));
     }
 
 }

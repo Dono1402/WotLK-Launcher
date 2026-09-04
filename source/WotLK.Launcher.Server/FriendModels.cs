@@ -13,7 +13,18 @@ public sealed record LauncherFriend(
     byte? ClassId,
     uint? ZoneId,
     DateTimeOffset? LastSeenAt,
-    Avatars.AvatarDescriptor? Avatar = null);
+    Avatars.AvatarDescriptor? Avatar = null,
+    string StatusMessage = "",
+    string Bio = "",
+    IReadOnlyList<LauncherFriendCharacter>? Characters = null);
+
+public sealed record LauncherFriendCharacter(
+    string Name,
+    byte Level,
+    byte ClassId,
+    uint ZoneId,
+    bool Online,
+    DateTimeOffset? LastSeenAt);
 
 public enum FriendRequestOutcome
 {

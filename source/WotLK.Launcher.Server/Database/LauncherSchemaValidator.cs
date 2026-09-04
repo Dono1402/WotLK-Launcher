@@ -7,6 +7,7 @@ internal sealed class LauncherSchemaValidator
     private static readonly IReadOnlyDictionary<string, TableExpectation> HistoryTables = CreateHistoryTables();
     private static readonly IReadOnlyDictionary<string, TableExpectation> LegacyV1Tables = CreateLegacyTables(false);
     private static readonly IReadOnlyDictionary<string, TableExpectation> LegacyV4Tables = CreateLegacyTables(true);
+    private static readonly IReadOnlyDictionary<string, TableExpectation> LegacyV5Tables = CreateLegacyTables(true, true);
     private static readonly IReadOnlyDictionary<string, TableExpectation> AvatarV2Tables = CreateAvatarTables(false, false);
     private static readonly IReadOnlyDictionary<string, TableExpectation> AvatarV3Tables = CreateAvatarTables(true, false);
     private static readonly IReadOnlyDictionary<string, TableExpectation> AvatarV4Tables = CreateAvatarTables(true, true);
@@ -40,7 +41,11 @@ internal sealed class LauncherSchemaValidator
         CancellationToken cancellationToken)
         => ValidateAsync(
             connection,
-            schemaVersion >= 4 ? LegacyV4Tables : LegacyV1Tables,
+            schemaVersion >= 5
+                ? LegacyV5Tables
+                : schemaVersion >= 4
+                    ? LegacyV4Tables
+                    : LegacyV1Tables,
             cancellationToken);
 
     internal Task ValidateHistoryAsync(MySqlConnection connection, CancellationToken cancellationToken)
@@ -225,24 +230,15 @@ internal sealed class LauncherSchemaValidator
     }
 
     private static IReadOnlyDictionary<string, TableExpectation> CreateLegacyTables(
-        bool profileScopedReferences)
+        bool profileScopedReferences,
+        bool socialProfile = false)
     {
         string atlasOwnerTable = profileScopedReferences ? "atlas_launcher_profile" : "account";
         string atlasOwnerColumn = profileScopedReferences ? "account_id" : "id";
         return new Dictionary<string, TableExpectation>(StringComparer.Ordinal)
         {
             ["atlas_launcher_profile"] = Table(
-                [
-                    C("account_id", "int unsigned", "NO"),
-                    C("display_username", "varchar(32)", "NO", collation: "utf8mb4_0900_ai_ci"),
-                    C("email_normalized", "varchar(254)", "NO", collation: "utf8mb4_0900_ai_ci"),
-                    C("email_verified_at", "datetime", "YES"),
-                    C("avatar_key", "varchar(128)", "YES", collation: "utf8mb4_0900_ai_ci"),
-                    C("two_factor_enabled", "tinyint(1)", "NO", "0"),
-                    C("recovery_codes_generated", "tinyint(1)", "NO", "0"),
-                    C("created_at", "datetime", "NO", "CURRENT_TIMESTAMP", "DEFAULT_GENERATED"),
-                    C("updated_at", "datetime", "NO", "CURRENT_TIMESTAMP", "DEFAULT_GENERATED on update CURRENT_TIMESTAMP")
-                ],
+                CreateProfileColumns(socialProfile),
                 [I("PRIMARY", 0, 1, "account_id"), I("email_normalized", 0, 1, "email_normalized")],
                 [F("fk_atlas_profile_account", 1, "account_id", "account", "id")]),
             ["atlas_launcher_session"] = Table(
@@ -296,6 +292,31 @@ internal sealed class LauncherSchemaValidator
                     F("fk_atlas_friend_requester", 1, "requested_by_id", atlasOwnerTable, atlasOwnerColumn)
                 ])
         };
+    }
+
+    private static IReadOnlyList<string> CreateProfileColumns(bool socialProfile)
+    {
+        List<string> columns =
+        [
+            C("account_id", "int unsigned", "NO"),
+            C("display_username", "varchar(32)", "NO", collation: "utf8mb4_0900_ai_ci"),
+            C("email_normalized", "varchar(254)", "NO", collation: "utf8mb4_0900_ai_ci"),
+            C("email_verified_at", "datetime", "YES"),
+            C("avatar_key", "varchar(128)", "YES", collation: "utf8mb4_0900_ai_ci")
+        ];
+        if (socialProfile)
+        {
+            columns.Add(C("status_message", "varchar(80)", "YES", collation: "utf8mb4_0900_ai_ci"));
+            columns.Add(C("bio", "varchar(280)", "YES", collation: "utf8mb4_0900_ai_ci"));
+        }
+        columns.AddRange(
+        [
+            C("two_factor_enabled", "tinyint(1)", "NO", "0"),
+            C("recovery_codes_generated", "tinyint(1)", "NO", "0"),
+            C("created_at", "datetime", "NO", "CURRENT_TIMESTAMP", "DEFAULT_GENERATED"),
+            C("updated_at", "datetime", "NO", "CURRENT_TIMESTAMP", "DEFAULT_GENERATED on update CURRENT_TIMESTAMP")
+        ]);
+        return columns;
     }
 
     private static IReadOnlyDictionary<string, TableExpectation> CreateHistoryTables()

@@ -67,7 +67,8 @@ internal enum AccountOperationState
     ChangingEmail,
     ResendingVerification,
     ChangingPassword,
-    RevokingSession
+    RevokingSession,
+    UpdatingProfile
 }
 
 internal enum AccountErrorCategory
@@ -77,6 +78,7 @@ internal enum AccountErrorCategory
     EmailAlreadyUsed,
     CurrentPasswordIncorrect,
     InvalidPassword,
+    InvalidSocialProfile,
     SessionExpired,
     SessionNotFound,
     RateLimited,
@@ -94,7 +96,8 @@ internal enum AccountNoticeKind
     EmailChangedVerificationUnavailable,
     VerificationEmailSent,
     PasswordChanged,
-    SessionRevoked
+    SessionRevoked,
+    ProfileUpdated
 }
 
 internal sealed record AccountRuntimeError(
@@ -134,7 +137,9 @@ internal sealed record AccountRuntimeSnapshot(
     AccountOperationState AccountOperation,
     string? TargetSessionId,
     AccountRuntimeError AccountError,
-    AccountNoticeKind Notice)
+    AccountNoticeKind Notice,
+    string StatusMessage = "",
+    string Bio = "")
 {
     internal static AccountRuntimeSnapshot SignedOut { get; } = new(
         Sequence: 0,

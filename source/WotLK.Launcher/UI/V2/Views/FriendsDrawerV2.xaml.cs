@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -11,7 +12,11 @@ namespace WotLK.Launcher.UI.V2.Views;
 public partial class FriendsDrawerV2 : UserControl
 {
     private static readonly Duration TransitionDuration = new(TimeSpan.FromMilliseconds(180));
+    private static readonly Duration AddFriendTransitionDuration = new(TimeSpan.FromMilliseconds(150));
+    private const double AddFriendExpandedHeight = 78;
     private bool _hasOpened;
+    private bool _isAddFriendExpanded;
+    private Popup? _openFriendActionsPopup;
     private int _transitionVersion;
 
     public static readonly DependencyProperty StateProperty = DependencyProperty.Register(
@@ -56,6 +61,10 @@ public partial class FriendsDrawerV2 : UserControl
 
     internal ScrollViewer ScrollHost => FriendsScrollViewer;
 
+    internal bool IsAddFriendEditorOpen => _isAddFriendExpanded;
+
+    internal bool IsFriendProfileOpen => State?.IsFriendProfileOpen == true;
+
     public bool ContainsKeyboardFocusTarget(DependencyObject? target)
     {
         return target is not null && IsDescendantOf(target, DrawerPanel);
@@ -65,7 +74,32 @@ public partial class FriendsDrawerV2 : UserControl
     {
         Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
-            () => Keyboard.Focus(CloseButton));
+            () => Keyboard.Focus(IsFriendProfileOpen ? BackToFriendsButton : AddFriendToggleButton));
+    }
+
+    internal bool TryCloseTransientPanel()
+    {
+        if (State?.CloseFriendProfile() == true)
+        {
+            Dispatcher.BeginInvoke(
+                DispatcherPriority.Input,
+                () => Keyboard.Focus(AddFriendToggleButton));
+            return true;
+        }
+
+        return TryCloseAddFriendEditor();
+    }
+
+    internal bool TryCloseAddFriendEditor()
+    {
+        if (!_isAddFriendExpanded)
+        {
+            return false;
+        }
+
+        SetAddFriendExpanded(false, animate: true);
+        Keyboard.Focus(AddFriendToggleButton);
+        return true;
     }
 
     private static void IsOpenChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)
@@ -116,6 +150,9 @@ public partial class FriendsDrawerV2 : UserControl
             return;
         }
 
+        SetAddFriendExpanded(false, animate: false);
+        State?.CloseFriendProfile();
+        CloseFriendActionsPopup();
         IsHitTestVisible = false;
         Scrim.IsHitTestVisible = false;
 
@@ -241,6 +278,82 @@ public partial class FriendsDrawerV2 : UserControl
         RequestClose();
     }
 
+    private void AddFriendToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetAddFriendExpanded(!_isAddFriendExpanded, animate: true);
+    }
+
+    private void SetAddFriendExpanded(bool expanded, bool animate)
+    {
+        _isAddFriendExpanded = expanded;
+        AddFriendToggleButton.Tag = expanded ? "Active" : null;
+        AddFriendPanel.IsHitTestVisible = expanded;
+
+        AddFriendPanel.BeginAnimation(MaxHeightProperty, null);
+        AddFriendPanel.BeginAnimation(OpacityProperty, null);
+        AddFriendTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+
+        double targetHeight = expanded ? AddFriendExpandedHeight : 0;
+        double targetOpacity = expanded ? 1 : 0;
+        double targetOffset = expanded ? 0 : -5;
+        if (!animate || !IsLoaded)
+        {
+            AddFriendPanel.MaxHeight = targetHeight;
+            AddFriendPanel.Opacity = targetOpacity;
+            AddFriendTranslate.Y = targetOffset;
+            return;
+        }
+
+        double currentHeight = Math.Clamp(AddFriendPanel.ActualHeight, 0, AddFriendExpandedHeight);
+        double currentOpacity = AddFriendPanel.Opacity;
+        double currentOffset = AddFriendTranslate.Y;
+        AddFriendPanel.MaxHeight = targetHeight;
+        AddFriendPanel.Opacity = targetOpacity;
+        AddFriendTranslate.Y = targetOffset;
+
+        CubicEase ease = new() { EasingMode = EasingMode.EaseOut };
+        DoubleAnimation heightAnimation = new(currentHeight, targetHeight, AddFriendTransitionDuration)
+        {
+            EasingFunction = ease,
+            FillBehavior = FillBehavior.Stop
+        };
+        DoubleAnimation opacityAnimation = new(currentOpacity, targetOpacity, AddFriendTransitionDuration)
+        {
+            EasingFunction = ease,
+            FillBehavior = FillBehavior.Stop
+        };
+        DoubleAnimation offsetAnimation = new(currentOffset, targetOffset, AddFriendTransitionDuration)
+        {
+            EasingFunction = ease,
+            FillBehavior = FillBehavior.Stop
+        };
+        if (expanded)
+        {
+            heightAnimation.Completed += (_, _) =>
+            {
+                if (_isAddFriendExpanded)
+                {
+                    Keyboard.Focus(FriendSearchBox);
+                }
+            };
+        }
+
+        AddFriendPanel.BeginAnimation(MaxHeightProperty, heightAnimation, HandoffBehavior.SnapshotAndReplace);
+        AddFriendPanel.BeginAnimation(OpacityProperty, opacityAnimation, HandoffBehavior.SnapshotAndReplace);
+        AddFriendTranslate.BeginAnimation(
+            TranslateTransform.YProperty,
+            offsetAnimation,
+            HandoffBehavior.SnapshotAndReplace);
+    }
+
+    private void Root_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && TryCloseTransientPanel())
+        {
+            e.Handled = true;
+        }
+    }
+
     private void FriendSearchBox_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter || State is null)
@@ -255,7 +368,52 @@ public partial class FriendsDrawerV2 : UserControl
         e.Handled = true;
     }
 
-    private void RemoveFriendButton_Click(object sender, RoutedEventArgs e)
+    private void FriendActionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: Popup popup } button)
+        {
+            return;
+        }
+
+        if (!ReferenceEquals(_openFriendActionsPopup, popup))
+        {
+            CloseFriendActionsPopup();
+        }
+        popup.DataContext = button.DataContext;
+        popup.IsOpen = true;
+        _openFriendActionsPopup = popup;
+        e.Handled = true;
+    }
+
+    private void FriendItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (State is null
+            || sender is not Border { DataContext: FriendUiItem friend }
+            || FindAncestor<Button>(e.OriginalSource as DependencyObject) is not null)
+        {
+            return;
+        }
+
+        CloseFriendActionsPopup();
+        SetAddFriendExpanded(false, animate: false);
+        State.OpenFriendProfile(friend);
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.Input,
+            () => Keyboard.Focus(BackToFriendsButton));
+        e.Handled = true;
+    }
+
+    private void BackToFriendsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (State?.CloseFriendProfile() == true)
+        {
+            Dispatcher.BeginInvoke(
+                DispatcherPriority.Input,
+                () => Keyboard.Focus(AddFriendToggleButton));
+        }
+    }
+
+    private void RemoveFriendMenuItem_Click(object sender, RoutedEventArgs e)
     {
         if (State is null
             || State.Current.IsPreview
@@ -263,6 +421,8 @@ public partial class FriendsDrawerV2 : UserControl
         {
             return;
         }
+
+        CloseFriendActionsPopup();
 
         MessageBoxResult confirmation = MessageBox.Show(
             Window.GetWindow(this),
@@ -279,5 +439,31 @@ public partial class FriendsDrawerV2 : UserControl
         {
             State.RemoveFriendCommand.Execute(friend.AccountId);
         }
+    }
+
+    private void CloseFriendActionsPopup()
+    {
+        if (_openFriendActionsPopup is not null)
+        {
+            _openFriendActionsPopup.IsOpen = false;
+            _openFriendActionsPopup = null;
+        }
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? source)
+        where T : DependencyObject
+    {
+        DependencyObject? current = source;
+        while (current is not null)
+        {
+            if (current is T match)
+            {
+                return match;
+            }
+            current = current is Visual or System.Windows.Media.Media3D.Visual3D
+                ? VisualTreeHelper.GetParent(current)
+                : LogicalTreeHelper.GetParent(current);
+        }
+        return null;
     }
 }

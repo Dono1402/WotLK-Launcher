@@ -15,10 +15,20 @@
              PreviewKeyDown="Root_PreviewKeyDown">
     <Grid x:Name="OverlayRoot">
         <Border x:Name="Scrim"
-                Background="{StaticResource AtlasV2.Brush.AuthScrim}"
                 Opacity="0"
                 IsHitTestVisible="False"
-                MouseLeftButtonDown="Scrim_MouseLeftButtonDown"/>
+                MouseLeftButtonDown="Scrim_MouseLeftButtonDown">
+            <Border.Style>
+                <Style TargetType="{x:Type Border}">
+                    <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.AuthScrim}"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding CanClose, ElementName=Root}" Value="False">
+                            <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.WindowAmbient}"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+        </Border>
 
         <Border x:Name="AuthCard"
                 Width="500"
@@ -58,6 +68,7 @@
                             ToolTip="Fermer"
                             KeyboardNavigation.TabIndex="20"
                             AutomationProperties.Name="Fermer l’authentification"
+                            Visibility="{Binding CanClose, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
                             Click="CloseButton_Click">
                         <Path Data="{StaticResource AtlasV2.Icon.Close}"
                               Style="{StaticResource AtlasV2.Icon.Stroke}"/>

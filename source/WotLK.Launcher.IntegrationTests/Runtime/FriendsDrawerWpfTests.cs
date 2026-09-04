@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -12,6 +13,7 @@ using WotLK.Launcher.Account;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2;
 using WotLK.Launcher.UI.V2.Commands;
+using WotLK.Launcher.UI.V2.Localization;
 using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Preview;
 using WotLK.Launcher.UI.V2.Views;
@@ -63,6 +65,8 @@ internal static class FriendsDrawerWpfTests
         Equal(FriendsPreviewScenario.AvatarChanged, Resolve("--preview-friends=avatar-changed"), "Le changement d’avatar est absent.");
         Equal(FriendsPreviewScenario.NetworkStale, Resolve("--preview-friends=network-stale"), "Le réseau obsolète est absent.");
         Equal(FriendsPreviewScenario.ManyFriends, Resolve("--preview-friends=100"), "Le scénario 100 amis est absent.");
+        Equal("ACTIVE CHARACTER", LauncherLocalization.TranslateFromFrench("PERSONNAGE ACTIF"),
+            "Le nouveau profil d’ami doit rester traduit en anglais.");
 
         FriendsUiState populated = LauncherV2PreviewData.CreateFriends(FriendsPreviewScenario.Populated);
         True(populated.Current.IsPreview, "Les données fictives doivent être marquées preview.");
@@ -204,6 +208,32 @@ internal static class FriendsDrawerWpfTests
                 await PumpAsync(DispatcherPriority.Background);
             }
         }
+
+        if (!string.IsNullOrWhiteSpace(captureDirectory))
+        {
+            LauncherShellV2 profileWindow = CreateWindow(
+                FriendsPreviewScenario.Populated,
+                1440,
+                860,
+                activate: false);
+            profileWindow.Show();
+            try
+            {
+                await DelayAndPumpAsync(240);
+                FriendUiItem friend = profileWindow.FriendsState.Current.Friends
+                    .First(item => item.HasCharacters && !string.IsNullOrWhiteSpace(item.DisplayBio));
+                profileWindow.FriendsState.OpenFriendProfile(friend);
+                await DelayAndPumpAsync(120);
+                SavePng(
+                    profileWindow,
+                    Path.Combine(captureDirectory, "07-friend-profile-1440x860.png"));
+            }
+            finally
+            {
+                profileWindow.Close();
+                await PumpAsync(DispatcherPriority.Background);
+            }
+        }
     }
 
     private static void ValidateCommonContract(
@@ -222,6 +252,18 @@ internal static class FriendsDrawerWpfTests
         True(drawer.ScrollHost.ScrollableWidth <= 0.5, "Le contenu ne doit pas déborder horizontalement.");
         True(Math.Abs(Required<Border>(drawer, "DrawerPanel").ActualWidth - 360) <= 1,
             "Le drawer doit conserver une largeur proche de 360 px.");
+        True(drawer.FindName("RefreshFriendsButton") is null,
+            "L’actualisation manuelle doit disparaître au profit du timer social.");
+        Equal(
+            $"{window.FriendsState.Current.Friends.Length} ami{(window.FriendsState.Current.Friends.Length > 1 ? "s" : string.Empty)} · {window.FriendsState.Current.OnlineCount} en jeu",
+            window.FriendsState.Current.FriendsSummary,
+            "Le résumé compact doit afficher le total avant le nombre en jeu.");
+        True(!drawer.IsAddFriendEditorOpen
+            && Required<Border>(drawer, "AddFriendPanel").ActualHeight <= 0.5,
+            "Le champ d’ajout doit rester replié par défaut.");
+        Geometry moreIcon = (Geometry)Application.Current.FindResource("AtlasV2.Icon.MoreHorizontal");
+        True(moreIcon.Bounds.Width > 10 && moreIcon.Bounds.Height > 2,
+            "L’icône d’actions doit conserver trois points visibles au lieu de s’écraser.");
         True(Required<Button>(window, "MinimizeWindowButton").IsVisible
             && Required<Button>(window, "MaximizeWindowButton").IsVisible
             && Required<Button>(window, "CloseWindowButton").IsVisible,
@@ -242,10 +284,27 @@ internal static class FriendsDrawerWpfTests
                 .First(text => text.Text.StartsWith("nerya-", StringComparison.Ordinal));
             Equal(TextTrimming.CharacterEllipsis, longName.TextTrimming,
                 "Les noms longs doivent utiliser une ellipse.");
-            True(Descendants<Button>(drawer).Any(button =>
-                    string.Equals(AutomationProperties.GetName(button), "Retirer de mes amis", StringComparison.Ordinal)
-                    && button.IsEnabled),
-                "Le retrait d’ami doit rester disponible via la confirmation locale.");
+            Equal(Visibility.Visible, Required<StackPanel>(drawer, "OnlineFriendsSection").Visibility,
+                "Les amis en jeu doivent avoir leur propre section.");
+            Equal(Visibility.Visible, Required<StackPanel>(drawer, "OfflineFriendsSection").Visibility,
+                "Les amis hors ligne doivent avoir leur propre section.");
+            Button actions = Descendants<Button>(drawer).First(button =>
+                string.Equals(AutomationProperties.GetName(button), "Actions pour cet ami", StringComparison.Ordinal));
+            True(actions.IsEnabled && actions.Opacity >= 0.9,
+                "Le menu d’actions doit rester visible et facile à découvrir.");
+            RaiseClick(actions);
+            Popup popup = actions.Tag as Popup
+                ?? throw new InvalidOperationException("Le menu contextuel de l’ami est absent.");
+            True(popup.IsOpen,
+                "Le bouton d’actions doit ouvrir le menu contextuel.");
+            Button remove = popup.Child as Button
+                ?? throw new InvalidOperationException("Le retrait d’ami doit être le seul cadre du menu contextuel.");
+            True(string.Equals(
+                    AutomationProperties.GetName(remove),
+                    "Retirer de mes amis",
+                    StringComparison.Ordinal),
+                "Le retrait d’ami doit être rangé dans le menu contextuel sans cadre imbriqué.");
+            popup.IsOpen = false;
         }
         if (scenario is FriendsPreviewScenario.Avatars
             or FriendsPreviewScenario.MixedAvatars
@@ -334,6 +393,34 @@ internal static class FriendsDrawerWpfTests
             await PumpAsync(DispatcherPriority.Input);
             True(drawer.ContainsKeyboardFocusTarget(Keyboard.FocusedElement as DependencyObject),
                 "Le focus clavier ne doit pas passer derrière le drawer.");
+
+            FriendUiItem friend = window.FriendsState.Current.Friends.First(item => item.HasCharacters);
+            window.FriendsState.OpenFriendProfile(friend);
+            await PumpAsync(DispatcherPriority.DataBind);
+            True(drawer.IsFriendProfileOpen
+                && Required<Grid>(drawer, "FriendProfilePanel").Visibility == Visibility.Visible,
+                "Cliquer sur un ami doit pouvoir ouvrir sa fiche détaillée.");
+            Equal(3, window.FriendsState.SelectedFriend?.AllCharacters.Length ?? 0,
+                "La fiche doit afficher tous les personnages fournis par Atlas.");
+            True(!string.IsNullOrWhiteSpace(window.FriendsState.SelectedFriend?.DisplayBio),
+                "La fiche doit exposer la bio du profil.");
+            RaisePreviewKey(window, Key.Escape);
+            await PumpAsync(DispatcherPriority.Input);
+            True(window.FriendsState.IsOpen && !drawer.IsFriendProfileOpen,
+                "Échap doit revenir à la liste avant de fermer le panneau.");
+
+            RaiseClick(Required<Button>(drawer, "AddFriendToggleButton"));
+            await DelayAndPumpAsync(180);
+            True(drawer.IsAddFriendEditorOpen
+                && Required<Border>(drawer, "AddFriendPanel").ActualHeight >= 60,
+                "Le bouton plus doit déployer le champ d’ajout avec sa transition.");
+            Equal(drawer.SearchInput, Keyboard.FocusedElement,
+                "Le champ d’ajout doit recevoir le focus après son ouverture.");
+
+            RaisePreviewKey(window, Key.Escape);
+            await DelayAndPumpAsync(180);
+            True(window.FriendsState.IsOpen && !drawer.IsAddFriendEditorOpen,
+                "Échap doit d’abord replier l’ajout sans fermer la liste.");
 
             RaisePreviewKey(window, Key.Escape);
             await DelayAndPumpAsync(220);
@@ -426,20 +513,27 @@ internal static class FriendsDrawerWpfTests
             await WaitForAsync(() => window.FriendsState.Current.LoadState == FriendsViewLoadState.Loaded);
             Equal(1, authentication.GetFriendsCalls,
                 "L’ouverture du drawer réel doit charger la liste exactement une fois.");
+            RaiseClick(Required<Button>(window.FriendsOverlay, "AddFriendToggleButton"));
+            await DelayAndPumpAsync(180);
             window.FriendsState.SearchText = "target";
+            window.FriendsOverlay.SearchInput.Focus();
+            Keyboard.Focus(window.FriendsOverlay.SearchInput);
             window.FriendsState.SendRequestCommand.Execute(null);
             await requestStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
             await PumpAsync(DispatcherPriority.DataBind);
             Equal(FriendsViewOperation.SendingRequest, window.FriendsState.Current.Operation,
                 "L’envoi réel doit publier un état occupé.");
-            True(!Required<Button>(window.FriendsOverlay, "RefreshFriendsButton").IsEnabled,
+            True(!window.FriendsState.RefreshCommand.CanExecute(null),
                 "Un rafraîchissement concurrent doit être impossible.");
-            True(!window.FriendsOverlay.SearchInput.IsEnabled,
-                "L’ajout doit être bloqué pendant une opération.");
+            True(window.FriendsOverlay.SearchInput.IsEnabled,
+                "Le champ doit rester éditable pendant l’envoi pour pouvoir corriger un pseudo erroné.");
+            Equal(window.FriendsOverlay.SearchInput, Keyboard.FocusedElement,
+                "L’envoi ne doit pas déplacer le focus vers le bouton de fermeture.");
             Equal(1, authentication.SendFriendRequestCalls, "Le premier clic doit produire une requête.");
             window.FriendsState.SendRequestCommand.Execute(null);
             Equal(1, authentication.SendFriendRequestCalls, "Un double clic ne doit pas être mis en file.");
 
+            RaisePreviewKey(window, Key.Escape);
             RaisePreviewKey(window, Key.Escape);
             await DelayAndPumpAsync(220);
             True(window.FriendsOverlay.IsFullyClosed,
@@ -624,6 +718,9 @@ internal static class FriendsDrawerWpfTests
             True(Math.Abs(drawer.ScrollHost.VerticalOffset - scrollOffset) <= 1,
                 "Une mise à jour d’avatar ne doit pas réinitialiser le scroll.");
 
+            await WaitForAsync(() => media.RequestedAvatars.Count(request =>
+                request.AvatarId == missingAvatar.AvatarId
+                && request.Version == missingAvatar.Version) == 4);
             int requestsBeforeUnchangedRefresh = media.RequestedSizes.Count;
             await RequiredFriendsCompletion(runtime.TryRefresh());
             await DelayAndPumpAsync(80);
@@ -912,6 +1009,8 @@ internal static class FriendsDrawerWpfTests
 
         internal ConcurrentBag<int> RequestedSizes { get; } = [];
 
+        internal ConcurrentBag<(Guid AvatarId, ulong Version)> RequestedAvatars { get; } = [];
+
         public Task<AvatarProfileReadResult> GetProfileAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
@@ -930,6 +1029,7 @@ internal static class FriendsDrawerWpfTests
             CancellationToken cancellationToken)
         {
             RequestedSizes.Add(size);
+            RequestedAvatars.Add((descriptor.AvatarId, descriptor.Version));
             return DownloadHandler?.Invoke(descriptor, size, cancellationToken)
                 ?? Task.FromResult(AvatarMediaDownloadResult.NotFound);
         }

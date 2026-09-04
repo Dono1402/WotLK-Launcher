@@ -40,10 +40,10 @@ internal static partial class AvatarBackendTests
             await ResetAvatarSchemaAsync(options.ConnectionString);
             LauncherSchemaMigrator migrator = new(options);
             IReadOnlyList<LauncherSchemaMigrationOutcome> migrations = await migrator.MigrateAsync();
-            Equal(4, migrations.Count, "Les quatre migrations Atlas doivent etre connues.");
+            Equal(5, migrations.Count, "Les cinq migrations Atlas doivent etre connues.");
             True(
                 migrations.All(item => item.State == LauncherSchemaMigrationState.Applied),
-                "Une base fraiche doit appliquer reellement les migrations 0001 a 0004.");
+                "Une base fraiche doit appliquer reellement les migrations 0001 a 0005.");
             await ValidateSchemaAndChecksumAsync(options);
             await ValidateAtlasProfileBoundaryAsync(options);
             await ValidateMutationLockLifecycleAsync(options);
@@ -65,8 +65,8 @@ internal static partial class AvatarBackendTests
     {
         await using MySqlConnection connection = new(options.ConnectionString);
         await connection.OpenAsync();
-        await new LauncherSchemaValidator().ValidateLegacyAsync(connection, 4, CancellationToken.None);
-        await new LauncherSchemaValidator().ValidateAvatarAsync(connection, 4, CancellationToken.None);
+        await new LauncherSchemaValidator().ValidateLegacyAsync(connection, 5, CancellationToken.None);
+        await new LauncherSchemaValidator().ValidateAvatarAsync(connection, 5, CancellationToken.None);
         IReadOnlyList<LauncherSchemaMigration> originals = new EmbeddedLauncherSchemaMigrationSource().Load();
         LauncherSchemaMigration changed = originals[1] with
         {
@@ -76,7 +76,7 @@ internal static partial class AvatarBackendTests
         await ExpectAsync<InvalidOperationException>(
             () => new LauncherSchemaMigrator(
                 options,
-                new FixedAvatarMigrationSource([originals[0], changed, originals[2], originals[3]]),
+                new FixedAvatarMigrationSource([originals[0], changed, originals[2], originals[3], originals[4]]),
                 new LauncherSchemaValidator(),
                 "03A.2b-checksum").MigrateAsync(),
             "La modification d'une migration deja appliquee doit etre refusee.");

@@ -276,6 +276,25 @@ internal sealed class LauncherAuthService : ILauncherAuthService
         return profile;
     }
 
+    public async Task<LauncherProfile> UpdateSocialProfileAsync(
+        string statusMessage,
+        string bio,
+        CancellationToken cancellationToken = default)
+    {
+        using HttpRequestMessage request = CreateAuthorizedRequest(
+            HttpMethod.Patch,
+            "me/social-profile");
+        request.Content = JsonContent.Create(new { statusMessage, bio });
+        using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        LauncherProfile profile = await response.Content.ReadFromJsonAsync<LauncherProfile>(
+            JsonOptions,
+            cancellationToken)
+            ?? throw new LauncherAuthException("Le profil renvoyé est invalide.");
+        Session = Session! with { Profile = profile };
+        return profile;
+    }
+
     public async Task<LauncherProfile> ChangeAvatarAsync(
         string? avatarKey,
         CancellationToken cancellationToken = default)
@@ -557,7 +576,9 @@ internal sealed record LauncherProfile(
     bool TwoFactorEnabled,
     bool RecoveryCodesGenerated,
     int Completion,
-    Account.AvatarDescriptor? Avatar = null);
+    Account.AvatarDescriptor? Avatar = null,
+    string StatusMessage = "",
+    string Bio = "");
 
 internal sealed record EmailChangeResult(
     LauncherProfile Profile,
@@ -603,7 +624,10 @@ internal sealed record LauncherFriend(
     byte? ClassId,
     uint? ZoneId,
     DateTimeOffset? LastSeenAt,
-    Account.AvatarDescriptor? Avatar = null)
+    Account.AvatarDescriptor? Avatar = null,
+    string StatusMessage = "",
+    string Bio = "",
+    IReadOnlyList<LauncherFriendCharacter>? Characters = null)
 {
     public string Initial => string.IsNullOrWhiteSpace(Username)
         ? "?"
@@ -654,6 +678,14 @@ internal sealed record LauncherNews(
 {
     public string PublishedText => PublishedAt.ToLocalTime().ToString("dd MMMM yyyy");
 }
+
+internal sealed record LauncherFriendCharacter(
+    string Name,
+    byte Level,
+    byte ClassId,
+    uint ZoneId,
+    bool Online,
+    DateTimeOffset? LastSeenAt);
 
 internal sealed record LauncherNewsSection(
     string Title,

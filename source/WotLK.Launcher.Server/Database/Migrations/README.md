@@ -43,6 +43,10 @@ avatar ownership. AzerothCore-only accounts remain untouched in `account`, but
 cannot acquire Atlas data unless an Atlas profile already exists. Migrations
 `0001`, `0002` and `0003` remain byte-for-byte immutable.
 
+`0005_social_profile.sql` adds the optional public status and bio fields used by
+the Atlas friends profile. Both fields remain empty by default and the migration
+does not modify existing profile values.
+
 Named MySQL locks are scoped from the database name. Migration commands never
 run concurrently in the same schema, while separate test and production schemas
 do not block each other.

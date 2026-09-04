@@ -176,7 +176,15 @@ internal static class LauncherFriendsTests
             8,
             210,
             null,
-            serverAvatar);
+            serverAvatar,
+            "Disponible pour un raid",
+            "Mage de Norfendre.",
+            [
+                new WotLK.Launcher.Server.LauncherFriendCharacter(
+                    "Arthasfriend", 80, 8, 210, true, null),
+                new WotLK.Launcher.Server.LauncherFriendCharacter(
+                    "Altfriend", 72, 5, 4395, false, DateTimeOffset.UtcNow)
+            ]);
         JsonSerializerOptions json = new(JsonSerializerDefaults.Web);
         string payload = JsonSerializer.Serialize(serverFriend, json);
         WotLK.Launcher.LauncherFriend client = JsonSerializer.Deserialize<WotLK.Launcher.LauncherFriend>(
@@ -187,6 +195,12 @@ internal static class LauncherFriendsTests
             "Le descripteur avatar public doit traverser le contrat Friends.");
         Equal(7UL, client.Avatar?.Version,
             "La version avatar doit rester exacte dans le contrat Friends.");
+        Equal("Disponible pour un raid", client.StatusMessage,
+            "Le statut public doit traverser le contrat Friends.");
+        Equal("Mage de Norfendre.", client.Bio,
+            "La bio doit traverser le contrat Friends.");
+        Equal(2, client.Characters?.Count ?? 0,
+            "Tous les personnages doivent traverser le contrat Friends.");
         True(client.Avatar?.Url64.EndsWith("/64.png", StringComparison.Ordinal) == true,
             "Le contrat social doit fournir la variante 64 px.");
 
@@ -268,7 +282,7 @@ internal static class LauncherFriendsTests
         environment.Authentication.FriendsHandler = _ => Task.FromResult<IReadOnlyList<LauncherFriend>>(
         [
             Friend(4, "offline", "accepted", online: false, lastSeenAt: lastSeen),
-            Friend(2, "online", "accepted", online: true, characterName: "Ophntfranck", level: 12, classId: 8),
+            Friend(2, "online", "accepted", online: true, characterName: "Ophntfranck", level: 12, classId: 8, zoneId: 210),
             Friend(8, "incoming", "incoming"),
             Friend(9, "outgoing", "outgoing"),
             Friend(10, "ignored", "unsupported")
@@ -287,13 +301,37 @@ internal static class LauncherFriendsTests
 
         FriendsViewState view = FriendsStateAdapter.Project(snapshot);
         Equal(1, view.OnlineCount, "Le compteur en jeu doit provenir des données réelles.");
-        Equal("Mage · niveau 12", view.Friends[0].CharacterDetails, "La classe et le niveau doivent être projetés.");
+        Equal("2 amis · 1 en jeu", view.FriendsSummary, "Le résumé doit regrouper le total et les amis en jeu.");
+        Equal(1, view.OnlineFriends.Length, "La section en jeu doit être projetée séparément.");
+        Equal(1, view.OfflineFriends.Length, "La section hors ligne doit être projetée séparément.");
+        Equal("Mage niveau 12", view.Friends[0].CharacterDetails, "La classe et le niveau doivent être projetés.");
+        Equal("Ophntfranck · Mage niveau 12", view.Friends[0].CharacterSummary,
+            "Le personnage doit tenir sur une seule ligne compacte.");
+        Equal("En jeu · Couronne de glace", view.Friends[0].PresenceText,
+            "La zone de jeu connue doit être visible.");
         True(view.Friends[0].HasAvatarTheme, "Le thème d’avatar legacy doit être conservé.");
-        True(view.Friends[1].PresenceText.StartsWith("Hors ligne · vu le", StringComparison.Ordinal),
+        True(view.Friends[1].PresenceText.StartsWith("Vu le", StringComparison.Ordinal),
             "La dernière présence doit être affichée sans inventer un statut en ligne.");
         True(!view.IncomingRequests[0].HasCharacter, "Une demande sans personnage doit rester sans détail fictif.");
         True(!view.OutgoingRequests[0].HasAvatarTheme,
             "L’absence d’avatar doit utiliser le fallback par initiale.");
+
+        DateTime localMidday = DateTime.Today.AddHours(12);
+        DateTimeOffset localNow = new(localMidday, TimeZoneInfo.Local.GetUtcOffset(localMidday));
+        FriendRuntimeItem seenToday = new(
+            20,
+            "relative",
+            null,
+            null,
+            FriendRelationship.Accepted,
+            false,
+            null,
+            null,
+            null,
+            null,
+            localNow.AddMinutes(-20));
+        True(FriendsStateAdapter.GetPresenceText(seenToday, localNow).StartsWith("Aujourd’hui à", StringComparison.Ordinal),
+            "Une activité du jour doit utiliser une date relative.");
     }
 
     private static async Task RefreshFromOneSessionAwareTimerAsync()
@@ -636,10 +674,11 @@ internal static class LauncherFriendsTests
         string? characterName = null,
         byte? level = null,
         byte? classId = null,
+        uint? zoneId = 1,
         DateTimeOffset? lastSeenAt = null,
         AvatarDescriptor? avatar = null) =>
         new(accountId, username, accountId % 2 == 0 ? "ice" : null, relationship,
-            online, characterName, level, classId, 1, lastSeenAt, avatar);
+            online, characterName, level, classId, zoneId, lastSeenAt, avatar);
 
     private static AvatarDescriptor Avatar(uint accountId, ulong version)
     {

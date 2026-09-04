@@ -38,7 +38,7 @@ public sealed class ShellUiState : BindableUiState
 
     public bool IsProfileActionEnabled => !_isSessionRestoring && !_isSessionLoggingOut;
 
-    public string ProfileInitial => string.IsNullOrWhiteSpace(Username)
+    public string ProfileInitial => !IsAuthenticated || string.IsNullOrWhiteSpace(Username)
         ? "?"
         : Username[..1].ToUpperInvariant();
 

@@ -701,27 +701,43 @@ internal static class LauncherProfileLogoutTests
             await WaitForAsync(() => !shell.IsAuthenticated);
             await DelayAndPumpAsync(180);
 
-            Equal(ShellOverlayKind.None, window.CurrentOverlay, "Le menu doit se fermer après succès.");
+            Equal(ShellOverlayKind.Authentication, window.CurrentOverlay, "La connexion doit remplacer le menu après déconnexion.");
             Equal("Se connecter", shell.ProfileToolTip, "Le bouton profil doit revenir à l'état déconnecté.");
             Equal(DashboardRealmState.Unavailable, environment.Runtime.Dashboard.CurrentSnapshot.RealmState, "Le dashboard doit devenir neutre.");
             True(environment.Runtime.Dashboard.CurrentSnapshot.IsStale, "Les données dashboard doivent rester marquées obsolètes.");
-
-            GameViewV2 gameView = Required<GameViewV2>(window, "GameView");
-            Button playButton = gameView.PrimaryActionFocusTarget as Button
-                ?? throw new InvalidOperationException("Le bouton principal Jeu est absent.");
-            ExecuteBoundCommand(playButton);
-            await WaitForAsync(() => window.AuthState.IsOpen);
-            Equal(ShellOverlayKind.Authentication, window.CurrentOverlay, "Jouer après déconnexion doit ouvrir AuthOverlayV2.");
-            True(environment.Runtime.Game.CurrentSnapshot.IsPlayPendingAuthentication, "Une seule demande Play doit être conservée.");
+            True(window.AuthState.IsOpen, "La déconnexion doit ouvrir immédiatement la page de connexion.");
+            True(!window.AuthenticationOverlay.CanClose, "La page de connexion ne doit pas être fermable sans session.");
+            Equal(
+                Visibility.Collapsed,
+                profileButton.Visibility,
+                "Aucun faux avatar ne doit rester visible après déconnexion.");
+            LinearGradientBrush expectedSignedOutBackground =
+                (LinearGradientBrush)Application.Current.FindResource("AtlasV2.Brush.WindowAmbient");
+            LinearGradientBrush actualSignedOutBackground =
+                Required<Border>(window.AuthenticationOverlay, "Scrim").Background as LinearGradientBrush
+                ?? throw new InvalidOperationException("Le fond de connexion opaque est absent.");
+            Equal(
+                expectedSignedOutBackground.GradientStops.Count,
+                actualSignedOutBackground.GradientStops.Count,
+                "La page déconnectée doit masquer complètement le Launcher.");
+            for (int index = 0; index < expectedSignedOutBackground.GradientStops.Count; index++)
+            {
+                Equal(
+                    expectedSignedOutBackground.GradientStops[index].Color,
+                    actualSignedOutBackground.GradientStops[index].Color,
+                    "Le fond de connexion doit reprendre les couleurs opaques de la fenêtre.");
+            }
+            Equal(
+                Visibility.Collapsed,
+                Required<Button>(window.AuthenticationOverlay, "CloseButton").Visibility,
+                "La croix de l'authentification ne doit pas être proposée après déconnexion.");
             Equal(0, environment.Launch.Calls, "Le jeu ne doit pas démarrer avant authentification.");
             Equal(0, environment.Authentication.CreateGameTicketCalls, "Aucun ticket ne doit être créé avant authentification.");
             RaisePreviewKey(window, Key.Escape);
-            await DelayAndPumpAsync(180);
-            True(!environment.Runtime.Game.CurrentSnapshot.IsPlayPendingAuthentication, "Fermer l'auth doit abandonner la demande Play.");
-
-            RaiseClick(profileButton);
-            await WaitForAsync(() => window.AuthState.IsOpen);
-            Equal(ShellOverlayKind.Authentication, window.CurrentOverlay, "Le profil déconnecté doit ouvrir l'authentification.");
+            await DelayAndPumpAsync(80);
+            Equal(ShellOverlayKind.Authentication, window.CurrentOverlay, "Échap ne doit pas redonner accès au Launcher déconnecté.");
+            RaiseClick(friendsButton);
+            True(!window.FriendsState.IsOpen, "Les amis doivent rester inaccessibles après déconnexion.");
         }
         finally
         {

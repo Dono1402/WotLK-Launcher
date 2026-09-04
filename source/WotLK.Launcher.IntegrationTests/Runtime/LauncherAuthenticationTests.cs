@@ -780,19 +780,19 @@ internal static class LauncherAuthenticationTests
 
             await runtime.InitializeAsync();
             await PumpAsync(DispatcherPriority.DataBind);
-            True(!harness.Window.AuthState.IsOpen, "Aucune session enregistrée ne doit ouvrir automatiquement l'overlay.");
-            Button profile = Required<Button>(harness.Window, "ProfileButton");
-            True(profile.IsEnabled, "Le profil doit permettre la connexion après restauration.");
-
+            True(harness.Window.AuthState.IsOpen, "Une session absente doit ouvrir automatiquement la connexion.");
+            Equal(ShellOverlayKind.Authentication, harness.Window.CurrentOverlay, "La connexion doit verrouiller le Launcher déconnecté.");
+            AuthOverlayViewV2 overlay = harness.Window.AuthenticationOverlay;
+            Button close = Required<Button>(overlay, "CloseButton");
+            True(!overlay.CanClose, "L'écran de connexion obligatoire ne doit pas pouvoir être fermé.");
+            Equal(Visibility.Collapsed, close.Visibility, "Le bouton Fermer ne doit pas être affiché sans session.");
+            RaisePreviewKey(overlay, Key.Escape);
+            await DelayAndPumpAsync(40);
+            True(harness.Window.AuthState.IsOpen, "Échap ne doit pas donner accès au Launcher sans session.");
             Button friends = Required<Button>(harness.Window, "FriendsButton");
             RaiseClick(friends);
-            True(harness.Window.FriendsState.IsOpen, "Le drawer Amis doit s'ouvrir avant l'authentification.");
-            RaiseClick(profile);
-            await DelayAndPumpAsync(220);
-            True(harness.Window.AuthState.IsOpen, "Le profil déconnecté doit ouvrir l'overlay réel.");
-            True(!harness.Window.FriendsState.IsOpen, "L'ouverture de l'authentification doit fermer les amis.");
+            True(!harness.Window.FriendsState.IsOpen, "Les amis doivent rester inaccessibles sans session.");
 
-            AuthOverlayViewV2 overlay = harness.Window.AuthenticationOverlay;
             TextBox username = Required<TextBox>(overlay, "LoginUsernameBox");
             PasswordBox password = Required<PasswordBox>(overlay, "LoginPasswordBox");
             Button submit = Required<Button>(overlay, "PrimaryAuthButton");
@@ -830,9 +830,9 @@ internal static class LauncherAuthenticationTests
 
             Equal("WpfUser", harness.Window.ShellState.Username, "La barre supérieure doit afficher l'identité réelle.");
             Equal("W", harness.Window.ShellState.ProfileInitial, "L'initiale réelle est incorrecte.");
+            True(overlay.CanClose, "L'overlay ne doit plus être obligatoire après connexion.");
             True(overlay.IsFullyClosed, "Le succès doit fermer proprement l'overlay.");
             True(overlay.ArePasswordFieldsEmpty, "Tous les mots de passe doivent être nettoyés après succès.");
-            Equal(profile, Keyboard.FocusedElement, "Le focus doit revenir au profil après fermeture.");
             True(harness.Window.GameState.ShowsNotification, "L'e-mail non vérifié doit produire une notification unique.");
             True(harness.Window.GameState.NotificationMessage.Contains("non vérifiée", StringComparison.OrdinalIgnoreCase), "La notification e-mail est incorrecte.");
             True(runtime.Game.CurrentSnapshot.CanPrimaryAction, "Installer doit être réévalué après connexion.");
@@ -853,15 +853,10 @@ internal static class LauncherAuthenticationTests
     private static async Task ValidateCloseDuringRealRequestAsync()
     {
         using TemporaryClient client = new();
-        TaskCompletionSource<LauncherAuthSession> firstLate = new(
+        TaskCompletionSource<LauncherAuthSession> lateLogin = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        TaskCompletionSource<LauncherAuthSession> secondLate = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        int attempt = 0;
         FakeLauncherAuthService authentication = AuthForRuntime("LateUser");
-        authentication.LoginHandler = (_, _, _) => ++attempt == 1
-            ? firstLate.Task
-            : secondLate.Task;
+        authentication.LoginHandler = (_, _, _) => lateLogin.Task;
         using LauncherRuntime runtime = CreateRuntime(
             client,
             authentication,
@@ -874,8 +869,6 @@ internal static class LauncherAuthenticationTests
             harness.Window.Show();
             await runtime.InitializeAsync();
             await PumpAsync(DispatcherPriority.DataBind);
-            Button profile = Required<Button>(harness.Window, "ProfileButton");
-            RaiseClick(profile);
             await DelayAndPumpAsync(220);
             AuthOverlayViewV2 overlay = harness.Window.AuthenticationOverlay;
             Required<TextBox>(overlay, "LoginUsernameBox").Text = "LateUser";
@@ -884,24 +877,15 @@ internal static class LauncherAuthenticationTests
             True(harness.Window.AuthState.IsBusy, "La requête tardive doit avoir démarré.");
 
             RaiseClick(Required<Button>(overlay, "CloseButton"));
-            await DelayAndPumpAsync(220);
-            True(overlay.IsFullyClosed, "Fermer doit rester disponible pendant busy.");
-            firstLate.SetResult(FakeLauncherAuthService.CreateSession("Obsolete"));
+            RaisePreviewKey(overlay, Key.Escape);
             await DelayAndPumpAsync(80);
-            True(!retainedShell.IsAuthenticated, "Le résultat tardif après fermeture doit être ignoré.");
-            Equal(0, authentication.CommitSessionCalls, "La tentative fermée ne doit pas être stockée.");
-
-            RaiseClick(profile);
-            await DelayAndPumpAsync(220);
-            Required<TextBox>(overlay, "LoginUsernameBox").Text = "LateUser";
-            Required<PasswordBox>(overlay, "LoginPasswordBox").Password = "second-transient";
-            RaiseClick(Required<Button>(overlay, "PrimaryAuthButton"));
-            True(harness.Window.AuthState.IsBusy, "La seconde requête doit démarrer après annulation.");
+            True(harness.Window.AuthState.IsOpen, "L'écran obligatoire ne doit pas se fermer pendant la connexion.");
+            True(harness.Window.AuthState.IsBusy, "La tentative doit rester active quand la fermeture est refusée.");
 
             runtime.BeginShutdown();
             harness.DisposePresentationAndWindow();
             runtime.Dispose();
-            secondLate.SetResult(FakeLauncherAuthService.CreateSession("AfterClose"));
+            lateLogin.SetResult(FakeLauncherAuthService.CreateSession("AfterClose"));
             await DelayAndPumpAsync(80);
             True(!retainedShell.IsAuthenticated, "La fermeture de la fenêtre doit interdire toute mise à jour WPF tardive.");
             Equal(0, authentication.CommitSessionCalls, "La fermeture de l'application doit empêcher la validation tardive.");
@@ -931,7 +915,6 @@ internal static class LauncherAuthenticationTests
             harness.Window.Show();
             await runtime.InitializeAsync();
             await PumpAsync(DispatcherPriority.DataBind);
-            RaiseClick(Required<Button>(harness.Window, "ProfileButton"));
             await DelayAndPumpAsync(220);
             AuthOverlayViewV2 overlay = harness.Window.AuthenticationOverlay;
             harness.Window.AuthState.ShowRegisterCommand.Execute(null);

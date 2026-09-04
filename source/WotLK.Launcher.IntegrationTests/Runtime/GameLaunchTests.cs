@@ -647,28 +647,26 @@ internal static class GameLaunchTests
             Button play = (Button)gameView.PrimaryActionFocusTarget;
             Button friends = Required<Button>(window, "FriendsButton");
             True(play.IsEnabled, "Jouer doit être actif dans WPF pour un client jouable déconnecté.");
+            True(window.AuthState.IsOpen, "Le Launcher déconnecté doit afficher immédiatement la connexion.");
+            True(!window.AuthenticationOverlay.CanClose, "La connexion doit bloquer l'accès au Launcher sans session.");
 
             RaiseClick(friends);
-            True(window.FriendsState.IsOpen, "Le drawer Amis témoin doit être ouvert.");
+            True(!window.FriendsState.IsOpen, "Le drawer Amis doit rester inaccessible sans session.");
             True(ReferenceEquals(play.Command, primary.Command), "Le bouton WPF doit utiliser PrimaryActionCommand.");
             play.Command.Execute(play.CommandParameter);
             await PumpAsync(DispatcherPriority.DataBind);
-            True(window.AuthState.IsOpen, "Jouer déconnecté doit ouvrir l'overlay de connexion.");
-            True(!window.FriendsState.IsOpen, "L'overlay doit fermer le drawer Amis en premier.");
+            True(window.AuthState.IsOpen, "La demande Jouer doit conserver l'écran de connexion.");
             True(runtime.Game.CurrentSnapshot.IsPlayPendingAuthentication, "La demande Play doit être en attente.");
             True(!play.IsEnabled, "Jouer ne doit pas être redéclenchable pendant l'overlay.");
             Equal(0, authentication.CreateGameTicketCalls, "Aucun ticket ne doit précéder la connexion.");
             Equal(0, process.Calls, "Aucun processus ne doit précéder la connexion.");
 
             Button close = Required<Button>(window.AuthenticationOverlay, "CloseButton");
+            Equal(Visibility.Collapsed, close.Visibility, "Fermer ne doit pas être proposé sans session.");
             RaiseClick(close);
-            await DelayAndPumpAsync(220);
-            True(!runtime.Game.CurrentSnapshot.IsPlayPendingAuthentication, "Fermer l'overlay doit abandonner Play.");
-            True(play.IsEnabled, "Jouer doit redevenir disponible après fermeture.");
-            Equal(play, Keyboard.FocusedElement, "Le focus doit revenir à Jouer.");
-
-            play.Command.Execute(play.CommandParameter);
-            await PumpAsync(DispatcherPriority.DataBind);
+            await DelayAndPumpAsync(80);
+            True(window.AuthState.IsOpen, "La fermeture forcée de l'écran de connexion doit être refusée.");
+            True(runtime.Game.CurrentSnapshot.IsPlayPendingAuthentication, "La demande Play doit rester en attente.");
             AuthOverlayViewV2 overlay = window.AuthenticationOverlay;
             Required<TextBox>(overlay, "LoginUsernameBox").Text = "WpfPlay";
             Required<PasswordBox>(overlay, "LoginPasswordBox").Password = "transient-password";

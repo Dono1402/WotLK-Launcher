@@ -19,6 +19,7 @@ internal enum LauncherOperationType
     AccountEmailVerification,
     AccountPasswordChange,
     AccountSessionRevoke,
+    AccountProfileUpdate,
     Logout,
     Play
 }

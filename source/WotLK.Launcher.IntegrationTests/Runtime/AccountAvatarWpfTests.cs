@@ -113,6 +113,7 @@ internal static class AccountAvatarWpfTests
                     ShutdownMode = ShutdownMode.OnExplicitShutdown
                 };
                 LoadV2Resources(application);
+                await ValidateCachedAvatarSurvivesAuthProjectionAsync(dispatcher);
                 lifetime = new CancellationTokenSource();
                 FakeLauncherAuthService authentication = new()
                 {
@@ -708,6 +709,89 @@ internal static class AccountAvatarWpfTests
                 application?.Shutdown();
                 dispatcher.BeginInvokeShutdown(DispatcherPriority.Send);
             }
+        }
+    }
+
+    private static async Task ValidateCachedAvatarSurvivesAuthProjectionAsync(
+        Dispatcher dispatcher)
+    {
+        string root = AccountAvatarClientTests.NewRoot("cached-auth-projection");
+        using CancellationTokenSource lifetime = new();
+        try
+        {
+            AvatarDescriptor descriptor = AccountAvatarClientTests.Descriptor(41);
+            FakeLauncherAuthService authentication = new()
+            {
+                Session = FakeLauncherAuthService.CreateSession(
+                    "CacheUser",
+                    "cache@example.test",
+                    avatar: descriptor),
+                RestoreResult = true,
+                EnsureFreshHandler = _ => Task.FromResult(true)
+            };
+            using LauncherSessionCoordinator session = new(authentication, lifetime.Token, _ => { });
+            AccountAvatarClientTests.Equal(
+                LauncherSessionRestoreStatus.Restored,
+                (await session.RestoreOnceAsync()).Status,
+                "Le test du cache exige une session restaurée.");
+            using LauncherOperationCoordinator operations = new();
+            StubAvatarMediaClient media = new()
+            {
+                DownloadBytes = AccountAvatarClientTests.CreatePng(8, 8)
+            };
+            using AvatarImageCache cache = new(media, root, lifetime.Token);
+            _ = await cache.GetAsync(
+                descriptor,
+                AccountStateAdapter.ChromeAvatarPixelSize,
+                CancellationToken.None);
+            _ = await cache.GetAsync(
+                descriptor,
+                AccountStateAdapter.AccountAvatarPixelSize,
+                CancellationToken.None);
+            using LauncherAccountCoordinator account = new(
+                session,
+                authentication,
+                operations,
+                media,
+                cache,
+                () => authentication.Session?.Profile,
+                _ => { });
+            ShellUiState shell = new()
+            {
+                Username = "Compte",
+                IsAuthenticated = false
+            };
+            ProfileUiState profile = new();
+            AccountUiState accountState = new(AccountStateAdapter.Project(
+                account.CurrentSnapshot,
+                avatarImage: null));
+            AvatarCropUiState crop = new(AvatarCropUiState.Empty.Current);
+            using AccountStateAdapter accountAdapter = new(
+                accountState,
+                crop,
+                shell,
+                profile,
+                account,
+                cache,
+                dispatcher);
+            AccountAvatarClientTests.True(shell.HasProfileAvatar,
+                "Le hit mémoire doit projeter immédiatement la photo du compte.");
+
+            using AuthStateAdapter authAdapter = new(
+                new AuthUiState(),
+                shell,
+                new GameUiState(),
+                session,
+                dispatcher);
+            AccountAvatarClientTests.Equal("CacheUser", shell.Username,
+                "La projection Auth doit conserver l’identité du compte.");
+            AccountAvatarClientTests.True(shell.HasProfileAvatar,
+                "La projection Auth ne doit pas effacer une photo déjà chargée depuis le cache.");
+        }
+        finally
+        {
+            lifetime.Cancel();
+            AccountAvatarClientTests.TryDelete(root);
         }
     }
 

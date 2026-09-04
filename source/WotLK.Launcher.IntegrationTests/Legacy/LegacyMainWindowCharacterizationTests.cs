@@ -1334,6 +1334,8 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
 
     internal Func<CancellationToken, Task<LauncherProfile>>? RefreshProfileHandler { get; set; }
 
+    internal Func<string, string, CancellationToken, Task<LauncherProfile>>? UpdateSocialProfileHandler { get; set; }
+
     internal Func<string, string, CancellationToken, Task>? ChangePasswordHandler { get; set; }
 
     internal Func<CancellationToken, Task<IReadOnlyList<LauncherDeviceSession>>>? SessionsHandler { get; set; }
@@ -1385,6 +1387,8 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
     internal int ChangeEmailCalls { get; private set; }
 
     internal int RefreshProfileCalls { get; private set; }
+
+    internal int UpdateSocialProfileCalls { get; private set; }
 
     internal int ChangePasswordCalls { get; private set; }
 
@@ -1538,6 +1542,26 @@ internal sealed class FakeLauncherAuthService : ILauncherAuthService
             return RefreshProfileHandler(cancellationToken);
         }
         return Task.FromResult(Session?.Profile ?? CreateProfile());
+    }
+
+    public Task<LauncherProfile> UpdateSocialProfileAsync(
+        string statusMessage,
+        string bio,
+        CancellationToken cancellationToken = default)
+    {
+        UpdateSocialProfileCalls++;
+        if (UpdateSocialProfileHandler is not null)
+        {
+            return UpdateSocialProfileHandler(statusMessage, bio, cancellationToken);
+        }
+
+        LauncherProfile profile = Session?.Profile ?? CreateProfile();
+        LauncherProfile changed = profile with { StatusMessage = statusMessage, Bio = bio };
+        if (Session is not null)
+        {
+            Session = Session with { Profile = changed };
+        }
+        return Task.FromResult(changed);
     }
 
     public Task<LauncherProfile> ChangeAvatarAsync(

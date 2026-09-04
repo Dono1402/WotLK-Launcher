@@ -14,7 +14,7 @@ internal static class MigrationCeilingTests
     {
         Equal<uint?>(null, LauncherSchemaMigrationCeiling.Resolve(null, isProduction: false),
             "Le developpement peut suivre toutes les migrations lorsque la variable est absente.");
-        Equal<uint?>(3, LauncherSchemaMigrationCeiling.Resolve("3", isProduction: true),
+        Equal<uint?>(5, LauncherSchemaMigrationCeiling.Resolve("5", isProduction: true),
             "Le plafond de production attendu doit etre accepte.");
 
         ExpectConfigurationFailure(null, isProduction: true);
@@ -22,13 +22,16 @@ internal static class MigrationCeilingTests
             ExpectConfigurationFailure(invalid, isProduction: true);
 
         IReadOnlyList<LauncherSchemaMigration> embedded = new EmbeddedLauncherSchemaMigrationSource().Load();
-        Equal(4, embedded.Count, "Les quatre migrations doivent rester embarquees.");
-        Equal((uint)4, embedded[^1].Version, "0004 doit rester la derniere migration versionnee.");
-        Equal("atlas_profile_identity_boundary", embedded[^1].Name,
-            "La migration differee ne doit pas etre remplacee.");
+        Equal(5, embedded.Count, "Les cinq migrations doivent rester embarquees.");
+        Equal((uint)4, embedded[3].Version, "La frontiere d'identite doit rester versionnee en 0004.");
+        Equal("atlas_profile_identity_boundary", embedded[3].Name,
+            "La migration de frontiere ne doit pas etre remplacee.");
+        Equal((uint)5, embedded[^1].Version, "0005 doit etre la derniere migration versionnee.");
+        Equal("social_profile", embedded[^1].Name,
+            "La migration du profil social doit rester embarquee.");
 
         Console.WriteLine(
-            "Migration ceiling configuration OK: strict production value and embedded 0004 preserved.");
+            "Migration ceiling configuration OK: production 0005 and embedded 0004-0005 preserved.");
         return 0;
     }
 
@@ -82,15 +85,19 @@ internal static class MigrationCeilingTests
             logger);
 
         IReadOnlyList<LauncherSchemaMigrationOutcome> first = await migrator.MigrateAsync();
-        Equal(4, first.Count, "Le resultat doit rendre visibles les migrations eligibles et bloquees.");
+        Equal(5, first.Count, "Le resultat doit rendre visibles les migrations eligibles et bloquees.");
         True(first.Take(3).All(item => item.State == LauncherSchemaMigrationState.Applied),
             "Une base fraiche doit appliquer 0001, 0002 et 0003.");
-        Equal(LauncherSchemaMigrationState.BlockedByCeiling, first[3].State,
-            "0004 doit etre explicitement bloquee.");
+        True(first.Skip(3).All(item => item.State == LauncherSchemaMigrationState.BlockedByCeiling),
+            "0004 et 0005 doivent etre explicitement bloquees.");
         True(logger.Messages.Any(message => message.Contains("0004", StringComparison.Ordinal)
             && message.Contains("0003", StringComparison.Ordinal)
             && message.Contains("bloquee", StringComparison.Ordinal)),
             "Le journal doit expliquer que 0004 est disponible mais bloquee par le plafond 0003.");
+        True(logger.Messages.Any(message => message.Contains("0005", StringComparison.Ordinal)
+            && message.Contains("0003", StringComparison.Ordinal)
+            && message.Contains("bloquee", StringComparison.Ordinal)),
+            "Le journal doit expliquer que 0005 est disponible mais bloquee par le plafond 0003.");
         await AssertHistoryAsync(builder.ConnectionString, [1U, 2U, 3U]);
         await AssertSchemaThreeForeignKeysAsync(builder.ConnectionString);
         await ValidateSocialRuntimeOnSchemaThreeAsync(options);
@@ -98,8 +105,8 @@ internal static class MigrationCeilingTests
         IReadOnlyList<LauncherSchemaMigrationOutcome> second = await migrator.MigrateAsync();
         True(second.Take(3).All(item => item.State == LauncherSchemaMigrationState.AlreadyApplied),
             "La seconde execution doit conserver 0001-0003 sans modification.");
-        Equal(LauncherSchemaMigrationState.BlockedByCeiling, second[3].State,
-            "0004 doit rester bloquee lors d'une seconde execution.");
+        True(second.Skip(3).All(item => item.State == LauncherSchemaMigrationState.BlockedByCeiling),
+            "0004 et 0005 doivent rester bloquees lors d'une seconde execution.");
         await AssertHistoryAsync(builder.ConnectionString, [1U, 2U, 3U]);
     }
 
@@ -108,13 +115,13 @@ internal static class MigrationCeilingTests
         await ResetFreshSchemaAsync(builder.ConnectionString);
         LauncherServerOptions unrestricted = CreateOptions(builder, maximumSchemaVersion: null);
         await new LauncherSchemaMigrator(unrestricted).MigrateAsync();
-        await AssertHistoryAsync(builder.ConnectionString, [1U, 2U, 3U, 4U]);
+        await AssertHistoryAsync(builder.ConnectionString, [1U, 2U, 3U, 4U, 5U]);
 
         LauncherServerOptions capped = CreateOptions(builder, maximumSchemaVersion: 3);
         await ExpectAsync<InvalidOperationException>(
             () => new LauncherSchemaMigrator(capped).MigrateAsync(),
-            "Une base contenant deja 0004 doit refuser un plafond 0003.");
-        await AssertHistoryAsync(builder.ConnectionString, [1U, 2U, 3U, 4U]);
+            "Une base contenant deja des migrations superieures a 0003 doit refuser ce plafond.");
+        await AssertHistoryAsync(builder.ConnectionString, [1U, 2U, 3U, 4U, 5U]);
     }
 
     private static async Task ValidateAppliedChecksumStillProtectedAsync(MySqlConnectionStringBuilder builder)
@@ -133,7 +140,7 @@ internal static class MigrationCeilingTests
         await ExpectAsync<InvalidOperationException>(
             () => new LauncherSchemaMigrator(
                 options,
-                new FixedMigrationSource([original[0], changed, original[2], original[3]]),
+                new FixedMigrationSource([original[0], changed, original[2], original[3], original[4]]),
                 new LauncherSchemaValidator(),
                 "04C.3a-checksum").MigrateAsync(),
             "Le plafond ne doit pas contourner le controle des checksums appliques.");

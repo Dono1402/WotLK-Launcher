@@ -80,7 +80,7 @@ internal sealed class FriendsStateAdapter : IDisposable
             IncomingRequests: incoming,
             OutgoingRequests: outgoing,
             Operation: operation,
-            StatusMessage: GetStatusMessage(snapshot, friends.Length),
+            StatusMessage: GetStatusMessage(snapshot),
             ErrorMessage: MapError(snapshot.ErrorState.Category),
             NoticeMessage: MapNotice(snapshot.Notice),
             CanRefresh: canAct,
@@ -149,8 +149,9 @@ internal sealed class FriendsStateAdapter : IDisposable
         string characterName = friend.CharacterName?.Trim() ?? string.Empty;
         bool hasCharacter = characterName.Length > 0;
         string characterDetails = hasCharacter
-            ? $"{GetClassName(friend.ClassId)} · niveau {friend.Level?.ToString() ?? "?"}"
+            ? $"{GetClassName(friend.ClassId)} niveau {friend.Level?.ToString() ?? "?"}"
             : string.Empty;
+        ImmutableArray<FriendCharacterUiItem> characters = ProjectCharacters(friend, hasCharacter);
         ImageSource? avatarImage = friend.Avatar is null
             ? null
             : avatarResolver?.Invoke(friend.Avatar);
@@ -173,12 +174,42 @@ internal sealed class FriendsStateAdapter : IDisposable
             canAct && friend.Relationship == FriendRelationship.Incoming,
             canAct && friend.Relationship == FriendRelationship.Incoming,
             canAct && friend.Relationship == FriendRelationship.Outgoing,
-            canAct && friend.Relationship == FriendRelationship.Accepted);
+            canAct && friend.Relationship == FriendRelationship.Accepted,
+            friend.StatusMessage,
+            friend.Bio,
+            GetZoneName(friend.ZoneId),
+            characters);
     }
 
-    private static string GetStatusMessage(
-        FriendsRuntimeSnapshot snapshot,
-        int friendCount)
+    private static ImmutableArray<FriendCharacterUiItem> ProjectCharacters(
+        FriendRuntimeItem friend,
+        bool hasLegacyCharacter)
+    {
+        IEnumerable<FriendCharacterRuntimeItem> source = !friend.Characters.IsDefaultOrEmpty
+            ? friend.Characters
+            : hasLegacyCharacter
+                ?
+                [
+                    new FriendCharacterRuntimeItem(
+                        friend.CharacterName!,
+                        friend.Level ?? 0,
+                        friend.ClassId ?? 0,
+                        friend.ZoneId ?? 0,
+                        friend.IsOnline,
+                        friend.LastSeenAt)
+                ]
+                : [];
+        return source.Select(character => new FriendCharacterUiItem(
+                character.Name,
+                GetClassName(character.ClassId),
+                character.Level,
+                GetZoneName(character.ZoneId),
+                character.IsOnline,
+                GetCharacterPresenceText(character)))
+            .ToImmutableArray();
+    }
+
+    private static string GetStatusMessage(FriendsRuntimeSnapshot snapshot)
     {
         if (!snapshot.IsAuthenticated)
         {
@@ -194,12 +225,8 @@ internal sealed class FriendsStateAdapter : IDisposable
             FriendsOperationState.RemovingFriend => "Retrait de l’ami…",
             _ when snapshot.LoadState == FriendsLoadState.Idle =>
                 "Ouvre ou actualise le panneau pour charger tes amis.",
-            _ when snapshot.LoadState == FriendsLoadState.Loaded && friendCount == 0 =>
-                snapshot.IsStale ? "Données précédentes conservées · actualisation indisponible." : string.Empty,
-            _ when snapshot.LoadState == FriendsLoadState.Loaded =>
-                snapshot.IsStale
-                    ? $"{friendCount} ami{(friendCount > 1 ? "s" : string.Empty)} Atlas · actualisation indisponible"
-                    : $"{friendCount} ami{(friendCount > 1 ? "s" : string.Empty)} Atlas",
+            _ when snapshot.LoadState == FriendsLoadState.Loaded && snapshot.IsStale =>
+                "Données précédentes conservées · actualisation indisponible.",
             _ => string.Empty
         };
     }
@@ -365,16 +392,124 @@ internal sealed class FriendsStateAdapter : IDisposable
         };
     }
 
-    private static string GetPresenceText(FriendRuntimeItem friend)
+    internal static string GetPresenceText(
+        FriendRuntimeItem friend,
+        DateTimeOffset? now = null)
     {
         if (friend.IsOnline)
         {
-            return "En jeu";
+            string zone = GetZoneName(friend.ZoneId);
+            return zone.Length == 0 ? "En jeu" : $"En jeu · {zone}";
         }
-        return friend.LastSeenAt is null
-            ? "Hors ligne"
-            : $"Hors ligne · vu le {friend.LastSeenAt.Value.ToLocalTime():dd/MM à HH:mm}";
+
+        if (friend.LastSeenAt is null)
+        {
+            return "Hors ligne";
+        }
+
+        DateTimeOffset localNow = (now ?? DateTimeOffset.Now).ToLocalTime();
+        DateTimeOffset localLastSeen = friend.LastSeenAt.Value.ToLocalTime();
+        int elapsedDays = (localNow.Date - localLastSeen.Date).Days;
+        return elapsedDays switch
+        {
+            0 => $"Aujourd’hui à {localLastSeen:HH:mm}",
+            1 => $"Hier à {localLastSeen:HH:mm}",
+            _ when localNow.Year == localLastSeen.Year => $"Vu le {localLastSeen:dd/MM à HH:mm}",
+            _ => $"Vu le {localLastSeen:dd/MM/yyyy à HH:mm}"
+        };
     }
+
+    private static string GetCharacterPresenceText(FriendCharacterRuntimeItem character)
+    {
+        if (character.IsOnline)
+        {
+            string zone = GetZoneName(character.ZoneId);
+            return zone.Length == 0 ? "En jeu" : $"En jeu · {zone}";
+        }
+        if (character.LastSeenAt is null)
+        {
+            return "Hors ligne";
+        }
+
+        DateTimeOffset localLastSeen = character.LastSeenAt.Value.ToLocalTime();
+        return $"Vu le {localLastSeen:dd/MM/yyyy à HH:mm}";
+    }
+
+    internal static string GetZoneName(uint? zoneId) => zoneId switch
+    {
+        1 => "Dun Morogh",
+        3 => "Terres ingrates",
+        4 => "Terres foudroyées",
+        8 => "Marais des Chagrins",
+        10 => "Bois de la Pénombre",
+        11 => "Les Paluns",
+        12 => "Forêt d’Elwynn",
+        14 => "Durotar",
+        15 => "Marécage d’Âprefange",
+        16 => "Azshara",
+        17 => "Les Tarides",
+        28 => "Maleterres de l’Ouest",
+        33 => "Vallée de Strangleronce",
+        36 => "Montagnes d’Alterac",
+        38 => "Loch Modan",
+        40 => "Marche de l’Ouest",
+        41 => "Défilé de Deuillevent",
+        44 => "Les Carmines",
+        45 => "Hautes-terres d’Arathi",
+        46 => "Steppes ardentes",
+        47 => "Les Hinterlands",
+        51 => "Gorge des Vents brûlants",
+        65 => "Désolation des dragons",
+        66 => "Zul’Drak",
+        67 => "Les pics Foudroyés",
+        85 => "Clairières de Tirisfal",
+        130 => "Forêt des Pins argentés",
+        139 => "Maleterres de l’Est",
+        141 => "Teldrassil",
+        148 => "Sombrivage",
+        210 => "Couronne de glace",
+        215 => "Mulgore",
+        267 => "Contreforts de Hautebrande",
+        331 => "Orneval",
+        357 => "Féralas",
+        361 => "Gangrebois",
+        394 => "Les Grisonnes",
+        400 => "Mille pointes",
+        405 => "Désolace",
+        406 => "Les Serres-Rocheuses",
+        440 => "Tanaris",
+        490 => "Cratère d’Un’Goro",
+        493 => "Reflet-de-Lune",
+        495 => "Fjord Hurlant",
+        618 => "Berceau-de-l’Hiver",
+        1377 => "Silithus",
+        1497 => "Fossoyeuse",
+        1519 => "Hurlevent",
+        1537 => "Forgefer",
+        1637 => "Orgrimmar",
+        1638 => "Les Pitons-du-Tonnerre",
+        1657 => "Darnassus",
+        2817 => "Forêt du Chant de cristal",
+        3430 => "Bois des Chants éternels",
+        3433 => "Les Terres fantômes",
+        3483 => "Péninsule des Flammes infernales",
+        3518 => "Nagrand",
+        3519 => "Forêt de Terokkar",
+        3520 => "Vallée d’Ombrelune",
+        3521 => "Marécage de Zangar",
+        3522 => "Les Tranchantes",
+        3523 => "Raz-de-Néant",
+        3524 => "Île de Brume-Azur",
+        3525 => "Île de Brume-Sang",
+        3537 => "Toundra Boréenne",
+        3557 => "L’Exodar",
+        3703 => "Shattrath",
+        3711 => "Bassin de Sholazar",
+        4080 => "Île de Quel’Danas",
+        4197 => "Joug-d’hiver",
+        4395 => "Dalaran",
+        _ => string.Empty
+    };
 
     private static string GetClassName(byte? classId) => classId switch
     {

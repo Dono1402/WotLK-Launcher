@@ -530,8 +530,10 @@ internal static class V2LifecycleIsolationTests
             "Le champ e-mail A doit être vidé en quittant Compte au logout.");
         Equal(LauncherShellPage.Game, window.CurrentPage,
             "Une page Compte devenue inaccessible doit revenir sur Jeu.");
-        Equal(ShellOverlayKind.None, window.CurrentOverlay,
-            "Aucun overlay A ne doit rester actif après logout.");
+        Equal(ShellOverlayKind.Authentication, window.CurrentOverlay,
+            "La connexion obligatoire doit remplacer tous les overlays du compte A après logout.");
+        True(window.AuthState.IsOpen && !window.AuthenticationOverlay.CanClose,
+            "Le Launcher doit rester verrouillé jusqu'à la reconnexion.");
     }
 
     private static void AssertAccountBIsolated(

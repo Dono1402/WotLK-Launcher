@@ -238,6 +238,37 @@ app.MapPatch("/api/v1/me/email", async (
     }
 });
 
+app.MapPatch("/api/v1/me/social-profile", async (
+    UpdateSocialProfileRequest request,
+    HttpContext context,
+    LauncherDatabase db,
+    CancellationToken cancellationToken) =>
+{
+    AuthenticatedAccount? account = await AuthenticateAsync(context, db, cancellationToken);
+    if (account is null)
+        return Results.Unauthorized();
+
+    string statusMessage = request.StatusMessage?.Trim() ?? string.Empty;
+    string bio = request.Bio?.Trim() ?? string.Empty;
+    if (statusMessage.Length > 80)
+        return Results.BadRequest(new { error = "Le statut ne peut pas dépasser 80 caractères." });
+    if (bio.Length > 280)
+        return Results.BadRequest(new { error = "La bio ne peut pas dépasser 280 caractères." });
+
+    if (!db.SocialProfilesAvailable)
+    {
+        return Results.Json(
+            new { error = "Le profil public sera disponible après la mise à jour du serveur Atlas." },
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    return Results.Ok(await db.UpdateSocialProfileAsync(
+        account.AccountId,
+        statusMessage,
+        bio,
+        cancellationToken));
+}).RequireRateLimiting("auth");
+
 app.MapPost("/api/v1/me/email/resend", async (
     HttpContext context,
     LauncherDatabase db,

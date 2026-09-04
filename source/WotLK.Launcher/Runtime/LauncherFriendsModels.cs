@@ -78,6 +78,17 @@ internal sealed record FriendRuntimeItem(
     byte? Level,
     byte? ClassId,
     uint? ZoneId,
+    DateTimeOffset? LastSeenAt,
+    string StatusMessage = "",
+    string Bio = "",
+    ImmutableArray<FriendCharacterRuntimeItem> Characters = default);
+
+internal sealed record FriendCharacterRuntimeItem(
+    string Name,
+    byte Level,
+    byte ClassId,
+    uint ZoneId,
+    bool IsOnline,
     DateTimeOffset? LastSeenAt);
 
 internal sealed record FriendsRuntimeError(

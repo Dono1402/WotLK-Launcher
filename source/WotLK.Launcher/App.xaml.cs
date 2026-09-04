@@ -423,7 +423,11 @@ public partial class App : Application
             runtime.Operations,
             activityState);
         window.AttachActivity(activityCancelCommand);
-        GameVerificationCommand verificationCommand = new(runtime.Game);
+        Func<bool> ensureGameDirectoryWritable = () =>
+            EnsureGameDirectoryWritable(window, runtime);
+        GameVerificationCommand verificationCommand = new(
+            runtime.Game,
+            ensureGameDirectoryWritable);
         gameState.AttachVerifyCommand(verificationCommand.Command);
         SettingsCommands settingsCommands = new(
             settingsState,
@@ -493,7 +497,8 @@ public partial class App : Application
             window.Dispatcher);
         PrimaryActionCommand primaryActionCommand = new(
             runtime.Game,
-            window.OpenAuthenticationForPendingPlay);
+            window.OpenAuthenticationForPendingPlay,
+            ensureGameDirectoryWritable);
         gameState.AttachPrimaryActionCommand(primaryActionCommand.Command);
         GameStateAdapter gameStateAdapter = new(
             gameState,
@@ -624,6 +629,30 @@ public partial class App : Application
         window.Show();
         ActivatePendingPrimaryWindow();
         ScheduleUpdateReadyConfirmation(window, updateStartup);
+    }
+
+    private static bool EnsureGameDirectoryWritable(
+        Window owner,
+        LauncherRuntime runtime)
+    {
+        try
+        {
+            return GameDirectoryAccess.EnsureWritable(
+                owner,
+                runtime.Settings.InstallPath);
+        }
+        catch (Exception exception)
+        {
+            runtime.WriteRuntimeDiagnostic(
+                $"Autorisation du dossier WotLK impossible: category={exception.GetType().Name}.");
+            MessageBox.Show(
+                owner,
+                LauncherLocalization.Text("Atlas n’a pas accès au dossier du jeu."),
+                LauncherLocalization.Text("Autorisation requise"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return false;
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)

@@ -40,6 +40,11 @@ internal interface ILauncherAuthService : IDisposable
 
     Task<LauncherProfile> RefreshProfileAsync(CancellationToken cancellationToken = default);
 
+    Task<LauncherProfile> UpdateSocialProfileAsync(
+        string statusMessage,
+        string bio,
+        CancellationToken cancellationToken = default);
+
     Task<LauncherProfile> ChangeAvatarAsync(string? avatarKey, CancellationToken cancellationToken = default);
 
     Task ChangePasswordAsync(

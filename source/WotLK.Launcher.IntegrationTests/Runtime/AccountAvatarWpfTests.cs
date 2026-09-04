@@ -278,12 +278,58 @@ internal static class AccountAvatarWpfTests
                     cropState.Current.AvatarImage is { IsFrozen: true },
                     "La preview locale doit être chargée et figée.");
                 await DelayAndPumpAsync(180);
+                server.ResetProfileGate();
+                commands.RefreshProfile();
+                await server.ProfileEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                AccountAvatarClientTests.False(
+                    commands.TryStartUpload(),
+                    "Un upload concurrent à l’actualisation doit être refusé immédiatement.");
+                AccountAvatarClientTests.Equal(
+                    AvatarCropPreviewStatus.Error,
+                    cropState.Current.Status,
+                    "Un refus d’upload ne doit jamais ressembler à un clic sans effet.");
+                AccountAvatarClientTests.Equal(
+                    "Une opération est déjà en cours.",
+                    cropState.Current.ErrorMessage,
+                    "Le refus concurrent doit expliquer brièvement pourquoi il faut réessayer.");
+                server.ReleaseProfile();
+                await WaitUntilAsync(
+                    () => account.CurrentSnapshot.LoadingState == AccountLoadingState.Loaded,
+                    "L’actualisation concurrente doit revenir à un état stable.");
                 Slider zoom = Required<Slider>(cropOverlay, "ZoomSlider");
                 zoom.Value = Math.Min(1.7, zoom.Maximum);
                 cropState.SetTransform(zoom.Value, 34, -22);
                 await PumpAsync(DispatcherPriority.Render);
-                AvatarNormalizedCrop sentCrop = cropState.Current.Layout.Crop;
+                AvatarCropLayout visibleLayout = cropState.Current.Layout;
+                AvatarNormalizedCrop sentCrop = visibleLayout.Crop;
                 AccountAvatarClientTests.True(sentCrop.IsValid, "Le crop WPF réel doit rester normalisé.");
+                Rect expectedViewbox = new(
+                    visibleLayout.PixelCrop.X,
+                    visibleLayout.PixelCrop.Y,
+                    visibleLayout.PixelCrop.Size,
+                    visibleLayout.PixelCrop.Size);
+                foreach (string brushName in new[]
+                         {
+                             "CropEditorBrush",
+                             "Preview128Brush",
+                             "Preview64Brush",
+                             "Preview32Brush"
+                         })
+                {
+                    ImageBrush brush = Required<ImageBrush>(cropOverlay, brushName);
+                    AccountAvatarClientTests.Equal(
+                        BrushMappingMode.Absolute,
+                        brush.ViewboxUnits,
+                        $"{brushName} doit utiliser les pixels source comme le serveur.");
+                    AccountAvatarClientTests.Equal(
+                        Stretch.Fill,
+                        brush.Stretch,
+                        $"{brushName} ne doit pas appliquer un second recadrage implicite.");
+                    AccountAvatarClientTests.Equal(
+                        expectedViewbox,
+                        brush.Viewbox,
+                        $"{brushName} doit montrer exactement le cadrage envoyé.");
+                }
                 SaveCapture(window, captureDirectory, "02-account-real-crop-test-server-1440x860.png");
 
                 server.FailNextUpload("InvalidImage", StatusCodes.Status400BadRequest);

@@ -335,9 +335,16 @@ internal static class AccountPreviewTests
             Equal(1.62, window.AvatarCropState.Current.Zoom, "Le zoom fictif doit mettre à jour l'état local.");
             window.AvatarCropState.SetTransform(1.62, 24, -19);
             await PumpAsync(DispatcherPriority.Render);
-            TranslateTransform translate = Required<TranslateTransform>(overlay, "CropImageTranslate");
-            Equal(24d, translate.X, "Le déplacement horizontal fictif n'est pas rendu.");
-            Equal(-19d, translate.Y, "Le déplacement vertical fictif n'est pas rendu.");
+            var layout = window.AvatarCropState.Current.Layout;
+            Rect expectedViewbox = new(
+                layout.PixelCrop.X,
+                layout.PixelCrop.Y,
+                layout.PixelCrop.Size,
+                layout.PixelCrop.Size);
+            ImageBrush editor = Required<ImageBrush>(overlay, "CropEditorBrush");
+            ImageBrush preview = Required<ImageBrush>(overlay, "Preview128Brush");
+            Equal(expectedViewbox, editor.Viewbox, "Le déplacement fictif doit mettre à jour le cadrage principal.");
+            Equal(editor.Viewbox, preview.Viewbox, "Le cadrage principal et l'aperçu doivent rester identiques.");
 
             RaiseClick(Required<Button>(overlay, "SaveCropButton"));
             await PumpAsync(DispatcherPriority.Input);

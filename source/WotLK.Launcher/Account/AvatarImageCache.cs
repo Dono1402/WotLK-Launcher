@@ -9,6 +9,12 @@ namespace WotLK.Launcher.Account;
 internal sealed class AvatarImageCache : IDisposable
 {
     internal const long MaximumDiskBytes = 64L * 1024 * 1024;
+    private static readonly TimeSpan[] PublicationRetryDelays =
+    [
+        TimeSpan.FromMilliseconds(90),
+        TimeSpan.FromMilliseconds(240),
+        TimeSpan.FromMilliseconds(520)
+    ];
     private readonly object _inFlightSync = new();
     private readonly IAvatarMediaClient _mediaClient;
     private readonly string _root;
@@ -121,10 +127,9 @@ internal sealed class AvatarImageCache : IDisposable
                 return disk;
             }
 
-            AvatarMediaDownloadResult download = await _mediaClient.DownloadAvatarAsync(
+            AvatarMediaDownloadResult download = await DownloadPublishedVariantAsync(
                 descriptor,
-                size,
-                _lifetimeToken).ConfigureAwait(false);
+                size).ConfigureAwait(false);
             if (download.Status == AvatarMediaDownloadStatus.Unauthorized)
             {
                 _onUnauthorized();
@@ -173,6 +178,31 @@ internal sealed class AvatarImageCache : IDisposable
                 _inFlight.Remove(key);
             }
         }
+    }
+
+    private async Task<AvatarMediaDownloadResult> DownloadPublishedVariantAsync(
+        AvatarDescriptor descriptor,
+        int size)
+    {
+        AvatarMediaDownloadResult result = await _mediaClient.DownloadAvatarAsync(
+            descriptor,
+            size,
+            _lifetimeToken).ConfigureAwait(false);
+        foreach (TimeSpan delay in PublicationRetryDelays)
+        {
+            if (result.Status != AvatarMediaDownloadStatus.NotFound)
+            {
+                return result;
+            }
+
+            await Task.Delay(delay, _lifetimeToken).ConfigureAwait(false);
+            result = await _mediaClient.DownloadAvatarAsync(
+                descriptor,
+                size,
+                _lifetimeToken).ConfigureAwait(false);
+        }
+
+        return result;
     }
 
     private static async Task<BitmapSource?> TryLoadDiskAsync(

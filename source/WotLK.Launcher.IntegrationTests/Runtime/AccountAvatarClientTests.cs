@@ -166,14 +166,20 @@ internal static class AccountAvatarClientTests
     private static void ValidateCropGeometry()
     {
         AvatarCropLayout landscape = AvatarCropGeometry.Calculate(1600, 900, 1, 0, 0);
+        Equal(new AvatarPixelCrop(350, 0, 900), landscape.PixelCrop,
+            "Le crop paysage doit sélectionner exactement le plus grand carré central.");
         Near(0.21875, landscape.Crop.X, 0.000001, "Le crop paysage doit être centré horizontalement.");
         Near(0, landscape.Crop.Y, 0.000001, "Le crop paysage doit toucher le bord vertical.");
         Near(1, landscape.Crop.Size, 0.000001, "Le zoom minimum doit utiliser le petit côté complet.");
 
         AvatarCropLayout portrait = AvatarCropGeometry.Calculate(900, 1600, 1, 0, 0);
+        Equal(new AvatarPixelCrop(0, 350, 900), portrait.PixelCrop,
+            "Le crop portrait doit sélectionner exactement le plus grand carré central.");
         Near(0, portrait.Crop.X, 0.000001, "Le crop portrait doit toucher le bord horizontal.");
         Near(0.21875, portrait.Crop.Y, 0.000001, "Le crop portrait doit être centré verticalement.");
         AvatarCropLayout square = AvatarCropGeometry.Calculate(1000, 1000, 1, 0, 0);
+        Equal(new AvatarPixelCrop(0, 0, 1000), square.PixelCrop,
+            "Une image carrée doit être sélectionnée intégralement au zoom minimum.");
         Equal(new AvatarNormalizedCrop(0, 0, 1), square.Crop, "Le crop carré minimal doit couvrir l'image.");
 
         double maximum = AvatarCropGeometry.GetMaximumZoom(2048, 1024);
@@ -381,6 +387,8 @@ internal static class AccountAvatarClientTests
                 {
                     True(await cache.GetAsync(descriptor, 32, CancellationToken.None) is null,
                         "404 média doit produire le fallback.");
+                    Equal(4, missing.DownloadCalls,
+                        "Un média versionné tout juste publié doit être retenté brièvement avant le fallback.");
                 }
                 StubAvatarMediaClient rejected = new() { DownloadStatus = AvatarMediaDownloadStatus.Unauthorized };
                 using (AvatarImageCache cache = new(rejected, statusRoot, lifetime.Token, () => unauthorized++))
@@ -390,13 +398,26 @@ internal static class AccountAvatarClientTests
                 }
                 Equal(1, unauthorized, "Le cache doit déléguer exactement une invalidation 401.");
 
+                StubAvatarMediaClient eventuallyPublished = new()
+                {
+                    DownloadBytes = png,
+                    NotFoundResponsesRemaining = 2
+                };
+                using (AvatarImageCache cache = new(eventuallyPublished, statusRoot, lifetime.Token))
+                {
+                    True(await cache.GetAsync(descriptor with { Version = 3 }, 64, CancellationToken.None) is not null,
+                        "Une variante publiée juste après la réponse d’upload doit finir par apparaître.");
+                    Equal(3, eventuallyPublished.DownloadCalls,
+                        "Le cache doit s’arrêter dès que la variante versionnée devient disponible.");
+                }
+
                 StubAvatarMediaClient networkFailure = new()
                 {
                     DownloadFailure = new AvatarMediaException(AvatarMediaFailureCategory.Network)
                 };
                 using (AvatarImageCache cache = new(networkFailure, statusRoot, lifetime.Token))
                 {
-                    True(await cache.GetAsync(descriptor with { Version = 3 }, 64, CancellationToken.None) is null,
+                    True(await cache.GetAsync(descriptor with { Version = 4 }, 64, CancellationToken.None) is null,
                         "Une erreur réseau média doit rester décorative et revenir au fallback.");
                 }
             }
@@ -905,6 +926,7 @@ internal sealed class StubAvatarMediaClient : IAvatarMediaClient
     internal Task? ProfileGate { get; set; }
     internal byte[]? DownloadBytes { get; set; }
     internal AvatarMediaDownloadStatus DownloadStatus { get; set; } = AvatarMediaDownloadStatus.Success;
+    internal int NotFoundResponsesRemaining { get; set; }
     internal Exception? DownloadFailure { get; set; }
     internal Task? DownloadGate { get; set; }
     internal Task? UploadGate { get; set; }
@@ -970,6 +992,11 @@ internal sealed class StubAvatarMediaClient : IAvatarMediaClient
         if (DownloadFailure is not null)
         {
             throw DownloadFailure;
+        }
+        if (NotFoundResponsesRemaining > 0)
+        {
+            NotFoundResponsesRemaining--;
+            return AvatarMediaDownloadResult.NotFound;
         }
         return DownloadStatus switch
         {

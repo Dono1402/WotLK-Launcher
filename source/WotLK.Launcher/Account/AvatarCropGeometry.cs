@@ -1,16 +1,15 @@
 namespace WotLK.Launcher.Account;
 
+internal readonly record struct AvatarPixelCrop(int X, int Y, int Size);
+
 internal readonly record struct AvatarCropLayout(
     double Zoom,
     double OffsetX,
     double OffsetY,
-    double BaseDisplayWidth,
-    double BaseDisplayHeight,
     double MaximumOffsetX,
     double MaximumOffsetY,
-    AvatarNormalizedCrop Crop,
-    double RelativeCropWidth,
-    double RelativeCropHeight);
+    AvatarPixelCrop PixelCrop,
+    AvatarNormalizedCrop Crop);
 
 internal static class AvatarCropGeometry
 {
@@ -64,24 +63,33 @@ internal static class AvatarCropGeometry
             -maximumOffsetY,
             maximumOffsetY);
         double displayScale = baseScale * safeZoom;
-        double cropPixelSize = viewportSize / displayScale;
+        double rawCropPixelSize = viewportSize / displayScale;
         double leftPixels = ((renderedWidth - viewportSize) / 2 - safeOffsetX) / displayScale;
         double topPixels = ((renderedHeight - viewportSize) / 2 - safeOffsetY) / displayScale;
-        double cropX = Math.Clamp(leftPixels / orientedWidth, 0, 1);
-        double cropY = Math.Clamp(topPixels / orientedHeight, 0, 1);
-        double cropSize = Math.Clamp(cropPixelSize / minimumDimension, 0, 1);
+        int cropPixelSize = Math.Clamp(
+            (int)Math.Round(rawCropPixelSize, MidpointRounding.AwayFromZero),
+            1,
+            (int)minimumDimension);
+        int cropPixelX = Math.Clamp(
+            (int)Math.Round(leftPixels, MidpointRounding.AwayFromZero),
+            0,
+            orientedWidth - cropPixelSize);
+        int cropPixelY = Math.Clamp(
+            (int)Math.Round(topPixels, MidpointRounding.AwayFromZero),
+            0,
+            orientedHeight - cropPixelSize);
+        double cropX = cropPixelX / (double)orientedWidth;
+        double cropY = cropPixelY / (double)orientedHeight;
+        double cropSize = cropPixelSize / minimumDimension;
 
         return new AvatarCropLayout(
             safeZoom,
             safeOffsetX,
             safeOffsetY,
-            baseWidth,
-            baseHeight,
             maximumOffsetX,
             maximumOffsetY,
-            new AvatarNormalizedCrop(cropX, cropY, cropSize),
-            cropPixelSize / orientedWidth,
-            cropPixelSize / orientedHeight);
+            new AvatarPixelCrop(cropPixelX, cropPixelY, cropPixelSize),
+            new AvatarNormalizedCrop(cropX, cropY, cropSize));
     }
 
     private static void ValidateDimensions(int width, int height)

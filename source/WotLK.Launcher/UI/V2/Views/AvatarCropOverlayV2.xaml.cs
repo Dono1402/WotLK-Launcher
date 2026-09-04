@@ -310,20 +310,20 @@ public partial class AvatarCropOverlayV2 : UserControl
             zoom,
             offsetX,
             offsetY);
-        CropImage.Width = layout.BaseDisplayWidth;
-        CropImage.Height = layout.BaseDisplayHeight;
-        CropImageScale.ScaleX = layout.Zoom;
-        CropImageScale.ScaleY = layout.Zoom;
-        CropImageTranslate.X = layout.OffsetX;
-        CropImageTranslate.Y = layout.OffsetY;
         ZoomValueText.Text = $"{Math.Round(layout.Zoom * 100):0} %";
 
         Rect viewbox = new(
-            layout.Crop.X,
-            layout.Crop.Y,
-            layout.RelativeCropWidth,
-            layout.RelativeCropHeight);
-        foreach (ImageBrush brush in new[] { Preview32Brush, Preview64Brush, Preview128Brush })
+            layout.PixelCrop.X,
+            layout.PixelCrop.Y,
+            layout.PixelCrop.Size,
+            layout.PixelCrop.Size);
+        foreach (ImageBrush brush in new[]
+                 {
+                     CropEditorBrush,
+                     Preview32Brush,
+                     Preview64Brush,
+                     Preview128Brush
+                 })
         {
             brush.RelativeTransform = Transform.Identity;
             brush.Viewbox = viewbox;

@@ -116,9 +116,9 @@ internal sealed class AccountCommands : IDisposable
     internal bool TryStartUpload()
     {
         if (Volatile.Read(ref _disposeState) != 0
-            || _selection is null
-            || !_activeTask.IsCompleted)
+            || _selection is null)
         {
+            _cropState.ShowSelectionError("Sélectionne de nouveau la photo avant de l’utiliser.");
             return false;
         }
 

@@ -192,19 +192,14 @@
                                         <Grid.Clip>
                                             <EllipseGeometry Center="180,180" RadiusX="180" RadiusY="180"/>
                                         </Grid.Clip>
-                                         <Image x:Name="CropImage"
-                                               Width="360"
-                                               Height="360"
-                                               Source="{Binding Current.AvatarImage}"
-                                               Stretch="Fill"
-                                               RenderTransformOrigin="0.5,0.5">
-                                            <Image.RenderTransform>
-                                                <TransformGroup>
-                                                    <ScaleTransform x:Name="CropImageScale" ScaleX="1.18" ScaleY="1.18"/>
-                                                    <TranslateTransform x:Name="CropImageTranslate" Y="-8"/>
-                                                </TransformGroup>
-                                            </Image.RenderTransform>
-                                        </Image>
+                                        <Rectangle IsHitTestVisible="False">
+                                            <Rectangle.Fill>
+                                                <ImageBrush x:Name="CropEditorBrush"
+                                                            ImageSource="{Binding Current.AvatarImage}"
+                                                            ViewboxUnits="Absolute"
+                                                            Stretch="Fill"/>
+                                            </Rectangle.Fill>
+                                        </Rectangle>
                                     </Grid>
                                     <Ellipse Width="360"
                                              Height="360"
@@ -266,8 +261,8 @@
                                             <Ellipse.Fill>
                                                  <ImageBrush x:Name="Preview128Brush"
                                                             ImageSource="{Binding Current.AvatarImage}"
-                                                            ViewboxUnits="RelativeToBoundingBox"
-                                                            Stretch="UniformToFill"/>
+                                                            ViewboxUnits="Absolute"
+                                                            Stretch="Fill"/>
                                             </Ellipse.Fill>
                                         </Ellipse>
                                         <TextBlock Margin="0,8,0,0"
@@ -282,8 +277,8 @@
                                             <Ellipse.Fill>
                                                  <ImageBrush x:Name="Preview64Brush"
                                                             ImageSource="{Binding Current.AvatarImage}"
-                                                            ViewboxUnits="RelativeToBoundingBox"
-                                                            Stretch="UniformToFill"/>
+                                                            ViewboxUnits="Absolute"
+                                                            Stretch="Fill"/>
                                             </Ellipse.Fill>
                                         </Ellipse>
                                         <TextBlock Margin="0,8,0,0"
@@ -298,8 +293,8 @@
                                             <Ellipse.Fill>
                                                  <ImageBrush x:Name="Preview32Brush"
                                                             ImageSource="{Binding Current.AvatarImage}"
-                                                            ViewboxUnits="RelativeToBoundingBox"
-                                                            Stretch="UniformToFill"/>
+                                                            ViewboxUnits="Absolute"
+                                                            Stretch="Fill"/>
                                             </Ellipse.Fill>
                                         </Ellipse>
                                         <TextBlock Margin="0,8,0,0"

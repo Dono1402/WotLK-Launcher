@@ -94,7 +94,12 @@ public sealed partial class LauncherDatabase
 
         SessionTokens session = _tokens.Create(_options.AccessTokenMinutes, _options.RefreshTokenDays);
         await InsertSessionAsync(
-            connection, transaction, accountId, deviceName, session, cancellationToken);
+            connection,
+            transaction,
+            accountId,
+            NormalizeDeviceName(deviceName),
+            session,
+            cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         AccountProfile accountProfile = new(
@@ -136,8 +141,24 @@ public sealed partial class LauncherDatabase
         AccountProfile profile = await LoadProfileAsync(
             connection, transaction, credential.AccountId, cancellationToken);
         SessionTokens session = _tokens.Create(_options.AccessTokenMinutes, _options.RefreshTokenDays);
+        string? deviceName = NormalizeDeviceName(request.DeviceName);
+        if (deviceName is not null)
+        {
+            await RevokeActiveDeviceSessionsAsync(
+                connection,
+                transaction,
+                credential.AccountId,
+                deviceName,
+                cancellationToken);
+        }
+
         await InsertSessionAsync(
-            connection, transaction, credential.AccountId, request.DeviceName, session, cancellationToken);
+            connection,
+            transaction,
+            credential.AccountId,
+            deviceName,
+            session,
+            cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new AtlasLoginResult(
             AtlasLoginOutcome.Succeeded,
@@ -156,7 +177,7 @@ public sealed partial class LauncherDatabase
         {
             command.Transaction = transaction;
             command.CommandText = """
-                SELECT s.id, s.account_id, s.device_name, a.username
+                SELECT s.id, s.account_id, s.device_name, s.created_at, a.username
                 FROM atlas_launcher_session s
                 INNER JOIN atlas_launcher_profile p ON p.account_id = s.account_id
                 INNER JOIN account a ON a.id = p.account_id
@@ -172,12 +193,26 @@ public sealed partial class LauncherDatabase
                     (byte[])reader["id"],
                     reader.GetUInt32("account_id"),
                     reader.IsDBNull("device_name") ? null : reader.GetString("device_name"),
+                    DateTime.SpecifyKind(reader.GetDateTime("created_at"), DateTimeKind.Utc),
                     reader.GetString("username"))
                 : null;
         }
 
         if (account is null)
             return null;
+
+        string? deviceName = NormalizeDeviceName(account.DeviceName);
+        if (deviceName is not null)
+        {
+            await RevokeOlderDeviceSessionsAsync(
+                connection,
+                transaction,
+                account.AccountId,
+                account.SessionId,
+                account.CreatedAt,
+                deviceName,
+                cancellationToken);
+        }
 
         SessionTokens session = _tokens.Create(_options.AccessTokenMinutes, _options.RefreshTokenDays);
         await using (MySqlCommand rotate = connection.CreateCommand())
@@ -802,6 +837,77 @@ public sealed partial class LauncherDatabase
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    private static async Task RevokeActiveDeviceSessionsAsync(
+        MySqlConnection connection,
+        MySqlTransaction transaction,
+        uint accountId,
+        string deviceName,
+        CancellationToken cancellationToken)
+    {
+        await using (MySqlCommand accountLock = connection.CreateCommand())
+        {
+            accountLock.Transaction = transaction;
+            accountLock.CommandText = """
+                SELECT account_id
+                FROM atlas_launcher_profile
+                WHERE account_id = @accountId
+                FOR UPDATE;
+                """;
+            accountLock.Parameters.AddWithValue("@accountId", accountId);
+            _ = await accountLock.ExecuteScalarAsync(cancellationToken);
+        }
+
+        await using MySqlCommand command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            UPDATE atlas_launcher_session
+            SET revoked_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
+            WHERE account_id = @accountId
+              AND revoked_at IS NULL
+              AND refresh_expires_at > UTC_TIMESTAMP()
+              AND TRIM(device_name) = @deviceName;
+            """;
+        command.Parameters.AddWithValue("@accountId", accountId);
+        command.Parameters.AddWithValue("@deviceName", deviceName);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task RevokeOlderDeviceSessionsAsync(
+        MySqlConnection connection,
+        MySqlTransaction transaction,
+        uint accountId,
+        byte[] currentSessionId,
+        DateTime currentCreatedAt,
+        string deviceName,
+        CancellationToken cancellationToken)
+    {
+        await using MySqlCommand command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            UPDATE atlas_launcher_session
+            SET revoked_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
+            WHERE account_id = @accountId
+              AND id <> @currentSessionId
+              AND revoked_at IS NULL
+              AND refresh_expires_at > UTC_TIMESTAMP()
+              AND TRIM(device_name) = @deviceName
+              AND created_at < @currentCreatedAt;
+            """;
+        command.Parameters.AddWithValue("@accountId", accountId);
+        command.Parameters.Add("@currentSessionId", MySqlDbType.Binary, 16).Value = currentSessionId;
+        command.Parameters.AddWithValue("@currentCreatedAt", currentCreatedAt);
+        command.Parameters.AddWithValue("@deviceName", deviceName);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    internal static string? NormalizeDeviceName(string? deviceName)
+    {
+        if (string.IsNullOrWhiteSpace(deviceName))
+            return null;
+
+        return deviceName.Trim();
+    }
+
     private static async Task<bool> EmailExistsAsync(
         MySqlConnection connection,
         MySqlTransaction transaction,
@@ -910,5 +1016,6 @@ public sealed partial class LauncherDatabase
         byte[] SessionId,
         uint AccountId,
         string? DeviceName,
+        DateTime CreatedAt,
         string Username);
 }

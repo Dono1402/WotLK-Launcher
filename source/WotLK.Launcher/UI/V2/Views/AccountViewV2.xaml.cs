@@ -339,11 +339,9 @@ public partial class AccountViewV2 : UserControl
         SecuritySummaryText.Text = state.IsEmailVerified
             ? "Ton adresse e-mail est vérifiée."
             : "Vérifie ton adresse e-mail pour renforcer la sécurité du compte.";
-        SessionsSummaryText.Text = state.IsPreview
-            ? $"{state.ActiveSessionCount} sessions actives"
-            : state.ActiveSessionCount == 1
-                ? "1 session active"
-                : $"{state.ActiveSessionCount} sessions actives";
+        SessionsSummaryText.Text = state.ActiveSessionCount == 1
+            ? "1 appareil connecté"
+            : $"{state.ActiveSessionCount} appareils connectés";
         SessionsPreviewList.Visibility = state.IsPreview
             ? Visibility.Visible
             : Visibility.Collapsed;

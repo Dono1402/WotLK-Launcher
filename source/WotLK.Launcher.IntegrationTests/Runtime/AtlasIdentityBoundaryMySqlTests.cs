@@ -216,10 +216,44 @@ internal static partial class AvatarBackendTests
             CancellationToken.None);
         True(refreshed?.Profile.AccountId == registered.Profile.AccountId, "La session Atlas doit pouvoir etre renouvelee.");
 
-        AtlasLoginResult login = await database.LoginAsync(
-            new LoginRequest(registered.Profile.Username, IdentityPassword, "identity-login"),
+        AtlasLoginResult firstLogin = await database.LoginAsync(
+            new LoginRequest(registered.Profile.Username, IdentityPassword, "  identity-login  "),
             CancellationToken.None);
-        Equal(AtlasLoginOutcome.Succeeded, login.Outcome, "Une nouvelle connexion apres inscription doit reussir.");
+        Equal(AtlasLoginOutcome.Succeeded, firstLogin.Outcome, "Une nouvelle connexion apres inscription doit reussir.");
+
+        AtlasLoginResult replacementLogin = await database.LoginAsync(
+            new LoginRequest(registered.Profile.Username, IdentityPassword, "IDENTITY-LOGIN"),
+            CancellationToken.None);
+        Equal(
+            AtlasLoginOutcome.Succeeded,
+            replacementLogin.Outcome,
+            "Une reconnexion depuis le meme appareil doit reussir.");
+        True(
+            firstLogin.Response is not null
+            && await database.AuthenticateAsync(firstLogin.Response.AccessToken, CancellationToken.None) is null,
+            "La reconnexion doit revoquer atomiquement l'ancienne session du meme appareil.");
+        True(
+            replacementLogin.Response is not null
+            && await database.AuthenticateAsync(replacementLogin.Response.AccessToken, CancellationToken.None) is not null,
+            "La session de remplacement doit rester utilisable.");
+
+        IReadOnlyList<LauncherSessionInfo> deviceSessions = await database.ListSessionsAsync(
+            registered.Profile.AccountId,
+            replacementLogin.Response!.AccessToken,
+            CancellationToken.None);
+        Equal(
+            1,
+            deviceSessions.Count(item => string.Equals(
+                item.DeviceName.Trim(),
+                "identity-login",
+                StringComparison.OrdinalIgnoreCase)),
+            "Un appareil ne doit produire qu'une seule session active visible.");
+        True(
+            deviceSessions.Any(item => string.Equals(
+                item.DeviceName,
+                "identity-integration",
+                StringComparison.OrdinalIgnoreCase)),
+            "La reconnexion ne doit pas revoquer les sessions d'un autre appareil.");
 
         AvatarRepository avatars = new(options);
         AvatarAssetRecord pending = await avatars.CreatePendingAsync(

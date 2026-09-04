@@ -4,6 +4,7 @@ using System.Net.Http;
 using WotLK.Launcher;
 using WotLK.Launcher.Account;
 using WotLK.Launcher.Runtime;
+using WotLK.Launcher.Server;
 using WotLK.Launcher.UI.V2.Presentation;
 
 internal static class AccountSecuritySessionTests
@@ -13,6 +14,7 @@ internal static class AccountSecuritySessionTests
 
     internal static async Task<int> RunAsync(string? captureDirectory)
     {
+        ValidateDeviceNamePolicy();
         await ValidateSnapshotAndSessionsAsync();
         await ValidateEmailMutationsAsync();
         await ValidatePasswordMutationsAsync();
@@ -21,6 +23,18 @@ internal static class AccountSecuritySessionTests
         await AccountSecuritySessionWpfTests.RunAsync(captureDirectory);
         Console.WriteLine("Account security and sessions OK: runtime, errors, lifecycle and WPF.");
         return 0;
+    }
+
+    private static void ValidateDeviceNamePolicy()
+    {
+        Equal(
+            "DESKTOP-UP6AMRA",
+            LauncherDatabase.NormalizeDeviceName("  DESKTOP-UP6AMRA  "),
+            "Le nom d'appareil doit être stabilisé avant la création de session.");
+        True(
+            LauncherDatabase.NormalizeDeviceName(null) is null
+            && LauncherDatabase.NormalizeDeviceName("   ") is null,
+            "Un client sans nom d'appareil ne doit pas fusionner toutes les sessions anonymes.");
     }
 
     private static async Task ValidateSnapshotAndSessionsAsync()

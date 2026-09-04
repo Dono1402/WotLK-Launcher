@@ -19,6 +19,7 @@ publication d'une version.
 - Les images jusqu'à 25 Mo peuvent être utilisées comme photo de profil.
 - Le cadrage et l'aperçu de la photo affichent désormais le même résultat.
 - La nouvelle photo apparaît immédiatement après sa validation.
+- Une reconnexion depuis le même appareil ne crée plus de doublons dans les appareils connectés.
 
 ### Social
 

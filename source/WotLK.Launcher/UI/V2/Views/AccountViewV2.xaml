@@ -643,7 +643,7 @@
                                        Style="{StaticResource AtlasV2.Text.SectionTitle}"/>
                             <TextBlock x:Name="SessionsSummaryText"
                                        Margin="0,4,0,0"
-                                       Text="{Binding Current.ActiveSessionCount, StringFormat={}{0} sessions actives}"
+                                       Text="{Binding Current.ActiveSessionCount, StringFormat={}{0} appareils connectés}"
                                        Style="{StaticResource AtlasV2.Text.Body}"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" HorizontalAlignment="Right">

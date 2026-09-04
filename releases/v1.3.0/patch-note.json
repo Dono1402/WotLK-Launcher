@@ -1,0 +1,61 @@
+{
+  "id": "atlas-launcher-1-3-0",
+  "category": "Launcher",
+  "title": "Atlas Launcher 1.3.0",
+  "summary": "Nouvel écran Jeu, profils enrichis, liste d'amis améliorée, paramètres simplifiés et bouton de mise à jour dans la barre du haut.",
+  "publishedAt": "2026-09-04T19:42:16Z",
+  "sections": [
+    {
+      "title": "Launcher",
+      "items": [
+        "Nouveau visuel panoramique du Roi-liche sur la page Jeu, avec un cadrage et une luminosité ajustés.",
+        "Barre du haut allégée : accès aux amis par une icône et version du launcher déplacée dans les paramètres.",
+        "Un bouton vert apparaît dans la barre du haut lorsqu'une mise à jour du launcher est disponible. Un clic lance son installation et ouvre le suivi du téléchargement.",
+        "Les notes de mise à jour disposent de leur propre onglet et sont regroupées par catégorie.",
+        "Une seule instance du launcher peut être ouverte à la fois.",
+        "Le launcher reste accessible dans la zone de notification Windows. Sa fermeture peut le ranger dans cette zone sans conserver de bouton dans la barre des tâches."
+      ]
+    },
+    {
+      "title": "Jeu",
+      "items": [
+        "L'état du serveur de jeu est maintenant affiché au-dessus du bouton Jouer et actualisé automatiquement.",
+        "Le bouton Jouer indique le lancement du jeu, puis son utilisation, et redevient disponible lorsque le jeu se ferme.",
+        "Les boutons Jouer et Notes de mise à jour ont été agrandis pour améliorer leur lisibilité.",
+        "Amélioration de la gestion des autorisations Windows lorsque le dossier du jeu n'est pas accessible en écriture."
+      ]
+    },
+    {
+      "title": "Paramètres",
+      "items": [
+        "L'interface du launcher est disponible en français et en anglais, avec changement de langue sans redémarrage.",
+        "L'option Démarrer avec Windows est maintenant fonctionnelle.",
+        "Les options inutiles et les descriptions répétitives ont été retirées pour simplifier les paramètres.",
+        "Les interrupteurs disposent d'une animation et d'un curseur adapté au survol."
+      ]
+    },
+    {
+      "title": "Profil et compte",
+      "items": [
+        "Les accès Gérer mon profil et Gérer mon compte sont désormais séparés.",
+        "Ajout d'une bio et d'un statut personnel visibles par les amis.",
+        "Les photos de profil jusqu'à 25 Mo sont acceptées. Le cadrage permet de déplacer l'image dans toutes les directions et de zoomer à la molette.",
+        "Correction de l'aperçu, de la synchronisation et de l'affichage de la photo de profil après reconnexion.",
+        "La déconnexion ramène à l'écran de connexion, sans laisser le compte ni la page Jeu visibles en arrière-plan.",
+        "Les champs de saisie sont plus visibles et le changement d'adresse e-mail ne préremplit plus la nouvelle adresse avec l'ancienne.",
+        "L'avertissement de vérification de l'adresse e-mail n'apparaît que lorsqu'une confirmation est nécessaire.",
+        "Une reconnexion depuis le même appareil ne crée plus de doublons dans les appareils connectés."
+      ]
+    },
+    {
+      "title": "Social",
+      "items": [
+        "Liste d'amis réorganisée avec recherche et informations de présence plus lisibles.",
+        "Un clic sur un ami ouvre son profil : photo, pseudo, statut, bio, personnage actif, classe, niveau, zone et dernière présence.",
+        "Les personnages WoW d'un ami sont consultables depuis son profil.",
+        "Les connexions d'amis sont signalées par une notification sonore, désactivable dans les paramètres. Les nouvelles demandes d'ami sont également notifiées.",
+        "Le menu à trois points est plus lisible et les cadres superflus ont été retirés."
+      ]
+    }
+  ]
+}

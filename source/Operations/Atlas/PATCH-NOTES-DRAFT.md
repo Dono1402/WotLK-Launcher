@@ -1,18 +1,19 @@
 # Notes de mise à jour - brouillon local
 
-Ce brouillon recense les changements visibles par les utilisateurs. Il n'est
-pas publié dans Atlas Launcher tant que Dono n'a pas demandé explicitement la
-publication d'une version.
+Le brouillon 1.3.0 ci-dessous est archivé. Sa version complétée, publiée à la
+demande de Dono le 4 septembre 2026, est conservée dans
+[`releases/v1.3.0/patch-note.json`](../../../releases/v1.3.0/patch-note.json).
+Toute publication suivante nécessite une nouvelle demande explicite.
 
-## Prochaine version
+## Brouillon archivé - 1.3.0
 
 ### Launcher
 
 - La page Jeu affiche désormais Norfendre jusqu'aux bords de l'onglet, sans cadre intérieur.
 - Le Roi-liche accompagne maintenant l'écran principal du jeu avec un nouveau visuel panoramique.
 - Le cadrage et la luminosité du visuel principal mettent davantage en valeur le Roi-liche et le paysage.
-- L'accès aux mises à jour utilise désormais un bouton compact uniquement représenté par son icône.
-- Les actions Mises à jour et Jouer sont regroupées en bas à droite.
+- L'accès aux notes de mise à jour utilise désormais un bouton compact uniquement représenté par son icône.
+- Les actions Notes de mise à jour et Jouer sont regroupées en bas à droite.
 - Les informations d'installation restent accessibles dans Paramètres sans encombrer la page Jeu.
 - Les notes de mise à jour disposent maintenant de leur propre onglet.
 - Les nouveautés sont regroupées par catégorie et présentées point par point.

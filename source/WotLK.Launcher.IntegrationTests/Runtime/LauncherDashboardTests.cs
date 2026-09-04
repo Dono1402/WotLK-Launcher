@@ -571,10 +571,12 @@ internal static class LauncherDashboardTests
                 Equal(afterConstruction + 1, propertyNotifications, "Un snapshot doit produire une notification atomique groupée.");
                 Equal(originalClientStatus, game.ClientStatus, "Le royaume ne doit pas modifier le client.");
                 True(noteAction.IsEnabled, "Une note réelle doit activer le bouton Mises à jour.");
-                Equal(
-                    "Mises à jour",
-                    ((TextBlock)((StackPanel)noteAction.Content).Children[1]).Text,
-                    "Le bouton secondaire doit identifier clairement les mises à jour.");
+                True(noteAction.Content is System.Windows.Shapes.Path,
+                    "Le bouton Mises à jour doit rester limité à son pictogramme.");
+                Equal(52d, noteAction.Width, "Le bouton Mises à jour doit conserver un format carré compact.");
+                True(Required<Image>(gameView, "HeroArtwork").Source is BitmapImage heroSource
+                    && heroSource.UriSource.OriginalString.EndsWith("LichKingFrostmourneHero.jpg", StringComparison.Ordinal),
+                    "La page Jeu doit utiliser le nouveau visuel du Roi-liche.");
                 if (!string.IsNullOrWhiteSpace(captureDirectory))
                 {
                     Directory.CreateDirectory(captureDirectory);

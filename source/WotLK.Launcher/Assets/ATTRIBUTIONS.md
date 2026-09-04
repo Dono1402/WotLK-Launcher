@@ -31,4 +31,5 @@
 ## Identité Atlas
 
 - `Assets/Branding/AtlasLauncherLogo.png` reprend l'icône produit déjà distribuée par Atlas Launcher.
-- `Assets/Images/ArthasIcecrownHero.png` reprend l'illustration Icecrown déjà distribuée dans le launcher v1.1.0.
+- `Assets/Images/LichKingFrostmourneHero.jpg` provient de Wallpaper Abyss, image 1230602 (6000 x 2600), découverte par Oreskis, artiste non renseigné : https://wall.alphacoders.com/big.php?i=1230602
+- La page source indique un usage privé et personnel. Une autorisation distincte doit être obtenue avant toute distribution publique de cette image.

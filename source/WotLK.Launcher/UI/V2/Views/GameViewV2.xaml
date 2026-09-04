@@ -40,11 +40,17 @@
                             ClipToBounds="True">
                         <Grid DataContext="{Binding State, ElementName=Root}">
                             <Image x:Name="HeroArtwork"
-                                   Source="/WotLK.Launcher;component/Assets/Images/ArthasIcecrownHero.png"
                                    HorizontalAlignment="Stretch"
                                    VerticalAlignment="Stretch"
                                    Stretch="UniformToFill"
-                                   Opacity="0.96"/>
+                                   Opacity="0.96"
+                                   RenderOptions.BitmapScalingMode="HighQuality">
+                                <Image.Source>
+                                    <BitmapImage UriSource="/WotLK.Launcher;component/Assets/Images/LichKingFrostmourneHero.jpg"
+                                                 DecodePixelWidth="3840"
+                                                 CacheOption="OnLoad"/>
+                                </Image.Source>
+                            </Image>
 
                             <Rectangle IsHitTestVisible="False">
                                 <Rectangle.Fill>
@@ -242,22 +248,20 @@
                                                 HorizontalAlignment="Right"
                                                 VerticalAlignment="Bottom">
                                         <Button x:Name="LatestPatchNoteAction"
-                                                Width="176"
+                                                Width="52"
                                                 Margin="0,0,12,0"
+                                                Padding="0"
                                                 Style="{StaticResource AtlasV2.Button.Secondary}"
+                                                HorizontalContentAlignment="Center"
                                                 IsEnabled="{Binding DashboardState.Current.CanOpenLatestPatchNote, ElementName=Root}"
-                                                ToolTip="Consulter les dernières mises à jour"
+                                                ToolTip="Mises à jour"
                                                 AutomationProperties.Name="Mises à jour"
                                                 Click="LatestPatchNoteAction_Click">
-                                            <StackPanel Orientation="Horizontal">
-                                                <Path Width="17"
-                                                      Height="17"
-                                                      Margin="0,0,9,0"
-                                                      Data="{StaticResource AtlasV2.Icon.FileText}"
-                                                      Style="{StaticResource AtlasV2.Icon.Stroke}"
-                                                      Stroke="{StaticResource AtlasV2.Brush.Gold}"/>
-                                                <TextBlock Text="Mises à jour" FontWeight="SemiBold"/>
-                                            </StackPanel>
+                                            <Path Width="19"
+                                                  Height="19"
+                                                  Data="{StaticResource AtlasV2.Icon.FileText}"
+                                                  Style="{StaticResource AtlasV2.Icon.Stroke}"
+                                                  Stroke="{StaticResource AtlasV2.Brush.Gold}"/>
                                         </Button>
 
                                         <Button x:Name="PrimaryActionButton"

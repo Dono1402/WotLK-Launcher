@@ -9,6 +9,8 @@ publication d'une version.
 ### Launcher
 
 - La page Jeu affiche désormais Norfendre jusqu'aux bords de l'onglet, sans cadre intérieur.
+- Le Roi-liche accompagne maintenant l'écran principal du jeu avec un nouveau visuel panoramique.
+- L'accès aux mises à jour utilise désormais un bouton compact uniquement représenté par son icône.
 - Les actions Mises à jour et Jouer sont regroupées en bas à droite.
 - Les informations d'installation restent accessibles dans Paramètres sans encombrer la page Jeu.
 - Les notes de mise à jour disposent maintenant de leur propre onglet.

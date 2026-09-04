@@ -98,31 +98,33 @@
                         Margin="0,16,0,14"
                         Background="{StaticResource AtlasV2.Brush.BorderSoft}"/>
 
-                <Border Padding="12,11"
+                <Border x:Name="EmailVerificationWarning"
+                        Padding="12,11"
                         Background="{StaticResource AtlasV2.Brush.Surface}"
                         BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
                         BorderThickness="1"
                         CornerRadius="6">
+                    <Border.Style>
+                        <Style TargetType="{x:Type Border}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Current.IsEmailVerified}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="26"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <Path Width="17"
+                        <Path x:Name="EmailVerificationWarningIcon"
+                              Width="17"
                               Height="17"
-                              Data="{StaticResource AtlasV2.Icon.Mail}">
-                            <Path.Style>
-                                <Style TargetType="{x:Type Path}"
-                                       BasedOn="{StaticResource AtlasV2.Icon.Stroke}">
-                                    <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Gold}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Current.IsEmailVerified}" Value="True">
-                                            <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Success}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Path.Style>
-                        </Path>
+                              Data="{StaticResource AtlasV2.Icon.Mail}"
+                              Stroke="{StaticResource AtlasV2.Brush.Warning}"
+                              Style="{StaticResource AtlasV2.Icon.Stroke}"/>
                         <TextBlock Grid.Column="1"
                                    VerticalAlignment="Center"
                                    Text="{Binding Current.EmailStatusText}"

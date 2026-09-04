@@ -172,6 +172,9 @@ internal static class AccountPreviewTests
             Grid profileAvatar = Required<Grid>(window.ProfileOverlay, "ProfileIdentityAvatar");
             True(!ContainsText(window.ProfileOverlay, "Session Atlas active"),
                 "Le menu profil ne doit plus répéter l'état de la session Atlas.");
+            Equal(Visibility.Collapsed,
+                Required<Border>(window.ProfileOverlay, "EmailVerificationWarning").Visibility,
+                "Un compte vérifié ne doit plus afficher de ligne sur son adresse e-mail.");
             double usernameCenter = profileUsername.TranslatePoint(
                 new Point(0, profileUsername.ActualHeight / 2),
                 window.ProfileOverlay).Y;

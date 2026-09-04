@@ -506,6 +506,16 @@ internal static class LauncherProfileLogoutTests
                 "Adresse e-mail non vérifiée",
                 unverifiedPreview.ProfileState.Current.EmailStatusText,
                 "Le preview WPF doit exposer l'e-mail non vérifié sans le bloquer.");
+            Equal(
+                Visibility.Visible,
+                Required<Border>(unverifiedPreview.ProfileOverlay, "EmailVerificationWarning").Visibility,
+                "Le menu doit afficher l'avertissement lorsque l'adresse n'est pas vérifiée.");
+            Brush expectedWarning = (Brush)Application.Current.FindResource("AtlasV2.Brush.Warning");
+            Brush actualWarning = Required<System.Windows.Shapes.Path>(
+                unverifiedPreview.ProfileOverlay,
+                "EmailVerificationWarningIcon").Stroke;
+            Equal(expectedWarning.ToString(), actualWarning.ToString(),
+                "L'icône e-mail non vérifié doit utiliser l'orange d'avertissement.");
             True(
                 unverifiedPreview.ProfileState.LogoutCommand.CanExecute(null),
                 "L'e-mail non vérifié ne doit pas désactiver Déconnexion.");

@@ -54,7 +54,8 @@ internal static class LocalPatchNotesDraft
                 "La nouvelle photo apparaît immédiatement après sa validation.",
                 "Une reconnexion depuis le même appareil ne crée plus de doublons dans les appareils connectés.",
                 "La page du profil affiche uniquement les informations utiles, sans rappel de sécurité redondant.",
-                "Le menu du profil présente maintenant le pseudo de façon plus claire et mieux centrée."
+                "Le menu du profil présente maintenant le pseudo de façon plus claire et mieux centrée.",
+                "L’adresse e-mail n’y apparaît plus que lorsqu’elle doit encore être vérifiée."
             ]),
             new("Compte",
             [

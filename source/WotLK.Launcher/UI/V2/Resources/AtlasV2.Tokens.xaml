@@ -26,6 +26,7 @@
     <SolidColorBrush x:Key="AtlasV2.Brush.GoldPressed" Color="#C89B3F"/>
     <SolidColorBrush x:Key="AtlasV2.Brush.Cyan" Color="#61D5E8"/>
     <SolidColorBrush x:Key="AtlasV2.Brush.Success" Color="#51D7A2"/>
+    <SolidColorBrush x:Key="AtlasV2.Brush.Warning" Color="#F2A33C"/>
     <SolidColorBrush x:Key="AtlasV2.Brush.Danger" Color="#EE6571"/>
     <SolidColorBrush x:Key="AtlasV2.Brush.GoldSurface" Color="#2C2516"/>
     <SolidColorBrush x:Key="AtlasV2.Brush.GoldBorder" Color="#715B29"/>

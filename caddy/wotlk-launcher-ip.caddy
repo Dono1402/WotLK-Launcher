@@ -1,10 +1,12 @@
 http://152.228.225.7 {
-	encode zstd gzip
 
-	@launcher_update_manifest path /launcher/launcher-update.json
-	header @launcher_update_manifest Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
-	header @launcher_update_manifest Pragma "no-cache"
-	header @launcher_update_manifest X-Content-Type-Options "nosniff"
+	# atlas-launcher-legacy-manifest-v1 begin
+	@atlas_launcher_legacy_manifest path /launcher/launcher-update.json
+	header @atlas_launcher_legacy_manifest Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+	header @atlas_launcher_legacy_manifest Pragma "no-cache"
+	header @atlas_launcher_legacy_manifest X-Content-Type-Options "nosniff"
+	# atlas-launcher-legacy-manifest-v1 end
+	encode zstd gzip
 
 	@launcher_binary_authorized_wotlk {
 		path /launcher/WotLK-Launcher.exe

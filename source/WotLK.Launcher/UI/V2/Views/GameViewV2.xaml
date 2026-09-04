@@ -31,16 +31,12 @@
                   Height="{Binding ViewportHeight, ElementName=GameScrollViewer}"
                   MinHeight="528">
                 <Border x:Name="ContentFrame"
-                        MaxWidth="1800"
-                        Margin="34,22,34,30"
+                        Margin="0"
                         HorizontalAlignment="Stretch"
                         VerticalAlignment="Stretch">
                     <Border x:Name="HeroCard"
                             MinHeight="520"
                             Background="#0B1016"
-                            BorderBrush="{StaticResource AtlasV2.Brush.Border}"
-                            BorderThickness="1"
-                            CornerRadius="8"
                             ClipToBounds="True">
                         <Grid DataContext="{Binding State, ElementName=Root}">
                             <Image x:Name="HeroArtwork"

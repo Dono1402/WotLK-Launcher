@@ -80,12 +80,6 @@ public partial class GameViewV2 : UserControl
             return;
         }
 
-        ContentFrame.Margin = mode switch
-        {
-            AdaptiveLayoutMode.Wide => new Thickness(34, 22, 34, 30),
-            AdaptiveLayoutMode.Compact => new Thickness(26, 18, 26, 26),
-            _ => new Thickness(20, 16, 20, 24)
-        };
         HeroCard.MinHeight = mode switch
         {
             AdaptiveLayoutMode.Wide => 520,

@@ -541,6 +541,12 @@ internal static class LauncherDashboardTests
                     "Le raccourci Options ne doit plus occuper l’action principale de la page Jeu.");
                 True(gameView.FindName("NewsCard") is null && gameView.FindName("InstallCard") is null,
                     "Les anciennes cartes Actualité et Installation doivent être retirées.");
+                Equal(new Thickness(0), gameContent.Margin,
+                    "Le visuel Jeu doit rejoindre les bords de l'onglet.");
+                Equal(new Thickness(0), hero.BorderThickness,
+                    "Le visuel Jeu ne doit plus être encadré par une bordure intérieure.");
+                Equal(new CornerRadius(0), hero.CornerRadius,
+                    "Le visuel plein onglet ne doit plus conserver d'angles de carte.");
                 True(Math.Abs(hero.ActualHeight - gameContent.ActualHeight) <= 0.5,
                     "Le visuel Jeu doit occuper toute la hauteur utile de l’onglet.");
 

@@ -164,7 +164,8 @@ internal static class V2RolloutReadinessTests
                 RaiseClick(gameNavigation);
                 await PumpAsync(DispatcherPriority.Render);
                 Border contentFrame = Required<Border>(game, "ContentFrame");
-                True(contentFrame.ActualWidth <= 1800.5, "Jeu doit conserver sa largeur maximale à 1920 x 1080.");
+                True(Math.Abs(contentFrame.ActualWidth - game.ActualWidth) <= 0.5,
+                    "Jeu doit utiliser toute la largeur de l'onglet à 1920 x 1080.");
                 SavePng(window, captureDirectory, "game-immersive-1920x1080.png", 1920, 1080);
 
                 RaiseClick(Required<Button>(game, "LatestPatchNoteAction"));

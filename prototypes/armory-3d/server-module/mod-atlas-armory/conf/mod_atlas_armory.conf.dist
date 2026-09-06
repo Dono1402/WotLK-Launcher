@@ -1,0 +1,8 @@
+[worldserver]
+AtlasArmory.Enable = 0
+# Zero permits all non-bot characters. Set a specific GUID for a limited deployment.
+AtlasArmory.OnlyGuid = 0
+# Opt-in: capture after login/equipment changes and every 60 seconds while in world.
+# Equipment changes settle for 2 seconds; at most one live capture every 5 seconds.
+# Logout capture remains enabled independently of this option.
+AtlasArmory.LiveEnable = 0

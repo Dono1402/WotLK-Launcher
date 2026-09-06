@@ -8,31 +8,31 @@
              Focusable="False">
     <UserControl.Resources>
         <Style x:Key="AtlasV2.Addons.ListItem" TargetType="{x:Type ListBoxItem}">
-            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-            <Setter Property="FocusVisualStyle" Value="{StaticResource AtlasV2.FocusVisual.Button}"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type ListBoxItem}">
                         <Border x:Name="RowSurface"
-                                Padding="16,13"
-                                Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
-                                BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                                Padding="24,6"
+                                Background="{StaticResource AtlasV2.Brush.GlassSurface}"
+                                BorderBrush="{StaticResource AtlasV2.Brush.GlassBorder}"
                                 BorderThickness="1"
-                                CornerRadius="7">
+                                CornerRadius="10">
                             <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="RowSurface" Property="Background" Value="{StaticResource AtlasV2.Brush.SurfaceHover}"/>
-                                <Setter TargetName="RowSurface" Property="BorderBrush" Value="#506070"/>
+                                <Setter TargetName="RowSurface" Property="Background" Value="{StaticResource AtlasV2.Brush.GlassRaised}"/>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="RowSurface" Property="Background" Value="#1C252E"/>
-                                <Setter TargetName="RowSurface" Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.GoldBorder}"/>
+                                <Setter TargetName="RowSurface" Property="Background" Value="{StaticResource AtlasV2.Brush.GlassRaised}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -41,8 +41,8 @@
         </Style>
 
         <Style x:Key="AtlasV2.Addons.StateChip" TargetType="{x:Type Border}">
-            <Setter Property="Padding" Value="8,4"/>
-            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="14,10"/>
+            <Setter Property="CornerRadius" Value="7"/>
             <Setter Property="Background" Value="#192129"/>
             <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Border}"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -79,7 +79,7 @@
         </Style>
 
         <Style x:Key="AtlasV2.Addons.StateText" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource AtlasV2.Text.Caption}">
-            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
             <Style.Triggers>
@@ -109,6 +109,7 @@
 
         <Style x:Key="AtlasV2.Addons.Action" TargetType="{x:Type Button}" BasedOn="{StaticResource AtlasV2.Button.GhostCompact}">
             <Setter Property="MinWidth" Value="108"/>
+            <Setter Property="Height" Value="40"/>
             <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
             <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.CyanBorder}"/>
             <Style.Triggers>
@@ -122,13 +123,81 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+
+        <Style x:Key="AtlasV2.Addons.Filter" TargetType="{x:Type Button}" BasedOn="{StaticResource AtlasV2.Button.Segment}">
+            <Setter Property="Height" Value="50"/>
+            <Setter Property="Padding" Value="27,0"/>
+            <Setter Property="FontSize" Value="17"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Style.Triggers>
+                <Trigger Property="Tag" Value="Active">
+                    <Setter Property="Background" Value="#BB082C47"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.GlassBorder}"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                </Trigger>
+                <DataTrigger Binding="{Binding LayoutMode, ElementName=AddonsRoot}" Value="{x:Static presentation:AdaptiveLayoutMode.Stacked}">
+                    <Setter Property="Height" Value="44"/>
+                    <Setter Property="Padding" Value="17,0"/>
+                    <Setter Property="FontSize" Value="14"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AtlasV2.Addons.CategoryColumn" TargetType="{x:Type ColumnDefinition}">
+            <Setter Property="Width" Value="200"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding LayoutMode, ElementName=AddonsRoot}" Value="{x:Static presentation:AdaptiveLayoutMode.Compact}">
+                    <Setter Property="Width" Value="145"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding LayoutMode, ElementName=AddonsRoot}" Value="{x:Static presentation:AdaptiveLayoutMode.Stacked}">
+                    <Setter Property="Width" Value="0"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="AtlasV2.Addons.VersionColumn" TargetType="{x:Type ColumnDefinition}">
+            <Setter Property="Width" Value="200"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding LayoutMode, ElementName=AddonsRoot}" Value="{x:Static presentation:AdaptiveLayoutMode.Compact}">
+                    <Setter Property="Width" Value="170"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding LayoutMode, ElementName=AddonsRoot}" Value="{x:Static presentation:AdaptiveLayoutMode.Stacked}">
+                    <Setter Property="Width" Value="145"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="AtlasV2.Addons.CategoryIcon" TargetType="{x:Type Path}" BasedOn="{StaticResource AtlasV2.Icon.Stroke}">
+            <Setter Property="Width" Value="22"/>
+            <Setter Property="Height" Value="22"/>
+            <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
+            <Setter Property="Data" Value="{StaticResource AtlasV2.Icon.Package}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Category}" Value="Collections">
+                    <Setter Property="Data" Value="M3,7 V21 H21 V7 H12 L10,3 H3 Z M3,8 H21"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Category}" Value="Quêtes">
+                    <Setter Property="Data" Value="M12,5 C9,2 5,2 2,4 V21 C6,19 9,19 12,22 C15,19 18,19 22,21 V4 C18,2 15,2 12,5 Z M12,5 V22"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Category}" Value="Interface">
+                    <Setter Property="Data" Value="M2,3 H22 V18 H2 Z M12,18 V22 M7,22 H17"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Category}" Value="Économie">
+                    <Setter Property="Data" Value="M9,5 A7,3 0 1 0 23,5 A7,3 0 1 0 9,5 M9,5 V10 C9,14 23,14 23,10 V5 M16,13 V17 C16,21 2,21 2,17 V12 M2,12 C2,8 16,8 16,12 C16,16 2,16 2,12 M2,17 V22 C2,26 16,26 16,22 V17 M23,10 V15 C23,18 19,18 16,18"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Category}" Value="Inventaire">
+                    <Setter Property="Data" Value="M6,9 H18 L21,22 H3 Z M8,10 V5 A4,4 0 0 1 16,5 V10 M6,15 H18 V22 H6 Z M12,14 V17"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Category}" Value="Combat">
+                    <Setter Property="Data" Value="M3,3 L15,15 M1,1 L6,3 L3,6 Z M13,17 L17,13 M15,15 L21,21 M3,21 L15,9 M1,23 L6,21 L3,18 Z M13,7 L17,11 M15,9 L21,3"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <Grid Background="Transparent">
         <Grid x:Name="ContentFrame"
-              MaxWidth="1360"
-              Margin="34,26,34,28"
-              HorizontalAlignment="Center">
+              MaxWidth="1520"
+              Margin="84,6,82,20"
+              HorizontalAlignment="Stretch">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -136,37 +205,41 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0" Margin="0,0,0,20">
+            <Grid Grid.Row="0" Margin="0,0,0,12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock Text="BIBLIOTHÈQUE ATLAS"
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="34" Height="2" Margin="0,0,20,0" SnapsToDevicePixels="True" Background="{StaticResource AtlasV2.Brush.Cyan}"/>
+                        <TextBlock Text="BIBLIOTHÈQUE ATLAS"
                                Style="{StaticResource AtlasV2.Text.Eyebrow}"
+                               FontSize="12"
+                               FontWeight="SemiBold"
                                Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
+                    </StackPanel>
                     <TextBlock x:Name="PageTitle"
-                               Margin="0,5,0,0"
+                               Margin="0,0,0,0"
                                Text="ADDONS"
                                Style="{StaticResource AtlasV2.Text.Hero}"
-                               FontSize="30"/>
-                    <TextBlock Margin="0,7,0,0"
-                               Text="Personnalise ton expérience WotLK Classic."
-                               Style="{StaticResource AtlasV2.Text.Body}"
-                               Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+                               FontSize="70"
+                               Foreground="{StaticResource AtlasV2.Brush.TitleIce}"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1"
                             HorizontalAlignment="Right"
-                            VerticalAlignment="Bottom">
+                            VerticalAlignment="Center">
                     <TextBlock HorizontalAlignment="Right"
                                Text="WOTLK CLASSIC"
                                Style="{StaticResource AtlasV2.Text.Caption}"
+                               FontSize="13"
                                FontWeight="SemiBold"
                                Foreground="{StaticResource AtlasV2.Brush.TextMuted}"/>
                     <TextBlock Margin="0,3,0,0"
                                HorizontalAlignment="Right"
                                Text="Interface 30403"
-                               Style="{StaticResource AtlasV2.Text.Caption}"/>
+                               Style="{StaticResource AtlasV2.Text.Caption}"
+                               FontSize="14"/>
                 </StackPanel>
             </Grid>
 
@@ -233,32 +306,32 @@
                 </Border>
             </StackPanel>
 
-            <Grid Grid.Row="2" Margin="0,0,0,14">
+            <Grid Grid.Row="2" Margin="0,0,0,28">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <Border Padding="4"
-                        Background="{StaticResource AtlasV2.Brush.Surface}"
-                        BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
+                <Border Padding="1"
+                        Background="{StaticResource AtlasV2.Brush.GlassSurface}"
+                        BorderBrush="{StaticResource AtlasV2.Brush.GlassBorder}"
                         BorderThickness="1"
                         CornerRadius="7">
                     <StackPanel Orientation="Horizontal">
                         <Button x:Name="AllFilterButton"
-                                Style="{StaticResource AtlasV2.Button.Segment}"
+                                Style="{StaticResource AtlasV2.Addons.Filter}"
                                 Tag="Active"
                                 Content="{Binding State.Current.AllFilterLabel, ElementName=AddonsRoot}"
                                 IsEnabled="{Binding State.Current.IsInteractive, ElementName=AddonsRoot}"
                                 Click="AllFilterButton_Click"/>
                         <Button x:Name="InstalledFilterButton"
-                                Style="{StaticResource AtlasV2.Button.Segment}"
+                                Style="{StaticResource AtlasV2.Addons.Filter}"
                                 Content="{Binding State.Current.InstalledFilterLabel, ElementName=AddonsRoot}"
                                 IsEnabled="{Binding State.Current.IsInteractive, ElementName=AddonsRoot}"
                                 Click="InstalledFilterButton_Click"/>
                         <Button x:Name="UpdatesFilterButton"
-                                Style="{StaticResource AtlasV2.Button.Segment}"
+                                Style="{StaticResource AtlasV2.Addons.Filter}"
                                 Content="{Binding State.Current.UpdatesFilterLabel, ElementName=AddonsRoot}"
                                 IsEnabled="{Binding State.Current.IsInteractive, ElementName=AddonsRoot}"
                                 Click="UpdatesFilterButton_Click"/>
@@ -267,19 +340,22 @@
 
                 <Border x:Name="SearchField"
                         Grid.Column="1"
-                        Width="310"
-                        Height="46"
-                        Margin="16,0"
+                        Width="486"
+                        Height="54"
+                        Margin="16,0,0,0"
+                        Background="{StaticResource AtlasV2.Brush.GlassSurface}"
+                        BorderBrush="{StaticResource AtlasV2.Brush.GlassHighlight}"
+                        CornerRadius="10"
                         HorizontalAlignment="Right"
                         Style="{StaticResource AtlasV2.Field.Container}">
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="20"/>
+                            <ColumnDefinition Width="28"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Path Width="16"
-                              Height="16"
+                        <Path Width="23"
+                              Height="23"
                               VerticalAlignment="Center"
                               Data="{StaticResource AtlasV2.Icon.Search}"
                               Style="{StaticResource AtlasV2.Icon.Stroke}"/>
@@ -288,6 +364,7 @@
                                  Margin="8,0,6,0"
                                  Text="{Binding State.Current.SearchText, ElementName=AddonsRoot, Mode=OneWay}"
                                  Style="{StaticResource AtlasV2.TextBox.Field}"
+                                 FontSize="17"
                                  IsEnabled="{Binding State.Current.IsInteractive, ElementName=AddonsRoot}"
                                  TextChanged="SearchInput_TextChanged"/>
                         <TextBlock x:Name="SearchPlaceholder"
@@ -296,18 +373,20 @@
                                    VerticalAlignment="Center"
                                    IsHitTestVisible="False"
                                    Text="Rechercher un addon"
-                                   Style="{StaticResource AtlasV2.Text.Caption}"/>
+                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                   FontSize="17"/>
                         <TextBlock Grid.Column="2"
                                    VerticalAlignment="Center"
                                    Text="{Binding State.Current.ResultsLabel, ElementName=AddonsRoot}"
                                    Style="{StaticResource AtlasV2.Text.Caption}"
-                                   FontSize="11"/>
+                                   FontSize="14"/>
                     </Grid>
                 </Border>
 
                 <Button x:Name="UpdateAllButton"
                         Grid.Column="2"
-                        Height="46"
+                        Height="54"
+                        Margin="16,0,0,0"
                         MinWidth="154"
                         Padding="15,0"
                         Style="{StaticResource AtlasV2.Button.Primary}"
@@ -330,20 +409,22 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <Grid Margin="16,0,20,8">
+                <Grid Margin="24,0,24,8">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="62"/>
+                        <ColumnDefinition Width="88"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Style="{StaticResource AtlasV2.Addons.CategoryColumn}"/>
+                        <ColumnDefinition Style="{StaticResource AtlasV2.Addons.VersionColumn}"/>
                         <ColumnDefinition Width="170"/>
-                        <ColumnDefinition Width="124"/>
+                        <ColumnDefinition Width="48"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="1" Text="ADDON" Style="{StaticResource AtlasV2.Text.Caption}" FontSize="10" FontWeight="SemiBold"/>
-                    <TextBlock Grid.Column="2" Text="VERSION ET ÉTAT" Style="{StaticResource AtlasV2.Text.Caption}" FontSize="10" FontWeight="SemiBold"/>
-                    <TextBlock Grid.Column="3" HorizontalAlignment="Right" Text="ACTION" Style="{StaticResource AtlasV2.Text.Caption}" FontSize="10" FontWeight="SemiBold"/>
+                    <TextBlock Grid.ColumnSpan="2" Text="ADDON" Style="{StaticResource AtlasV2.Text.Caption}" FontSize="12" FontWeight="Medium"/>
+                    <TextBlock Grid.Column="3" Text="VERSION ET ÉTAT" Style="{StaticResource AtlasV2.Text.Caption}" FontSize="12" FontWeight="Medium"/>
+                    <TextBlock Grid.Column="4" Grid.ColumnSpan="2" HorizontalAlignment="Right" Text="ACTION" Style="{StaticResource AtlasV2.Text.Caption}" FontSize="12" FontWeight="Medium"/>
                 </Grid>
 
                 <Grid Grid.Row="1">
-                    <ListBox x:Name="AddonList"
+                    <ListBox x:Name="AddonList" IsTabStop="False"
                              ItemsSource="{Binding State.Current.VisibleAddons, ElementName=AddonsRoot}"
                              ItemContainerStyle="{StaticResource AtlasV2.Addons.ListItem}"
                              Background="Transparent"
@@ -364,15 +445,17 @@
                         </ListBox.ItemsPanel>
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type presentation:AddonUiItem}">
-                                <Grid MinHeight="62">
+                                <Grid MinHeight="56">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="62"/>
-                                        <ColumnDefinition Width="*" MinWidth="220"/>
+                                        <ColumnDefinition Width="88"/>
+                                        <ColumnDefinition Width="*" MinWidth="180"/>
+                                        <ColumnDefinition Style="{StaticResource AtlasV2.Addons.CategoryColumn}"/>
+                                        <ColumnDefinition Style="{StaticResource AtlasV2.Addons.VersionColumn}"/>
                                         <ColumnDefinition Width="170"/>
-                                        <ColumnDefinition Width="124"/>
+                                        <ColumnDefinition Width="48"/>
                                     </Grid.ColumnDefinitions>
-                                    <Grid Width="48" Height="48" HorizontalAlignment="Left" VerticalAlignment="Top">
-                                        <Border Background="#0D1217" BorderBrush="{StaticResource AtlasV2.Brush.Border}" BorderThickness="1" CornerRadius="6"/>
+                                    <Grid Width="56" Height="56" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                        <Border Background="#AA061019" BorderBrush="{StaticResource AtlasV2.Brush.GlassBorder}" BorderThickness="1" CornerRadius="6"/>
                                         <Image Margin="4"
                                                Source="{Binding IconPath}"
                                                Stretch="Uniform">
@@ -405,30 +488,24 @@
                                     </Grid>
 
                                     <StackPanel Grid.Column="1" Margin="0,0,18,0" VerticalAlignment="Center">
-                                        <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="{Binding Name}"
-                                                       MaxWidth="380"
+                                                       ToolTip="{Binding Name}"
                                                        TextTrimming="CharacterEllipsis"
+                                                       TextWrapping="NoWrap"
                                                        Style="{StaticResource AtlasV2.Text.Body}"
+                                                       FontSize="17"
                                                        FontWeight="SemiBold"
                                                        Foreground="{StaticResource AtlasV2.Brush.Text}"/>
-                                            <TextBlock Margin="9,1,0,0"
-                                                       Text="{Binding Category}"
-                                                       Style="{StaticResource AtlasV2.Text.Caption}"
-                                                       FontSize="11"
-                                                       Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
-                                        </StackPanel>
                                         <TextBlock Margin="0,4,0,0"
                                                    Text="{Binding Description}"
-                                                   TextTrimming="CharacterEllipsis">
+                                                   TextWrapping="NoWrap"
+                                                   ToolTip="{Binding Description}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   FontSize="14"
+                                                   FontWeight="Normal">
                                             <TextBlock.Style>
                                                 <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource AtlasV2.Text.Caption}">
                                                     <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextSecondary}"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding LayoutMode, ElementName=AddonsRoot}" Value="{x:Static presentation:AdaptiveLayoutMode.Stacked}">
-                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
@@ -467,34 +544,90 @@
                                                    Visibility="{Binding ShowsError, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
                                     </StackPanel>
 
-                                    <StackPanel Grid.Column="2" Margin="0,0,14,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding VersionSummary}"
+                                    <Border Grid.Column="2" Margin="0,8,20,8" Padding="18,0,0,0"
+                                            BorderThickness="1,0,0,0" BorderBrush="{StaticResource AtlasV2.Brush.GlassBorder}" ClipToBounds="True">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Style="{StaticResource AtlasV2.Addons.CategoryIcon}"/>
+                                            <TextBlock Margin="18,0,0,0" VerticalAlignment="Center"
+                                                       Text="{Binding Category}" TextWrapping="NoWrap"
+                                                       Style="{StaticResource AtlasV2.Text.Caption}"
+                                                       FontSize="13" FontWeight="Normal"
+                                                       Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <StackPanel Grid.Column="3" Margin="0,0,14,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding CompactVersionSummary}"
+                                                   ToolTip="{Binding VersionSummary}"
+                                                   TextWrapping="NoWrap"
                                                    TextTrimming="CharacterEllipsis"
                                                    Style="{StaticResource AtlasV2.Text.Caption}"
+                                                   FontSize="15"
+                                                   FontWeight="Normal"
                                                    Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
-                                        <Border Margin="0,6,0,0"
-                                                HorizontalAlignment="Left"
-                                                Style="{StaticResource AtlasV2.Addons.StateChip}">
+                                        <Border Margin="0,6,0,0" Padding="8,4" HorizontalAlignment="Left">
+                                            <Border.Style>
+                                                <Style TargetType="{x:Type Border}" BasedOn="{StaticResource AtlasV2.Addons.StateChip}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding VisualState}" Value="{x:Static presentation:AddonVisualState.Installed}">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
                                             <TextBlock Text="{Binding StatusLabel}"
+                                                       FontSize="11"
                                                        Style="{StaticResource AtlasV2.Addons.StateText}"/>
                                         </Border>
                                     </StackPanel>
 
-                                    <Button Grid.Column="3"
-                                            HorizontalAlignment="Right"
+                                    <Border Grid.Column="4" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                            MinWidth="116" IsHitTestVisible="False">
+                                        <Border.Style>
+                                            <Style TargetType="{x:Type Border}" BasedOn="{StaticResource AtlasV2.Addons.StateChip}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding VisualState}" Value="{x:Static presentation:AddonVisualState.Installed}">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Path Width="16" Height="16" Margin="0,0,12,0"
+                                                  Data="{StaticResource AtlasV2.Icon.Check}" Style="{StaticResource AtlasV2.Icon.Stroke}"
+                                                  Stroke="{StaticResource AtlasV2.Brush.Success}"/>
+                                            <TextBlock Text="{Binding StatusLabel}" Style="{StaticResource AtlasV2.Addons.StateText}"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Button Grid.Column="4"
+                                            HorizontalAlignment="Left"
                                             VerticalAlignment="Center"
                                             Content="{Binding ActionLabel}"
                                             Style="{StaticResource AtlasV2.Addons.Action}"
                                             Visibility="{Binding ShowsRowAction, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
                                             IsEnabled="{Binding CanInvokePrimary}"
                                             Click="AddonPrimaryButton_Click"/>
+                                    <Button Grid.Column="5" Width="40" Height="40" Padding="0"
+                                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                                            Style="{StaticResource AtlasV2.Button.Icon}"
+                                            ToolTip="Voir les détails et les actions"
+                                            AutomationProperties.Name="Voir les détails et les actions de cet addon"
+                                            Click="AddonDetailsButton_Click">
+                                        <StackPanel>
+                                            <Ellipse Width="3" Height="3" Margin="0,2" Fill="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+                                            <Ellipse Width="3" Height="3" Margin="0,2" Fill="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+                                            <Ellipse Width="3" Height="3" Margin="0,2" Fill="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+                                        </StackPanel>
+                                    </Button>
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
 
                     <Grid x:Name="EmptyState"
-                          Background="{StaticResource AtlasV2.Brush.Surface}"
+                          Background="{StaticResource AtlasV2.Brush.GlassSurface}"
                           Visibility="{Binding State.Current.ShowsEmpty, ElementName=AddonsRoot, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                         <StackPanel Width="360" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <Border Width="58" Height="58" HorizontalAlignment="Center" Background="{StaticResource AtlasV2.Brush.SurfaceRaised}" BorderBrush="{StaticResource AtlasV2.Brush.Border}" BorderThickness="1" CornerRadius="7">
@@ -515,8 +648,8 @@
             <Border x:Name="DetailPanel"
                     Width="390"
                     HorizontalAlignment="Right"
-                    Background="{StaticResource AtlasV2.Brush.Surface}"
-                    BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                    Background="#F70B1B29"
+                    BorderBrush="{StaticResource AtlasV2.Brush.GlassHighlight}"
                     BorderThickness="1,0,0,0"
                     MouseLeftButtonDown="DetailPanel_MouseLeftButtonDown">
                 <Grid Margin="24,22,24,24">
@@ -636,10 +769,13 @@
               Background="{StaticResource AtlasV2.Brush.Scrim}"
               Visibility="{Binding State.Current.IsDeleteConfirmationOpen, ElementName=AddonsRoot, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
             <Border x:Name="DeleteConfirmationPanel"
+                    KeyboardNavigation.TabNavigation="Cycle"
                     Width="430"
                     Padding="24"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
+                    Background="#F70B1B29"
+                    BorderBrush="{StaticResource AtlasV2.Brush.GlassHighlight}"
                     Style="{StaticResource AtlasV2.Card}">
                 <StackPanel>
                     <TextBlock x:Name="DeleteConfirmationTitle"

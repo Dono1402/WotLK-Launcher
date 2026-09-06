@@ -183,14 +183,25 @@ internal static class AccountSecuritySessionWpfTests
                 await DelayAndPumpAsync(100);
                 Equal(AccountSection.Security, window.AccountPage.SelectedSection,
                     "L'onglet Sécurité réel doit être accessible.");
-                Equal("Non vérifiée", Required<TextBlock>(window.AccountPage, "SecurityEmailStatus").Text,
+                TextBlock emailStatus = Required<TextBlock>(window.AccountPage, "SecurityEmailStatus");
+                TextBlock emailAddress = Required<TextBlock>(window.AccountPage, "SecurityEmailAddress");
+                Equal("(Non vérifiée)", emailStatus.Text,
                     "Le statut e-mail doit venir du profil réel.");
+                Point addressPosition = emailAddress.TranslatePoint(new Point(), window.AccountPage);
+                Point statusPosition = emailStatus.TranslatePoint(new Point(), window.AccountPage);
+                double emailStatusGap = statusPosition.X - addressPosition.X - emailAddress.ActualWidth;
+                True(emailStatusGap >= 0 && emailStatusGap <= 12,
+                    "Le statut doit suivre directement l'adresse e-mail avec un petit espacement.");
+                True(Math.Abs(statusPosition.Y + emailStatus.ActualHeight / 2
+                        - addressPosition.Y - emailAddress.ActualHeight / 2) <= 1,
+                    "L'adresse et son statut doivent rester centrés sur la même ligne.");
                 True(Required<Button>(window.AccountPage, "ResendVerificationButton").IsEnabled,
                     "Le renvoi doit être actif pour une adresse non vérifiée.");
-                Button twoFactor = FindButtons(window.AccountPage)
-                    .Single(button => string.Equals(button.Content as string, "À venir", StringComparison.Ordinal));
-                False(twoFactor.IsEnabled,
-                    "La double authentification doit rester explicitement indisponible.");
+                TextBlock twoFactor = FindVisuals<TextBlock>(Required<StackPanel>(window.AccountPage, "SecurityPanel"))
+                    .Single(text => string.Equals(text.Text, "À venir", StringComparison.Ordinal));
+                True(twoFactor.IsVisible && !twoFactor.Focusable
+                        && !FindButtons(VisualTreeHelper.GetParent(twoFactor)).Any(),
+                    "La double authentification doit rester signalée À venir sans action cliquable.");
                 SaveCapture(window, captureDirectory, "00-account-security-unverified-1440x860.png");
 
                 RaiseClick(Required<Button>(window.AccountPage, "ModifyEmailButton"));
@@ -334,13 +345,11 @@ internal static class AccountSecuritySessionWpfTests
                     .Single(button => string.Equals(button.Tag as string, OtherSessionId, StringComparison.Ordinal));
                 True(revoke.IsEnabled,
                     "Une autre session doit pouvoir être déconnectée.");
-                Button disconnectOthers = FindButtons(window.AccountPage)
-                    .Single(button => string.Equals(
-                        button.Content as string,
-                        "Déconnecter les autres",
-                        StringComparison.Ordinal));
-                False(disconnectOthers.IsEnabled,
-                    "Déconnecter les autres doit rester À venir.");
+                TextBlock disconnectOthers = FindVisuals<TextBlock>(Required<StackPanel>(window.AccountPage, "SessionsPanel"))
+                    .Single(text => string.Equals(text.Text, "Déconnexion groupée · À venir", StringComparison.Ordinal));
+                True(disconnectOthers.IsVisible && !disconnectOthers.Focusable
+                        && !FindButtons(VisualTreeHelper.GetParent(disconnectOthers)).Any(),
+                    "La déconnexion groupée doit rester signalée À venir sans action cliquable.");
 
                 TaskCompletionSource revokeEntered = Signal();
                 TaskCompletionSource revokeRelease = Signal();
@@ -464,16 +473,18 @@ internal static class AccountSecuritySessionWpfTests
         }
     }
 
-    private static IEnumerable<Button> FindButtons(DependencyObject root)
+    private static IEnumerable<Button> FindButtons(DependencyObject root) => FindVisuals<Button>(root);
+
+    private static IEnumerable<T> FindVisuals<T>(DependencyObject root) where T : DependencyObject
     {
-        if (root is Button button)
+        if (root is T match)
         {
-            yield return button;
+            yield return match;
         }
         int count = VisualTreeHelper.GetChildrenCount(root);
         for (int index = 0; index < count; index++)
         {
-            foreach (Button child in FindButtons(VisualTreeHelper.GetChild(root, index)))
+            foreach (T child in FindVisuals<T>(VisualTreeHelper.GetChild(root, index)))
             {
                 yield return child;
             }

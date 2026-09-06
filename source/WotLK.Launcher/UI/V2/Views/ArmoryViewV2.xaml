@@ -1,0 +1,16 @@
+<UserControl x:Class="WotLK.Launcher.UI.V2.Views.ArmoryViewV2"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#101418">
+    <Grid>
+        <Grid x:Name="BrowserHost"/>
+        <StackPanel x:Name="StatusPanel" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="460" Margin="24">
+            <TextBlock x:Name="StatusText" Text="Chargement du profil…" TextAlignment="Center" TextWrapping="Wrap"
+                       Foreground="{StaticResource AtlasV2.Brush.TextSecondary}" FontSize="15"/>
+            <Button x:Name="RetryButton" Visibility="Collapsed" Margin="0,18,0,0" HorizontalAlignment="Center"
+                    Style="{StaticResource AtlasV2.Button.Secondary}" Content="Réessayer" Click="RetryButton_Click"/>
+            <Button x:Name="CustomizeButton" Margin="0,12,0,0" HorizontalAlignment="Center"
+                    Style="{StaticResource AtlasV2.Button.Secondary}" Content="Personnaliser le profil" Click="CustomizeButton_Click"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

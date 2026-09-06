@@ -32,6 +32,7 @@ public partial class SettingsViewV2 : UserControl
         InitializeComponent();
         Loaded += SettingsViewV2_Loaded;
         Unloaded += SettingsViewV2_Unloaded;
+        SizeChanged += (_, _) => ApplyLayout(LayoutMode);
     }
 
     public SettingsUiState? State
@@ -85,42 +86,90 @@ public partial class SettingsViewV2 : UserControl
             return;
         }
 
-        ContentFrame.MaxWidth = mode switch
-        {
-            AdaptiveLayoutMode.Wide => 1280,
-            AdaptiveLayoutMode.Compact => 1160,
-            _ => 1040
-        };
+        // Native WPF layout remains responsive; the reference coordinates are DIPs at 96 DPI.
+        double width = ActualWidth > 0 ? ActualWidth : 1672;
+        double scale = Math.Clamp(width / 1672, 0.64, 1.20);
+        Resources["SettingsPilot.Font.Body"] = Math.Max(14, 16 * scale);
+        Resources["SettingsPilot.Font.Caption"] = Math.Max(12, 14 * scale);
+        Resources["SettingsPilot.Font.Helper"] = Math.Max(12, 16 * scale);
+        Resources["SettingsPilot.Font.Option"] = Math.Max(14, 20 * scale);
+        Resources["SettingsPilot.Font.SectionTitle"] = Math.Max(18, 24 * scale);
+        Resources["SettingsPilot.Font.CategoryTitle"] = Math.Max(24, 36 * scale);
+        Resources["SettingsPilot.Font.Navigation"] = Math.Max(14, 20 * scale);
+        Resources["SettingsPilot.Font.Action"] = Math.Max(13, 16 * scale);
+        Resources["SettingsPilot.NavigationHeight"] = Math.Max(48, 68 * scale);
+        Resources["SettingsPilot.NavigationPadding"] = new Thickness(26 * scale, 0, 26 * scale, 0);
+        Resources["SettingsPilot.CardPadding"] = new Thickness(28 * scale);
+        Resources["SettingsPilot.SeparatorMargin"] = new Thickness(0, 20 * scale, 0, 20 * scale);
+        Resources["SettingsPilot.FieldHeight"] = Math.Max(44, 60 * scale);
+        Resources["SettingsPilot.ToggleWidth"] = Math.Max(52, 68 * scale);
+        Resources["SettingsPilot.ToggleHeight"] = Math.Max(30, 38 * scale);
+        Resources["SettingsPilot.ToggleCornerRadius"] = new CornerRadius(Math.Max(30, 38 * scale) / 2);
+        Resources["SettingsPilot.ToggleThumb"] = Math.Max(22, 28 * scale);
+        Resources["SettingsPilot.ToggleInset"] = new Thickness(Math.Max(4, 5 * scale));
+
+        ContentFrame.MaxWidth = 1900;
         SettingsActionContent.MaxWidth = ContentFrame.MaxWidth;
-        ContentFrame.Margin = mode switch
+        ContentFrame.Margin = new Thickness(67 * scale, 17 * scale, 60 * scale, 66 * scale);
+        PageHeader.Margin = new Thickness(16 * scale, 0, 0, 0);
+        PageEyebrow.Height = 26 * scale;
+        PageEyebrowLine.Width = 36 * scale;
+        PageEyebrowLine.Margin = new Thickness(4 * scale, 0, 22 * scale, 0);
+        PageEyebrowText.FontSize = Math.Max(11, 14 * scale);
+        PageTitle.FontSize = Math.Max(44, 72 * scale);
+        PageTitle.Margin = new Thickness(0, 8 * scale, 0, 0);
+        PageSubtitle.FontSize = Math.Max(18, 26 * scale);
+        SettingsWorkspace.Margin = new Thickness(0, 37 * scale, 0, 0);
+        NavigationColumn.Width = new GridLength(347 * scale);
+        NavigationGap.Width = new GridLength(17 * scale);
+        CategoryNavigation.Padding = new Thickness(14 * scale);
+        CategoryNavigation.MinHeight = 544 * scale;
+        CategoryHeading.Margin = new Thickness(18 * scale, 20 * scale, 18 * scale, 20 * scale);
+        CategoryContentSurface.MinHeight = 544 * scale;
+        CategoryContentSurface.Padding = new Thickness(20 * scale, 22 * scale, 20 * scale, 22 * scale);
+        foreach (Button button in new[]
         {
-            AdaptiveLayoutMode.Wide => new Thickness(34, 26, 34, 38),
-            AdaptiveLayoutMode.Compact => new Thickness(28, 24, 28, 34),
-            _ => new Thickness(22, 20, 22, 30)
-        };
-        PageTitle.FontSize = mode switch
+            GeneralCategoryButton, GameCategoryButton, UpdatesCategoryButton,
+            NotificationsCategoryButton, DiagnosticCategoryButton
+        })
         {
-            AdaptiveLayoutMode.Wide => 30,
-            AdaptiveLayoutMode.Compact => 29,
-            _ => 28
-        };
-        NavigationColumn.Width = new GridLength(mode switch
+            if (button.Content is Grid row && row.Children[0] is System.Windows.Shapes.Path icon
+                && row.Children[1] is TextBlock label)
+            {
+                row.ColumnDefinitions[0].Width = new GridLength(Math.Max(24, 34 * scale));
+                icon.Width = icon.Height = Math.Max(22, 28 * scale);
+                label.Margin = new Thickness(20 * scale, 0, 0, 0);
+            }
+        }
+
+        GeneralIntro.FontSize = Math.Max(15, 20 * scale);
+        GeneralCardDescription.FontSize = Math.Max(14, 18 * scale);
+        GeneralPreferencesCard.Margin = new Thickness(0, 26 * scale, 0, 0);
+        GeneralPreferencesCard.Padding = new Thickness(28 * scale, 32 * scale, 38 * scale, 36 * scale);
+        GeneralCardDescription.Margin = new Thickness(0, 4 * scale, 0, 0);
+        InterfaceLanguageRow.Margin = new Thickness(0, 24 * scale, 0, 0);
+        InterfaceLanguageRow.MinHeight = Math.Max(44, 60 * scale);
+        StartWithWindowsRow.MinHeight = MinimizeToTrayRow.MinHeight = Math.Max(48, 54 * scale);
+        double iconColumnWidth = Math.Max(44, 66 * scale);
+        InterfaceLanguageIconColumn.Width = StartWithWindowsIconColumn.Width =
+            MinimizeToTrayIconColumn.Width = new GridLength(iconColumnWidth);
+        InterfaceLanguageFieldColumn.Width = new GridLength(Math.Max(220, 322 * scale));
+        foreach (System.Windows.Shapes.Path icon in new[]
         {
-            AdaptiveLayoutMode.Wide => 224,
-            AdaptiveLayoutMode.Compact => 212,
-            _ => 176
-        });
-        NavigationGap.Width = new GridLength(mode switch
+            InterfaceLanguageIcon, StartWithWindowsIcon, MinimizeToTrayIcon
+        })
         {
-            AdaptiveLayoutMode.Wide => 24,
-            AdaptiveLayoutMode.Compact => 20,
-            _ => 16
-        });
+            icon.Width = icon.Height = Math.Max(22, 30 * scale);
+            icon.Margin = new Thickness(6 * scale, 0, 0, 0);
+        }
+        InterfaceLanguageCopy.Margin = new Thickness(0, 10 * scale, 20 * scale, 0);
+        StartWithWindowsCopy.Margin = MinimizeToTrayCopy.Margin = new Thickness(0, 6 * scale, 20 * scale, 0);
+        GeneralFirstSeparator.Margin = GeneralSecondSeparator.Margin =
+            new Thickness(iconColumnWidth, 24 * scale, 0, 19 * scale);
         SettingsActionBar.Padding = mode == AdaptiveLayoutMode.Stacked
             ? new Thickness(22, 11, 22, 11)
             : new Thickness(34, 12, 34, 12);
     }
-
     internal void SelectCategory(SettingsCategory category)
     {
         if (!IsInitialized)

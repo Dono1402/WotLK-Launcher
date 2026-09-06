@@ -47,6 +47,7 @@ public partial class AvatarCropOverlayV2 : UserControl
         InitializeComponent();
         Loaded += AvatarCropOverlayV2_Loaded;
         Unloaded += AvatarCropOverlayV2_Unloaded;
+        SizeChanged += (_, _) => ApplyLayout(LayoutMode);
     }
 
     public event EventHandler? CloseRequested;
@@ -81,11 +82,28 @@ public partial class AvatarCropOverlayV2 : UserControl
         or AvatarCropPreviewStatus.Cancelling
         or AvatarCropPreviewStatus.Reconciling;
 
+    internal bool CanRequestClose => !IsBusy
+        || State is { Current.IsPreview: false }
+            && State.Current.Status is AvatarCropPreviewStatus.Preparing
+                or AvatarCropPreviewStatus.Uploading
+                or AvatarCropPreviewStatus.Processing;
+
+    internal bool TryRequestClose()
+    {
+        if (!CanRequestClose)
+        {
+            return false;
+        }
+
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+
     internal void FocusFirstControl()
     {
         Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
-            () => Keyboard.Focus(IsBusy && State?.Current.IsPreview == true
+            () => Keyboard.Focus(!CanRequestClose
                 ? DialogPanel
                 : IsBusy
                     ? CancelCropButton
@@ -149,15 +167,19 @@ public partial class AvatarCropOverlayV2 : UserControl
             return;
         }
 
-        DialogPanel.Width = mode switch
-        {
-            AdaptiveLayoutMode.Wide => 960,
-            AdaptiveLayoutMode.Compact => 930,
-            _ => 980
-        };
-        bool stacked = mode == AdaptiveLayoutMode.Stacked;
-        CropColumn.Width = stacked ? new GridLength(1, GridUnitType.Star) : new GridLength(510);
+        double availableWidth = ActualWidth > 0 ? ActualWidth : 1080;
+        double availableHeight = ActualHeight > 0 ? ActualHeight : 720;
+        DialogPanel.Width = Math.Min(960, Math.Max(360, availableWidth - 48));
+        DialogPanel.MaxHeight = Math.Min(720, Math.Max(280, availableHeight - 48));
+        bool stacked = DialogPanel.Width < 760;
+        CropColumn.Width = new GridLength(stacked ? 1 : 1.2, GridUnitType.Star);
         CropGapColumn.Width = stacked ? new GridLength(0) : new GridLength(28);
+        PreviewWidth.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        double feedbackHeight = CropErrorBanner.Visibility == Visibility.Visible
+            || UploadStatusBanner.Visibility == Visibility.Visible ? 74 : 0;
+        double cropSize = Math.Clamp(DialogPanel.MaxHeight - 258 - feedbackHeight, 210, 390);
+        CropPreviewScale.Width = cropSize;
+        CropPreviewScale.Height = cropSize;
         Grid.SetColumn(PreviewColumn, stacked ? 0 : 2);
         Grid.SetRow(PreviewColumn, stacked ? 1 : 0);
         CropWorkspace.RowDefinitions.Clear();
@@ -192,8 +214,14 @@ public partial class AvatarCropOverlayV2 : UserControl
             or AvatarCropPreviewStatus.Cancelling
             or AvatarCropPreviewStatus.Reconciling;
         bool error = state.Status == AvatarCropPreviewStatus.Error;
+        bool feedbackWasVisible = CropErrorBanner.Visibility == Visibility.Visible
+            || UploadStatusBanner.Visibility == Visibility.Visible;
         CropErrorBanner.Visibility = error ? Visibility.Visible : Visibility.Collapsed;
         UploadStatusBanner.Visibility = uploading ? Visibility.Visible : Visibility.Collapsed;
+        if (feedbackWasVisible != (error || uploading))
+        {
+            ApplyLayout(LayoutMode);
+        }
         SaveCropLabel.Text = uploading ? "Envoi…" : "Utiliser la photo";
         SaveCropButton.IsEnabled = !uploading;
         bool canCancelRealUpload = !state.IsPreview
@@ -204,6 +232,10 @@ public partial class AvatarCropOverlayV2 : UserControl
         CloseCropButton.IsEnabled = !uploading || canCancelRealUpload;
         CancelCropButton.Content = canCancelRealUpload ? "Annuler l’envoi" : "Annuler";
         CropEditorColumn.IsEnabled = !uploading;
+        if (uploading)
+        {
+            EndDrag();
+        }
         UploadProgressBar.IsIndeterminate = state.IsProgressIndeterminate;
         UploadProgressBar.Value = state.UploadPercentage ?? 0;
 
@@ -393,7 +425,7 @@ public partial class AvatarCropOverlayV2 : UserControl
 
     private void CropViewport_MouseMove(object sender, MouseEventArgs e)
     {
-        if (!_isDragging || State is null || e.LeftButton != MouseButtonState.Pressed)
+        if (!_isDragging || State is null || IsBusy || e.LeftButton != MouseButtonState.Pressed)
         {
             return;
         }
@@ -421,6 +453,10 @@ public partial class AvatarCropOverlayV2 : UserControl
 
     private void SaveCropButton_Click(object sender, RoutedEventArgs e)
     {
+        if (IsBusy)
+        {
+            return;
+        }
         if (State?.Current.IsPreview == true)
         {
             State.StartUploadPreview();
@@ -433,15 +469,15 @@ public partial class AvatarCropOverlayV2 : UserControl
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
-        CloseRequested?.Invoke(this, EventArgs.Empty);
+        TryRequestClose();
     }
 
     private void OverlayScrim_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if ((!IsBusy || State?.Current.IsPreview == false)
-            && ReferenceEquals(e.OriginalSource, OverlayScrim))
+        if (ReferenceEquals(e.OriginalSource, OverlayScrim))
         {
-            CloseRequested?.Invoke(this, EventArgs.Empty);
+            TryRequestClose();
+            e.Handled = true;
         }
     }
 

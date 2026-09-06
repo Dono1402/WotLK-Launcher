@@ -27,6 +27,9 @@ options.ConnectionString = FirstNonEmpty(
 options.CharacterDatabaseName = FirstNonEmpty(
     Environment.GetEnvironmentVariable("WOTLK_CHARACTER_DB"),
     options.CharacterDatabaseName);
+options.WorldDatabaseName = FirstNonEmpty(
+    Environment.GetEnvironmentVariable("WOTLK_WORLD_DB"),
+    options.WorldDatabaseName);
 options.HermesSharedSecret = FirstNonEmpty(
     Environment.GetEnvironmentVariable("WOTLK_HERMES_SHARED_SECRET"),
     builder.Configuration["LauncherServer:HermesSharedSecret"]);
@@ -59,6 +62,8 @@ if (string.IsNullOrWhiteSpace(options.ConnectionString))
     throw new InvalidOperationException("LauncherServer:ConnectionString est obligatoire.");
 if (!Regex.IsMatch(options.CharacterDatabaseName, "^[A-Za-z0-9_]+$", RegexOptions.CultureInvariant))
     throw new InvalidOperationException("LauncherServer:CharacterDatabaseName est invalide.");
+if (!Regex.IsMatch(options.WorldDatabaseName, "^[A-Za-z0-9_]{1,64}$", RegexOptions.CultureInvariant))
+    throw new InvalidOperationException("LauncherServer:WorldDatabaseName est invalide.");
 
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<TokenService>();
@@ -70,6 +75,7 @@ builder.Services.AddSingleton(services => new LauncherDatabase(
     services.GetRequiredService<TokenService>(),
     services.GetRequiredService<LauncherSchemaMigrator>()));
 builder.Services.AddSingleton<AtlasStatusService>();
+builder.Services.AddSingleton<ArmoryReadLimiter>();
 builder.Services.AddHttpClient<HermesTicketClient>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(5);
@@ -100,6 +106,7 @@ await database.InitializeAsync();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapAtlasAvatarEndpoints();
+app.MapArmoryEndpoints();
 
 app.MapPost("/api/v1/accounts", async (
     RegisterRequest request,

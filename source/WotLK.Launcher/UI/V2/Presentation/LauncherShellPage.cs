@@ -6,5 +6,6 @@ internal enum LauncherShellPage
     Addons,
     PatchNotes,
     Settings,
-    Account
+    Account,
+    Armory
 }

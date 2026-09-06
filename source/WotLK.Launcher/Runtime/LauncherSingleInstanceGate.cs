@@ -58,9 +58,14 @@ internal sealed class LauncherSingleInstanceGate : IDisposable
         }
     }
 
-    internal static bool SignalExisting(string identity)
+    internal static bool SignalExisting(string identity, bool activateExisting = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identity);
+        if (!activateExisting)
+        {
+            return false;
+        }
+
         try
         {
             using EventWaitHandle activationEvent = EventWaitHandle.OpenExisting(

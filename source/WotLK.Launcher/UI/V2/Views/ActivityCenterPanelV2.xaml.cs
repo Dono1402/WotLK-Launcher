@@ -132,7 +132,7 @@ public partial class ActivityCenterPanelV2 : UserControl
 
         if (!animate || Visibility != Visibility.Visible)
         {
-            PanelTranslate.X = 428;
+            PanelTranslate.X = ActivityPanel.Width + 16;
             ActivityPanel.Opacity = 0;
             Scrim.Opacity = 0;
             Visibility = Visibility.Collapsed;
@@ -147,7 +147,7 @@ public partial class ActivityCenterPanelV2 : UserControl
             currentOffset,
             currentPanelOpacity,
             currentScrimOpacity,
-            428,
+            ActivityPanel.Width + 16,
             0,
             0,
             transitionVersion,

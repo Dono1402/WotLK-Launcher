@@ -79,6 +79,25 @@ internal static class AddonsPreviewTests
         True(detailCatalog.Current.Catalog.Count(addon => addon.HasOfficialIcon) == 13,
             "Les 13 entrées principales doivent réutiliser les logos déjà archivés.");
 
+        AddonUiItem buildVersion = detailCatalog.Current.Catalog[0] with
+        {
+            InstalledVersion = "11.1.10+r340+r184+r783+r8",
+            AvailableVersion = "11.1.10+r340+r184+r783+r8",
+            VisualState = AddonVisualState.Installed
+        };
+        Equal("v11.1.10", buildVersion.CompactVersionSummary, "La liste doit afficher la version principale.");
+        True(buildVersion.VersionSummary.Contains("+r340+r184+r783+r8", StringComparison.Ordinal),
+            "L'infobulle doit conserver le détail complet sans modifier la version métier.");
+        True(buildVersion.InstalledVersionText.Contains(buildVersion.InstalledVersion, StringComparison.Ordinal),
+            "La fiche doit conserver la version intégrale.");
+        AddonUiItem longVersion = buildVersion with { InstalledVersion = "20250228.13407.162", AvailableVersion = "20250301.13407.163" };
+        True(longVersion.CompactVersionSummary.EndsWith("…", StringComparison.Ordinal),
+            "Une version longue doit indiquer explicitement son abréviation.");
+        Equal("v11.2.0", (buildVersion with { VisualState = AddonVisualState.UpdateAvailable, AvailableVersion = "11.2.0+r400" })
+            .CompactVersionSummary, "La liste doit présenter la version cible sans tronquer une transition complète.");
+        Equal("WOTLK-314", (buildVersion with { InstalledVersion = "WOTLK-314" }).CompactVersionSummary,
+            "Un identifiant de build ne doit pas recevoir un préfixe de version artificiel.");
+
         True(detailCatalog.UpdateSearch("Questie"), "La recherche preview doit être locale et active.");
         Equal(1, detailCatalog.Current.VisibleAddons.Length, "La recherche par nom doit filtrer le catalogue.");
         Equal("questie", detailCatalog.Current.VisibleAddons[0].Id, "La recherche par nom a retourné le mauvais addon.");

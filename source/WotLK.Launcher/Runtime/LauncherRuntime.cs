@@ -2,6 +2,7 @@ using System.IO;
 using System.Net.Http;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using WotLK.Launcher.Account;
 using WotLK.Launcher.Dashboard;
 using WotLK.Launcher.Game;
@@ -182,9 +183,72 @@ internal sealed class LauncherRuntimeDependencies
 
 internal sealed class LauncherRuntime : IDisposable
 {
+    internal async Task<uint?> GetArmoryAccountAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        AuthSessionSnapshot session = _sessionCoordinator.CurrentSnapshot;
+        uint? account = _authentication.Session?.Profile.AccountId;
+        if (account is not > 0 || !IsArmorySessionCurrent(session, account.Value)) return null;
+        try
+        {
+            bool refreshed = await _authentication.EnsureFreshAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!refreshed)
+            {
+                _sessionCoordinator.NotifyAuthenticatedRequestUnauthorized(session.Sequence, cancellationToken);
+                return null;
+            }
+            if (!IsArmorySessionCurrent(session, account.Value)) return null;
+            // Verify membership through the authenticated API. No access token enters the web view or local helper.
+            AvatarProfileReadResult profile = await AvatarMedia.GetProfileAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return IsArmorySessionCurrent(session, account.Value) && profile.Profile.AccountId == account ? account : null;
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException
+            or LauncherAuthException { StatusCode: System.Net.HttpStatusCode.Unauthorized }
+            or AvatarMediaException { Category: AvatarMediaFailureCategory.Unauthorized })
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _sessionCoordinator.NotifyAuthenticatedRequestUnauthorized(session.Sequence, cancellationToken);
+            throw;
+        }
+    }
+
+    internal async Task<JsonElement> GetArmoryDataAsync(uint accountId, LauncherArmoryDataRequest request, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        AuthSessionSnapshot session = _sessionCoordinator.CurrentSnapshot;
+        if (accountId == 0 || !IsArmorySessionCurrent(session, accountId))
+            throw new UnauthorizedAccessException("Armory session changed.");
+        try
+        {
+            bool refreshed = await _authentication.EnsureFreshAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!refreshed || !IsArmorySessionCurrent(session, accountId))
+                throw new UnauthorizedAccessException("Armory session changed.");
+            JsonElement data = await _armoryApi.ReadAsync(request, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsArmorySessionCurrent(session, accountId)) throw new UnauthorizedAccessException("Armory session changed.");
+            return data;
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException
+            or LauncherAuthException { StatusCode: System.Net.HttpStatusCode.Unauthorized })
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _sessionCoordinator.NotifyAuthenticatedRequestUnauthorized(session.Sequence, cancellationToken);
+            throw;
+        }
+    }
+
+    private bool IsArmorySessionCurrent(AuthSessionSnapshot session, uint accountId)
+        => !IsDisposed && session.IsAuthenticated
+            && _sessionCoordinator.CurrentSnapshot.Sequence == session.Sequence
+            && _authentication.Session?.Profile.AccountId == accountId;
+
     private readonly object _lifecycleSync = new();
     private readonly ILauncherAuthService _authentication;
     private readonly HttpClient _clientHttpClient;
+    private readonly LauncherArmoryApiClient _armoryApi;
     private readonly LauncherSessionCoordinator _sessionCoordinator;
     private readonly Action<string> _writeRuntimeLog;
     private Task<LauncherSessionRestoreResult>? _initializeTask;
@@ -211,6 +275,7 @@ internal sealed class LauncherRuntime : IDisposable
             dependencies.WriteRuntimeLog);
         _clientHttpClient = dependencies.CreateAuthorizedHttpClient(
             () => _authentication.AccessToken);
+        _armoryApi = new LauncherArmoryApiClient(_clientHttpClient, dependencies.AvatarApiBaseUri);
         AvatarMedia = dependencies.CreateAvatarMediaClient(
             _clientHttpClient,
             dependencies.AvatarApiBaseUri);
@@ -293,6 +358,7 @@ internal sealed class LauncherRuntime : IDisposable
             Operations.ShutdownToken,
             dependencies.WriteRuntimeLog,
             dependencies.DashboardTimeProvider);
+        Game.AttachDashboard(Dashboard);
         Profile = new LauncherProfileCoordinator(
             _sessionCoordinator,
             Operations,

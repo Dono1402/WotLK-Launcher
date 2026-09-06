@@ -6,10 +6,19 @@
         <Setter Property="Control.Template">
             <Setter.Value>
                 <ControlTemplate>
-                    <Border Margin="2"
-                            BorderBrush="{StaticResource AtlasV2.Brush.Cyan}"
-                            BorderThickness="2"
-                            CornerRadius="5"/>
+                    <Border Margin="10,0,10,-4" VerticalAlignment="Bottom" Height="2"
+                            Background="{StaticResource AtlasV2.Brush.Gold}" CornerRadius="1"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AtlasV2.FocusVisual.Navigation">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border Margin="12,0,12,4" VerticalAlignment="Bottom" Height="2"
+                            Background="{StaticResource AtlasV2.Brush.Gold}" CornerRadius="1"/>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -19,28 +28,28 @@
         <Setter Property="Control.Template">
             <Setter.Value>
                 <ControlTemplate>
-                    <Border Margin="-12,-8"
-                            BorderBrush="{StaticResource AtlasV2.Brush.Cyan}"
-                            BorderThickness="2"
-                            CornerRadius="6"/>
+                    <Border Margin="0,0,0,-4" VerticalAlignment="Bottom" Height="2"
+                            Background="{StaticResource AtlasV2.Brush.Gold}" CornerRadius="1"/>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>
 
     <Style x:Key="AtlasV2.Button.Base" TargetType="{x:Type Button}">
+        <Setter Property="ToolTipService.IsEnabled" Value="False"/>
         <Setter Property="Height" Value="44"/>
         <Setter Property="Padding" Value="18,0"/>
         <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfaceRaised}"/>
         <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Border}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
-        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Manrope}"/>
+        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Inter}"/>
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Focusable" Value="True"/>
-        <Setter Property="FocusVisualStyle" Value="{StaticResource AtlasV2.FocusVisual.Button}"/>
+        <Setter Property="IsTabStop" Value="False"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type Button}">
@@ -64,6 +73,7 @@
         <Style.Triggers>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Cursor" Value="Arrow"/>
+                <Setter Property="ToolTipService.IsEnabled" Value="True"/>
                 <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
             </Trigger>
         </Style.Triggers>
@@ -75,7 +85,7 @@
         <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.Gold}"/>
         <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Gold}"/>
         <Setter Property="Foreground" Value="#111318"/>
-        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.GoldHover}"/>
@@ -182,6 +192,7 @@
     </Style>
 
     <Style x:Key="AtlasV2.Button.Nav" TargetType="{x:Type Button}" BasedOn="{StaticResource AtlasV2.Button.Base}">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource AtlasV2.FocusVisual.Navigation}"/>
         <Setter Property="Height" Value="64"/>
         <Setter Property="Padding" Value="16,0"/>
         <Setter Property="Background" Value="Transparent"/>
@@ -243,7 +254,8 @@
         <Setter Property="Height" Value="24"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Focusable" Value="True"/>
-        <Setter Property="FocusVisualStyle" Value="{StaticResource AtlasV2.FocusVisual.Button}"/>
+        <Setter Property="IsTabStop" Value="False"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type primitives:ToggleButton}">
@@ -361,7 +373,7 @@
         <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
         <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfaceRaised}"/>
         <Setter Property="Padding" Value="13,10"/>
-        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Manrope}"/>
+        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Inter}"/>
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -395,7 +407,7 @@
         <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Border}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
-        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Manrope}"/>
+        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Inter}"/>
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="ItemContainerStyle" Value="{StaticResource AtlasV2.ComboBoxItem.Field}"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
@@ -412,6 +424,7 @@
                                                  BorderThickness="0"
                                                  ClickMode="Press"
                                                  Focusable="False"
+                                                 IsTabStop="False"
                                                  IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
                             <primitives:ToggleButton.Template>
                                 <ControlTemplate TargetType="{x:Type primitives:ToggleButton}">
@@ -440,6 +453,8 @@
                                IsOpen="{TemplateBinding IsDropDownOpen}"
                                PopupAnimation="Fade">
                             <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                    TextOptions.TextFormattingMode="Ideal"
+                                    TextOptions.TextRenderingMode="ClearType"
                                     Margin="0,5,0,0"
                                     Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
                                     BorderBrush="{StaticResource AtlasV2.Brush.Border}"
@@ -477,7 +492,7 @@
         <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
         <Setter Property="CaretBrush" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
         <Setter Property="SelectionBrush" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
-        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Manrope}"/>
+        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Inter}"/>
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
@@ -498,7 +513,7 @@
         <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
         <Setter Property="CaretBrush" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
         <Setter Property="SelectionBrush" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
-        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Manrope}"/>
+        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Inter}"/>
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>

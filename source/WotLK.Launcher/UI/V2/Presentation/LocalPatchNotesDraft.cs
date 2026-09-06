@@ -8,10 +8,10 @@ internal static class LocalPatchNotesDraft
 
     internal static PatchNoteEntryViewState Create() => new(
         Id,
-        Version: "Brouillon local",
-        Title: "Améliorations en préparation",
+        Version: "1.4.0",
+        Title: "Atlas Launcher 1.4.0",
         PublishedText: "Non publiée",
-        Intro: "Cette note reste locale jusqu'à la validation explicite de sa publication.",
+        Intro: "Interface repensée, lancement du jeu mieux encadré, présence des amis enrichie, compte et addons améliorés. Le profil et l’armurerie 3D rejoignent le client public préparé pour la version 1.4.0.",
         HasIntro: true,
         IsLatest: true,
         IsDraft: true,
@@ -19,65 +19,86 @@ internal static class LocalPatchNotesDraft
         [
             new("Launcher",
             [
-                "La page Jeu affiche désormais Norfendre jusqu'aux bords de l'onglet, sans cadre intérieur.",
-                "Le Roi-liche accompagne maintenant l'écran principal du jeu avec un nouveau visuel panoramique.",
-                "Le cadrage et la luminosité du visuel principal mettent davantage en valeur le Roi-liche et le paysage.",
-                "L'accès aux mises à jour utilise désormais un bouton compact uniquement représenté par son icône.",
-                "Les actions Mises à jour et Jouer sont regroupées en bas à droite.",
-                "Les informations d'installation restent accessibles dans Paramètres sans encombrer la page Jeu.",
-                "Les notes de mise à jour disposent maintenant de leur propre onglet.",
-                "Chaque changement est présenté clairement, point par point.",
-                "La barre supérieure est plus légère, avec des raccourcis sans cadre et un accès Amis limité à son icône.",
-                "L’état du serveur de jeu apparaît désormais directement au-dessus du bouton Jouer.",
-                "Le statut du serveur et les notes se mettent désormais à jour automatiquement.",
-                "Les notes de mise à jour n’affichent plus de bouton d’actualisation manuel.",
-                "Atlas Launcher empêche l’ouverture de plusieurs exemplaires et ramène au premier lorsqu’il est déjà lancé.",
-                "La croix range désormais Atlas Launcher dans la zone de notification, avec des actions pour le rouvrir ou le quitter.",
-                "L’icône Atlas reste disponible dans la zone de notification pendant l’utilisation du launcher.",
-                "La version complète se trouve dans Diagnostic et les clients de test sont identifiés par un badge LOCAL discret."
+                "Refonte de la page Jeu et des pages Addons, Notes de version et Paramètres autour d’un décor de la Citadelle, d’un visuel panoramique du Roi-liche et de nouvelles surfaces bleues.",
+                "Nouvelle typographie commune, textes secondaires plus contrastés et rendu du texte amélioré dans les pages, menus et fenêtres du launcher.",
+                "Barre de navigation allégée, accès aux amis par une icône et version du launcher regroupée dans les paramètres.",
+                "La fenêtre adopte un format fixe et peut être déplacée depuis la barre de navigation ou la marge supérieure vide.",
+                "Les fenêtres de connexion, le menu du profil, les amis, le recadrage et le centre d’activité adoptent la même présentation. Les panneaux superposés masquent correctement le contenu placé derrière.",
+                "Suppression des sous-titres, cadres de focus et infobulles d’action redondants. Les détails des textes tronqués et les raisons d’indisponibilité restent accessibles."
             ]),
             new("Jeu",
             [
-                "Le bouton Jouer indique clairement quand le jeu démarre, quand il est ouvert et quand il est de nouveau disponible.",
-                "Les boutons Jouer et Mises à jour sont plus grands et le statut Client prêt a été retiré du visuel principal.",
-                "Une fermeture complète d’Atlas Launcher ferme également le jeu en cours."
+                "L’état du serveur est affiché au-dessus du bouton Jouer et actualisé automatiquement.",
+                "Le bouton Jouer indique le lancement puis l’utilisation du jeu, et redevient disponible à sa fermeture.",
+                "Lorsque le serveur est confirmé hors ligne, le bouton affiche Serveur indisponible et empêche le lancement. Le retour en ligne permet de jouer à nouveau ; les outils de maintenance restent accessibles.",
+                "Les textes de progression du téléchargement et de la vérification disposent d’espaces séparés pour éviter leur superposition.",
+                "Amélioration de la prise en charge des autorisations Windows lorsque le dossier du jeu n’est pas accessible en écriture."
             ]),
-            new("Profil",
+            new("Profil et compte",
             [
-                "Les accès « Gérer mon profil » et « Gérer mon compte » sont maintenant séparés.",
-                "La photo de profil se modifie en cliquant n'importe où sur son aperçu circulaire.",
-                "Les actions affichées au survol restent discrètes pour mieux laisser voir la photo.",
-                "Les images jusqu'à 25 Mo peuvent être utilisées comme photo de profil.",
-                "Le cadrage et l'aperçu de la photo affichent désormais le même résultat.",
-                "Le zoom du cadrage se contrôle directement à la molette sur la photo.",
-                "Une nouvelle photo peut être repositionnée immédiatement dans toutes les directions.",
-                "La nouvelle photo apparaît immédiatement après sa validation.",
-                "Une reconnexion depuis le même appareil ne crée plus de doublons dans les appareils connectés.",
-                "La page du profil affiche uniquement les informations utiles, sans rappel de sécurité redondant.",
-                "Le menu du profil présente maintenant le pseudo de façon plus claire et mieux centrée.",
-                "L’adresse e-mail n’y apparaît plus que lorsqu’elle doit encore être vérifiée."
+                "Les accès Gérer mon profil et Gérer mon compte sont séparés pour distinguer le profil public des réglages du compte.",
+                "Ajout d’une bio et d’un statut personnel visibles sur le profil consulté par les amis.",
+                "Les photos de profil jusqu’à 25 Mo sont acceptées. Un clic sur l’avatar permet de choisir une photo, puis de la recadrer avec déplacement et zoom à la molette.",
+                "Correction de la cohérence entre le cadrage et l’aperçu, de la mise à jour de l’avatar après validation et de sa synchronisation après reconnexion.",
+                "Les pages Sécurité et Sessions, les champs de saisie et les états d’enregistrement ont été réorganisés pour rendre les actions plus lisibles.",
+                "L’état de vérification est indiqué à côté de l’adresse e-mail. L’avertissement apparaît uniquement lorsqu’une confirmation est nécessaire, et le champ de nouvelle adresse reste vide à l’ouverture.",
+                "Une reconnexion depuis le même appareil ne crée plus de doublons dans les sessions. La déconnexion ramène à la connexion sans laisser le compte ni le jeu visibles derrière."
             ]),
-            new("Compte",
+            new("Amis et présence",
             [
-                "Les formulaires du compte affichent maintenant clairement les zones de saisie.",
-                "Les formulaires et confirmations peuvent être fermés en cliquant à l’extérieur.",
-                "Le champ de nouvelle adresse e-mail s’ouvre vide pour éviter toute confusion."
+                "Liste d’amis réorganisée avec recherche, demandes d’amitié et informations de présence plus lisibles.",
+                "La présence distingue désormais Connecté au launcher et En jeu. Un ami peut apparaître en ligne même si aucun de ses personnages n’est connecté au jeu.",
+                "Le compteur, l’ordre des amis en ligne et la dernière présence prennent en compte la connexion au launcher.",
+                "Un clic sur un ami ouvre sa photo, son pseudo, son statut, sa bio et ses personnages, avec leur classe, niveau, zone et dernière présence.",
+                "Le personnage mis en avant n’est plus répété dans les autres personnages. Hors ligne, il est présenté comme Dernier personnage joué ; les icônes et couleurs de classe facilitent la lecture.",
+                "Les nouvelles demandes d’ami sont notifiées. Une notification sonore, désactivable dans les paramètres, signale les connexions d’amis ; le passage du launcher au jeu ne déclenche pas une seconde notification.",
+                "Ajout d’une confirmation avant de retirer un ami, avec menus, sélection, retour à la liste et fermeture par Échap améliorés."
             ]),
-            new("Paramètres",
+            new("Addons",
             [
-                "Les paramètres ont été simplifiés pour ne conserver que les options réellement utiles.",
-                "L’interface d’Atlas Launcher peut maintenant être utilisée en français ou en anglais.",
-                "Atlas Launcher peut maintenant démarrer automatiquement avec Windows.",
-                "La fermeture par la croix peut être configurée pour ranger Atlas Launcher dans la zone de notification.",
-                "Les interrupteurs réagissent désormais avec une animation fluide.",
-                "La page Mises à jour se concentre désormais sur la version installée et la version disponible."
+                "Catalogue plus compact, descriptions sur une ligne et versions abrégées. Les informations complètes restent accessibles dans les détails et les infobulles.",
+                "La recherche conserve les espaces pendant la saisie, notamment pour les noms composés comme Deadly Boss.",
+                "L’actualisation d’une fiche ne déplace plus le focus vers sa croix de fermeture.",
+                "La confirmation de suppression conserve le clavier dans sa fenêtre. Les libellés de filtre et de mise à jour du catalogue ont également été complétés en anglais."
             ]),
-            new("Social",
+            new("Paramètres et Windows",
             [
-                "La photo de profil est synchronisée avec Atlas et visible par les autres utilisateurs.",
-                "Atlas signale désormais les nouvelles demandes d’ami.",
-                "Les demandes d’ami restent notifiées automatiquement sans réglage supplémentaire.",
-                "Une notification sonore peut prévenir lorsqu’un ami se connecte, avec une option pour la désactiver."
+                "Interface disponible en français et en anglais, avec changement de langue sans redémarrage.",
+                "Paramètres réorganisés, descriptions répétitives retirées et interrupteurs arrondis avec animation et curseur adaptés.",
+                "L’option Démarrer avec Windows lance désormais le launcher réduit dans la barre des tâches, sans prendre le focus. L’ancien réglage de démarrage est repris automatiquement.",
+                "Une seule instance du launcher est ouverte à la fois. Un second démarrage automatique ne remet pas la fenêtre existante au premier plan.",
+                "Le launcher reste accessible dans la zone de notification Windows. Selon le réglage choisi, fermer la fenêtre peut l’y ranger et retirer son bouton de la barre des tâches."
+            ]),
+            new("Notes de version et mises à jour",
+            [
+                "L’onglet Notes de version dispose d’une page dédiée, avec les nouveautés regroupées par catégorie et les versions précédentes conservées.",
+                "Lecture des notes améliorée : texte plus grand, lignes moins longues et interligne plus aéré.",
+                "Un bouton vert apparaît dans la barre du haut lorsqu’une mise à jour du launcher est disponible. Il lance son installation et ouvre le suivi du téléchargement.",
+                "La version et l’état de mise à jour sont réunis sur une ligne dans les paramètres. Les états non vérifié, recherche en cours, à jour, mise à jour disponible et erreur sont distingués."
+            ]),
+            new("Corrections d’interaction",
+            [
+                "Sur l’écran d’authentification, Entrée respecte le champ ou le bouton utilisé et ne soumet plus la connexion depuis l’onglet Inscription.",
+                "Un clic en dehors du menu du profil conserve le focus sur le contrôle choisi. Dans l’interface principale, Tab parcourt les champs de saisie sans passer par les boutons, interrupteurs et lignes d’addons.",
+                "Les formulaires du compte et le recadrage protègent les modifications en cours. Les erreurs, la progression et les boutons de validation restent visibles pendant l’enregistrement."
+            ]),
+            new("Profil et armurerie 3D",
+            [
+                "Le profil immersif et l’armurerie 3D sont intégrés au client public, accessibles depuis Gérer mon profil.",
+                "Consultation des personnages du compte avec recherche et sélection du personnage à afficher.",
+                "Aperçu 3D animé reprenant l’apparence et l’équipement du personnage, avec rotation, zoom, recentrage, pause de l’animation et affichage des armes.",
+                "Équipement présenté par emplacement, avec infobulles d’objets en français et en anglais. Les statistiques utilisent le dernier relevé serveur disponible et signalent les valeurs manquantes.",
+                "Édition de l’avatar, de la bio et du statut regroupée dans le profil. La photo, le nom et les textes de présentation sont agrandis.",
+                "Bannière personnalisée enregistrée localement pour chaque compte, avec import, remplacement, réinitialisation et aperçu avant validation.",
+                "Recadrage de la bannière par déplacement de l’image, curseur et zoom à la molette de 100 à 300 %. Annuler conserve la bannière enregistrée.",
+                "La barre de navigation apparaît au survol de toute la bannière, avatar compris, et commence à se masquer dès que le pointeur en sort. Elle reste accessible pendant l’utilisation de ses menus.",
+                "L’ouverture et la fermeture de l’édition du profil conservent le zoom et l’orientation de la caméra 3D. Un refus du sélecteur d’image ne laisse plus les boutons bloqués."
+            ]),
+            new("Installation et distribution",
+            [
+                "Le launcher inclut les composants nécessaires au profil et à l’armurerie, sans installation manuelle d’outils supplémentaires.",
+                "Les personnages et leur équipement sont chargés à partir du compte connecté. L’armurerie donne accès uniquement aux personnages de ce compte.",
+                "Si le composant Microsoft WebView2 est absent ou trop ancien, le launcher installe automatiquement la version nécessaire à l’ouverture du profil."
             ])
         ]);
 

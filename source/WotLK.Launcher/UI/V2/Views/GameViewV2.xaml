@@ -10,129 +10,119 @@
              d:DesignWidth="1440"
              d:DesignHeight="796"
              Background="Transparent"
-             FontFamily="{StaticResource AtlasV2.Font.Manrope}"
+             FontFamily="{StaticResource AtlasV2.Font.Inter}"
+             FontWeight="Normal"
              Focusable="False"
-             TextOptions.TextFormattingMode="Display"
+             TextOptions.TextFormattingMode="Ideal"
              TextOptions.TextRenderingMode="ClearType"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/WotLK.Launcher;component/UI/V2/Resources/AtlasV2.GamePilot.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <presentation:HeroTextConverter x:Key="HeroText"/>
+            <SolidColorBrush x:Key="GamePilot.Online" Color="#35E1BF"/>
+            <BitmapImage x:Key="GamePilot.Artwork" UriSource="/WotLK.Launcher;component/Assets/Images/AtlasGamePilotA.png" CacheOption="OnLoad"/>
+        </ResourceDictionary>
+    </UserControl.Resources>
     <Grid>
-        <ScrollViewer x:Name="GameScrollViewer"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      HorizontalContentAlignment="Stretch"
-                      VerticalContentAlignment="Stretch"
-                      PanningMode="VerticalOnly">
-            <ScrollViewer.Resources>
-                <Style TargetType="{x:Type ScrollBar}"
-                       BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/>
-            </ScrollViewer.Resources>
-
-            <Grid x:Name="ViewportFrame"
-                  Height="{Binding ViewportHeight, ElementName=GameScrollViewer}"
-                  MinHeight="528">
-                <Border x:Name="ContentFrame"
-                        Margin="0"
-                        HorizontalAlignment="Stretch"
-                        VerticalAlignment="Stretch">
-                    <Border x:Name="HeroCard"
-                            MinHeight="520"
-                            Background="#0B1016"
-                            ClipToBounds="True">
+        <ScrollViewer x:Name="GameScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                      HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" PanningMode="VerticalOnly">
+            <ScrollViewer.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/></ScrollViewer.Resources>
+            <Grid x:Name="ViewportFrame" Height="{Binding ViewportHeight, ElementName=GameScrollViewer}" MinHeight="640">
+                <Border x:Name="ContentFrame">
+                    <Border x:Name="HeroCard" MinHeight="640" Background="#07111C" ClipToBounds="True">
                         <Grid DataContext="{Binding State, ElementName=Root}">
-                            <Rectangle x:Name="HeroArtwork"
-                                       Opacity="0.96"
-                                       RenderOptions.BitmapScalingMode="HighQuality">
+                            <!-- The same candidate covers the upper inset while the main layer is reframed.
+                                 A short WPF mask blends the two; the supplied bitmap stays untouched. -->
+                            <Rectangle IsHitTestVisible="False" RenderOptions.BitmapScalingMode="HighQuality">
+                                <Rectangle.Fill><ImageBrush ImageSource="{StaticResource GamePilot.Artwork}" Stretch="UniformToFill" AlignmentX="Right" AlignmentY="Top"/></Rectangle.Fill>
+                            </Rectangle>
+                            <Rectangle x:Name="HeroArtwork" IsHitTestVisible="False" RenderOptions.BitmapScalingMode="HighQuality">
+                                <Rectangle.OpacityMask><LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#00FFFFFF" Offset="0.055"/><GradientStop Color="#FFFFFFFF" Offset="0.115"/>
+                                </LinearGradientBrush></Rectangle.OpacityMask>
                                 <Rectangle.Fill>
-                                    <ImageBrush AlignmentX="Right"
-                                                AlignmentY="Center"
-                                                Stretch="UniformToFill">
-                                        <ImageBrush.ImageSource>
-                                            <BitmapImage UriSource="/WotLK.Launcher;component/Assets/Images/LichKingFrostmourneHero.jpg"
-                                                         DecodePixelWidth="3840"
-                                                         CacheOption="OnLoad"/>
-                                        </ImageBrush.ImageSource>
+                                    <ImageBrush AlignmentX="Right" AlignmentY="Top" Stretch="UniformToFill" ImageSource="{StaticResource GamePilot.Artwork}">
+                                        <ImageBrush.RelativeTransform>
+                                            <TransformGroup>
+                                                <ScaleTransform ScaleX="1.06" ScaleY="1.06" CenterX="0.5" CenterY="0"/>
+                                                <TranslateTransform X="0.008" Y="0.047"/>
+                                            </TransformGroup>
+                                        </ImageBrush.RelativeTransform>
                                     </ImageBrush>
                                 </Rectangle.Fill>
                             </Rectangle>
-
                             <Rectangle IsHitTestVisible="False">
-                                <Rectangle.Fill>
-                                    <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
-                                        <GradientStop Offset="0" Color="#B8080D12"/>
-                                        <GradientStop Offset="0.34" Color="#92080D12"/>
-                                        <GradientStop Offset="0.64" Color="#42080D12"/>
-                                        <GradientStop Offset="1" Color="#10080D12"/>
-                                    </LinearGradientBrush>
-                                </Rectangle.Fill>
+                                <Rectangle.Fill><LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                    <GradientStop Color="#ED030C15" Offset="0"/><GradientStop Color="#C6040D17" Offset="0.32"/>
+                                    <GradientStop Color="#26061522" Offset="0.62"/><GradientStop Color="#240B2134" Offset="1"/>
+                                </LinearGradientBrush></Rectangle.Fill>
                             </Rectangle>
                             <Rectangle IsHitTestVisible="False">
-                                <Rectangle.Fill>
-                                    <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
-                                        <GradientStop Offset="0" Color="#0A080D12"/>
-                                        <GradientStop Offset="0.50" Color="#16080D12"/>
-                                        <GradientStop Offset="0.78" Color="#B8080D12"/>
-                                        <GradientStop Offset="1" Color="#F7080D12"/>
-                                    </LinearGradientBrush>
-                                </Rectangle.Fill>
+                                <Rectangle.Fill><LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                                    <GradientStop Color="#10020A12" Offset="0"/><GradientStop Color="#00020A12" Offset="0.55"/>
+                                    <GradientStop Color="#6C030D18" Offset="0.79"/><GradientStop Color="#D9020911" Offset="1"/>
+                                </LinearGradientBrush></Rectangle.Fill>
                             </Rectangle>
-
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-
-                                <Border x:Name="HeroCopyPanel"
-                                        Grid.Row="0"
-                                        Padding="48,44,48,0"
-                                        HorizontalAlignment="Left">
-                                    <StackPanel x:Name="HeroCopyContent" MaxWidth="650">
-                                        <TextBlock Text="{Binding RealmLabel}"
-                                                   Style="{StaticResource AtlasV2.Text.Eyebrow}"
-                                                   Margin="0,0,0,10"/>
-                                        <TextBlock x:Name="HeroTitle"
-                                                   Text="{Binding Title}"
-                                                   Style="{StaticResource AtlasV2.Text.Hero}"
-                                                   FontSize="48"
-                                                   Margin="0,0,0,7"/>
-                                        <TextBlock Text="{Binding Subtitle}"
-                                                   Style="{StaticResource AtlasV2.Text.Body}"
-                                                   FontSize="18"
-                                                   Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"
-                                                   Margin="0"/>
+                            <Border x:Name="HeroCopyPanel" HorizontalAlignment="Left" VerticalAlignment="Top" Padding="74,214,0,0">
+                                <StackPanel x:Name="HeroCopyContent">
+                                    <StackPanel x:Name="RealmEyebrow" Orientation="Horizontal" Height="26">
+                                        <Border x:Name="RealmEyebrowLine" Width="38" Height="1" Background="#64D6FF" VerticalAlignment="Center" Margin="0,0,22,0"/>
+                                        <TextBlock Text="{Binding RealmLabel, Converter={StaticResource HeroText}, ConverterParameter=Tracked}"
+                                                   AutomationProperties.Name="{Binding RealmLabel}" FontSize="14" FontWeight="SemiBold" Foreground="#62D6FF" VerticalAlignment="Center"/>
                                     </StackPanel>
-                                </Border>
-
-                                <Grid x:Name="HeroBottomBar"
-                                      Grid.Row="2"
-                                      Margin="48,28,48,44">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="28"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-
-                                    <Grid Grid.Column="0"
-                                          MaxWidth="560"
-                                          HorizontalAlignment="Left"
-                                          VerticalAlignment="Bottom">
+                                    <Grid x:Name="HeroTitleBlock" Height="212" Margin="8,17,0,0">
+                                        <TextBlock x:Name="HeroTitle" Text="{Binding Title, Converter={StaticResource HeroText}, ConverterParameter=First}" FontSize="102" FontWeight="ExtraBold" VerticalAlignment="Top">
+                                            <TextBlock.Foreground><LinearGradientBrush StartPoint="0,0.26" EndPoint="0,0.82"><GradientStop Color="#FCFCFD" Offset="0"/><GradientStop Color="#DAE1E9" Offset="1"/></LinearGradientBrush></TextBlock.Foreground>
+                                        </TextBlock>
+                                        <TextBlock x:Name="HeroTitleSecond" Text="{Binding Title, Converter={StaticResource HeroText}, ConverterParameter=Rest}" FontSize="99" FontWeight="ExtraBold" VerticalAlignment="Top" Margin="1,93.4,0,0">
+                                            <TextBlock.Foreground><LinearGradientBrush StartPoint="0,0.35" EndPoint="0,0.88"><GradientStop Color="#A8DCFD" Offset="0"/><GradientStop Color="#9ED7FC" Offset="0.25"/><GradientStop Color="#5EA0D7" Offset="1"/></LinearGradientBrush></TextBlock.Foreground>
+                                        </TextBlock>
+                                    </Grid>
+                                    <TextBlock x:Name="HeroSubtitle" Text="{Binding Subtitle, Converter={StaticResource HeroText}, ConverterParameter=Sentence}" FontSize="38" Foreground="#D1DDF0" Margin="13,0,0,0"/>
+                                    <StackPanel x:Name="HeroChips" Orientation="Horizontal" Margin="12,35,0,0">
+                                        <Border Style="{StaticResource GamePilot.Chip}"><StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="M3,2 L17,16 M3,2 L3,6 M3,2 L7,2 M17,2 L3,16 M17,2 L17,6 M17,2 L13,2 M1,12 L6,17 M14,17 L19,12" Width="18" Height="18" Stretch="Uniform" Stroke="#BED5EE" StrokeThickness="1.6" Margin="0,0,13,0"/>
+                                            <TextBlock Text="Raids épiques" Foreground="#AEC2DC" FontSize="14" VerticalAlignment="Center"/>
+                                        </StackPanel></Border>
+                                        <Border Style="{StaticResource GamePilot.Chip}"><StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="{StaticResource AtlasV2.Icon.Users}" Style="{StaticResource AtlasV2.Icon.Stroke}" Width="21" Height="19" Stroke="#BED5EE" Margin="0,0,13,0"/>
+                                            <TextBlock Text="Communauté active" Foreground="#AEC2DC" FontSize="14" VerticalAlignment="Center"/>
+                                        </StackPanel></Border>
+                                        <Border Style="{StaticResource GamePilot.Chip}" Margin="0"><StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="M2,4 L6,8 L10,1 L14,8 L18,4 L16,14 L4,14 Z M4,17 L16,17" Width="20" Height="19" Stretch="Uniform" Fill="#BED5EE" Stroke="#BED5EE" StrokeThickness="1.3" Margin="0,0,13,0"/>
+                                            <TextBlock Text="L’expérience WotLK Classic" Foreground="#AEC2DC" FontSize="14" VerticalAlignment="Center"/>
+                                        </StackPanel></Border>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            <StackPanel x:Name="HeroMotto" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,469,81,0" IsHitTestVisible="False" Opacity="0.82">
+                                <TextBlock Text="L E  F R O I D&#10;N E  M E U R T&#10;J A M A I S" TextAlignment="Center" FontSize="18" LineHeight="33" Foreground="#C4E2F8" FontFamily="{StaticResource AtlasV2.Font.Inter}"/>
+                                <Grid Margin="20,4,8,0" Height="22"><Border Height="1" Background="#8CADC5" VerticalAlignment="Center"/><Path Data="M10,0 L15,11 L10,22 L5,11 Z M10,5 L10,17" Stretch="Uniform" Width="12" Height="22" Stroke="#A5C5DB" StrokeThickness="1" HorizontalAlignment="Right" Margin="0,0,20,0"/></Grid>
+                            </StackPanel>
+                            <Grid x:Name="HeroBottomBar" Margin="59,0,59,59" VerticalAlignment="Bottom">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <StackPanel x:Name="HeroStatusRegion" Grid.Column="0" Width="575" VerticalAlignment="Bottom">
+                                    <Grid x:Name="GameOperationFeedback" Margin="0,0,0,14">
                                         <Border Padding="16,13"
-                                                Background="#D10A0F14"
+                                                Background="{StaticResource GamePilot.Surface}"
                                                 BorderBrush="{StaticResource AtlasV2.Brush.CyanBorder}"
                                                 BorderThickness="1"
-                                                CornerRadius="6"
+                                                CornerRadius="12"
                                                 Visibility="{Binding ShowsProgress, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                                             <StackPanel>
                                                 <Grid>
-                                                    <TextBlock Text="{Binding ProgressTitle}"
-                                                               Style="{StaticResource AtlasV2.Text.Body}"
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding ProgressTitle}" TextTrimming="CharacterEllipsis"
+                                                               Style="{StaticResource GamePilot.Text.Body}"
                                                                FontWeight="SemiBold"
                                                                Foreground="{StaticResource AtlasV2.Brush.Text}"/>
-                                                    <TextBlock Text="{Binding ProgressPercentText}"
+                                                    <TextBlock Grid.Column="1" Margin="18,0,0,0" Text="{Binding ProgressPercentText}"
                                                                HorizontalAlignment="Right"
-                                                               Style="{StaticResource AtlasV2.Text.Caption}"
+                                                               Style="{StaticResource GamePilot.Text.Caption}"
                                                                FontWeight="SemiBold"
                                                                Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
                                                 </Grid>
@@ -141,14 +131,15 @@
                                                              Value="{Binding Progress}"
                                                              IsIndeterminate="{Binding IsProgressIndeterminate}"/>
                                                 <Grid>
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                                     <TextBlock Text="{Binding ProgressPrimaryDetail}"
-                                                               Style="{StaticResource AtlasV2.Text.Caption}"
+                                                               Style="{StaticResource GamePilot.Text.Caption}"
                                                                Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"
                                                                TextTrimming="CharacterEllipsis"/>
-                                                    <TextBlock Text="{Binding ProgressSecondaryDetail}"
+                                                    <TextBlock Grid.Column="1" Text="{Binding ProgressSecondaryDetail}"
                                                                Margin="18,0,0,0"
                                                                HorizontalAlignment="Right"
-                                                               Style="{StaticResource AtlasV2.Text.Caption}"
+                                                               Style="{StaticResource GamePilot.Text.Caption}"
                                                                Foreground="{StaticResource AtlasV2.Brush.TextMuted}"
                                                                TextTrimming="CharacterEllipsis"/>
                                                 </Grid>
@@ -156,10 +147,10 @@
                                         </Border>
 
                                         <Border Padding="16,13"
-                                                Background="#D10A0F14"
+                                                Background="{StaticResource GamePilot.Surface}"
                                                 BorderBrush="{StaticResource AtlasV2.Brush.DangerBorder}"
                                                 BorderThickness="1"
-                                                CornerRadius="6"
+                                                CornerRadius="12"
                                                 Visibility="{Binding ShowsError, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                                             <StackPanel>
                                                 <StackPanel Orientation="Horizontal">
@@ -170,43 +161,42 @@
                                                           Style="{StaticResource AtlasV2.Icon.Stroke}"
                                                           Stroke="{StaticResource AtlasV2.Brush.Danger}"/>
                                                     <TextBlock Text="{Binding ErrorTitle}"
-                                                               Style="{StaticResource AtlasV2.Text.Body}"
+                                                               Style="{StaticResource GamePilot.Text.Body}"
                                                                FontWeight="SemiBold"
                                                                Foreground="{StaticResource AtlasV2.Brush.Text}"/>
                                                 </StackPanel>
                                                 <TextBlock Margin="23,5,0,0"
                                                            Text="{Binding ErrorSummary}"
-                                                           Style="{StaticResource AtlasV2.Text.Caption}"
+                                                           Style="{StaticResource GamePilot.Text.Caption}"
                                                            Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"
                                                            TextWrapping="Wrap"/>
                                             </StackPanel>
                                         </Border>
-                                    </Grid>
 
-                                    <StackPanel x:Name="HeroActionRegion"
-                                                Grid.Column="2"
-                                                HorizontalAlignment="Right"
-                                                VerticalAlignment="Bottom">
+                                    </Grid>
+                                    <Border x:Name="RealmStatusCard" Height="152" Padding="33,22,33,23" CornerRadius="14" Background="{StaticResource GamePilot.Surface}" BorderBrush="#344E63" BorderThickness="1">
+                                        <Grid>
+                                            <Grid.RowDefinitions><RowDefinition Height="42"/><RowDefinition Height="1"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                                         <Grid x:Name="GameServerStatus"
-                                              Width="285"
-                                              Margin="0,0,0,14"
-                                              HorizontalAlignment="Right"
+                                              VerticalAlignment="Top" Height="28"
+                                              Margin="0"
+                                              HorizontalAlignment="Stretch"
                                               ToolTip="{Binding DashboardState.Current.RealmToolTip, ElementName=Root}">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
                                             <Ellipse x:Name="RealmStatusDot"
-                                                     Width="10"
-                                                     Height="10"
-                                                     Margin="0,0,10,0"
+                                                     Width="15"
+                                                     Height="15"
+                                                     Margin="0,0,16,0"
                                                      VerticalAlignment="Center">
                                                 <Ellipse.Style>
                                                     <Style TargetType="{x:Type Ellipse}">
                                                         <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding DashboardState.Current.RealmState, ElementName=Root}" Value="{x:Static dashboard:DashboardRealmState.Online}">
-                                                                <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Success}"/>
+                                                                <Setter Property="Fill" Value="{StaticResource GamePilot.Online}"/>
                                                             </DataTrigger>
                                                             <DataTrigger Binding="{Binding DashboardState.Current.RealmState, ElementName=Root}" Value="{x:Static dashboard:DashboardRealmState.Degraded}">
                                                                 <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Gold}"/>
@@ -227,11 +217,11 @@
                                                        FontWeight="SemiBold">
                                                 <TextBlock.Style>
                                                     <Style TargetType="{x:Type TextBlock}"
-                                                           BasedOn="{StaticResource AtlasV2.Text.Body}">
+                                                           BasedOn="{StaticResource GamePilot.Text.Body}">
                                                         <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding DashboardState.Current.RealmState, ElementName=Root}" Value="{x:Static dashboard:DashboardRealmState.Online}">
-                                                                <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Success}"/>
+                                                                <Setter Property="Foreground" Value="{StaticResource GamePilot.Online}"/>
                                                             </DataTrigger>
                                                             <DataTrigger Binding="{Binding DashboardState.Current.RealmState, ElementName=Root}" Value="{x:Static dashboard:DashboardRealmState.Degraded}">
                                                                 <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Gold}"/>
@@ -245,45 +235,45 @@
                                             </TextBlock>
                                         </Grid>
 
-                                        <StackPanel x:Name="HeroActionPanel"
-                                                    Orientation="Horizontal"
-                                                    HorizontalAlignment="Right">
-                                            <Button x:Name="LatestPatchNoteAction"
-                                                    Width="78"
-                                                    Height="78"
-                                                    Margin="0,0,12,0"
-                                                    Padding="0"
-                                                    Style="{StaticResource AtlasV2.Button.Secondary}"
-                                                    HorizontalContentAlignment="Center"
-                                                    IsEnabled="{Binding DashboardState.Current.CanOpenLatestPatchNote, ElementName=Root}"
-                                                    ToolTip="Mises à jour"
-                                                    AutomationProperties.Name="Mises à jour"
-                                                    Click="LatestPatchNoteAction_Click">
-                                                <Path Width="23"
-                                                      Height="23"
-                                                      Data="{StaticResource AtlasV2.Icon.FileText}"
-                                                      Style="{StaticResource AtlasV2.Icon.Stroke}"
-                                                      Stroke="{StaticResource AtlasV2.Brush.Gold}"/>
-                                            </Button>
 
+                                            <Border Grid.Row="1" Height="1" Background="#293E50"/>
+                                            <Grid x:Name="RealmFacts" Grid.Row="2" Margin="5,16,0,0" TextBlock.Foreground="#E4EDF7" TextBlock.FontSize="16">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="140*"/><ColumnDefinition Width="145*"/><ColumnDefinition Width="220*"/></Grid.ColumnDefinitions>
+                                                <StackPanel ToolTip="Le nombre de joueurs est indisponible."><TextBlock Text="—"/><TextBlock Text="joueurs en ligne" FontSize="14" Foreground="#8FA9C7"/></StackPanel>
+                                                <Border Grid.Column="1" BorderBrush="#283E50" BorderThickness="1,0,0,0" Padding="33,0,0,0" ToolTip="La latence est indisponible."><StackPanel><TextBlock Text="—"/><TextBlock Text="latence" FontSize="14" Foreground="#8FA9C7"/></StackPanel></Border>
+                                                <Border Grid.Column="2" BorderBrush="#385266" BorderThickness="1,0,0,0" Padding="48,0,0,0"><StackPanel><TextBlock Text="{Binding RealmLabel, Converter={StaticResource HeroText}, ConverterParameter=Realm}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/><TextBlock Text="WotLK Classic" FontSize="14" Foreground="#8FA9C7"/></StackPanel></Border>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                                <StackPanel x:Name="HeroActionRegion" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,21">
+                                    <StackPanel x:Name="HeroActionPanel" Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button x:Name="LatestPatchNoteAction" Width="210" Height="91" Margin="0,0,14,0" Padding="12,0" Style="{StaticResource GamePilot.Button}"
+                                                IsEnabled="{Binding DashboardState.Current.CanOpenLatestPatchNote, ElementName=Root}" AutomationProperties.Name="Notes de version" Click="LatestPatchNoteAction_Click">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Path Width="24" Height="27" Margin="0,0,19,0" Data="{StaticResource AtlasV2.Icon.FileText}" Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="#B6CCE8"/>
+                                                <TextBlock x:Name="LatestPatchNoteLabel" Text="Notes de version" VerticalAlignment="Center" FontSize="14" FontWeight="Medium"/>
+                                            </StackPanel>
+                                        </Button>
                                             <Button x:Name="PrimaryActionButton"
-                                                    Width="285"
-                                                    Height="78"
-                                                    FontSize="16"
-                                                    Style="{StaticResource AtlasV2.Button.Primary}"
+                                                    Width="322"
+                                                    Height="91"
+                                                    FontSize="26"
+                                                    Style="{StaticResource GamePilot.Primary}"
                                                     IsEnabled="{Binding IsPrimaryActionEnabled}"
                                                     Command="{Binding PrimaryActionCommand}"
                                                     ToolTip="{Binding PrimaryActionUnavailableReason}"
                                                     ToolTipService.ShowOnDisabled="True"
                                                     AutomationProperties.Name="{Binding PrimaryActionLabel}">
                                                 <StackPanel Orientation="Horizontal">
-                                                <Path Width="21"
-                                                      Height="21"
-                                                      Margin="0,0,9,0"
+                                                <Path Width="24"
+                                                      Height="26"
+                                                      Margin="0,0,20,0"
                                                       StrokeThickness="2"
                                                       StrokeStartLineCap="Round"
                                                       StrokeEndLineCap="Round"
                                                       StrokeLineJoin="Round"
+                                                      Tag="{DynamicResource {x:Static SystemParameters.ClientAreaAnimationKey}}"
                                                       Stretch="Uniform">
                                                     <Path.Style>
                                                         <Style TargetType="{x:Type Path}">
@@ -326,8 +316,14 @@
                                                                             <RotateTransform/>
                                                                         </Setter.Value>
                                                                     </Setter>
-                                                                    <DataTrigger.EnterActions>
-                                                                        <BeginStoryboard>
+                                                                </DataTrigger>
+                                                                <MultiDataTrigger>
+                                                                    <MultiDataTrigger.Conditions>
+                                                                        <Condition Binding="{Binding IsLaunchInProgress}" Value="True"/>
+                                                                        <Condition Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True"/>
+                                                                    </MultiDataTrigger.Conditions>
+                                                                    <MultiDataTrigger.EnterActions>
+                                                                        <BeginStoryboard x:Name="LaunchSpinner">
                                                                             <Storyboard RepeatBehavior="Forever">
                                                                                 <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
                                                                                                  From="0"
@@ -335,31 +331,32 @@
                                                                                                  Duration="0:0:0.9"/>
                                                                             </Storyboard>
                                                                         </BeginStoryboard>
-                                                                    </DataTrigger.EnterActions>
-                                                                </DataTrigger>
+                                                                    </MultiDataTrigger.EnterActions>
+                                                                    <MultiDataTrigger.ExitActions><RemoveStoryboard BeginStoryboardName="LaunchSpinner"/></MultiDataTrigger.ExitActions>
+                                                                </MultiDataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
                                                     </Path.Style>
                                                 </Path>
                                                     <TextBlock x:Name="PrimaryActionLabelText"
                                                                Text="{Binding PrimaryActionLabel}"
-                                                               FontWeight="Bold"/>
+                                                               TextWrapping="Wrap" TextAlignment="Center"
+                                                               FontWeight="SemiBold"/>
                                                 </StackPanel>
                                             </Button>
-                                        </StackPanel>
+
                                     </StackPanel>
-                                </Grid>
+                                </StackPanel>
                             </Grid>
                         </Grid>
                     </Border>
                 </Border>
             </Grid>
         </ScrollViewer>
-
         <Border x:Name="LocalNotification"
                 Panel.ZIndex="20"
                 MaxWidth="430"
-                Margin="24"
+                Margin="24,128,24,24"
                 Padding="14,11"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Top"
@@ -391,7 +388,7 @@
                       Stroke="{Binding BorderBrush, ElementName=LocalNotification}"/>
                 <TextBlock MaxWidth="370"
                            Text="{Binding State.NotificationMessage, ElementName=Root}"
-                           Style="{StaticResource AtlasV2.Text.Body}"
+                           Style="{StaticResource GamePilot.Text.Body}"
                            Foreground="{StaticResource AtlasV2.Brush.Text}"
                            TextWrapping="Wrap"/>
             </StackPanel>

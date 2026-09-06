@@ -81,7 +81,12 @@ internal sealed record FriendRuntimeItem(
     DateTimeOffset? LastSeenAt,
     string StatusMessage = "",
     string Bio = "",
-    ImmutableArray<FriendCharacterRuntimeItem> Characters = default);
+    ImmutableArray<FriendCharacterRuntimeItem> Characters = default,
+    bool IsLauncherOnline = false,
+    DateTimeOffset? LauncherLastSeenAt = null)
+{
+    public bool IsAvailable => IsOnline || IsLauncherOnline;
+}
 
 internal sealed record FriendCharacterRuntimeItem(
     string Name,

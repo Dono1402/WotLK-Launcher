@@ -41,7 +41,20 @@ public sealed record UpdateSettingsViewState(
     bool IsUpdateAvailable = false,
     bool IsUpdating = false,
     bool CanCheck = false,
-    bool CanStartUpdate = false);
+    bool CanStartUpdate = false,
+    bool HasChecked = false,
+    bool HasError = false,
+    string ErrorStatusText = "Vérification indisponible")
+{
+    public bool IsUpToDate => HasChecked && !HasError && !IsChecking && !IsUpdating && !IsUpdateAvailable;
+
+    public string StatusText => IsUpdating ? "Mise à jour en cours…"
+        : IsChecking ? "Recherche en cours…"
+        : HasError ? ErrorStatusText
+        : IsUpdateAvailable ? $"Mise à jour disponible · {AvailableLauncherVersion}"
+        : IsUpToDate ? "À jour"
+        : "Non vérifiée";
+}
 
 public sealed record NotificationSettingsViewState(
     bool FriendPresence);

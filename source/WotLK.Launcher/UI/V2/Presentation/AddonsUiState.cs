@@ -174,6 +174,26 @@ public sealed record AddonUiItem(
 
     public string AvailableVersionText => $"Version disponible  {AvailableVersion}";
 
+    public string CompactVersionSummary
+    {
+        get
+        {
+            if (IsDetectedUnmanaged && !IsManagedByAtlas)
+            {
+                return "Installation externe";
+            }
+
+            string version = CompactVersion(NeedsUpdate || !IsInstalled ? AvailableVersion : InstalledVersion);
+            return version.Length > 0 && char.IsAsciiDigit(version[0]) ? $"v{version}" : version;
+        }
+    }
+
+    private static string CompactVersion(string version)
+    {
+        string primary = version.Split('+', 2)[0].TrimStart('v', 'V');
+        return primary.Length > 16 ? primary[..15] + "…" : primary;
+    }
+
     public string InstalledVersionText => IsInstalled
         ? $"Version installée  {InstalledVersion}"
         : "Aucune version installée";
@@ -302,7 +322,7 @@ public sealed class AddonsUiState : BindableUiState
             return false;
         }
 
-        string search = value?.Trim() ?? string.Empty;
+        string search = value ?? string.Empty;
         Publish(ApplyFilter(_current with
         {
             SearchText = search,
@@ -576,6 +596,7 @@ public sealed class AddonsUiState : BindableUiState
 
     private static AddonsViewState ApplyFilter(AddonsViewState state)
     {
+        string query = state.SearchText.Trim();
         IEnumerable<AddonUiItem> visible = state.Catalog.Where(addon =>
         {
             bool filterMatches = state.Filter switch
@@ -588,9 +609,9 @@ public sealed class AddonsUiState : BindableUiState
                         StringComparer.OrdinalIgnoreCase),
                 _ => true
             };
-            bool searchMatches = string.IsNullOrWhiteSpace(state.SearchText)
-                || addon.Name.Contains(state.SearchText, StringComparison.CurrentCultureIgnoreCase)
-                || addon.Description.Contains(state.SearchText, StringComparison.CurrentCultureIgnoreCase);
+            bool searchMatches = query.Length == 0
+                || addon.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase)
+                || addon.Description.Contains(query, StringComparison.CurrentCultureIgnoreCase);
             return filterMatches && searchMatches;
         });
         return state with

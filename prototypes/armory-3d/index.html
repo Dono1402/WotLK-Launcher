@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atlas | Armurerie</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="importmap">{"imports":{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script>
+  <script src="/lucide.js" defer></script>
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="topbar"><span class="brand">ATLAS</span><span class="separator"></span><span data-i18n="armory">Armurerie</span><span class="local">LOCAL</span></header>
+  <main>
+    <header class="character-header">
+      <div><span class="realm">ARTHAS</span><h1></h1><p><span class="class" id="character-class"></span><span class="dot">·</span><span id="character-race"></span><span class="dot">·</span><span data-i18n="level">Niveau</span> <span id="level"></span></p></div>
+    </header>
+    <div class="character-content">
+    <section class="armory" data-i18n-label="equipment" aria-label="Personnage et équipement">
+      <div id="scene" data-i18n-label="model" aria-label="Modèle 3D de Flowmage">
+        <div id="loading" data-i18n="loading" role="status">Chargement de Flowmage…</div>
+        <div class="scene-toolbar" data-i18n-label="controls" aria-label="Vue 3D">
+          <button tabindex="-1" id="weapon-mode" class="icon-button weapon-mode" type="button" hidden><i data-lucide="arrow-left-right"></i><span>Mêlée</span></button>
+          <button tabindex="-1" id="animate" class="icon-button" title="Mettre l'animation en pause" aria-label="Mettre l'animation en pause" aria-pressed="true"><i data-lucide="pause"></i></button>
+          <button tabindex="-1" id="rotate" class="icon-button" data-i18n-label="rotate" title="Rotation automatique" aria-label="Rotation automatique" aria-pressed="false"><i data-lucide="rotate-3d"></i></button>
+          <span class="tool-separator"></span>
+          <button tabindex="-1" id="zoom-in" class="icon-button" data-i18n-label="zoomIn" title="Zoom avant" aria-label="Zoom avant"><i data-lucide="zoom-in"></i></button>
+          <button tabindex="-1" id="zoom-out" class="icon-button" data-i18n-label="zoomOut" title="Zoom arrière" aria-label="Zoom arrière"><i data-lucide="zoom-out"></i></button>
+          <button tabindex="-1" id="reset" class="icon-button" data-i18n-label="reset" title="Recentrer" aria-label="Recentrer"><i data-lucide="scan"></i></button>
+          <button tabindex="-1" id="fullscreen" class="icon-button" title="Plein écran" aria-label="Plein écran"><i data-lucide="maximize"></i></button>
+        </div>
+      </div>
+      <div class="equipment left" id="left"></div>
+      <div class="equipment right" id="right"></div>
+      <div class="weapons" id="weapons" data-i18n-label="weapons" aria-label="Armes équipées"></div>
+    </section>
+    <aside id="character-summary" class="character-summary" data-i18n-label="characterSummary" aria-label="Résumé du personnage">
+      <section class="summary-level">
+        <h2 data-i18n="itemLevel">Niveau d'objet</h2>
+        <div id="average-item-level" class="average-item-level">—</div>
+        <p data-i18n="averageEquipped">Moyenne équipée</p>
+      </section>
+      <section class="summary-stats" aria-labelledby="stats-title">
+        <h2 id="stats-title" data-i18n="statistics">Statistiques</h2>
+        <div id="stats-modes" class="stats-modes" role="group" data-i18n-label="statsMode" hidden></div>
+        <select id="stats-school" class="stats-school" data-i18n-label="statsSchool" hidden></select>
+        <dl id="character-stats"></dl>
+        <p id="stats-status" class="stats-status" role="status"></p>
+      </section>
+    </aside>
+    </div>
+  </main>
+  <aside id="item-popover" class="item-popover" role="tooltip" aria-labelledby="detail-name" hidden>
+    <header class="item-heading">
+      <img id="detail-icon" alt="">
+      <div><span class="equipped-label" data-i18n="equipped">Équipé</span><h2 id="detail-name"></h2></div>
+      <button tabindex="-1" id="close-item" class="icon-button" data-i18n-label="close" title="Fermer les détails" aria-label="Fermer les détails" hidden><i data-lucide="x"></i></button>
+    </header>
+    <div class="item-properties"><span id="detail-slot"></span><span><span data-i18n="itemLevel">Niveau d'objet</span> <strong id="detail-level"></strong></span></div>
+    <div id="detail-type" class="item-type"></div>
+    <div id="detail-lines" class="item-lines"></div>
+  </aside>
+</body>
+</html>

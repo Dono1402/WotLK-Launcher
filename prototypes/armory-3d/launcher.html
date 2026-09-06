@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atlas | Profil</title><link rel="stylesheet" href="/launcher.css">
+  <script src="/lucide.js" defer></script><script type="module" src="/launcher.js"></script>
+</head>
+<body>
+  <header class="profile-header">
+    <div id="profile-hero" class="profile-hero">
+      <div class="banner" aria-hidden="true"><img class="banner-backdrop" src="/banner.png" alt=""><img class="banner-image" src="/banner.png" alt=""></div>
+      <div class="profile-identity">
+        <div class="avatar-area">
+          <button tabindex="-1" id="change-avatar" class="avatar" type="button" aria-label="Changer la photo de profil">
+            <span id="profile-initial" aria-hidden="true"></span><img id="profile-avatar" alt="" hidden>
+            <span class="avatar-camera" aria-hidden="true"><i data-lucide="camera"></i></span>
+          </button>
+        </div>
+        <div class="profile-copy">
+          <div class="profile-title-row"><h1 id="profile-name"></h1><button tabindex="-1" id="edit-profile" class="element-action" type="button" aria-label="Modifier le statut et la bio" aria-controls="profile-editor" aria-expanded="false"><i data-lucide="pencil"></i></button></div>
+          <div id="profile-details"><p id="profile-status" hidden></p><p id="profile-bio" hidden></p></div>
+          <section id="profile-editor" class="profile-editor" aria-label="Modifier le statut et la bio" hidden>
+            <div class="profile-field"><div class="field-heading"><label for="edit-status" data-label="statusLabel">Statut</label><span id="status-count">0 / 80</span></div><input id="edit-status" type="text" maxlength="80" autocomplete="off" aria-describedby="status-count"></div>
+            <div class="profile-field"><div class="field-heading"><label for="edit-bio" data-label="bioLabel">Bio</label><span id="bio-count">0 / 280</span></div><textarea id="edit-bio" rows="2" maxlength="280" aria-describedby="bio-count"></textarea></div>
+            <p id="profile-permission" class="editor-hint" data-label="editingUnavailable" hidden>La modification du profil est actuellement indisponible.</p>
+            <div class="editor-actions"><button tabindex="-1" id="save-profile" class="command primary-command" type="button"><span data-label="save">Enregistrer</span></button><button tabindex="-1" id="cancel-profile" class="command" type="button" data-label="cancel">Annuler</button></div>
+          </section>
+        </div>
+      </div>
+      <div class="banner-controls">
+        <button tabindex="-1" id="edit-banner" class="element-action banner-action" type="button" aria-label="Modifier la bannière" aria-controls="banner-menu" aria-expanded="false"><i data-lucide="image-plus"></i></button>
+        <div id="banner-menu" class="element-menu banner-menu" role="group" aria-label="Modifier la bannière" hidden>
+          <button tabindex="-1" id="reposition-banner" type="button" aria-haspopup="dialog" aria-controls="banner-editor"><i data-lucide="crop"></i><span data-label="cropBanner">Recadrer la bannière</span></button>
+          <button tabindex="-1" id="choose-banner" type="button"><i data-lucide="image-plus"></i><span data-label="chooseBanner">Changer l’image</span></button>
+          <div class="banner-reset"><button tabindex="-1" id="reset-banner" class="text-command" type="button" aria-controls="reset-banner-confirm" aria-expanded="false" data-label="resetBanner">Restaurer la bannière par défaut</button><div id="reset-banner-confirm" class="remove-confirm" role="group" aria-labelledby="reset-banner-question" hidden><p id="reset-banner-question" data-label="resetBannerQuestion">Rétablir la bannière par défaut ?</p><div class="confirmation-actions"><button tabindex="-1" id="confirm-reset-banner" type="button" data-label="confirmResetBanner">Oui, rétablir</button><button tabindex="-1" id="cancel-reset-banner" type="button" data-label="cancel">Annuler</button></div></div></div>
+        </div>
+      </div>
+      <div class="hero-feedbacks">
+        <div id="profile-notice" class="profile-notice" role="status" aria-live="polite" aria-atomic="true" hidden><span id="notification-text"></span><button tabindex="-1" id="dismiss-notification" type="button" aria-label="Fermer la notification"><i data-lucide="x"></i></button></div>
+      </div>
+    </div>
+  </header>
+  <dialog id="banner-editor" class="banner-editor" aria-labelledby="banner-editor-title" aria-describedby="banner-hint">
+    <header class="banner-dialog-heading"><button tabindex="-1" id="cancel-banner" class="dialog-back" type="button" aria-label="Retour"><i data-lucide="arrow-left"></i></button><h2 id="banner-editor-title" data-label="cropBanner">Recadrer la bannière</h2><button tabindex="-1" id="save-banner" class="banner-apply" type="button" data-label="apply">Appliquer</button></header>
+    <p id="banner-hint" class="visually-hidden" data-label="dragBanner">Glisse l’image ou utilise les flèches pour la déplacer.</p>
+    <div id="banner-crop-stage" class="banner-crop-stage" tabindex="0" role="group" aria-label="Zone de recadrage" aria-describedby="banner-hint"><div id="banner-crop-backdrop" class="banner-preview-background" aria-hidden="true"><img class="banner-backdrop" alt=""></div><img id="banner-crop-image" alt="" draggable="false"><div id="banner-crop-frame" class="banner-crop-frame" aria-hidden="true"></div><p id="banner-image-loading" data-label="loadingImage">Chargement de l’image…</p></div>
+    <div id="banner-notification-slot"></div>
+    <footer class="banner-editor-options">
+      <div id="banner-zoom-controls" class="banner-zoom-control"><button tabindex="-1" id="banner-zoom-out" class="zoom-command" type="button" aria-label="Réduire le zoom"><i data-lucide="zoom-out"></i></button><label for="banner-zoom" class="visually-hidden" data-label="zoom">Zoom</label><input id="banner-zoom" type="range" min="1" max="3" step="0.01" value="1"><button tabindex="-1" id="banner-zoom-in" class="zoom-command" type="button" aria-label="Augmenter le zoom"><i data-lucide="zoom-in"></i></button></div>
+    </footer>
+  </dialog>
+  <main class="profile-content">
+    <aside class="roster">
+      <header><h2 data-label="characters">Mes personnages</h2><span id="character-count"></span></header>
+      <div class="search"><i data-lucide="search"></i><input id="search" type="search" autocomplete="off" aria-label="Rechercher un personnage"></div>
+      <div id="characters" role="group" aria-label="Mes personnages"></div>
+      <p id="roster-status" role="status"></p>
+      <button tabindex="-1" id="retry" class="retry" hidden><i data-lucide="rotate-cw"></i><span data-label="retry">Réessayer</span></button>
+    </aside>
+    <section id="character-panel" aria-label="Armurerie">
+      <p id="empty-state" role="status"></p>
+      <iframe id="character-view" title="Armurerie du personnage" allow="fullscreen" hidden></iframe>
+    </section>
+  </main>
+</body>
+</html>

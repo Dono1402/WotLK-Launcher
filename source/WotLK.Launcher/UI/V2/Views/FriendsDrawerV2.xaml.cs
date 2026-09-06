@@ -17,6 +17,10 @@ public partial class FriendsDrawerV2 : UserControl
     private bool _hasOpened;
     private bool _isAddFriendExpanded;
     private Popup? _openFriendActionsPopup;
+    private FriendUiItem? _pendingRemoval;
+    private FriendsUiState? _pendingRemovalState;
+    private UIElement? _removeFriendReturnFocus;
+    private UIElement? _friendProfileReturnFocus;
     private int _transitionVersion;
 
     public static readonly DependencyProperty StateProperty = DependencyProperty.Register(
@@ -65,25 +69,56 @@ public partial class FriendsDrawerV2 : UserControl
 
     internal bool IsFriendProfileOpen => State?.IsFriendProfileOpen == true;
 
+    internal bool IsRemoveFriendConfirmationOpen => RemoveFriendConfirmationLayer.Visibility == Visibility.Visible;
+
     public bool ContainsKeyboardFocusTarget(DependencyObject? target)
     {
-        return target is not null && IsDescendantOf(target, DrawerPanel);
+        if (target is null)
+        {
+            return false;
+        }
+
+        if (IsRemoveFriendConfirmationOpen)
+        {
+            return IsDescendantOf(target, RemoveFriendConfirmationPanel);
+        }
+
+        return IsDescendantOf(target, DrawerPanel)
+            || (_openFriendActionsPopup is { IsOpen: true, Child: { } popupChild }
+                && IsDescendantOf(target, popupChild));
     }
 
     public void FocusFirstControl()
     {
         Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
-            () => Keyboard.Focus(IsFriendProfileOpen ? BackToFriendsButton : AddFriendToggleButton));
+            () => Keyboard.Focus(IsRemoveFriendConfirmationOpen
+                ? CancelRemoveFriendButton
+                : IsFriendProfileOpen ? BackToFriendsButton : AddFriendToggleButton));
     }
 
     internal bool TryCloseTransientPanel()
     {
+        if (IsRemoveFriendConfirmationOpen)
+        {
+            CloseRemoveFriendConfirmation(restoreFocus: true);
+            return true;
+        }
+
+        if (_openFriendActionsPopup is { IsOpen: true })
+        {
+            UIElement? returnFocus = _openFriendActionsPopup.PlacementTarget;
+            CloseFriendActionsPopup();
+            if (returnFocus is { IsVisible: true, IsEnabled: true })
+            {
+                Keyboard.Focus(returnFocus);
+            }
+            return true;
+        }
+
         if (State?.CloseFriendProfile() == true)
         {
-            Dispatcher.BeginInvoke(
-                DispatcherPriority.Input,
-                () => Keyboard.Focus(AddFriendToggleButton));
+            FocusFriendListControl();
             return true;
         }
 
@@ -153,12 +188,14 @@ public partial class FriendsDrawerV2 : UserControl
         SetAddFriendExpanded(false, animate: false);
         State?.CloseFriendProfile();
         CloseFriendActionsPopup();
+        CloseRemoveFriendConfirmation(restoreFocus: false);
+        _friendProfileReturnFocus = null;
         IsHitTestVisible = false;
         Scrim.IsHitTestVisible = false;
 
         if (!animate || Visibility != Visibility.Visible)
         {
-            DrawerTranslate.X = 376;
+            DrawerTranslate.X = DrawerPanel.Width + 16;
             DrawerPanel.Opacity = 0;
             Scrim.Opacity = 0;
             Visibility = Visibility.Collapsed;
@@ -173,7 +210,7 @@ public partial class FriendsDrawerV2 : UserControl
             currentOffset,
             currentPanelOpacity,
             currentScrimOpacity,
-            376,
+            DrawerPanel.Width + 16,
             0,
             0,
             transitionVersion,
@@ -380,21 +417,28 @@ public partial class FriendsDrawerV2 : UserControl
             CloseFriendActionsPopup();
         }
         popup.DataContext = button.DataContext;
-        popup.IsOpen = true;
         _openFriendActionsPopup = popup;
+        popup.IsOpen = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+        {
+            if (popup.IsOpen && popup.Child is UIElement child)
+            {
+                Keyboard.Focus(child);
+            }
+        });
         e.Handled = true;
     }
 
-    private void FriendItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    private void OpenFriendProfileButton_Click(object sender, RoutedEventArgs e)
     {
         if (State is null
-            || sender is not Border { DataContext: FriendUiItem friend }
-            || FindAncestor<Button>(e.OriginalSource as DependencyObject) is not null)
+            || sender is not Button { DataContext: FriendUiItem friend } button)
         {
             return;
         }
 
         CloseFriendActionsPopup();
+        _friendProfileReturnFocus = button;
         SetAddFriendExpanded(false, animate: false);
         State.OpenFriendProfile(friend);
         Dispatcher.BeginInvoke(
@@ -407,38 +451,84 @@ public partial class FriendsDrawerV2 : UserControl
     {
         if (State?.CloseFriendProfile() == true)
         {
-            Dispatcher.BeginInvoke(
-                DispatcherPriority.Input,
-                () => Keyboard.Focus(AddFriendToggleButton));
+            FocusFriendListControl();
         }
     }
 
     private void RemoveFriendMenuItem_Click(object sender, RoutedEventArgs e)
     {
         if (State is null
-            || State.Current.IsPreview
             || sender is not Button { DataContext: FriendUiItem friend })
         {
             return;
         }
 
+        _removeFriendReturnFocus = _openFriendActionsPopup?.PlacementTarget;
         CloseFriendActionsPopup();
+        _pendingRemoval = friend;
+        _pendingRemovalState = State;
+        RemoveFriendUsernameText.Text = friend.Username;
+        DrawerPanel.IsHitTestVisible = false;
+        RemoveFriendConfirmationLayer.Visibility = Visibility.Visible;
+        RemoveFriendConfirmationLayer.IsHitTestVisible = true;
+        FocusFirstControl();
+        e.Handled = true;
+    }
 
-        MessageBoxResult confirmation = MessageBox.Show(
-            Window.GetWindow(this),
-            $"Retirer {friend.Username} de tes amis Atlas ?",
-            "Retirer un ami",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
-        if (confirmation != MessageBoxResult.Yes)
-        {
-            return;
-        }
+    private void CancelRemoveFriendButton_Click(object sender, RoutedEventArgs e)
+    {
+        CloseRemoveFriendConfirmation(restoreFocus: true);
+    }
 
-        if (State.RemoveFriendCommand.CanExecute(friend.AccountId))
+    private void ConfirmRemoveFriendButton_Click(object sender, RoutedEventArgs e)
+    {
+        FriendUiItem? friend = _pendingRemoval;
+        FriendsUiState? state = _pendingRemovalState;
+        CloseRemoveFriendConfirmation(restoreFocus: true);
+
+        if (friend is not null && state is not null && ReferenceEquals(State, state)
+            && !state.Current.IsPreview
+            && state.Current.Friends.Any(item => item.AccountId == friend.AccountId && item.CanRemove)
+            && state.RemoveFriendCommand.CanExecute(friend.AccountId))
         {
-            State.RemoveFriendCommand.Execute(friend.AccountId);
+            state.RemoveFriendCommand.Execute(friend.AccountId);
         }
+    }
+
+    private void RemoveFriendConfirmationScrim_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        CloseRemoveFriendConfirmation(restoreFocus: true);
+        e.Handled = true;
+    }
+
+    private void CloseRemoveFriendConfirmation(bool restoreFocus)
+    {
+        UIElement? returnFocus = _removeFriendReturnFocus;
+        _pendingRemoval = null;
+        _pendingRemovalState = null;
+        _removeFriendReturnFocus = null;
+        RemoveFriendConfirmationLayer.Visibility = Visibility.Collapsed;
+        RemoveFriendConfirmationLayer.IsHitTestVisible = false;
+        RemoveFriendUsernameText.Text = string.Empty;
+        DrawerPanel.IsHitTestVisible = true;
+        if (restoreFocus)
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+            {
+                if (IsOpen && !IsRemoveFriendConfirmationOpen)
+                {
+                    Keyboard.Focus(returnFocus is { IsVisible: true, IsEnabled: true }
+                        ? returnFocus : AddFriendToggleButton);
+                }
+            });
+        }
+    }
+
+    private void FocusFriendListControl()
+    {
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+            Keyboard.Focus(_friendProfileReturnFocus is { IsVisible: true, IsEnabled: true }
+                ? _friendProfileReturnFocus : AddFriendToggleButton));
     }
 
     private void CloseFriendActionsPopup()
@@ -450,20 +540,4 @@ public partial class FriendsDrawerV2 : UserControl
         }
     }
 
-    private static T? FindAncestor<T>(DependencyObject? source)
-        where T : DependencyObject
-    {
-        DependencyObject? current = source;
-        while (current is not null)
-        {
-            if (current is T match)
-            {
-                return match;
-            }
-            current = current is Visual or System.Windows.Media.Media3D.Visual3D
-                ? VisualTreeHelper.GetParent(current)
-                : LogicalTreeHelper.GetParent(current);
-        }
-        return null;
-    }
 }

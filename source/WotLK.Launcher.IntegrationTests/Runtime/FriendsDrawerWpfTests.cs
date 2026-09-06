@@ -1,5 +1,6 @@
 using System.IO;
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -79,6 +80,29 @@ internal static class FriendsDrawerWpfTests
             && populated.Current.Friends.Any(friend => !friend.HasAvatarImage),
             "Le scénario peuplé doit mélanger photos synchronisées et fallback.");
 
+        FriendUiItem profile = populated.Current.Friends.First(friend => friend.AllCharacters.Length == 3);
+        Equal(2, profile.OtherCharacters.Length, "Le personnage mis en avant ne doit pas être répété.");
+        True(profile.OtherCharacters.All(character => character.Name != profile.FeaturedCharacter?.Name),
+            "Les autres personnages doivent exclure le personnage principal.");
+        FriendUiItem offline = profile with
+        {
+            IsOnline = false,
+            Characters = profile.AllCharacters.Select(character => character with { IsOnline = false }).ToImmutableArray()
+        };
+        Equal("DERNIER PERSONNAGE JOUÉ", offline.FeaturedCharacterTitle, "Hors ligne, il ne s'agit pas d'un personnage actif.");
+        Equal("LAST CHARACTER PLAYED", LauncherLocalization.TranslateFromFrench(offline.FeaturedCharacterTitle),
+            "Le libellé hors ligne doit être traduit.");
+        FriendUiItem online = offline with
+        {
+            IsOnline = true,
+            Characters = offline.AllCharacters.Select((character, index) => character with { IsOnline = index == 1 }).ToImmutableArray()
+        };
+        Equal("Frostoon", online.FeaturedCharacter?.Name ?? "", "Un personnage réellement en ligne doit être prioritaire.");
+        Equal("PERSONNAGE ACTIF", online.FeaturedCharacterTitle, "Le personnage actif doit suivre la présence réelle.");
+        FriendUiItem emptyProfile = profile with { Characters = [] };
+        True(!emptyProfile.HasFeaturedCharacter && !emptyProfile.HasOtherCharacters,
+            "Un compte sans personnage ne doit pas créer de fiche vide.");
+
         FriendsUiState empty = LauncherV2PreviewData.CreateFriends(FriendsPreviewScenario.Empty);
         True(empty.Current.ShowsGlobalEmpty, "L’état vide doit être explicite.");
         FriendsUiState network = LauncherV2PreviewData.CreateFriends(FriendsPreviewScenario.NetworkError);
@@ -148,6 +172,12 @@ internal static class FriendsDrawerWpfTests
                     ShutdownMode = ShutdownMode.OnExplicitShutdown
                 };
                 LoadV2Resources(application);
+                foreach (byte classId in new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 11 })
+                {
+                    FriendCharacterUiItem character = new("Test", "Classe", 80, "", false, "", classId);
+                    BitmapImage icon = new(new Uri("pack://application:,,," + character.ClassIconPath));
+                    True(icon.PixelWidth >= 32 && icon.PixelHeight >= 32, "Chaque icône de classe doit être embarquée et décodable.");
+                }
                 await ValidateScenariosAndCapturesAsync(captureDirectory);
                 await ValidateFocusAndClosureAsync();
                 await ValidateBusyRequestSurvivesDrawerClosureAsync();
@@ -227,9 +257,17 @@ internal static class FriendsDrawerWpfTests
                 SavePng(
                     profileWindow,
                     Path.Combine(captureDirectory, "07-friend-profile-1440x860.png"));
+                profileWindow.Width = 1080;
+                profileWindow.Height = 680;
+                await DelayAndPumpAsync(120);
+                SavePng(profileWindow, Path.Combine(captureDirectory, "08-friend-profile-1080x680.png"));
+                LauncherLocalization.SetLocale("en-US");
+                await DelayAndPumpAsync(150);
+                SavePng(profileWindow, Path.Combine(captureDirectory, "09-friend-profile-en-1080x680.png"));
             }
             finally
             {
+                LauncherLocalization.SetLocale("fr-FR");
                 profileWindow.Close();
                 await PumpAsync(DispatcherPriority.Background);
             }
@@ -255,9 +293,9 @@ internal static class FriendsDrawerWpfTests
         True(drawer.FindName("RefreshFriendsButton") is null,
             "L’actualisation manuelle doit disparaître au profit du timer social.");
         Equal(
-            $"{window.FriendsState.Current.Friends.Length} ami{(window.FriendsState.Current.Friends.Length > 1 ? "s" : string.Empty)} · {window.FriendsState.Current.OnlineCount} en jeu",
+            $"{window.FriendsState.Current.Friends.Length} ami{(window.FriendsState.Current.Friends.Length > 1 ? "s" : string.Empty)} · {window.FriendsState.Current.OnlineCount} en ligne",
             window.FriendsState.Current.FriendsSummary,
-            "Le résumé compact doit afficher le total avant le nombre en jeu.");
+            "Le résumé compact doit afficher le total avant le nombre en ligne.");
         True(!drawer.IsAddFriendEditorOpen
             && Required<Border>(drawer, "AddFriendPanel").ActualHeight <= 0.5,
             "Le champ d’ajout doit rester replié par défaut.");
@@ -402,6 +440,10 @@ internal static class FriendsDrawerWpfTests
                 "Cliquer sur un ami doit pouvoir ouvrir sa fiche détaillée.");
             Equal(3, window.FriendsState.SelectedFriend?.AllCharacters.Length ?? 0,
                 "La fiche doit afficher tous les personnages fournis par Atlas.");
+            Equal(2, Required<ItemsControl>(drawer, "OtherCharactersList").Items.Count,
+                "La liste WPF doit exclure le personnage déjà présenté dans l'encart principal.");
+            FriendCharacterUiItem featured = (FriendCharacterUiItem)Required<ContentControl>(drawer, "FeaturedCharacterCard").Content;
+            True(featured.HasClassIcon && featured.IsFeatured, "La fiche doit distinguer le personnage mis en avant avec son icône de classe.");
             True(!string.IsNullOrWhiteSpace(window.FriendsState.SelectedFriend?.DisplayBio),
                 "La fiche doit exposer la bio du profil.");
             RaisePreviewKey(window, Key.Escape);

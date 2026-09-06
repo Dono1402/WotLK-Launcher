@@ -17,6 +17,7 @@ using WotLK.Launcher.Game;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2;
 using WotLK.Launcher.UI.V2.Commands;
+using WotLK.Launcher.UI.V2.Localization;
 using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Preview;
 using WotLK.Launcher.UI.V2.Views;
@@ -86,7 +87,7 @@ internal static class LauncherDashboardTests
         True(emptySummaryView.CanOpenLatestPatchNote, "Une note réelle doit pouvoir être ouverte dans le lecteur léger.");
     }
 
-    private static void ProjectCategorizedPatchNotesWithLegacyFallback()
+    internal static void ProjectCategorizedPatchNotesWithLegacyFallback()
     {
         DateTimeOffset publishedAt = new(2026, 9, 4, 9, 0, 0, TimeSpan.Zero);
         LauncherNews structured = new(
@@ -137,14 +138,40 @@ internal static class LauncherDashboardTests
             "Le brouillon local ne doit jamais paraître déjà publié.");
         True(localClient.PatchNotes[0].Sections.SelectMany(section => section.Items).All(item => !item.Contains(".cs", StringComparison.OrdinalIgnoreCase)),
             "Le brouillon utilisateur ne doit pas contenir de détail de code.");
-        True(localClient.PatchNotes[0].Sections.Any(section =>
-                string.Equals(section.Title, "Paramètres", StringComparison.Ordinal)
-                && section.Items.Any(item => item.Contains("français ou en anglais", StringComparison.Ordinal))),
-            "Le brouillon local doit répertorier la langue d'interface dans Paramètres.");
-        True(localClient.PatchNotes[0].Sections.Any(section =>
-                string.Equals(section.Title, "Social", StringComparison.Ordinal)
-                && section.Items.Any(item => item.Contains("demandes d’ami", StringComparison.Ordinal))),
-            "Le brouillon local doit répertorier les notifications sociales.");
+        PatchNoteEntryViewState draft = localClient.PatchNotes[0];
+        Equal("1.4.0", draft.Version, "Le brouillon doit conserver la version cible demandée.");
+        Equal("Atlas Launcher 1.4.0", draft.Title,
+            "Le brouillon doit présenter le bilan complet de la version cible.");
+        True(draft.Sections.Select(section => section.Title).SequenceEqual(
+            new[] { "Launcher", "Jeu", "Profil et compte", "Amis et présence", "Addons",
+                "Paramètres et Windows", "Notes de version et mises à jour", "Corrections d’interaction",
+                "Profil et armurerie 3D", "Installation et distribution" }),
+            "Le brouillon complet doit conserver chaque rubrique et couvrir la distribution du profil public.");
+        string[] draftItems = draft.Sections.SelectMany(section => section.Items).ToArray();
+        Equal(53, draftItems.Length, "Le brouillon doit conserver les 50 points précédents et ajouter les trois points de distribution.");
+        True(draft.Sections[^2].Items[0].Contains("intégrés au client public", StringComparison.Ordinal)
+            && draft.Sections[^1].Items.Length == 3
+            && draft.Sections[^1].Items[1].Contains("compte connecté", StringComparison.Ordinal)
+            && draft.Sections[^1].Items[2].Contains("Microsoft WebView2", StringComparison.Ordinal),
+            "Le brouillon 1.4.0 doit décrire le profil public, le périmètre du compte et le composant d’affichage automatique.");
+        True(draft.Sections[^2].Items[3].Contains("dernier relevé serveur disponible", StringComparison.Ordinal)
+            && draft.Sections[^2].Items[3].Contains("valeurs manquantes", StringComparison.Ordinal),
+            "Les statistiques doivent rester conditionnées aux relevés disponibles.");
+        True(LauncherLocalization.TranslateFromFrench(draft.Intro) != draft.Intro,
+            "L’introduction du brouillon 1.4.0 doit être traduite en anglais.");
+        True(draftItems.All(item => LauncherLocalization.TranslateFromFrench(item) != item),
+            "Chaque changement du brouillon doit être traduit en anglais.");
+        True(projected.PatchNotes.All(note => !note.IsDraft),
+            "La projection publique ne doit jamais ajouter le brouillon local.");
+        Equal(structured.Title, localClient.PatchNotes[1].Title,
+            "La note publiée doit rester intacte après le brouillon.");
+        True(localClient.PatchNotes[1].Sections.Select(section => section.Title)
+                .SequenceEqual(projected.PatchNotes[0].Sections.Select(section => section.Title))
+            && localClient.PatchNotes[1].Sections.SelectMany(section => section.Items)
+                .SequenceEqual(projected.PatchNotes[0].Sections.SelectMany(section => section.Items)),
+            "Le brouillon ne doit pas modifier les sections publiées.");
+        Equal(localClient.PatchNotes.Length, LocalPatchNotesDraft.PrependTo(localClient.PatchNotes).Length,
+            "Un rafraîchissement ne doit pas dupliquer le brouillon.");
     }
 
     private static async Task RefuseRequestsWithoutSessionAsync()
@@ -636,8 +663,11 @@ internal static class LauncherDashboardTests
                     "Une build locale doit être identifiable près de la marque.");
                 Equal("LOCAL", Required<TextBlock>(window, "LocalBuildBadgeText").Text,
                     "Le badge local doit rester court et explicite.");
-                Equal(3, heroCopy.Children.Count,
-                    "Le statut Client prêt ne doit plus occuper le héros Jeu.");
+                Equal(4, heroCopy.Children.Count,
+                    "Le héros doit regrouper cartouche, titre en deux lignes, sous-titre et repères sans dupliquer Client prêt.");
+                Equal(game.Title,
+                    Required<TextBlock>(gameView, "HeroTitle").Text + " " + Required<TextBlock>(gameView, "HeroTitleSecond").Text,
+                    "Les deux lignes natives du titre doivent conserver le contenu lié à l’état.");
                 True(gameView.FindName("OptionsButton") is null,
                     "Le raccourci Options ne doit plus occuper l’action principale de la page Jeu.");
                 True(gameView.FindName("NewsCard") is null && gameView.FindName("InstallCard") is null,
@@ -673,23 +703,34 @@ internal static class LauncherDashboardTests
                 Equal(afterConstruction + 1, propertyNotifications, "Un snapshot doit produire une notification atomique groupée.");
                 Equal(originalClientStatus, game.ClientStatus, "Le royaume ne doit pas modifier le client.");
                 True(noteAction.IsEnabled, "Une note réelle doit activer le bouton Mises à jour.");
-                True(noteAction.Content is System.Windows.Shapes.Path,
-                    "Le bouton Mises à jour doit rester limité à son pictogramme.");
-                Equal(78d, noteAction.Width, "Le bouton Mises à jour doit être agrandi de 50 %.");
-                Equal(78d, noteAction.Height, "Le bouton Mises à jour doit rester carré.");
-                Equal(285d, primaryAction.Width, "Le bouton Jouer large doit être agrandi de 50 %.");
-                Equal(78d, primaryAction.Height, "Le bouton Jouer doit rester aligné avec Mises à jour.");
-                Equal(primaryAction.Width, gameServerStatus.Width,
-                    "Le statut du serveur doit être aligné sur la largeur du bouton Jouer.");
-                Point statusBottom = gameServerStatus.TranslatePoint(
-                    new Point(0, gameServerStatus.ActualHeight),
-                    gameView);
+                window.Width = 1672;
+                window.Height = 941;
+                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+                window.UpdateLayout();
+                True(noteAction.Content is StackPanel && Required<TextBlock>(gameView, "LatestPatchNoteLabel").IsVisible,
+                    "Notes de version doit associer son pictogramme à un libellé natif visible.");
+                True(Math.Abs(noteAction.ActualWidth - 210) <= 1 && Math.Abs(noteAction.ActualHeight - 91) <= 1,
+                    "Notes de version doit respecter le format du pilote à 1672 × 941 DIPs.");
+                True(Math.Abs(primaryAction.ActualWidth - 322) <= 1 && Math.Abs(primaryAction.ActualHeight - 91) <= 1,
+                    "Jouer doit respecter le format 322 × 91 du pilote.");
+                Border realmStatusCard = Required<Border>(gameView, "RealmStatusCard");
+                True(Math.Abs(realmStatusCard.ActualWidth - 575) <= 1 && Math.Abs(realmStatusCard.ActualHeight - 152) <= 1,
+                    "Le statut doit occuper la carte native 575 × 152 en bas à gauche.");
+                Point statusOrigin = realmStatusCard.TranslatePoint(new Point(0, 0), gameView);
                 Point playTop = primaryAction.TranslatePoint(new Point(0, 0), gameView);
-                True(statusBottom.Y < playTop.Y,
-                    "Le statut du serveur doit apparaître au-dessus du bouton Jouer.");
-                True(Required<Rectangle>(gameView, "HeroArtwork").Fill is ImageBrush { AlignmentX: AlignmentX.Right, ImageSource: BitmapImage heroSource }
-                    && heroSource.UriSource.OriginalString.EndsWith("LichKingFrostmourneHero.jpg", StringComparison.Ordinal),
-                    "La page Jeu doit utiliser le nouveau visuel du Roi-liche ancré à droite.");
+                True(Math.Abs(statusOrigin.X - 59) <= 2 && Math.Abs(statusOrigin.Y - 730) <= 2,
+                    "La carte d’état doit conserver l’ancrage inférieur gauche de la référence.");
+                True(Math.Abs(playTop.X - 1291) <= 2 && Math.Abs(playTop.Y - 770) <= 2,
+                    "Jouer doit conserver l’ancrage inférieur droit de la référence.");
+                True(realmStatusCard.IsAncestorOf(gameServerStatus),
+                    "Le statut réel doit rester contenu dans la carte d’état.");
+                True(Required<Rectangle>(gameView, "HeroArtwork").Fill is ImageBrush { AlignmentX: AlignmentX.Right, Stretch: Stretch.UniformToFill, ImageSource: BitmapImage heroSource }
+                    && heroSource.UriSource.OriginalString.EndsWith("AtlasGamePilotA.png", StringComparison.Ordinal),
+                    "Le pilote doit utiliser le fond candidat A en préservant ses proportions.");
+                window.Width = 1440;
+                window.Height = 860;
+                await dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+                window.UpdateLayout();
                 if (!string.IsNullOrWhiteSpace(captureDirectory))
                 {
                     Directory.CreateDirectory(captureDirectory);
@@ -715,7 +756,10 @@ internal static class LauncherDashboardTests
                 window.UpdateLayout();
                 Equal(LauncherShellPage.PatchNotes, window.CurrentPage, "L'onglet doit ouvrir les notes de mise à jour.");
                 Equal(Visibility.Visible, window.PatchNotesPage.Visibility, "La page des notes doit être visible.");
-                Equal(1, window.PatchNotesPage.ListHost.Items.Count, "La liste complète projetée doit alimenter la page.");
+                Equal(LauncherBuildFlavor.IsLocalClient ? 2 : 1, window.PatchNotesPage.ListHost.Items.Count,
+                    "La page doit conserver la note publiée et, uniquement en local, le brouillon.");
+                Equal("Notes de version", Required<TextBlock>(window, "PatchNotesNavigationLabel").Text,
+                    "La navigation doit distinguer les notes de version de la mise à jour du launcher.");
                 True(window.PatchNotesPage.FindName("RefreshPatchNotesButton") is null,
                     "Les notes actualisées automatiquement ne doivent plus afficher de bouton manuel.");
                 Equal(ScrollBarVisibility.Disabled, window.PatchNotesPage.ScrollHost.HorizontalScrollBarVisibility,

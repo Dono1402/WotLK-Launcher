@@ -1,5 +1,14 @@
 # WotLK Launcher
 
+## Version 1.4.0
+
+[Installer et télécharger la version 1.4.0](https://github.com/Dono1402/WotLK-Launcher/releases/tag/v1.4.0)
+
+Le profil et l’armurerie 3D sont intégrés au client public. Cette version comprend aussi la refonte de l’interface, les améliorations du compte, de la présence des amis et des addons.
+
+[Notes en français](releases/v1.4.0/PATCH-NOTES.md) · [English release notes](releases/v1.4.0/PATCH-NOTES.en.md) · [Instructions de compilation](releases/v1.4.0/BUILD.md)
+
+
 Remote cible: `git@github.com:Dono1402/WotLK-Launcher.git`
 
 Repo serveur pour historiser les versions publiees du launcher WotLK.

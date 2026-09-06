@@ -137,7 +137,8 @@ public static class LauncherV2PreviewData
                 ClientVersion: "3.4.3.54261"),
             new UpdateSettingsViewState(
                 InstalledLauncherVersion: "v1.1.0",
-                AvailableLauncherVersion: "v1.1.0"),
+                AvailableLauncherVersion: "v1.1.0",
+                HasChecked: true),
             new NotificationSettingsViewState(FriendPresence: true),
             new DiagnosticSettingsViewState(
                 LogLocation: @"%LOCALAPPDATA%\Atlas Launcher\Logs",
@@ -491,7 +492,10 @@ public static class LauncherV2PreviewData
             GamePreviewScenario.RealmOffline => new GameUiState
             {
                 Scenario = scenario,
-                SemanticTone = GameSemanticTone.Success
+                SemanticTone = GameSemanticTone.Success,
+                PrimaryActionLabel = "Serveur indisponible",
+                PrimaryActionUnavailableReason = "Serveur indisponible",
+                IsPrimaryActionEnabled = false
             },
             _ => new GameUiState
             {
@@ -499,7 +503,8 @@ public static class LauncherV2PreviewData
                 SemanticTone = GameSemanticTone.Success
             }
         };
-        state.AttachPrimaryActionCommand(PreviewCommand.Instance);
+        state.AttachPrimaryActionCommand(scenario == GamePreviewScenario.RealmOffline
+            ? DisabledCommand.Instance : PreviewCommand.Instance);
         return state;
     }
 
@@ -692,9 +697,9 @@ public static class LauncherV2PreviewData
                 : accountId == 2
                     ?
                     [
-                        new FriendCharacterUiItem(character, "Mage", 12, "Couronne de glace", online, presence),
-                        new FriendCharacterUiItem("Frostoon", "Chevalier de la mort", 80, "Dalaran", false, "Vu le 03/09/2026 à 22:14"),
-                        new FriendCharacterUiItem("Warthheal", "Prêtre", 74, "Les Grisonnes", false, "Vu le 30/08/2026 à 18:42")
+                        new FriendCharacterUiItem(character, "Mage", 12, "Couronne de glace", online, presence, 8),
+                        new FriendCharacterUiItem("Frostoon", "Chevalier de la mort", 80, "Dalaran", false, "Vu le 03/09/2026 à 22:14", 6),
+                        new FriendCharacterUiItem("Warthheal", "Prêtre", 74, "Les Grisonnes", false, "Vu le 30/08/2026 à 18:42", 5)
                     ]
                     : [new FriendCharacterUiItem(character, details.Split(' ')[0], 80, string.Empty, online, presence)]);
     }

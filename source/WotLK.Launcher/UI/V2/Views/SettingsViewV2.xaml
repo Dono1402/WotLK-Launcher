@@ -7,116 +7,19 @@
              mc:Ignorable="d"
              d:DesignWidth="1440"
              d:DesignHeight="796"
-             Background="{StaticResource AtlasV2.Brush.Window}"
-             FontFamily="{StaticResource AtlasV2.Font.Manrope}"
+             Background="Transparent"
+             FontFamily="{StaticResource AtlasV2.Font.Inter}"
              Focusable="False"
-             TextOptions.TextFormattingMode="Display"
+             TextOptions.TextFormattingMode="Ideal"
              TextOptions.TextRenderingMode="ClearType"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True">
     <UserControl.Resources>
-        <Style x:Key="AtlasV2.Settings.NavButton"
-               TargetType="{x:Type Button}"
-               BasedOn="{StaticResource AtlasV2.Button.Base}">
-            <Setter Property="Height" Value="48"/>
-            <Setter Property="Margin" Value="0,2"/>
-            <Setter Property="Padding" Value="14,0"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextSecondary}"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="{x:Type Button}">
-                        <Grid x:Name="Surface"
-                              Background="{TemplateBinding Background}">
-                            <Border x:Name="SelectionIndicator"
-                                    Width="3"
-                                    Margin="0,9,0,9"
-                                    HorizontalAlignment="Left"
-                                    Background="{StaticResource AtlasV2.Brush.Gold}"
-                                    CornerRadius="0,2,2,0"
-                                    Visibility="Collapsed"/>
-                            <ContentPresenter Margin="{TemplateBinding Padding}"
-                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              VerticalAlignment="Center"/>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Surface"
-                                        Property="Background"
-                                        Value="{StaticResource AtlasV2.Brush.SurfaceHover}"/>
-                                <Setter Property="Foreground"
-                                        Value="{StaticResource AtlasV2.Brush.Text}"/>
-                            </Trigger>
-                            <Trigger Property="Tag" Value="Active">
-                                <Setter TargetName="Surface"
-                                        Property="Background"
-                                        Value="{StaticResource AtlasV2.Brush.SurfaceRaised}"/>
-                                <Setter TargetName="SelectionIndicator"
-                                        Property="Visibility"
-                                        Value="Visible"/>
-                                <Setter Property="Foreground"
-                                        Value="{StaticResource AtlasV2.Brush.Text}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="AtlasV2.Settings.OptionTitle"
-               TargetType="{x:Type TextBlock}"
-               BasedOn="{StaticResource AtlasV2.Text.Body}">
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
-        </Style>
-
-        <Style x:Key="AtlasV2.Settings.ReadOnlyAction"
-               TargetType="{x:Type Button}"
-               BasedOn="{StaticResource AtlasV2.Button.Base}">
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="Padding" Value="14,0"/>
-            <Setter Property="Focusable" Value="False"/>
-            <Setter Property="IsHitTestVisible" Value="False"/>
-            <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
-        </Style>
-
-        <Style x:Key="AtlasV2.Settings.Action"
-               TargetType="{x:Type Button}"
-               BasedOn="{StaticResource AtlasV2.Button.Base}">
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="Padding" Value="14,0"/>
-            <Setter Property="Focusable" Value="True"/>
-        </Style>
-
-        <Style x:Key="AtlasV2.Settings.Separator" TargetType="{x:Type Border}">
-            <Setter Property="Height" Value="1"/>
-            <Setter Property="Margin" Value="0,17"/>
-            <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.BorderSoft}"/>
-        </Style>
-
-        <Style x:Key="AtlasV2.Settings.DeferredField"
-               TargetType="{x:Type Border}"
-               BasedOn="{StaticResource AtlasV2.Field.Container}">
-            <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
-            <Style.Triggers>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Opacity" Value="0.48"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="AtlasV2.Settings.DeferredCard"
-               TargetType="{x:Type Border}"
-               BasedOn="{StaticResource AtlasV2.Card}">
-            <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
-            <Style.Triggers>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Opacity" Value="0.48"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/WotLK.Launcher;component/UI/V2/Resources/AtlasV2.SettingsPilot.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid>
@@ -137,27 +40,31 @@
             </ScrollViewer.Resources>
 
             <Grid x:Name="ContentFrame"
-                  MaxWidth="1280"
-                  Margin="34,26,34,38"
+                  MaxWidth="1900"
+                  Margin="67,17,60,66"
                   HorizontalAlignment="Stretch">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <StackPanel x:Name="PageHeader">
-                    <TextBlock Text="ATLAS LAUNCHER"
-                               Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
+                <StackPanel x:Name="PageHeader" Margin="16,0,0,0">
+                    <StackPanel x:Name="PageEyebrow" Orientation="Horizontal" Height="26">
+                        <Border x:Name="PageEyebrowLine" Width="36" Height="2" Margin="4,0,22,0"
+                                Background="#54E4F5" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="PageEyebrowText" Text="A T L A S  L A U N C H E R"
+                                   AutomationProperties.Name="ATLAS LAUNCHER" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="#54E4F5" VerticalAlignment="Center"/>
+                    </StackPanel>
                     <TextBlock x:Name="PageTitle"
-                               Margin="0,6,0,0"
+                               Margin="0,8,0,0"
                                Text="Paramètres"
-                               FontFamily="{StaticResource AtlasV2.Font.Manrope}"
-                               FontSize="30"
+                               FontFamily="{StaticResource AtlasV2.Font.Inter}"
+                               FontSize="72"
                                FontWeight="ExtraBold"
-                               Foreground="{StaticResource AtlasV2.Brush.Text}"/>
-                    <TextBlock Margin="0,5,0,0"
-                               Text="Personnalise Atlas Launcher et ton client WotLK Classic."
-                               Style="{StaticResource AtlasV2.Text.Body}"/>
+                               Foreground="{StaticResource AtlasV2.Brush.TitlePearl}"/>
+                    <TextBlock x:Name="PageSubtitle" Text="Personnalisez votre expérience Atlas Launcher."
+                               FontSize="26" FontWeight="Regular" Foreground="#BED3E5" TextWrapping="Wrap"/>
                     <Border x:Name="RuntimeNotice"
                             Margin="0,12,0,0"
                             Padding="12,9"
@@ -180,32 +87,33 @@
                                        Grid.Column="1"
                                        Margin="8,0,0,0"
                                        TextWrapping="Wrap"
-                                       Style="{StaticResource AtlasV2.Text.Caption}"
+                                       Style="{StaticResource SettingsPilot.Caption}"
                                        Foreground="{StaticResource AtlasV2.Brush.Text}"/>
                         </Grid>
                     </Border>
                 </StackPanel>
 
-                <Grid x:Name="SettingsWorkspace" Grid.Row="1" Margin="0,22,0,0">
+                <Grid x:Name="SettingsWorkspace" Grid.Row="1" Margin="0,37,0,0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition x:Name="NavigationColumn" Width="224"/>
-                        <ColumnDefinition x:Name="NavigationGap" Width="24"/>
+                        <ColumnDefinition x:Name="NavigationColumn" Width="347"/>
+                        <ColumnDefinition x:Name="NavigationGap" Width="17"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
                     <Border x:Name="CategoryNavigation"
                             Grid.Column="0"
-                            Padding="8,10,8,12"
+                            Padding="14"
+                            MinHeight="544"
                             VerticalAlignment="Top"
-                            Background="#A811161C"
-                            BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
+                            Background="{StaticResource AtlasV2.Brush.GlassSurface}"
+                            BorderBrush="{StaticResource AtlasV2.Brush.GlassBorder}"
                             BorderThickness="1"
-                            CornerRadius="8">
+                            CornerRadius="14">
                         <StackPanel>
-                            <TextBlock Margin="12,4,12,9"
-                                       Text="CATÉGORIES"
-                                       Style="{StaticResource AtlasV2.Text.Caption}"
-                                       FontWeight="Bold"/>
+                            <TextBlock x:Name="CategoryHeading" Margin="18,20,18,20"
+                                        Text="CATÉGORIES"
+                                        Style="{StaticResource SettingsPilot.Caption}"
+                                        FontWeight="SemiBold"/>
 
                             <Button x:Name="GeneralCategoryButton"
                                     Style="{StaticResource AtlasV2.Settings.NavButton}"
@@ -319,96 +227,111 @@
                         </StackPanel>
                     </Border>
 
-                    <Grid x:Name="CategoryContentHost" Grid.Column="2">
-                        <StackPanel x:Name="GeneralPanel">
-                            <TextBlock Text="Général"
-                                       Style="{StaticResource AtlasV2.Text.SectionTitle}"
-                                       FontSize="24"/>
-
-                            <Border Margin="0,12,0,0"
-                                    Style="{StaticResource AtlasV2.Card}"
-                                    Padding="22">
+                    <Border x:Name="CategoryContentSurface" Grid.Column="2" MinHeight="544" Padding="20,22"
+                            VerticalAlignment="Top" Background="{StaticResource AtlasV2.Brush.GlassRaised}"
+                            BorderBrush="{StaticResource AtlasV2.Brush.GlassBorder}" BorderThickness="1" CornerRadius="14">
+                    <Grid x:Name="CategoryContentHost">
+                        <StackPanel x:Name="GeneralPanel"
+                                    TextOptions.TextFormattingMode="Ideal"
+                                    TextOptions.TextRenderingMode="ClearType">
+                            <TextBlock Text="Général" Style="{StaticResource SettingsPilot.SectionTitle}"
+                                       FontSize="{DynamicResource SettingsPilot.Font.CategoryTitle}"/>
+                            <TextBlock x:Name="GeneralIntro" Text="Configurez les paramètres de base du launcher."
+                                       FontSize="20" FontWeight="Regular" Foreground="#A6BDD2" TextWrapping="Wrap"/>
+                            <Border x:Name="GeneralPreferencesCard" Margin="0,26,0,0"
+                                    Style="{StaticResource SettingsPilot.Card}" Padding="28,32,38,36">
                                 <StackPanel>
-                                    <TextBlock Text="Préférences du launcher"
-                                               Style="{StaticResource AtlasV2.Text.SectionTitle}"
-                                               FontSize="18"/>
+                                    <TextBlock Text="Préférences du launcher" Style="{StaticResource SettingsPilot.SectionTitle}"/>
+                                    <TextBlock x:Name="GeneralCardDescription" Margin="0,4,0,0"
+                                               Text="Personnalisez le comportement et l’apparence d’Atlas Launcher."
+                                               FontSize="18" FontWeight="Regular" Foreground="#A6BDD2" TextWrapping="Wrap"/>
 
-                                    <Grid Margin="0,20,0,0">
+                                    <Grid x:Name="InterfaceLanguageRow" Margin="0,24,0,0" MinHeight="60">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition x:Name="InterfaceLanguageIconColumn" Width="66"/>
                                             <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="220"/>
+                                            <ColumnDefinition x:Name="InterfaceLanguageFieldColumn" Width="322"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Margin="0,0,20,0"
-                                                   VerticalAlignment="Center"
-                                                   Text="Langue de l’interface"
-                                                   Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
-                                        <ComboBox x:Name="InterfaceLanguageComboBox"
-                                                  Grid.Column="1"
+                                        <Path x:Name="InterfaceLanguageIcon" Width="30" Height="30" Margin="6,0,0,0"
+                                              HorizontalAlignment="Left" VerticalAlignment="Center" Stretch="Uniform"
+                                              Data="M16,2 A14,14 0 1 1 15.99,2 M2,16 H30 M16,2 C7,9 7,23 16,30 M16,2 C25,9 25,23 16,30 M4,8 C11,12 21,12 28,8 M4,24 C11,20 21,20 28,24"
+                                              Stroke="#D6E8F5" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                        <StackPanel x:Name="InterfaceLanguageCopy" Grid.Column="1" Margin="0,10,20,0" VerticalAlignment="Center">
+                                            <TextBlock Text="Langue de l’interface" Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
+                                            <TextBlock Margin="0,5,0,0" Text="Choisissez la langue d’affichage du launcher."
+                                                       Style="{StaticResource SettingsPilot.Helper}"/>
+                                        </StackPanel>
+                                        <ComboBox x:Name="InterfaceLanguageComboBox" Grid.Column="2" VerticalAlignment="Center"
                                                   SelectedValuePath="Tag"
                                                   SelectedValue="{Binding State.Current.General.InterfaceLocale, ElementName=SettingsRoot, Mode=OneWay}"
                                                   IsHitTestVisible="{Binding State.Current.CanChangeInterfaceLocale, ElementName=SettingsRoot}"
                                                   Focusable="{Binding State.Current.CanChangeInterfaceLocale, ElementName=SettingsRoot}"
-                                                  Style="{StaticResource AtlasV2.ComboBox.Field}"
+                                                  Style="{StaticResource SettingsPilot.ComboBox}"
                                                   SelectionChanged="InterfaceLanguageComboBox_SelectionChanged">
                                             <ComboBoxItem Content="Français" Tag="fr-FR"/>
                                             <ComboBoxItem Content="English" Tag="en-US"/>
                                         </ComboBox>
                                     </Grid>
 
-                                    <Border Style="{StaticResource AtlasV2.Settings.Separator}"/>
+                                    <Border x:Name="GeneralFirstSeparator" Margin="66,24,0,19" Style="{StaticResource AtlasV2.Settings.Separator}"/>
 
-                                    <Grid>
+                                    <Grid x:Name="StartWithWindowsRow" MinHeight="54">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition x:Name="StartWithWindowsIconColumn" Width="66"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Margin="0,0,20,0"
-                                                   VerticalAlignment="Center"
-                                                   Text="Démarrer avec Windows"
-                                                   Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
-                                        <ToggleButton x:Name="StartWithWindowsToggle"
-                                                      Grid.Column="1"
-                                                      VerticalAlignment="Center"
+                                        <Path x:Name="StartWithWindowsIcon" Width="30" Height="30" Margin="6,0,0,0"
+                                              HorizontalAlignment="Left" VerticalAlignment="Center" Stretch="Uniform"
+                                              Data="M2,4 L14,2 V15 H2 Z M17,2 L31,0 V15 H17 Z M2,18 H14 V31 L2,29 Z M17,18 H31 V33 L17,31 Z"
+                                              Fill="#D6E8F5"/>
+                                        <StackPanel x:Name="StartWithWindowsCopy" Grid.Column="1" Margin="0,6,20,0" VerticalAlignment="Center">
+                                            <TextBlock Text="Démarrer avec Windows" Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
+                                            <TextBlock Margin="0,5,0,0" Text="Lance automatiquement Atlas Launcher au démarrage de Windows."
+                                                       Style="{StaticResource SettingsPilot.Helper}"/>
+                                        </StackPanel>
+                                        <ToggleButton x:Name="StartWithWindowsToggle" Grid.Column="2" VerticalAlignment="Center"
                                                       IsChecked="{Binding State.Current.General.StartWithWindows, ElementName=SettingsRoot, Mode=OneWay}"
                                                       IsHitTestVisible="{Binding State.Current.CanChangeStartWithWindows, ElementName=SettingsRoot}"
                                                       Focusable="{Binding State.Current.CanChangeStartWithWindows, ElementName=SettingsRoot}"
-                                                      Style="{StaticResource AtlasV2.Toggle}"
-                                                      Click="StartWithWindowsToggle_Click"/>
+                                                      Style="{StaticResource SettingsPilot.Toggle}" Click="StartWithWindowsToggle_Click"/>
                                     </Grid>
 
-                                    <Border Style="{StaticResource AtlasV2.Settings.Separator}"/>
+                                    <Border x:Name="GeneralSecondSeparator" Margin="66,24,0,19" Style="{StaticResource AtlasV2.Settings.Separator}"/>
 
-                                    <Grid>
+                                    <Grid x:Name="MinimizeToTrayRow" MinHeight="54">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition x:Name="MinimizeToTrayIconColumn" Width="66"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Margin="0,0,20,0"
-                                                   VerticalAlignment="Center"
-                                                   Text="Réduire dans la zone de notification à la fermeture d’Atlas Launcher"
-                                                   Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
-                                        <ToggleButton x:Name="MinimizeToTrayOnCloseToggle"
-                                                      Grid.Column="1"
-                                                      VerticalAlignment="Center"
+                                        <Path x:Name="MinimizeToTrayIcon" Width="30" Height="30" Margin="6,0,0,0"
+                                              HorizontalAlignment="Left" VerticalAlignment="Center" Data="{StaticResource AtlasV2.Icon.Bell}"
+                                              Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="#D6E8F5"/>
+                                        <StackPanel x:Name="MinimizeToTrayCopy" Grid.Column="1" Margin="0,6,20,0" VerticalAlignment="Center">
+                                            <TextBlock Text="Réduire dans la zone de notification à la fermeture d’Atlas Launcher"
+                                                       Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
+                                            <TextBlock Margin="0,5,0,0" Text="Le launcher continuera de fonctionner dans la zone de notification."
+                                                       Style="{StaticResource SettingsPilot.Helper}"/>
+                                        </StackPanel>
+                                        <ToggleButton x:Name="MinimizeToTrayOnCloseToggle" Grid.Column="2" VerticalAlignment="Center"
                                                       IsChecked="{Binding State.Current.General.MinimizeToTrayOnClose, ElementName=SettingsRoot, Mode=OneWay}"
                                                       IsHitTestVisible="{Binding State.Current.CanChangeBehavior, ElementName=SettingsRoot}"
                                                       Focusable="{Binding State.Current.CanChangeBehavior, ElementName=SettingsRoot}"
-                                                      Style="{StaticResource AtlasV2.Toggle}"
-                                                      Click="MinimizeToTrayOnCloseToggle_Click"/>
+                                                      Style="{StaticResource SettingsPilot.Toggle}" Click="MinimizeToTrayOnCloseToggle_Click"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
-
                         <StackPanel x:Name="GamePanel" Visibility="Collapsed">
                             <TextBlock Text="Jeu"
-                                       Style="{StaticResource AtlasV2.Text.SectionTitle}"
-                                       FontSize="24"/>
+                                       Style="{StaticResource SettingsPilot.SectionTitle}"
+                                       FontSize="{DynamicResource SettingsPilot.Font.CategoryTitle}"/>
 
                             <Border x:Name="InstallationCard"
                                     Margin="0,12,0,0"
-                                    Style="{StaticResource AtlasV2.Card}"
-                                    Padding="22">
+                                    Style="{StaticResource SettingsPilot.Card}"
+                                    Padding="{DynamicResource SettingsPilot.CardPadding}">
                                 <StackPanel>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -423,21 +346,21 @@
                                               Style="{StaticResource AtlasV2.Icon.Stroke}"/>
                                         <TextBlock Grid.Column="1"
                                                    Text="Installation du jeu"
-                                                   Style="{StaticResource AtlasV2.Text.SectionTitle}"
-                                                   FontSize="18"/>
+                                                   Style="{StaticResource SettingsPilot.SectionTitle}"
+                                                   FontSize="{DynamicResource SettingsPilot.Font.SectionTitle}"/>
                                         <TextBlock Grid.Column="2"
                                                    VerticalAlignment="Center"
                                                    Text="{Binding State.Current.Game.ClientVersion, ElementName=SettingsRoot}"
-                                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                                   Style="{StaticResource SettingsPilot.Caption}"
                                                    Foreground="{StaticResource AtlasV2.Brush.Success}"/>
                                     </Grid>
 
                                     <TextBlock Margin="0,20,0,0"
                                                Text="DOSSIER DU CLIENT"
-                                               Style="{StaticResource AtlasV2.Text.Caption}"
-                                               FontWeight="Bold"/>
+                                               Style="{StaticResource SettingsPilot.Caption}"
+                                               FontWeight="SemiBold"/>
                                     <Border Margin="0,8,0,0"
-                                            Style="{StaticResource AtlasV2.Field.Container}">
+                                            Style="{StaticResource SettingsPilot.Field}">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="24"/>
@@ -452,7 +375,7 @@
                                                        Margin="8,0,0,0"
                                                        VerticalAlignment="Center"
                                                        Text="{Binding State.Current.Game.InstallPath, ElementName=SettingsRoot}"
-                                                       Style="{StaticResource AtlasV2.Text.Body}"
+                                                       Style="{StaticResource SettingsPilot.Body}"
                                                        Foreground="{StaticResource AtlasV2.Brush.Text}"
                                                        TextWrapping="NoWrap"
                                                        TextTrimming="CharacterEllipsis"/>
@@ -504,12 +427,12 @@
                             </Border>
 
                             <Border Margin="0,14,0,0"
-                                    Style="{StaticResource AtlasV2.Card}"
-                                    Padding="22">
+                                    Style="{StaticResource SettingsPilot.Card}"
+                                    Padding="{DynamicResource SettingsPilot.CardPadding}">
                                 <StackPanel>
                                     <TextBlock Text="Configuration du jeu"
-                                               Style="{StaticResource AtlasV2.Text.SectionTitle}"
-                                               FontSize="18"/>
+                                               Style="{StaticResource SettingsPilot.SectionTitle}"
+                                               FontSize="{DynamicResource SettingsPilot.Font.SectionTitle}"/>
 
                                     <Grid Margin="0,19,0,0">
                                         <Grid.ColumnDefinitions>
@@ -526,7 +449,7 @@
                                                   SelectedValue="{Binding State.Current.Game.GameLocale, ElementName=SettingsRoot, Mode=OneWay}"
                                                   IsHitTestVisible="{Binding State.Current.CanChangeGameLocale, ElementName=SettingsRoot}"
                                                   Focusable="{Binding State.Current.CanChangeGameLocale, ElementName=SettingsRoot}"
-                                                  Style="{StaticResource AtlasV2.ComboBox.Field}"
+                                                  Style="{StaticResource SettingsPilot.ComboBox}"
                                                   SelectionChanged="GameLanguageComboBox_SelectionChanged">
                                             <ComboBoxItem Content="Français" Tag="frFR"/>
                                             <ComboBoxItem Content="English" Tag="enUS"/>
@@ -550,7 +473,7 @@
                                                       IsChecked="{Binding State.Current.Game.InstantQuestText, ElementName=SettingsRoot, Mode=OneWay}"
                                                       IsHitTestVisible="{Binding State.Current.CanChangeInstantQuestText, ElementName=SettingsRoot}"
                                                       Focusable="{Binding State.Current.CanChangeInstantQuestText, ElementName=SettingsRoot}"
-                                                      Style="{StaticResource AtlasV2.Toggle}"
+                                                      Style="{StaticResource SettingsPilot.Toggle}"
                                                       Click="InstantQuestTextToggle_Click"/>
                                     </Grid>
                                 </StackPanel>
@@ -559,74 +482,57 @@
 
                         <StackPanel x:Name="UpdatesPanel" Visibility="Collapsed">
                             <TextBlock Text="Mises à jour"
-                                       Style="{StaticResource AtlasV2.Text.SectionTitle}"
-                                       FontSize="24"/>
+                                       Style="{StaticResource SettingsPilot.SectionTitle}"
+                                       FontSize="{DynamicResource SettingsPilot.Font.CategoryTitle}"/>
 
-                            <Border Margin="0,12,0,0"
-                                    Style="{StaticResource AtlasV2.Card}"
-                                    Padding="22">
-                                <StackPanel>
-                                    <TextBlock Text="Atlas Launcher"
-                                               Style="{StaticResource AtlasV2.Text.SectionTitle}"
-                                               FontSize="18"/>
-
-                                    <Grid Margin="0,20,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="18"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Border Padding="15,12"
-                                                Background="{StaticResource AtlasV2.Brush.Field}"
-                                                BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
-                                                BorderThickness="1"
-                                                CornerRadius="6">
-                                            <StackPanel>
-                                                <TextBlock Text="VERSION INSTALLÉE"
-                                                           Style="{StaticResource AtlasV2.Text.Caption}"
-                                                           FontWeight="Bold"/>
-                                                <TextBlock x:Name="LauncherVersionText"
-                                                           Margin="0,5,0,0"
-                                                           Text="{Binding State.Current.Updates.InstalledLauncherVersion, ElementName=SettingsRoot}"
-                                                           Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
-                                            </StackPanel>
-                                        </Border>
-                                        <Border Grid.Column="2"
-                                                Padding="15,12"
-                                                Background="{StaticResource AtlasV2.Brush.Field}"
-                                                BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
-                                                BorderThickness="1"
-                                                CornerRadius="6">
-                                            <StackPanel>
-                                                <TextBlock Text="VERSION DISPONIBLE"
-                                                           Style="{StaticResource AtlasV2.Text.Caption}"
-                                                           FontWeight="Bold"/>
-                                                <TextBlock x:Name="AvailableLauncherVersionText"
-                                                           Margin="0,5,0,0"
-                                                           Text="{Binding State.Current.Updates.AvailableLauncherVersion, ElementName=SettingsRoot}"
-                                                           Style="{StaticResource AtlasV2.Settings.OptionTitle}"
-                                                           Foreground="{StaticResource AtlasV2.Brush.Gold}"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </Grid>
-
-                                </StackPanel>
-                            </Border>
+                            <WrapPanel Margin="0,24,0,0" VerticalAlignment="Center">
+                                <TextBlock Margin="0,0,7,8" Text="Atlas Launcher"
+                                           Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
+                                <TextBlock x:Name="LauncherVersionText" Margin="0,0,12,8"
+                                           Text="{Binding State.Current.Updates.InstalledLauncherVersion, ElementName=SettingsRoot}"
+                                           Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
+                                <TextBlock Margin="0,0,12,8" Text="·" Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
+                                <TextBlock x:Name="LauncherUpdateStatusText" Margin="0,0,0,8"
+                                           Text="{Binding State.Current.Updates.StatusText, ElementName=SettingsRoot}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource AtlasV2.Settings.OptionTitle}">
+                                            <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding State.Current.Updates.IsUpToDate, ElementName=SettingsRoot}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Success}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding State.Current.Updates.IsUpdateAvailable, ElementName=SettingsRoot}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Success}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding State.Current.Updates.IsChecking, ElementName=SettingsRoot}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding State.Current.Updates.IsUpdating, ElementName=SettingsRoot}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding State.Current.Updates.HasError, ElementName=SettingsRoot}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Warning}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </WrapPanel>
                         </StackPanel>
 
                         <StackPanel x:Name="NotificationsPanel" Visibility="Collapsed">
                             <TextBlock Text="Notifications"
-                                       Style="{StaticResource AtlasV2.Text.SectionTitle}"
-                                       FontSize="24"/>
+                                       Style="{StaticResource SettingsPilot.SectionTitle}"
+                                       FontSize="{DynamicResource SettingsPilot.Font.CategoryTitle}"/>
 
                             <Border x:Name="NotificationsCard"
                                     Margin="0,12,0,0"
-                                    Style="{StaticResource AtlasV2.Card}"
-                                    Padding="22">
+                                    Style="{StaticResource SettingsPilot.Card}"
+                                    Padding="{DynamicResource SettingsPilot.CardPadding}">
                                 <StackPanel>
                                     <TextBlock Text="Événements"
-                                               Style="{StaticResource AtlasV2.Text.SectionTitle}"
-                                               FontSize="18"/>
+                                               Style="{StaticResource SettingsPilot.SectionTitle}"
+                                               FontSize="{DynamicResource SettingsPilot.Font.SectionTitle}"/>
 
                                     <Grid Margin="0,20,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -640,7 +546,7 @@
                                                       IsChecked="{Binding State.Current.Notifications.FriendPresence, ElementName=SettingsRoot, Mode=OneWay}"
                                                       IsHitTestVisible="{Binding State.Current.CanChangeFriendPresenceNotifications, ElementName=SettingsRoot}"
                                                       Focusable="{Binding State.Current.CanChangeFriendPresenceNotifications, ElementName=SettingsRoot}"
-                                                      Style="{StaticResource AtlasV2.Toggle}"
+                                                      Style="{StaticResource SettingsPilot.Toggle}"
                                                       Click="FriendPresenceNotificationsToggle_Click"/>
                                     </Grid>
                                 </StackPanel>
@@ -649,16 +555,16 @@
 
                         <StackPanel x:Name="DiagnosticPanel" Visibility="Collapsed">
                             <TextBlock Text="Aide et diagnostic"
-                                       Style="{StaticResource AtlasV2.Text.SectionTitle}"
-                                       FontSize="24"/>
+                                       Style="{StaticResource SettingsPilot.SectionTitle}"
+                                       FontSize="{DynamicResource SettingsPilot.Font.CategoryTitle}"/>
 
                             <Border Margin="0,12,0,0"
-                                    Style="{StaticResource AtlasV2.Card}"
-                                    Padding="22">
+                                    Style="{StaticResource SettingsPilot.Card}"
+                                    Padding="{DynamicResource SettingsPilot.CardPadding}">
                                 <StackPanel>
                                     <TextBlock Text="Outils"
-                                               Style="{StaticResource AtlasV2.Text.SectionTitle}"
-                                               FontSize="18"/>
+                                               Style="{StaticResource SettingsPilot.SectionTitle}"
+                                               FontSize="{DynamicResource SettingsPilot.Font.SectionTitle}"/>
                                     <Grid Margin="0,19,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                         <Path Width="16" Height="16" Data="{StaticResource AtlasV2.Icon.FileText}" Style="{StaticResource AtlasV2.Icon.Stroke}"/>
@@ -681,36 +587,37 @@
 
                             <Border x:Name="StatusVersionsCard"
                                     Margin="0,14,0,0"
-                                    Style="{StaticResource AtlasV2.Card}"
-                                    Padding="22">
+                                    Style="{StaticResource SettingsPilot.Card}"
+                                    Padding="{DynamicResource SettingsPilot.CardPadding}">
                                 <StackPanel>
                                     <TextBlock Text="État et versions"
-                                               Style="{StaticResource AtlasV2.Text.SectionTitle}"
-                                               FontSize="18"/>
+                                               Style="{StaticResource SettingsPilot.SectionTitle}"
+                                               FontSize="{DynamicResource SettingsPilot.Font.SectionTitle}"/>
                                     <Grid Margin="0,18,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                        <TextBlock Text="État local" Style="{StaticResource AtlasV2.Text.Body}"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding State.Current.Diagnostic.LocalState, ElementName=SettingsRoot}" Style="{StaticResource AtlasV2.Text.Body}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
+                                        <TextBlock Text="État local" Style="{StaticResource SettingsPilot.Body}"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding State.Current.Diagnostic.LocalState, ElementName=SettingsRoot}" Style="{StaticResource SettingsPilot.Body}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
                                     </Grid>
                                     <Grid Margin="0,11,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                        <TextBlock Text="État des services" Style="{StaticResource AtlasV2.Text.Body}"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding State.Current.Diagnostic.ServiceState, ElementName=SettingsRoot}" Style="{StaticResource AtlasV2.Text.Body}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Success}"/>
+                                        <TextBlock Text="État des services" Style="{StaticResource SettingsPilot.Body}"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding State.Current.Diagnostic.ServiceState, ElementName=SettingsRoot}" Style="{StaticResource SettingsPilot.Body}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Success}"/>
                                     </Grid>
                                     <Grid Margin="0,11,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                        <TextBlock Text="Atlas Launcher" Style="{StaticResource AtlasV2.Text.Body}"/>
-                                        <TextBlock x:Name="DiagnosticLauncherVersionText" Grid.Column="1" Text="{Binding State.Current.Diagnostic.LauncherVersion, ElementName=SettingsRoot}" Style="{StaticResource AtlasV2.Text.Body}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                                        <TextBlock Text="Atlas Launcher" Style="{StaticResource SettingsPilot.Body}"/>
+                                        <TextBlock x:Name="DiagnosticLauncherVersionText" Grid.Column="1" Text="{Binding State.Current.Diagnostic.LauncherVersion, ElementName=SettingsRoot}" Style="{StaticResource SettingsPilot.Body}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Text}"/>
                                     </Grid>
                                     <Grid Margin="0,11,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                        <TextBlock Text="Client WotLK Classic" Style="{StaticResource AtlasV2.Text.Body}"/>
-                                        <TextBlock x:Name="ClientVersionText" Grid.Column="1" Text="{Binding State.Current.Diagnostic.ClientVersion, ElementName=SettingsRoot}" Style="{StaticResource AtlasV2.Text.Body}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                                        <TextBlock Text="Client WotLK Classic" Style="{StaticResource SettingsPilot.Body}"/>
+                                        <TextBlock x:Name="ClientVersionText" Grid.Column="1" Text="{Binding State.Current.Diagnostic.ClientVersion, ElementName=SettingsRoot}" Style="{StaticResource SettingsPilot.Body}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Text}"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
                     </Grid>
+                    </Border>
                 </Grid>
             </Grid>
         </ScrollViewer>
@@ -752,7 +659,7 @@
                     <TextBlock x:Name="SettingsActionDetailText"
                                Margin="0,2,0,0"
                                Text="Les changements de cette catégorie n’ont pas encore été appliqués."
-                               Style="{StaticResource AtlasV2.Text.Caption}"/>
+                               Style="{StaticResource SettingsPilot.Caption}"/>
                     <ProgressBar x:Name="SettingsActionProgress"
                                  Width="190"
                                  Margin="0,7,0,0"

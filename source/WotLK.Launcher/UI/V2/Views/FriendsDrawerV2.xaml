@@ -14,15 +14,19 @@
              Focusable="False"
              PreviewKeyDown="Root_PreviewKeyDown">
     <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Resources/AtlasV2.OverlaysPilot.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
         <DataTemplate x:Key="AtlasV2.Friends.Avatar">
             <Grid Width="38" Height="38">
                 <Ellipse Fill="{Binding AvatarColor}"/>
                 <TextBlock HorizontalAlignment="Center"
                            VerticalAlignment="Center"
                            Text="{Binding Initial}"
-                           FontFamily="{StaticResource AtlasV2.Font.Manrope}"
+                           FontFamily="{StaticResource AtlasV2.Font.Inter}"
                            FontSize="13"
-                           FontWeight="Bold"
+                           FontWeight="SemiBold"
                            Foreground="#111318"/>
                 <Ellipse AutomationProperties.Name="Photo de profil Atlas">
                     <Ellipse.Fill>
@@ -43,7 +47,7 @@
                 <Ellipse StrokeThickness="1">
                     <Ellipse.Style>
                         <Style TargetType="{x:Type Ellipse}">
-                            <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Border}"/>
+                            <Setter Property="Stroke" Value="{StaticResource AtlasV2.Overlay.CardEdge}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding HasAvatarImage}" Value="True">
                                     <Setter Property="Stroke" Value="{StaticResource AtlasV2.Brush.Gold}"/>
@@ -88,32 +92,61 @@
             <Border MinHeight="66"
                     Margin="0,0,0,7"
                     Padding="11,9"
-                    Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
-                    BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
                     BorderThickness="1"
-                    CornerRadius="6">
+                    CornerRadius="10">
+                <Border.Style>
+                    <Style TargetType="{x:Type Border}">
+                        <Setter Property="Background" Value="{StaticResource AtlasV2.Overlay.Card}"/>
+                        <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Overlay.Divider}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsFeatured}" Value="True">
+                                <Setter Property="Background" Value="{StaticResource AtlasV2.Overlay.CardHover}"/>
+                                <Setter Property="BorderBrush" Value="{Binding ClassColor}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid>
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="42"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <StackPanel>
+                    <Grid Width="32" Height="32" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,3,0,0">
+                        <Path Width="22" Height="22" Data="{StaticResource AtlasV2.Icon.User}"
+                              Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="{Binding ClassColor}"/>
+                        <Image Source="{Binding ClassIconPath}" Stretch="Uniform"
+                               ToolTip="{Binding ClassName}"
+                               AutomationProperties.Name="{Binding ClassName}"
+                               Visibility="{Binding HasClassIcon, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+                    </Grid>
+                    <StackPanel Grid.Column="1">
                         <TextBlock Text="{Binding Name}"
+                                   ToolTip="{Binding Name}"
                                    TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap"
                                    Style="{StaticResource AtlasV2.Text.Body}"
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource AtlasV2.Brush.Text}"/>
                         <TextBlock Margin="0,2,0,0"
-                                   Text="{Binding Details}"
                                    TextTrimming="CharacterEllipsis"
                                    Style="{StaticResource AtlasV2.Text.Caption}"
-                                   Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
+                                   FontSize="13"
+                                   Foreground="{Binding ClassColor}">
+                            <Run Text="{Binding ClassName}"/><Run Text=" · "/><Run Text="niveau "/><Run Text="{Binding Level}"/>
+                        </TextBlock>
+                        <TextBlock Margin="0,3,0,0"
+                                   Text="{Binding ZoneName}"
+                                   FontSize="13"
+                                   Visibility="{Binding HasZone, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
+                                   Style="{StaticResource AtlasV2.Text.Caption}"/>
                         <TextBlock Margin="0,2,0,0"
-                                   Text="{Binding PresenceText}"
+                                   Text="{Binding ProfilePresenceText}"
+                                   FontSize="13"
                                    TextTrimming="CharacterEllipsis"
                                    Style="{StaticResource AtlasV2.Text.Caption}"/>
                     </StackPanel>
-                    <Ellipse Grid.Column="1"
+                    <Ellipse Grid.Column="2"
                              Width="8"
                              Height="8"
                              Margin="10,5,1,0"
@@ -137,10 +170,10 @@
             <Border MinHeight="78"
                     Margin="0,0,0,7"
                     Padding="10"
-                    Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
-                    BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
+                    Background="{StaticResource AtlasV2.Overlay.Card}"
+                    BorderBrush="{StaticResource AtlasV2.Overlay.Divider}"
                     BorderThickness="1"
-                    CornerRadius="6">
+                    CornerRadius="10">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="38"/>
@@ -168,7 +201,7 @@
                             <Button MinWidth="82"
                                     Height="32"
                                     Padding="10,0"
-                                    Style="{StaticResource AtlasV2.Button.GhostCompact}"
+                                    Style="{StaticResource AtlasV2.Overlay.CompactButton}"
                                     Command="{Binding State.AcceptRequestCommand, RelativeSource={RelativeSource AncestorType={x:Type views:FriendsDrawerV2}}}"
                                     CommandParameter="{Binding AccountId}"
                                     AutomationProperties.Name="Accepter la demande"
@@ -177,7 +210,7 @@
                                     Height="32"
                                     Margin="6,0,0,0"
                                     Padding="8"
-                                    Style="{StaticResource AtlasV2.Button.Icon}"
+                                    Style="{StaticResource AtlasV2.Overlay.IconButton}"
                                     Command="{Binding State.RejectRequestCommand, RelativeSource={RelativeSource AncestorType={x:Type views:FriendsDrawerV2}}}"
                                     CommandParameter="{Binding AccountId}"
                                     ToolTip="Refuser"
@@ -195,10 +228,10 @@
             <Border MinHeight="64"
                     Margin="0,0,0,7"
                     Padding="10"
-                    Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
-                    BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
+                    Background="{StaticResource AtlasV2.Overlay.Card}"
+                    BorderBrush="{StaticResource AtlasV2.Overlay.Divider}"
                     BorderThickness="1"
-                    CornerRadius="6">
+                    CornerRadius="10">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="38"/>
@@ -221,7 +254,7 @@
                             Height="32"
                             Padding="9,0"
                             VerticalAlignment="Center"
-                            Style="{StaticResource AtlasV2.Button.GhostCompact}"
+                            Style="{StaticResource AtlasV2.Overlay.CompactButton}"
                             Command="{Binding State.CancelRequestCommand, RelativeSource={RelativeSource AncestorType={x:Type views:FriendsDrawerV2}}}"
                             CommandParameter="{Binding AccountId}"
                             Content="Annuler"/>
@@ -230,22 +263,23 @@
         </DataTemplate>
 
         <DataTemplate x:Key="AtlasV2.Friends.FriendItem">
-            <Border MinHeight="66"
+            <Border x:Name="FriendCard" MinHeight="66"
                     Margin="0,0,0,7"
                     Padding="9"
-                    Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
-                    BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
+                    Background="{StaticResource AtlasV2.Overlay.Card}"
+                    BorderBrush="{StaticResource AtlasV2.Overlay.Divider}"
                     BorderThickness="1"
-                    CornerRadius="6"
-                    Cursor="Hand"
-                    ToolTip="Voir le profil"
-                    MouseLeftButtonUp="FriendItem_MouseLeftButtonUp">
+                    CornerRadius="10">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="38"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="30"/>
                     </Grid.ColumnDefinitions>
+                    <Button x:Name="OpenFriendProfileButton" Grid.ColumnSpan="2" Panel.ZIndex="1"
+                            Margin="-5" Style="{StaticResource AtlasV2.Overlay.FriendHitTarget}"
+                            AutomationProperties.Name="{Binding Username}"
+                            ToolTip="Voir le profil" Click="OpenFriendProfileButton_Click"/>
                     <Grid>
                         <ContentControl Content="{Binding}"
                                         ContentTemplate="{StaticResource AtlasV2.Friends.Avatar}"/>
@@ -254,7 +288,7 @@
                                  Margin="0,0,-1,-1"
                                  HorizontalAlignment="Right"
                                  VerticalAlignment="Bottom"
-                                 Stroke="{StaticResource AtlasV2.Brush.SurfaceRaised}"
+                                 Stroke="{StaticResource AtlasV2.Overlay.Card}"
                                  StrokeThickness="2">
                             <Ellipse.Style>
                                 <Style TargetType="{x:Type Ellipse}">
@@ -296,7 +330,7 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </StackPanel>
-                    <Grid Grid.Column="2" VerticalAlignment="Center">
+                    <Grid Grid.Column="2" VerticalAlignment="Center" Panel.ZIndex="2">
                         <Button x:Name="FriendActionsButton"
                                 Width="32"
                                 Height="32"
@@ -308,7 +342,7 @@
                                 AutomationProperties.Name="Actions pour cet ami">
                             <Button.Style>
                                 <Style TargetType="{x:Type Button}"
-                                       BasedOn="{StaticResource AtlasV2.Button.Icon}">
+                                       BasedOn="{StaticResource AtlasV2.Overlay.IconButton}">
                                     <Setter Property="Opacity" Value="0.92"/>
                                     <Style.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
@@ -336,17 +370,21 @@
                                PopupAnimation="Fade"
                                StaysOpen="False">
                             <Button Width="174"
+                                    TextOptions.TextFormattingMode="Ideal"
+                                    TextOptions.TextRenderingMode="ClearType"
                                     Height="40"
                                     Margin="0,4,0,0"
                                     Padding="12,0"
                                     HorizontalContentAlignment="Left"
+                                    PreviewKeyDown="Root_PreviewKeyDown"
+                                    KeyboardNavigation.TabNavigation="Cycle"
                                     Click="RemoveFriendMenuItem_Click"
                                     AutomationProperties.Name="Retirer de mes amis">
                                 <Button.Style>
                                     <Style TargetType="{x:Type Button}"
-                                           BasedOn="{StaticResource AtlasV2.Button.GhostCompact}">
-                                        <Setter Property="Background" Value="#FF171E26"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Border}"/>
+                                           BasedOn="{StaticResource AtlasV2.Overlay.CompactButton}">
+                                        <Setter Property="Background" Value="{StaticResource AtlasV2.Overlay.Panel}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Overlay.CardEdge}"/>
                                     </Style>
                                 </Button.Style>
                                 <StackPanel Orientation="Horizontal">
@@ -365,7 +403,16 @@
                     </Grid>
                 </Grid>
             </Border>
+            <DataTemplate.Triggers>
+                <Trigger SourceName="FriendCard" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="FriendCard" Property="Background" Value="{StaticResource AtlasV2.Overlay.CardHover}"/>
+                </Trigger>
+                <Trigger SourceName="FriendCard" Property="IsKeyboardFocusWithin" Value="True">
+                    <Setter TargetName="FriendCard" Property="Background" Value="{StaticResource AtlasV2.Overlay.CardHover}"/>
+                </Trigger>
+            </DataTemplate.Triggers>
         </DataTemplate>
+            </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid x:Name="OverlayRoot">
@@ -376,21 +423,21 @@
                 MouseLeftButtonDown="Scrim_MouseLeftButtonDown"/>
 
         <Border x:Name="DrawerPanel"
-                Width="360"
+                Width="392"
                 Margin="0,10,10,10"
-                Padding="18"
+                Padding="20"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Stretch"
-                Background="#FC141A20"
-                BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                Background="{StaticResource AtlasV2.Overlay.Panel}"
+                BorderBrush="{StaticResource AtlasV2.Overlay.CardEdge}"
                 BorderThickness="1"
-                CornerRadius="8"
+                CornerRadius="14"
                 Opacity="0"
                 KeyboardNavigation.TabNavigation="Cycle"
                 KeyboardNavigation.ControlTabNavigation="Cycle"
                 KeyboardNavigation.DirectionalNavigation="Contained">
             <Border.RenderTransform>
-                <TranslateTransform x:Name="DrawerTranslate" X="376"/>
+                <TranslateTransform x:Name="DrawerTranslate" X="408"/>
             </Border.RenderTransform>
             <Grid>
                 <Grid.RowDefinitions>
@@ -404,11 +451,10 @@
                 <Grid Grid.Row="0">
                     <StackPanel>
                         <TextBlock Text="AMIS ATLAS"
-                                   Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
+                                   Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
                         <TextBlock Margin="0,4,0,0"
                                    Text="Mes amis"
-                                   Style="{StaticResource AtlasV2.Text.SectionTitle}"
-                                   FontSize="24"/>
+                                   Style="{StaticResource AtlasV2.Overlay.Title}"/>
                     </StackPanel>
                     <StackPanel HorizontalAlignment="Right"
                                 VerticalAlignment="Top"
@@ -418,7 +464,7 @@
                                 Height="38"
                                 Padding="10"
                                 Margin="0,0,4,0"
-                                Style="{StaticResource AtlasV2.Button.Icon}"
+                                Style="{StaticResource AtlasV2.Overlay.IconButton}"
                                 ToolTip="Ajouter un ami"
                                 AutomationProperties.Name="Ajouter un ami"
                                 Click="AddFriendToggleButton_Click">
@@ -429,7 +475,7 @@
                                 Width="38"
                                 Height="38"
                                 Padding="10"
-                                Style="{StaticResource AtlasV2.Button.Icon}"
+                                Style="{StaticResource AtlasV2.Overlay.IconButton}"
                                 ToolTip="Fermer"
                                 AutomationProperties.Name="Fermer le panneau Amis"
                                 Click="CloseButton_Click">
@@ -458,10 +504,10 @@
                                FontWeight="SemiBold"
                                Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
                     <Border Height="42"
-                            Background="{StaticResource AtlasV2.Brush.Field}"
-                            BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                            Background="{StaticResource AtlasV2.Overlay.Field}"
+                            BorderBrush="{StaticResource AtlasV2.Overlay.CardEdge}"
                             BorderThickness="1"
-                            CornerRadius="6">
+                            CornerRadius="10">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -481,7 +527,7 @@
                                     Padding="10"
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Center"
-                                    Style="{StaticResource AtlasV2.Button.Icon}"
+                                    Style="{StaticResource AtlasV2.Overlay.IconButton}"
                                     Command="{Binding State.SendRequestCommand, ElementName=Root}"
                                     ToolTip="Envoyer la demande"
                                     AutomationProperties.Name="Envoyer la demande d’ami">
@@ -515,7 +561,7 @@
                             Background="{StaticResource AtlasV2.Brush.SuccessSurface}"
                             BorderBrush="{StaticResource AtlasV2.Brush.SuccessBorder}"
                             BorderThickness="1"
-                            CornerRadius="6"
+                            CornerRadius="10"
                             Visibility="{Binding State.Current.ShowsNotice, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                         <TextBlock Text="{Binding State.Current.NoticeMessage, ElementName=Root}"
                                    TextWrapping="Wrap"
@@ -541,7 +587,7 @@
                                     Visibility="{Binding State.Current.HasIncomingRequests, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                             <TextBlock Margin="0,0,0,7"
                                        Text="DEMANDES REÇUES"
-                                       Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
+                                       Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
                             <ItemsControl ItemsSource="{Binding State.Current.IncomingRequests, ElementName=Root}"
                                           ItemTemplate="{StaticResource AtlasV2.Friends.IncomingItem}"/>
                         </StackPanel>
@@ -551,7 +597,7 @@
                                     Visibility="{Binding State.Current.HasOutgoingRequests, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                             <TextBlock Margin="0,0,0,7"
                                        Text="DEMANDES ENVOYÉES"
-                                       Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
+                                       Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
                             <ItemsControl ItemsSource="{Binding State.Current.OutgoingRequests, ElementName=Root}"
                                           ItemTemplate="{StaticResource AtlasV2.Friends.OutgoingItem}"/>
                         </StackPanel>
@@ -560,8 +606,8 @@
                                     Margin="0,0,0,12"
                                     Visibility="{Binding State.Current.HasOnlineFriends, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                             <TextBlock Margin="0,0,0,7"
-                                       Text="EN JEU"
-                                       Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
+                                       Text="EN LIGNE"
+                                       Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
                             <ItemsControl x:Name="OnlineFriendsItemsControl"
                                           ItemsSource="{Binding State.Current.OnlineFriends, ElementName=Root}"
                                           ItemTemplate="{StaticResource AtlasV2.Friends.FriendItem}"/>
@@ -571,7 +617,7 @@
                                     Visibility="{Binding State.Current.HasOfflineFriends, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                             <TextBlock Margin="0,0,0,7"
                                        Text="HORS LIGNE"
-                                       Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
+                                       Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
                             <ItemsControl x:Name="OfflineFriendsItemsControl"
                                           ItemsSource="{Binding State.Current.OfflineFriends, ElementName=Root}"
                                           ItemTemplate="{StaticResource AtlasV2.Friends.FriendItem}"/>
@@ -599,7 +645,7 @@
                 <Grid x:Name="FriendProfilePanel"
                       Grid.RowSpan="5"
                       Panel.ZIndex="10"
-                      Background="#FF141A20">
+                      Background="{StaticResource AtlasV2.Overlay.Panel}">
                     <Grid.Style>
                         <Style TargetType="{x:Type Grid}">
                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -621,7 +667,7 @@
                                 Height="38"
                                 Padding="10"
                                 HorizontalAlignment="Left"
-                                Style="{StaticResource AtlasV2.Button.Icon}"
+                                Style="{StaticResource AtlasV2.Overlay.IconButton}"
                                 ToolTip="Retour à la liste"
                                 AutomationProperties.Name="Retour à la liste d’amis"
                                 Click="BackToFriendsButton_Click">
@@ -631,13 +677,13 @@
                         <TextBlock Margin="48,0"
                                    VerticalAlignment="Center"
                                    Text="Profil"
-                                   Style="{StaticResource AtlasV2.Text.SectionTitle}"
+                                   Style="{StaticResource AtlasV2.Overlay.Section}"
                                    FontSize="20"/>
                         <Button Width="38"
                                 Height="38"
                                 Padding="10"
                                 HorizontalAlignment="Right"
-                                Style="{StaticResource AtlasV2.Button.Icon}"
+                                Style="{StaticResource AtlasV2.Overlay.IconButton}"
                                 ToolTip="Fermer"
                                 AutomationProperties.Name="Fermer le panneau Amis"
                                 Click="CloseButton_Click">
@@ -649,6 +695,9 @@
                     <ScrollViewer Grid.Row="1"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
+                        <ScrollViewer.Resources>
+                            <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/>
+                        </ScrollViewer.Resources>
                         <StackPanel Margin="0,0,5,0"
                                     DataContext="{Binding State.SelectedFriend, ElementName=Root}">
                             <ContentControl HorizontalAlignment="Center"
@@ -658,18 +707,20 @@
                                        HorizontalAlignment="Center"
                                        Text="{Binding Username}"
                                        TextTrimming="CharacterEllipsis"
-                                       Style="{StaticResource AtlasV2.Text.SectionTitle}"
+                                       Style="{StaticResource AtlasV2.Overlay.Section}"
                                        FontSize="22"/>
                             <TextBlock Margin="12,4"
                                        HorizontalAlignment="Center"
                                        Text="{Binding DisplayStatusMessage}"
+                                       Visibility="{Binding HasStatusMessage, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
                                        TextAlignment="Center"
                                        TextWrapping="Wrap"
                                        Style="{StaticResource AtlasV2.Text.Body}"
                                        Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
                             <TextBlock Margin="0,2,0,0"
                                        HorizontalAlignment="Center"
-                                       Text="{Binding PresenceText}"
+                                       Text="{Binding ProfilePresenceText}"
+                                       FontSize="13"
                                        >
                                 <TextBlock.Style>
                                     <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource AtlasV2.Text.Caption}">
@@ -683,46 +734,28 @@
                                 </TextBlock.Style>
                             </TextBlock>
 
-                            <Border Height="1" Margin="0,18" Background="{StaticResource AtlasV2.Brush.BorderSoft}"/>
-                            <TextBlock Text="BIO" Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
+                            <Border Height="1" Margin="0,18" Background="{StaticResource AtlasV2.Overlay.Divider}"/>
+                            <TextBlock Text="BIO" Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
                             <TextBlock Margin="0,7,0,0"
                                        Text="{Binding DisplayBio}"
                                        TextWrapping="Wrap"
                                        Style="{StaticResource AtlasV2.Text.Body}"/>
 
                             <StackPanel Margin="0,20,0,0"
-                                        Visibility="{Binding HasCharacter, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                                        Visibility="{Binding HasFeaturedCharacter, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                                 <TextBlock Margin="0,0,0,7"
-                                           Text="PERSONNAGE ACTIF"
-                                           Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
-                                <Border Padding="12,10"
-                                        Background="{StaticResource AtlasV2.Brush.CyanSurface}"
-                                        BorderBrush="{StaticResource AtlasV2.Brush.CyanBorder}"
-                                        BorderThickness="1"
-                                        CornerRadius="6">
-                                    <StackPanel>
-                                        <TextBlock Text="{Binding CharacterName}"
-                                                   Style="{StaticResource AtlasV2.Text.Body}"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{StaticResource AtlasV2.Brush.Text}"/>
-                                        <TextBlock Margin="0,3,0,0"
-                                                   Text="{Binding CharacterDetails}"
-                                                   Style="{StaticResource AtlasV2.Text.Caption}"
-                                                   Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
-                                        <TextBlock Margin="0,3,0,0"
-                                                   Text="{Binding CharacterZone}"
-                                                   Visibility="{Binding HasCharacterZone, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
-                                                   Style="{StaticResource AtlasV2.Text.Caption}"/>
-                                    </StackPanel>
-                                </Border>
+                                           Text="{Binding FeaturedCharacterTitle}"
+                                           Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
+                                <ContentControl x:Name="FeaturedCharacterCard" Content="{Binding FeaturedCharacter}"
+                                                ContentTemplate="{StaticResource AtlasV2.Friends.CharacterItem}"/>
                             </StackPanel>
 
                             <StackPanel Margin="0,20,0,0"
-                                        Visibility="{Binding HasCharacters, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                                        Visibility="{Binding HasOtherCharacters, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                                 <TextBlock Margin="0,0,0,7"
-                                           Text="PERSONNAGES"
-                                           Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
-                                <ItemsControl ItemsSource="{Binding AllCharacters}"
+                                           Text="AUTRES PERSONNAGES"
+                                           Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
+                                <ItemsControl x:Name="OtherCharactersList" ItemsSource="{Binding OtherCharacters}"
                                               ItemTemplate="{StaticResource AtlasV2.Friends.CharacterItem}"/>
                             </StackPanel>
                         </StackPanel>
@@ -730,5 +763,47 @@
                 </Grid>
             </Grid>
         </Border>
+
+        <Grid x:Name="RemoveFriendConfirmationLayer" Panel.ZIndex="20"
+              Visibility="Collapsed" IsHitTestVisible="False"
+              KeyboardNavigation.TabNavigation="Cycle"
+              KeyboardNavigation.ControlTabNavigation="Cycle"
+              KeyboardNavigation.DirectionalNavigation="Contained">
+            <Border Background="#C9030B13"
+                    MouseLeftButtonDown="RemoveFriendConfirmationScrim_MouseLeftButtonDown"/>
+            <Border x:Name="RemoveFriendConfirmationPanel" Width="440" Margin="24" Padding="26"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{StaticResource AtlasV2.Overlay.Panel}"
+                    BorderBrush="{StaticResource AtlasV2.Overlay.Edge}" BorderThickness="1" CornerRadius="14">
+                <StackPanel>
+                    <Border Width="42" Height="42" Margin="0,0,0,16" HorizontalAlignment="Left"
+                            Background="{StaticResource AtlasV2.Overlay.Card}"
+                            BorderBrush="{StaticResource AtlasV2.Overlay.CardEdge}" BorderThickness="1" CornerRadius="10">
+                        <Path Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"
+                              Data="{StaticResource AtlasV2.Icon.Trash}" Style="{StaticResource AtlasV2.Icon.Stroke}"
+                              Stroke="{StaticResource AtlasV2.Brush.Danger}"/>
+                    </Border>
+                    <TextBlock x:Name="RemoveFriendTitleText" Text="Retirer cet ami ?"
+                               Style="{StaticResource AtlasV2.Overlay.Title}" FontSize="24" TextWrapping="Wrap"/>
+                    <TextBlock x:Name="RemoveFriendUsernameText" Margin="0,10,0,0"
+                               Style="{StaticResource AtlasV2.Text.Body}" FontWeight="SemiBold"
+                               Foreground="{StaticResource AtlasV2.Brush.Cyan}" TextWrapping="Wrap"/>
+                    <TextBlock Margin="0,7,0,0" Text="Cette personne sera retirée de ta liste d’amis."
+                               Style="{StaticResource AtlasV2.Text.Body}" TextWrapping="Wrap"
+                               Foreground="{StaticResource AtlasV2.Overlay.Muted}"/>
+                    <Grid Margin="0,24,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="CancelRemoveFriendButton" Content="Annuler"
+                                Style="{StaticResource AtlasV2.Overlay.Button}" Click="CancelRemoveFriendButton_Click"/>
+                        <Button x:Name="ConfirmRemoveFriendButton" Grid.Column="2" Content="Retirer"
+                                Style="{StaticResource AtlasV2.Overlay.PrimaryButton}" Click="ConfirmRemoveFriendButton_Click"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>

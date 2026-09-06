@@ -58,14 +58,19 @@ internal sealed class GameLaunchService : IGameLaunchService
                     GameLaunchOutcome.AlreadyRunning);
             }
 
+            if (request.Permit?.IsAvailable == false) return ServerUnavailable(request.AttemptId);
+
             _platform.EnsureDefaultClientConfig(installRoot, request.GameLocale);
             cancellationToken.ThrowIfCancellationRequested();
 
             phase = GameLaunchPhase.RequestingTicket;
             reportProgress?.Invoke(new GameLaunchProgress(request.AttemptId, phase));
+            if (request.Permit?.IsAvailable == false) return ServerUnavailable(request.AttemptId);
             GameTicketAcquisitionResult acquisition = await _session
                 .AcquireGameTicketAsync(cancellationToken)
                 .ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (request.Permit?.IsAvailable == false) return ServerUnavailable(request.AttemptId);
             if (acquisition.Status != GameTicketAcquisitionStatus.Succeeded
                 || acquisition.Ticket is null)
             {
@@ -73,8 +78,10 @@ internal sealed class GameLaunchService : IGameLaunchService
             }
 
             cancellationToken.ThrowIfCancellationRequested();
+            if (request.Permit?.IsAvailable == false) return ServerUnavailable(request.AttemptId);
             phase = GameLaunchPhase.PreparingSso;
             reportProgress?.Invoke(new GameLaunchProgress(request.AttemptId, phase));
+            if (request.Permit?.IsAvailable == false) return ServerUnavailable(request.AttemptId);
             _platform.WriteSingleSignOn(acquisition.Ticket, request.GameLocale);
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -84,7 +91,11 @@ internal sealed class GameLaunchService : IGameLaunchService
                 launcherPath,
                 installRoot,
                 classicPath);
-            if (!_processStarter.Start(startInfo))
+            GameLaunchOutcome startOutcome = request.Permit is null
+                ? StartProcess() ? GameLaunchOutcome.Started : GameLaunchOutcome.StartFailed
+                : request.Permit.TryStartProcess(StartProcess);
+            if (startOutcome == GameLaunchOutcome.ServerUnavailable) return ServerUnavailable(request.AttemptId);
+            if (startOutcome != GameLaunchOutcome.Started)
             {
                 return Failure(
                     request.AttemptId,
@@ -95,6 +106,12 @@ internal sealed class GameLaunchService : IGameLaunchService
             return new GameLaunchResult(
                 request.AttemptId,
                 GameLaunchOutcome.Started);
+
+            bool StartProcess()
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return _processStarter.Start(startInfo);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -177,6 +194,9 @@ internal sealed class GameLaunchService : IGameLaunchService
         startInfo.ArgumentList.Add("wow_classic");
         return startInfo;
     }
+
+    private static GameLaunchResult ServerUnavailable(long attemptId) =>
+        Failure(attemptId, GameLaunchOutcome.ServerUnavailable, GameLaunchFailureCategory.ServerUnavailable);
 
     private static GameLaunchResult FromTicketFailure(
         long attemptId,

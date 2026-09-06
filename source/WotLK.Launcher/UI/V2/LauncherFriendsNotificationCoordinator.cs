@@ -71,7 +71,7 @@ internal sealed class LauncherFriendsNotificationCoordinator : IDisposable
 
             Dictionary<uint, bool> currentPresence = snapshot.Friends
                 .Where(friend => friend.Relationship == FriendRelationship.Accepted)
-                .ToDictionary(friend => friend.AccountId, friend => friend.IsOnline);
+                .ToDictionary(friend => friend.AccountId, friend => friend.IsAvailable);
             HashSet<uint> currentIncoming = snapshot.IncomingRequests
                 .Where(request => request.Relationship == FriendRelationship.Incoming)
                 .Select(request => request.AccountId)
@@ -88,7 +88,7 @@ internal sealed class LauncherFriendsNotificationCoordinator : IDisposable
 
             FriendRuntimeItem[] newlyOnline = snapshot.Friends
                 .Where(friend => friend.Relationship == FriendRelationship.Accepted
-                    && friend.IsOnline
+                    && friend.IsAvailable
                     && _friendPresence.TryGetValue(friend.AccountId, out bool wasOnline)
                     && !wasOnline)
                 .OrderBy(friend => friend.Username, StringComparer.OrdinalIgnoreCase)

@@ -1,0 +1,159 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib"
+                    xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework">
+    <sys:Double x:Key="SettingsPilot.Font.Body">16</sys:Double>
+    <sys:Double x:Key="SettingsPilot.Font.Caption">14</sys:Double>
+    <sys:Double x:Key="SettingsPilot.Font.Helper">16</sys:Double>
+    <sys:Double x:Key="SettingsPilot.Font.Option">20</sys:Double>
+    <sys:Double x:Key="SettingsPilot.Font.SectionTitle">24</sys:Double>
+    <sys:Double x:Key="SettingsPilot.Font.CategoryTitle">36</sys:Double>
+    <sys:Double x:Key="SettingsPilot.Font.Navigation">20</sys:Double>
+    <sys:Double x:Key="SettingsPilot.Font.Action">16</sys:Double>
+    <sys:Double x:Key="SettingsPilot.NavigationHeight">68</sys:Double>
+    <sys:Double x:Key="SettingsPilot.FieldHeight">60</sys:Double>
+    <sys:Double x:Key="SettingsPilot.ToggleWidth">68</sys:Double>
+    <sys:Double x:Key="SettingsPilot.ToggleHeight">38</sys:Double>
+    <sys:Double x:Key="SettingsPilot.ToggleThumb">28</sys:Double>
+    <CornerRadius x:Key="SettingsPilot.ToggleCornerRadius">19</CornerRadius>
+    <Thickness x:Key="SettingsPilot.NavigationPadding">26,0</Thickness>
+    <Thickness x:Key="SettingsPilot.CardPadding">28</Thickness>
+    <Thickness x:Key="SettingsPilot.ToggleInset">5</Thickness>
+    <Thickness x:Key="SettingsPilot.SeparatorMargin">0,20</Thickness>
+
+    <Style x:Key="SettingsPilot.Body" TargetType="TextBlock" BasedOn="{StaticResource AtlasV2.Text.Body}">
+        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Inter}"/>
+        <Setter Property="FontSize" Value="{DynamicResource SettingsPilot.Font.Body}"/>
+        <Setter Property="FontWeight" Value="Regular"/>
+    </Style>
+    <Style x:Key="SettingsPilot.Caption" TargetType="TextBlock" BasedOn="{StaticResource SettingsPilot.Body}">
+        <Setter Property="FontSize" Value="{DynamicResource SettingsPilot.Font.Caption}"/>
+        <Setter Property="Foreground" Value="#9AB2C9"/>
+    </Style>
+    <Style x:Key="SettingsPilot.Helper" TargetType="TextBlock" BasedOn="{StaticResource SettingsPilot.Caption}">
+        <Setter Property="FontSize" Value="{DynamicResource SettingsPilot.Font.Helper}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="SettingsPilot.SectionTitle" TargetType="TextBlock" BasedOn="{StaticResource SettingsPilot.Body}">
+        <Setter Property="FontSize" Value="{DynamicResource SettingsPilot.Font.SectionTitle}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
+    </Style>
+    <Style x:Key="AtlasV2.Settings.OptionTitle" TargetType="TextBlock" BasedOn="{StaticResource SettingsPilot.Body}">
+        <Setter Property="FontSize" Value="{DynamicResource SettingsPilot.Font.Option}"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
+    </Style>
+    <Style x:Key="SettingsPilot.Card" TargetType="Border" BasedOn="{StaticResource AtlasV2.Card}">
+        <Setter Property="Padding" Value="{DynamicResource SettingsPilot.CardPadding}"/>
+        <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.GlassSurface}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.GlassBorder}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="14"/>
+    </Style>
+    <Style x:Key="SettingsPilot.Field" TargetType="Border" BasedOn="{StaticResource AtlasV2.Field.Container}">
+        <Setter Property="Background" Value="#C7081621"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.GlassBorder}"/>
+        <Setter Property="CornerRadius" Value="10"/>
+    </Style>
+    <Style x:Key="SettingsPilot.ComboBox" TargetType="ComboBox" BasedOn="{StaticResource AtlasV2.ComboBox.Field}">
+        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Inter}"/>
+        <Setter Property="FontSize" Value="{DynamicResource SettingsPilot.Font.Option}"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Height" Value="{DynamicResource SettingsPilot.FieldHeight}"/>
+        <Setter Property="Background" Value="#C7081621"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.GlassBorder}"/>
+    </Style>
+    <Style x:Key="AtlasV2.Settings.NavButton" TargetType="Button" BasedOn="{StaticResource AtlasV2.Button.Base}">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource AtlasV2.FocusVisual.Navigation}"/>
+        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Inter}"/>
+        <Setter Property="FontSize" Value="{DynamicResource SettingsPilot.Font.Navigation}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Height" Value="{DynamicResource SettingsPilot.NavigationHeight}"/>
+        <Setter Property="Margin" Value="0,2"/>
+        <Setter Property="Padding" Value="{DynamicResource SettingsPilot.NavigationPadding}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Foreground" Value="#D5E6F4"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border x:Name="Surface" CornerRadius="8" Background="{TemplateBinding Background}"/>
+                        <Border x:Name="SelectionIndicator" Width="4" Margin="0,7,0,7"
+                                HorizontalAlignment="Left" Background="{StaticResource AtlasV2.Brush.Gold}"
+                                CornerRadius="0,3,3,0" Visibility="Collapsed"/>
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Surface" Property="Background" Value="{StaticResource AtlasV2.Brush.GlassHighlight}"/>
+                        </Trigger>
+                        <Trigger Property="Tag" Value="Active">
+                            <Setter TargetName="Surface" Property="Background" Value="{StaticResource AtlasV2.Brush.GlassRaised}"/>
+                            <Setter TargetName="SelectionIndicator" Property="Visibility" Value="Visible"/>
+                            <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.8"/></Trigger>
+                        <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.48"/></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="AtlasV2.Settings.Action" TargetType="Button" BasedOn="{StaticResource AtlasV2.Button.Base}">
+        <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Inter}"/>
+        <Setter Property="FontSize" Value="{DynamicResource SettingsPilot.Font.Action}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Height" Value="44"/>
+        <Setter Property="Padding" Value="16,0"/>
+        <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.GlassRaised}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.GlassBorder}"/>
+        <Setter Property="Focusable" Value="True"/>
+    </Style>
+    <Style x:Key="AtlasV2.Settings.ReadOnlyAction" TargetType="Button" BasedOn="{StaticResource AtlasV2.Settings.Action}">
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+        <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
+    </Style>
+    <Style x:Key="AtlasV2.Settings.Separator" TargetType="Border">
+        <Setter Property="Height" Value="1"/>
+        <Setter Property="Margin" Value="{DynamicResource SettingsPilot.SeparatorMargin}"/>
+        <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.GlassBorder}"/>
+    </Style>
+    <Style x:Key="AtlasV2.Settings.DeferredField" TargetType="Border" BasedOn="{StaticResource SettingsPilot.Field}">
+        <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
+        <Style.Triggers><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.48"/></Trigger></Style.Triggers>
+    </Style>
+    <Style x:Key="AtlasV2.Settings.DeferredCard" TargetType="Border" BasedOn="{StaticResource SettingsPilot.Card}">
+        <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
+        <Style.Triggers><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.48"/></Trigger></Style.Triggers>
+    </Style>
+    <Style x:Key="SettingsPilot.Toggle" TargetType="primitives:ToggleButton" BasedOn="{StaticResource AtlasV2.Toggle}">
+        <Setter Property="Width" Value="{DynamicResource SettingsPilot.ToggleWidth}"/>
+        <Setter Property="Height" Value="{DynamicResource SettingsPilot.ToggleHeight}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="primitives:ToggleButton">
+                    <Grid>
+                        <Border x:Name="Track" Background="#D4081520" BorderBrush="{StaticResource AtlasV2.Brush.GlassBorder}" BorderThickness="1" CornerRadius="{DynamicResource SettingsPilot.ToggleCornerRadius}"/>
+                        <Ellipse x:Name="Thumb" Width="{DynamicResource SettingsPilot.ToggleThumb}" Height="{DynamicResource SettingsPilot.ToggleThumb}"
+                                 Margin="{DynamicResource SettingsPilot.ToggleInset}" HorizontalAlignment="Left" Fill="#A1B8CA"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Track" Property="Background" Value="{StaticResource AtlasV2.Brush.Gold}"/>
+                            <Setter TargetName="Track" Property="BorderBrush" Value="#FFDB73"/>
+                            <Setter TargetName="Thumb" Property="Fill" Value="#071420"/>
+                            <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Track" Property="Opacity" Value="0.88"/></Trigger>
+                        <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.48"/></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

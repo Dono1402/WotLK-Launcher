@@ -13,6 +13,20 @@
              IsHitTestVisible="False"
              Focusable="False"
              PreviewKeyDown="Root_PreviewKeyDown">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Resources/AtlasV2.OverlaysPilot.xaml"/>
+                <ResourceDictionary Source="../Resources/AtlasV2.AccountPilot.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <Style x:Key="AtlasV2.Auth.Field" TargetType="{x:Type Border}"
+                   BasedOn="{StaticResource AtlasV2.Field.Container}">
+                <Setter Property="Background" Value="{StaticResource AtlasV2.Overlay.Field}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Overlay.CardEdge}"/>
+                <Setter Property="CornerRadius" Value="10"/>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
     <Grid x:Name="OverlayRoot">
         <Border x:Name="Scrim"
                 Opacity="0"
@@ -23,7 +37,7 @@
                     <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.AuthScrim}"/>
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding CanClose, ElementName=Root}" Value="False">
-                            <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.WindowAmbient}"/>
+                            <Setter Property="Background" Value="#FF05101A"/>
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
@@ -35,13 +49,13 @@
                 MaxWidth="500"
                 MaxHeight="620"
                 Margin="24,16"
-                Padding="24,20,24,22"
+                Padding="28,24,28,26"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
-                Background="{StaticResource AtlasV2.Brush.Surface}"
-                BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                Background="{StaticResource AtlasV2.Overlay.Panel}"
+                BorderBrush="{StaticResource AtlasV2.Overlay.Edge}"
                 BorderThickness="1"
-                CornerRadius="8"
+                CornerRadius="14"
                 Opacity="0"
                 KeyboardNavigation.TabNavigation="Cycle"
                 KeyboardNavigation.ControlTabNavigation="Cycle"
@@ -58,13 +72,13 @@
                 <Grid Grid.Row="0">
                     <TextBlock VerticalAlignment="Center"
                                Text="COMPTE ATLAS"
-                               Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
+                               Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
                     <Button x:Name="CloseButton"
                             Width="38"
                             Height="38"
                             Padding="10"
                             HorizontalAlignment="Right"
-                            Style="{StaticResource AtlasV2.Button.Icon}"
+                            Style="{StaticResource AtlasV2.Overlay.IconButton}"
                             ToolTip="Fermer"
                             KeyboardNavigation.TabIndex="20"
                             AutomationProperties.Name="Fermer l’authentification"
@@ -87,19 +101,19 @@
                     </ScrollViewer.Resources>
                     <StackPanel Margin="0,0,4,0">
                         <TextBlock Text="{Binding State.Title, ElementName=Root}"
-                                   Style="{StaticResource AtlasV2.Text.SectionTitle}"
-                                   FontSize="28"
+                                   Style="{StaticResource AtlasV2.Overlay.Title}"
+                                   FontSize="32"
                                    FontWeight="ExtraBold"/>
                         <TextBlock Margin="0,6,0,0"
                                    Text="{Binding State.Description, ElementName=Root}"
+                                   TextWrapping="Wrap"
                                    Style="{StaticResource AtlasV2.Text.Body}"/>
 
                         <Border Margin="0,12,0,0"
-                                Padding="3"
-                                Background="{StaticResource AtlasV2.Brush.Field}"
-                                BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
-                                BorderThickness="1"
-                                CornerRadius="7"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                BorderThickness="0"
                                 AutomationProperties.Name="Choix du formulaire d’authentification">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -115,11 +129,13 @@
                                         Click="ModeButton_Click">
                                     <Button.Style>
                                         <Style TargetType="{x:Type Button}"
-                                               BasedOn="{StaticResource AtlasV2.Button.Segment}">
+                                               BasedOn="{StaticResource AtlasV2.Account.Tab}">
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding State.Mode, ElementName=Root}"
                                                              Value="{x:Static presentation:AuthMode.Login}">
                                                     <Setter Property="Tag" Value="Active"/>
+                                                    <Setter Property="Opacity" Value="1"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -134,11 +150,13 @@
                                         Click="ModeButton_Click">
                                     <Button.Style>
                                         <Style TargetType="{x:Type Button}"
-                                               BasedOn="{StaticResource AtlasV2.Button.Segment}">
+                                               BasedOn="{StaticResource AtlasV2.Account.Tab}">
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding State.Mode, ElementName=Root}"
                                                              Value="{x:Static presentation:AuthMode.Register}">
                                                     <Setter Property="Tag" Value="Active"/>
+                                                    <Setter Property="Opacity" Value="1"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Text}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -167,7 +185,7 @@
                                 <StackPanel Grid.Column="1" Margin="8,0,0,0">
                                     <TextBlock Text="Adresse e-mail non vérifiée"
                                                Style="{StaticResource AtlasV2.Text.Body}"
-                                               FontWeight="Bold"
+                                               FontWeight="SemiBold"
                                                Foreground="{StaticResource AtlasV2.Brush.Gold}"/>
                                     <TextBlock Margin="0,2,0,0"
                                                Text="Tu peux continuer, mais pense à confirmer ton adresse e-mail."
@@ -219,7 +237,7 @@
                                            Style="{StaticResource AtlasV2.Text.Caption}"
                                            FontWeight="SemiBold"/>
                                 <Border Height="42" Margin="0,5,0,10"
-                                        Style="{StaticResource AtlasV2.Field.Container}">
+                                        Style="{StaticResource AtlasV2.Auth.Field}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="22"/>
@@ -245,7 +263,7 @@
                                            Style="{StaticResource AtlasV2.Text.Caption}"
                                            FontWeight="SemiBold"/>
                                 <Border Height="42" Margin="0,5,0,0"
-                                        Style="{StaticResource AtlasV2.Field.Container}">
+                                        Style="{StaticResource AtlasV2.Auth.Field}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="22"/>
@@ -284,7 +302,7 @@
                                 <TextBlock Text="NOM D’UTILISATEUR"
                                            Style="{StaticResource AtlasV2.Text.Caption}"
                                            FontWeight="SemiBold"/>
-                                <Border Height="38" Margin="0,4,0,6" Style="{StaticResource AtlasV2.Field.Container}">
+                                <Border Height="38" Margin="0,4,0,6" Style="{StaticResource AtlasV2.Auth.Field}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="22"/>
@@ -309,7 +327,7 @@
                                 <TextBlock Text="ADRESSE E-MAIL"
                                            Style="{StaticResource AtlasV2.Text.Caption}"
                                            FontWeight="SemiBold"/>
-                                <Border Height="38" Margin="0,4,0,6" Style="{StaticResource AtlasV2.Field.Container}">
+                                <Border Height="38" Margin="0,4,0,6" Style="{StaticResource AtlasV2.Auth.Field}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="22"/>
@@ -333,7 +351,7 @@
                                 <TextBlock Text="MOT DE PASSE · 10 À 128 CARACTÈRES"
                                            Style="{StaticResource AtlasV2.Text.Caption}"
                                            FontWeight="SemiBold"/>
-                                <Border Height="38" Margin="0,4,0,6" Style="{StaticResource AtlasV2.Field.Container}">
+                                <Border Height="38" Margin="0,4,0,6" Style="{StaticResource AtlasV2.Auth.Field}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="22"/>
@@ -356,7 +374,7 @@
                                 <TextBlock Text="CONFIRMER LE MOT DE PASSE"
                                            Style="{StaticResource AtlasV2.Text.Caption}"
                                            FontWeight="SemiBold"/>
-                                <Border Height="38" Margin="0,4,0,0" Style="{StaticResource AtlasV2.Field.Container}">
+                                <Border Height="38" Margin="0,4,0,0" Style="{StaticResource AtlasV2.Auth.Field}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="22"/>
@@ -381,20 +399,20 @@
                         <Grid Margin="0,8,0,0">
                             <Button x:Name="PrimaryAuthButton"
                                     Height="46"
-                                    Style="{StaticResource AtlasV2.Button.Primary}"
+                                    Style="{StaticResource AtlasV2.Overlay.PrimaryButton}"
                                     IsEnabled="{Binding State.CanSubmit, ElementName=Root}"
                                     IsDefault="True"
                                     KeyboardNavigation.TabIndex="6"
                                     AutomationProperties.Name="{Binding State.PrimaryActionLabel, ElementName=Root}"
                                     Click="PrimaryAuthButton_Click">
                                 <TextBlock Text="{Binding State.PrimaryActionLabel, ElementName=Root}"
-                                           FontWeight="Bold"/>
+                                           FontWeight="SemiBold"/>
                             </Button>
                             <Border Height="46"
                                     Background="{StaticResource AtlasV2.Brush.GoldPressed}"
                                     BorderBrush="{StaticResource AtlasV2.Brush.GoldPressed}"
                                     BorderThickness="1"
-                                    CornerRadius="6"
+                                    CornerRadius="10"
                                     IsHitTestVisible="False"
                                     Visibility="{Binding State.IsBusy, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
                                     AutomationProperties.Name="Connexion en cours">
@@ -425,7 +443,7 @@
                                         </Path.Triggers>
                                     </Path>
                                     <TextBlock Text="{Binding State.PrimaryActionLabel, ElementName=Root}"
-                                               FontWeight="Bold"
+                                               FontWeight="SemiBold"
                                                Foreground="{StaticResource AtlasV2.Brush.Window}"/>
                                 </StackPanel>
                             </Border>

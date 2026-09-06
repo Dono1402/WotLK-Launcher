@@ -61,6 +61,8 @@ internal sealed class WindowsLauncherStartupRegistry : ILauncherStartupRegistry
 
 internal sealed class WindowsLauncherStartupRegistration : ILauncherStartupRegistration
 {
+    internal const string AutoStartArgument = "--autostart";
+
     private readonly ILauncherStartupRegistry _registry;
     private readonly string _valueName;
     private readonly string _command;
@@ -80,7 +82,7 @@ internal sealed class WindowsLauncherStartupRegistration : ILauncherStartupRegis
         _valueName = valueName ?? (LauncherBuildFlavor.IsLocalClient
             ? "Atlas Launcher Local"
             : "Atlas Launcher");
-        _command = QuoteExecutable(path);
+        _command = $"{QuoteExecutable(path)} {AutoStartArgument}";
     }
 
     public bool IsEnabled

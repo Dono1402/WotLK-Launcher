@@ -1,0 +1,38 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      lucide:
+        specifier: 0.468.0
+        version: 0.468.0
+      three:
+        specifier: 0.180.0
+        version: 0.180.0
+      webp-wasm:
+        specifier: 1.0.6
+        version: 1.0.6
+
+packages:
+
+  lucide@0.468.0:
+    resolution: {integrity: sha512-UFbgwji/ZnAV7iTTE4jujyTV7J95AILKyATDUrqOJrMcUGfXvGjw3c1mcuHZUX2oJfkrAGU9KoxkrLQk2jjtiA==}
+
+  three@0.180.0:
+    resolution: {integrity: sha512-o+qycAMZrh+TsE01GqWUxUIKR1AL0S8pq7zDkYOQw8GqfX8b8VoCKYUoHbhiX5j+7hr8XsuHDVU6+gkQJQKg9w==}
+
+  webp-wasm@1.0.6:
+    resolution: {integrity: sha512-RqBXDs/pwLc4dCChFfOw9FvBULRW6o/XGKMSbkWaPuTVtQ0oQx12A/k0rtiKF9fSsb9dxzOFGT7kE2R3jxMszA==}
+
+snapshots:
+
+  lucide@0.468.0: {}
+
+  three@0.180.0: {}
+
+  webp-wasm@1.0.6: {}

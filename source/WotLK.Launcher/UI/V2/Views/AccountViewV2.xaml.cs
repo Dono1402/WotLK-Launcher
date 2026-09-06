@@ -18,6 +18,7 @@ public partial class AccountViewV2 : UserControl
     private bool _emailEditorWasOpen;
     private bool _passwordEditorWasOpen;
     private bool _avatarActionsVisible;
+    private bool _profileFallbackEnabled;
     private AccountOperationViewState _lastAccountOperation;
 
     public static readonly DependencyProperty StateProperty = DependencyProperty.Register(
@@ -37,6 +38,7 @@ public partial class AccountViewV2 : UserControl
         InitializeComponent();
         Loaded += AccountViewV2_Loaded;
         Unloaded += AccountViewV2_Unloaded;
+        SizeChanged += (_, _) => ApplyLayout(LayoutMode);
     }
 
     public event EventHandler? ModifyAvatarRequested;
@@ -59,9 +61,19 @@ public partial class AccountViewV2 : UserControl
 
     internal ScrollViewer ScrollHost => AccountScrollViewer;
 
-    internal AccountSection SelectedSection => State?.Current.SelectedSection ?? AccountSection.Profile;
+    internal bool ProfileFallbackEnabled
+    {
+        get => _profileFallbackEnabled;
+        set { _profileFallbackEnabled = value; ApplyState(); }
+    }
 
-    internal IInputElement AvatarActionFocusTarget => ModifyAvatarButton;
+    internal AccountSection SelectedSection => _profileFallbackEnabled && State?.Current.SelectedSection == AccountSection.Profile
+        ? AccountSection.Profile
+        : State?.Current.SelectedSection == AccountSection.Sessions
+        ? AccountSection.Sessions
+        : AccountSection.Security;
+
+    internal IInputElement AvatarActionFocusTarget => SelectedSection == AccountSection.Profile ? ModifyAvatarButton : SecurityTabButton;
 
     internal bool IsDeleteConfirmationOpen => State?.Current.IsDeleteConfirmationOpen == true;
 
@@ -110,9 +122,13 @@ public partial class AccountViewV2 : UserControl
 
     internal void FocusSensitiveEditor()
     {
-        Control target = State?.Current.IsPasswordEditorOpen == true
-            ? CurrentPasswordBoxV2
-            : NewEmailBox;
+        FrameworkElement target = State?.Current.IsPasswordEditorOpen == true
+            ? State.Current.AccountOperation == AccountOperationViewState.ChangingPassword
+                ? PasswordEditorPanel
+                : CurrentPasswordBoxV2
+            : State?.Current.AccountOperation == AccountOperationViewState.ChangingEmail
+                ? EmailEditorPanel
+                : NewEmailBox;
         target.Focus();
         Keyboard.Focus(target);
     }
@@ -146,10 +162,15 @@ public partial class AccountViewV2 : UserControl
             return false;
         }
 
+        if (State?.Current.AvatarOperation != AvatarPreviewOperation.None)
+        {
+            return true;
+        }
+
         State?.CloseDeleteConfirmation();
         Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
-            () => Keyboard.Focus(RemoveAvatarButton));
+            () => Keyboard.Focus(SecurityTabButton));
         return true;
     }
 
@@ -272,29 +293,41 @@ public partial class AccountViewV2 : UserControl
             return;
         }
 
-        ContentFrame.MaxWidth = mode switch
-        {
-            AdaptiveLayoutMode.Wide => 1220,
-            AdaptiveLayoutMode.Compact => 1140,
-            _ => 1036
-        };
+        ContentFrame.MaxWidth = 1220;
         ContentFrame.Margin = mode switch
         {
-            AdaptiveLayoutMode.Wide => new Thickness(34, 28, 34, 42),
-            AdaptiveLayoutMode.Compact => new Thickness(28, 24, 28, 38),
-            _ => new Thickness(22, 20, 22, 34)
+            AdaptiveLayoutMode.Wide => new Thickness(70, 26, 70, 52),
+            AdaptiveLayoutMode.Compact => new Thickness(44, 24, 44, 42),
+            _ => new Thickness(32, 20, 32, 34)
         };
-        PageTitle.FontSize = mode == AdaptiveLayoutMode.Stacked ? 28 : 30;
+        PageTitle.FontSize = mode switch
+        {
+            AdaptiveLayoutMode.Wide => 54,
+            AdaptiveLayoutMode.Compact => 44,
+            _ => 38
+        };
 
         bool stacked = mode == AdaptiveLayoutMode.Stacked;
         AvatarColumn.Width = stacked ? new GridLength(1, GridUnitType.Star) : new GridLength(352);
         ProfileGapColumn.Width = stacked ? new GridLength(0) : new GridLength(24);
+        ProfileDetailsWidth.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         Grid.SetRowSpan(AvatarCard, stacked ? 1 : 2);
         Grid.SetColumn(AvatarCard, 0);
         Grid.SetRow(AvatarCard, 0);
         Grid.SetColumn(ProfileDetailsColumn, stacked ? 0 : 2);
         Grid.SetRow(ProfileDetailsColumn, stacked ? 1 : 0);
         ProfileDetailsColumn.Margin = stacked ? new Thickness(0, 18, 0, 0) : new Thickness(0);
+
+        bool stackSecurityActions = ActualWidth is > 0 and < 900;
+        foreach (FrameworkElement action in new FrameworkElement[] { EmailActions, ModifyPasswordButton })
+        {
+            Grid.SetRow(action, stackSecurityActions ? 1 : 0);
+            Grid.SetColumn(action, stackSecurityActions ? 1 : 2);
+            Grid.SetColumnSpan(action, stackSecurityActions ? 2 : 1);
+            action.Margin = stackSecurityActions ? new Thickness(14, 16, 0, 0) : new Thickness(0);
+            action.HorizontalAlignment = HorizontalAlignment.Left;
+            action.VerticalAlignment = VerticalAlignment.Center;
+        }
     }
 
     private void ApplyState()
@@ -304,19 +337,14 @@ public partial class AccountViewV2 : UserControl
             return;
         }
 
-        AccountSection section = State.Current.SelectedSection;
-        PageEyebrow.Text = section == AccountSection.Profile ? "PROFIL ATLAS" : "COMPTE ATLAS";
+        AccountSection section = SelectedSection;
+        PageEyebrow.Text = "COMPTE ATLAS";
         PageTitle.Text = section == AccountSection.Profile ? "Mon profil" : "Mon compte";
-        PageSubtitle.Text = section switch
-        {
-            AccountSection.Profile => "Personnalise ton apparence et ton identité visible dans Atlas.",
-            AccountSection.Security => "Gère ton adresse e-mail, ton mot de passe et la sécurité.",
-            _ => "Consulte les appareils connectés à ton compte Atlas."
-        };
         ProfilePanel.Visibility = section == AccountSection.Profile ? Visibility.Visible : Visibility.Collapsed;
+        ProfileTabButton.Visibility = Visibility.Collapsed;
         SecurityPanel.Visibility = section == AccountSection.Security ? Visibility.Visible : Visibility.Collapsed;
         SessionsPanel.Visibility = section == AccountSection.Sessions ? Visibility.Visible : Visibility.Collapsed;
-        ProfileTabButton.Tag = section == AccountSection.Profile ? "Active" : null;
+        ProfileTabButton.Tag = null;
         SecurityTabButton.Tag = section == AccountSection.Security ? "Active" : null;
         SessionsTabButton.Tag = section == AccountSection.Sessions ? "Active" : null;
 
@@ -391,7 +419,7 @@ public partial class AccountViewV2 : UserControl
                 || state.SessionsState == AccountSessionsViewState.Failed)
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-        SecurityEmailStatus.Text = state.IsEmailVerified ? "Vérifiée" : "Non vérifiée";
+        SecurityEmailStatus.Text = state.IsEmailVerified ? "(Vérifiée)" : "(Non vérifiée)";
         SecurityEmailStatus.Foreground = (Brush)FindResource(state.IsEmailVerified
             ? "AtlasV2.Brush.Success"
             : "AtlasV2.Brush.Gold");
@@ -434,6 +462,7 @@ public partial class AccountViewV2 : UserControl
         NewEmailBox.IsEnabled = !emailBusy;
         CancelEmailChangeButton.IsEnabled = !emailBusy;
         ConfirmEmailChangeButton.IsEnabled = !emailBusy && state.CanChangeEmail;
+        ConfirmEmailChangeButton.Content = emailBusy ? "Enregistrement…" : "Enregistrer";
         CurrentPasswordBoxV2.IsEnabled = !passwordBusy;
         NewPasswordBoxV2.IsEnabled = !passwordBusy;
         ConfirmPasswordBoxV2.IsEnabled = !passwordBusy;
@@ -455,6 +484,10 @@ public partial class AccountViewV2 : UserControl
             && state.AccountOperation == AccountOperationViewState.None)
         {
             ClearPasswordFields();
+        }
+        if (_lastAccountOperation != state.AccountOperation && (emailBusy || passwordBusy))
+        {
+            FocusSensitiveEditor();
         }
         _lastAccountOperation = state.AccountOperation;
         if (emailOpen && !_emailEditorWasOpen)
@@ -516,6 +549,15 @@ public partial class AccountViewV2 : UserControl
 
     private void SelectSection(AccountSection section)
     {
+        if (State?.Current.AccountOperation is AccountOperationViewState.ChangingEmail
+            or AccountOperationViewState.ChangingPassword)
+        {
+            return;
+        }
+        if (section == AccountSection.Profile)
+        {
+            section = AccountSection.Security;
+        }
         if (section != AccountSection.Security)
         {
             ClearPasswordFields();
@@ -651,6 +693,10 @@ public partial class AccountViewV2 : UserControl
 
     private void CloseEmailEditor()
     {
+        if (State?.Current.AccountOperation == AccountOperationViewState.ChangingEmail)
+        {
+            return;
+        }
         NewEmailBox.Clear();
         State?.CloseEmailEditor();
         Dispatcher.BeginInvoke(
@@ -660,6 +706,10 @@ public partial class AccountViewV2 : UserControl
 
     private void ClosePasswordEditor()
     {
+        if (State?.Current.AccountOperation == AccountOperationViewState.ChangingPassword)
+        {
+            return;
+        }
         ClearPasswordFields();
         State?.ClosePasswordEditor();
         Dispatcher.BeginInvoke(

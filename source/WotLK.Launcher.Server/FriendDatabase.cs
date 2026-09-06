@@ -6,6 +6,7 @@ namespace WotLK.Launcher.Server;
 public sealed partial class LauncherDatabase
 {
     internal const int FriendListMaximumQueryCount = 2;
+    internal const int LauncherPresenceLifetimeSeconds = 60;
 
     internal const string FriendAccountsQuery = """
         SELECT
@@ -23,7 +24,18 @@ public sealed partial class LauncherDatabase
                 ELSE 'incoming'
             END AS relationship,
             aa.id AS avatar_photo_id,
-            aa.version AS avatar_photo_version
+            aa.version AS avatar_photo_version,
+            CASE WHEN f.accepted_at IS NOT NULL THEN EXISTS (
+                SELECT 1 FROM atlas_launcher_session s
+                WHERE s.account_id = p.account_id
+                  AND s.revoked_at IS NULL
+                  AND s.access_expires_at > UTC_TIMESTAMP()
+                  AND s.updated_at >= UTC_TIMESTAMP() - INTERVAL @presenceLifetime SECOND
+            ) ELSE FALSE END AS launcher_online,
+            CASE WHEN f.accepted_at IS NOT NULL THEN (
+                SELECT MAX(s.updated_at) FROM atlas_launcher_session s
+                WHERE s.account_id = p.account_id
+            ) ELSE NULL END AS launcher_last_seen_at
         FROM atlas_launcher_friendship f
         INNER JOIN atlas_launcher_profile p
             ON p.account_id = CASE
@@ -62,7 +74,18 @@ public sealed partial class LauncherDatabase
                 ELSE 'incoming'
             END AS relationship,
             aa.id AS avatar_photo_id,
-            aa.version AS avatar_photo_version
+            aa.version AS avatar_photo_version,
+            CASE WHEN f.accepted_at IS NOT NULL THEN EXISTS (
+                SELECT 1 FROM atlas_launcher_session s
+                WHERE s.account_id = p.account_id
+                  AND s.revoked_at IS NULL
+                  AND s.access_expires_at > UTC_TIMESTAMP()
+                  AND s.updated_at >= UTC_TIMESTAMP() - INTERVAL @presenceLifetime SECOND
+            ) ELSE FALSE END AS launcher_online,
+            CASE WHEN f.accepted_at IS NOT NULL THEN (
+                SELECT MAX(s.updated_at) FROM atlas_launcher_session s
+                WHERE s.account_id = p.account_id
+            ) ELSE NULL END AS launcher_last_seen_at
         FROM atlas_launcher_friendship f
         INNER JOIN atlas_launcher_profile p
             ON p.account_id = CASE
@@ -97,6 +120,7 @@ public sealed partial class LauncherDatabase
                 ? FriendAccountsQuery
                 : LegacyFriendAccountsQuery;
             command.Parameters.AddWithValue("@accountId", accountId);
+            command.Parameters.AddWithValue("@presenceLifetime", LauncherPresenceLifetimeSeconds);
             await using MySqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
@@ -111,7 +135,11 @@ public sealed partial class LauncherDatabase
                         ? null
                         : Avatars.AvatarDescriptor.Create(
                             new Guid((byte[])reader["avatar_photo_id"], bigEndian: true),
-                            reader.GetUInt64("avatar_photo_version"))));
+                            reader.GetUInt64("avatar_photo_version")),
+                    reader.GetBoolean("launcher_online"),
+                    reader.IsDBNull("launcher_last_seen_at")
+                        ? null
+                        : new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime("launcher_last_seen_at"), DateTimeKind.Utc))));
             }
         }
 
@@ -143,7 +171,9 @@ public sealed partial class LauncherDatabase
                 account.Avatar,
                 account.Relationship == "accepted" ? account.StatusMessage : string.Empty,
                 account.Relationship == "accepted" ? account.Bio : string.Empty,
-                accountCharacters.Select(ToContract).ToArray()));
+                accountCharacters.Select(ToContract).ToArray(),
+                account.LauncherOnline,
+                account.LauncherLastSeenAt));
         }
 
         return friends;
@@ -360,7 +390,9 @@ public sealed partial class LauncherDatabase
         string StatusMessage,
         string Bio,
         string Relationship,
-        Avatars.AvatarDescriptor? Avatar);
+        Avatars.AvatarDescriptor? Avatar,
+        bool LauncherOnline,
+        DateTimeOffset? LauncherLastSeenAt);
 
     private sealed record FriendTarget(uint AccountId, string Username);
 

@@ -13,13 +13,17 @@
              IsHitTestVisible="False"
              Focusable="False">
     <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Resources/AtlasV2.OverlaysPilot.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
         <DataTemplate x:Key="AtlasV2.Activity.ActiveOperation">
             <Border Padding="14"
                     BorderThickness="1"
-                    CornerRadius="7">
+                    CornerRadius="10">
                 <Border.Style>
                     <Style TargetType="{x:Type Border}">
-                        <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfaceRaised}"/>
+                        <Setter Property="Background" Value="{StaticResource AtlasV2.Overlay.Card}"/>
                         <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.CyanBorder}"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding HasError}" Value="True">
@@ -48,10 +52,10 @@
                         <Border Width="38"
                                 Height="38"
                                 Padding="4"
-                                Background="{StaticResource AtlasV2.Brush.Field}"
-                                BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                                Background="{StaticResource AtlasV2.Overlay.Field}"
+                                BorderBrush="{StaticResource AtlasV2.Overlay.CardEdge}"
                                 BorderThickness="1"
-                                CornerRadius="6">
+                                CornerRadius="10">
                             <Image Source="{Binding IconUri}"
                                    Stretch="Uniform"/>
                         </Border>
@@ -59,7 +63,7 @@
                             <TextBlock Text="{Binding ProductName}"
                                        TextTrimming="CharacterEllipsis"
                                        Style="{StaticResource AtlasV2.Text.Body}"
-                                       FontWeight="Bold"
+                                       FontWeight="SemiBold"
                                        Foreground="{StaticResource AtlasV2.Brush.Text}"/>
                             <TextBlock Margin="0,2,0,0"
                                        Text="{Binding ActionName}"
@@ -106,14 +110,18 @@
                     <Grid Grid.Row="2"
                           Margin="0,12,0,0"
                           Visibility="{Binding IsDeterminate, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
-                        <ProgressBar Height="7"
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <ProgressBar Grid.Row="1" Height="7"
                                      Value="{Binding ProgressPercent}"
                                      Style="{StaticResource AtlasV2.Progress.Compact}"/>
-                        <TextBlock Margin="0,-24,0,0"
+                        <TextBlock Margin="0,0,0,5"
                                    HorizontalAlignment="Right"
                                    Text="{Binding PercentText}"
                                    Style="{StaticResource AtlasV2.Text.Caption}"
-                                   FontWeight="Bold"
+                                   FontWeight="SemiBold"
                                    Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
                     </Grid>
 
@@ -124,26 +132,32 @@
                                  Visibility="{Binding IsIndeterminate, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
                                  Style="{StaticResource AtlasV2.Progress.Compact}"/>
 
-                    <Grid Grid.Row="3" Margin="0,10,0,0">
+                    <StackPanel Grid.Row="3" Margin="0,10,0,0">
                         <TextBlock Text="{Binding TransferText}"
+                                   TextWrapping="Wrap"
                                    Style="{StaticResource AtlasV2.Text.Caption}"
                                    Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"
                                    Visibility="{Binding HasTransferText, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
-                        <TextBlock HorizontalAlignment="Right"
+                        <TextBlock Margin="0,3,0,0"
                                    Text="{Binding RateAndEtaText}"
-                                   TextAlignment="Right"
+                                   TextWrapping="Wrap"
                                    Style="{StaticResource AtlasV2.Text.Caption}"
                                    Visibility="{Binding HasRateAndEtaText, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
-                    </Grid>
+                    </StackPanel>
 
                     <TextBlock Grid.Row="4"
                                Margin="0,10,0,0"
                                Text="{Binding DetailText}"
+                               TextWrapping="Wrap"
                                Style="{StaticResource AtlasV2.Text.Caption}"
                                Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"
                                Visibility="{Binding HasDetailText, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
 
                     <Grid Grid.Row="5" Margin="0,12,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
                         <Border Padding="10,8"
                                 HorizontalAlignment="Stretch"
                                 Style="{StaticResource AtlasV2.Banner.Error}"
@@ -154,15 +168,16 @@
                                        Foreground="{StaticResource AtlasV2.Brush.Danger}"/>
                         </Border>
                         <Button x:Name="CancelActivityButton"
+                                Grid.Row="1"
+                                Margin="0,8,0,0"
                                 MinWidth="96"
                                 Height="34"
                                 Padding="14,0"
                                 HorizontalAlignment="Right"
-                                Style="{StaticResource AtlasV2.Button.GhostCompact}"
+                                Style="{StaticResource AtlasV2.Overlay.CompactButton}"
                                 Content="{Binding CancelActionLabel}"
                                 IsEnabled="{Binding CanUserCancel}"
                                 Visibility="{Binding ShowsCancelAction, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
-                                ToolTip="Annuler l’opération"
                                 AutomationProperties.Name="Annuler l’opération"
                                 Click="CancelActivityButton_Click"/>
                     </Grid>
@@ -180,7 +195,7 @@
                 <Border Width="30"
                         Height="30"
                         Padding="3"
-                        Background="{StaticResource AtlasV2.Brush.Field}"
+                        Background="{StaticResource AtlasV2.Overlay.Field}"
                         CornerRadius="5">
                     <Image Source="{Binding IconUri}" Stretch="Uniform" Opacity="0.72"/>
                 </Border>
@@ -203,10 +218,10 @@
             <Border MinHeight="52"
                     Margin="0,0,0,7"
                     Padding="10,7"
-                    Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
-                    BorderBrush="{StaticResource AtlasV2.Brush.BorderSoft}"
+                    Background="{StaticResource AtlasV2.Overlay.Card}"
+                    BorderBrush="{StaticResource AtlasV2.Overlay.Divider}"
                     BorderThickness="1"
-                    CornerRadius="6">
+                    CornerRadius="10">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="22"/>
@@ -265,7 +280,7 @@
                             Height="32"
                             Padding="7"
                             VerticalAlignment="Center"
-                            Style="{StaticResource AtlasV2.Button.Icon}"
+                            Style="{StaticResource AtlasV2.Overlay.IconButton}"
                             Visibility="{Binding CanNavigate, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
                             ToolTip="Ouvrir"
                             AutomationProperties.Name="Ouvrir l’élément associé"
@@ -277,6 +292,7 @@
                 </Grid>
             </Border>
         </DataTemplate>
+            </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid x:Name="OverlayRoot">
@@ -287,21 +303,21 @@
                 MouseLeftButtonDown="Scrim_MouseLeftButtonDown"/>
 
         <Border x:Name="ActivityPanel"
-                Width="412"
+                Width="438"
                 Margin="0,10,10,10"
-                Padding="18"
+                Padding="22"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Stretch"
-                Background="#FC141A20"
-                BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                Background="{StaticResource AtlasV2.Overlay.Panel}"
+                BorderBrush="{StaticResource AtlasV2.Overlay.CardEdge}"
                 BorderThickness="1"
-                CornerRadius="8"
+                CornerRadius="14"
                 Opacity="0"
                 KeyboardNavigation.TabNavigation="Cycle"
                 KeyboardNavigation.ControlTabNavigation="Cycle"
                 KeyboardNavigation.DirectionalNavigation="Contained">
             <Border.RenderTransform>
-                <TranslateTransform x:Name="PanelTranslate" X="428"/>
+                <TranslateTransform x:Name="PanelTranslate" X="454"/>
             </Border.RenderTransform>
             <Grid>
                 <Grid.RowDefinitions>
@@ -314,11 +330,10 @@
                 <Grid Grid.Row="0" Margin="0,0,0,18">
                     <StackPanel>
                         <TextBlock Text="ATLAS LAUNCHER"
-                                   Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
+                                   Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
                         <TextBlock Margin="0,4,0,0"
                                    Text="Activité"
-                                   Style="{StaticResource AtlasV2.Text.SectionTitle}"
-                                   FontSize="24"/>
+                                   Style="{StaticResource AtlasV2.Overlay.Title}"/>
                     </StackPanel>
                     <Button x:Name="CloseButton"
                             Width="38"
@@ -326,7 +341,7 @@
                             Padding="10"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Top"
-                            Style="{StaticResource AtlasV2.Button.Icon}"
+                            Style="{StaticResource AtlasV2.Overlay.IconButton}"
                             ToolTip="Fermer"
                             AutomationProperties.Name="Fermer le centre d’activité"
                             Click="CloseButton_Click">
@@ -341,7 +356,7 @@
                             Visibility="{Binding State.Current.HasActiveOperation, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                     <TextBlock Margin="0,0,0,8"
                                Text="EN COURS"
-                               Style="{StaticResource AtlasV2.Text.Eyebrow}"
+                               Style="{StaticResource AtlasV2.Overlay.Eyebrow}"
                                Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
                     <ContentControl Content="{Binding State.Current.ActiveOperation, ElementName=Root}"
                                     ContentTemplate="{StaticResource AtlasV2.Activity.ActiveOperation}"/>
@@ -353,7 +368,7 @@
                             Visibility="{Binding State.Current.HasPendingOperations, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                     <TextBlock Margin="0,0,0,9"
                                Text="EN ATTENTE"
-                               Style="{StaticResource AtlasV2.Text.Eyebrow}"
+                               Style="{StaticResource AtlasV2.Overlay.Eyebrow}"
                                Foreground="{StaticResource AtlasV2.Brush.TextMuted}"/>
                     <ItemsControl ItemsSource="{Binding State.Current.PendingOperations, ElementName=Root}"
                                   ItemTemplate="{StaticResource AtlasV2.Activity.PendingOperation}"/>
@@ -368,7 +383,7 @@
                         </Grid.RowDefinitions>
                         <TextBlock Margin="0,0,0,9"
                                    Text="RÉCENT"
-                                   Style="{StaticResource AtlasV2.Text.Eyebrow}"
+                                   Style="{StaticResource AtlasV2.Overlay.Eyebrow}"
                                    Foreground="{StaticResource AtlasV2.Brush.TextMuted}"/>
                         <ScrollViewer x:Name="RecentScrollViewer"
                                       Grid.Row="1"
@@ -392,10 +407,10 @@
                         <Border Width="52"
                                 Height="52"
                                 Margin="0,0,0,14"
-                                Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
-                                BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                                Background="{StaticResource AtlasV2.Overlay.Card}"
+                                BorderBrush="{StaticResource AtlasV2.Overlay.CardEdge}"
                                 BorderThickness="1"
-                                CornerRadius="7">
+                                CornerRadius="10">
                             <Path Width="23"
                                   Height="23"
                                   HorizontalAlignment="Center"

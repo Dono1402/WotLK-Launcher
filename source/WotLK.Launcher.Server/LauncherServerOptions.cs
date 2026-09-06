@@ -5,6 +5,7 @@ public sealed class LauncherServerOptions
     public string ConnectionString { get; set; } = "";
     public uint? MaximumSchemaVersion { get; set; }
     public string CharacterDatabaseName { get; set; } = "arthas_chars";
+    public string WorldDatabaseName { get; set; } = "arthas_world";
     public string FeedRoot { get; set; } = "/srv/wotlk/launcher-feed";
     public string AddonRoot { get; set; } = "/var/www/wotlk-launcher/launcher/addons";
     public string AvatarMediaRoot { get; set; } = "/srv/wotlk/atlas-media";

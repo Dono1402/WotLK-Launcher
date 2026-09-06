@@ -627,7 +627,9 @@ internal sealed record LauncherFriend(
     Account.AvatarDescriptor? Avatar = null,
     string StatusMessage = "",
     string Bio = "",
-    IReadOnlyList<LauncherFriendCharacter>? Characters = null)
+    IReadOnlyList<LauncherFriendCharacter>? Characters = null,
+    bool LauncherOnline = false,
+    DateTimeOffset? LauncherLastSeenAt = null)
 {
     public string Initial => string.IsNullOrWhiteSpace(Username)
         ? "?"
@@ -637,11 +639,20 @@ internal sealed record LauncherFriend(
         ? "Aucun personnage créé"
         : $"{CharacterName} · {GetClassName(ClassId)} niveau {Level}";
 
-    public string PresenceText => Online
-        ? "En jeu"
-        : LastSeenAt is null
-            ? "Hors ligne"
-            : $"Hors ligne · vu le {LastSeenAt.Value.ToLocalTime():dd/MM à HH:mm}";
+    public string PresenceText
+    {
+        get
+        {
+            if (Online) return "En jeu";
+            if (LauncherOnline) return "Connecté au launcher";
+            DateTimeOffset? lastSeen = LastSeenAt;
+            if (LauncherLastSeenAt is DateTimeOffset launcherSeen
+                && (lastSeen is null || launcherSeen > lastSeen.Value)) lastSeen = launcherSeen;
+            return lastSeen is null
+                ? "Hors ligne"
+                : $"Hors ligne · vu le {lastSeen.Value.ToLocalTime():dd/MM à HH:mm}";
+        }
+    }
 
     private static string GetClassName(byte? classId) => classId switch
     {

@@ -54,12 +54,13 @@ public partial class App : Application
 
         string[] applicationArguments = LauncherUpdateCommandLine.ApplicationArguments(e.Args);
         LauncherStartupMode startupMode = ResolveStartupMode(applicationArguments);
+        bool startMinimized = ShouldStartMinimized(startupMode, applicationArguments);
         if (UsesSingleInstance(startupMode))
         {
             string identity = LauncherSingleInstanceGate.CurrentIdentity;
             if (!LauncherSingleInstanceGate.TryAcquire(identity, out LauncherSingleInstanceGate? gate))
             {
-                _ = LauncherSingleInstanceGate.SignalExisting(identity);
+                _ = LauncherSingleInstanceGate.SignalExisting(identity, activateExisting: !startMinimized);
                 base.OnStartup(e);
                 Shutdown(0);
                 return;
@@ -123,8 +124,8 @@ public partial class App : Application
 
         DispatchInteractiveStartup(
             startupMode,
-            () => StartLegacy(updateStartup),
-            () => StartRuntimeV2(updateStartup),
+            () => StartLegacy(updateStartup, startMinimized),
+            () => StartRuntimeV2(updateStartup, startMinimized),
             previewMode => StartV2Preview(previewMode, e.Args));
     }
 
@@ -263,12 +264,32 @@ public partial class App : Application
     internal static bool UsesSingleInstance(LauncherStartupMode startupMode) => startupMode is
         LauncherStartupMode.Legacy or LauncherStartupMode.UiV2;
 
-    private void StartLegacy(LauncherUpdateStartupSession? updateStartup)
+    internal static bool ShouldStartMinimized(
+        LauncherStartupMode startupMode,
+        IEnumerable<string> arguments) =>
+        UsesSingleInstance(startupMode) && arguments.Any(argument => string.Equals(
+            argument,
+            WindowsLauncherStartupRegistration.AutoStartArgument,
+            StringComparison.OrdinalIgnoreCase));
+
+    internal static void ConfigureStartupWindow(Window window, bool startMinimized)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        if (startMinimized)
+        {
+            window.ShowActivated = false;
+            window.ShowInTaskbar = true;
+            window.WindowState = WindowState.Minimized;
+        }
+    }
+
+    private void StartLegacy(LauncherUpdateStartupSession? updateStartup, bool startMinimized)
     {
         var window = new MainWindow(
             LegacyMainWindowDependencies.CreateProduction(
                 updateStartup?.RecoveryOccurred == true));
         MainWindow = window;
+        ConfigureStartupWindow(window, startMinimized);
         window.Show();
         ActivatePendingPrimaryWindow();
         ScheduleUpdateReadyConfirmation(window, updateStartup);
@@ -321,7 +342,7 @@ public partial class App : Application
         previewWindow.Show();
     }
 
-    private void StartRuntimeV2(LauncherUpdateStartupSession? updateStartup)
+    private void StartRuntimeV2(LauncherUpdateStartupSession? updateStartup, bool startMinimized)
     {
         LauncherRuntime runtime;
         try
@@ -482,6 +503,8 @@ public partial class App : Application
             new AvatarFileSelectionService(new WindowsAvatarFilePicker()),
             window.Dispatcher);
         window.AttachAccount(accountCommands);
+        window.AttachArmory(runtime.GetArmoryAccountAsync, runtime.GetArmoryDataAsync,
+            () => runtime.Settings.InstallPath);
         AuthStateAdapter authStateAdapter = new(
             window.AuthState,
             shellState,
@@ -626,6 +649,7 @@ public partial class App : Application
         };
 
         MainWindow = window;
+        ConfigureStartupWindow(window, startMinimized);
         window.Show();
         ActivatePendingPrimaryWindow();
         ScheduleUpdateReadyConfirmation(window, updateStartup);

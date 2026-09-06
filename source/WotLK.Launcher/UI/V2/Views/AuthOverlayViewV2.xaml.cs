@@ -256,6 +256,12 @@ public partial class AuthOverlayViewV2 : UserControl
             return;
         }
 
+        // Let focused buttons activate their own action (mode, close or links).
+        if (e.OriginalSource is not TextBox && e.OriginalSource is not PasswordBox)
+        {
+            return;
+        }
+
         ValidateForPreview(showErrors: true);
         SubmitValidatedForm();
 

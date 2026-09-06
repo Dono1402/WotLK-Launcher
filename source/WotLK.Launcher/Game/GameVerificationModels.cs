@@ -37,7 +37,8 @@ internal enum GamePrimaryActionStatus
     Unauthenticated,
     AuthenticationUnavailable,
     ShuttingDown,
-    Unsupported
+    Unsupported,
+    ServerUnavailable
 }
 
 internal enum GameRuntimeErrorCategory
@@ -124,7 +125,8 @@ internal sealed record GameRuntimeSnapshot(
     bool IsPlayPendingAuthentication = false,
     GameLaunchFailureCategory? PlayFailureCategory = null,
     GameLaunchOutcome? LastPlayOutcome = null,
-    OperationTerminalResult? TerminalResult = null)
+    OperationTerminalResult? TerminalResult = null,
+    bool IsGameServerUnavailable = false)
 {
     internal GameViewMode ViewMode
     {

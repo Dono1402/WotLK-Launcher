@@ -4,9 +4,11 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using WotLK.Launcher;
@@ -14,6 +16,7 @@ using WotLK.Launcher.Game;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2;
 using WotLK.Launcher.UI.V2.Commands;
+using WotLK.Launcher.UI.V2.Localization;
 using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Preview;
 using WotLK.Launcher.UI.V2.Views;
@@ -24,6 +27,7 @@ internal static class GameLaunchTests
 
     internal static async Task<int> RunAsync()
     {
+        await GameServerAvailabilityTests.RunAsync();
         await PreserveLegacyLaunchOrderAndArgumentsAsync();
         await CategorizeLaunchFailuresWithoutSideEffectsAsync();
         await CancelBeforeProcessStartAsync();
@@ -611,10 +615,11 @@ internal static class GameLaunchTests
 
         ShellUiState shell = LauncherV2RuntimePresentation.CreateShell(runtime);
         GameUiState game = LauncherV2RuntimePresentation.CreateGame(runtime.LocalClient);
+        DashboardUiState dashboard = LauncherV2RuntimePresentation.CreateDashboard();
         LauncherShellV2 window = new(
             shell,
             game,
-            LauncherV2RuntimePresentation.CreateDashboard(),
+            dashboard,
             LauncherV2RuntimePresentation.CreateFriends())
         {
             Width = 1080,
@@ -622,7 +627,8 @@ internal static class GameLaunchTests
             Left = -20000,
             Top = -20000,
             WindowStartupLocation = WindowStartupLocation.Manual,
-            ShowInTaskbar = false
+            ShowInTaskbar = false,
+            ShowActivated = false
         };
         AuthCommands authCommands = new(runtime);
         window.AttachAuthentication(authCommands);
@@ -637,11 +643,19 @@ internal static class GameLaunchTests
             window.OpenAuthenticationForPendingPlay);
         game.AttachPrimaryActionCommand(primary.Command);
         using GameStateAdapter gameAdapter = new(game, runtime.Game, window.Dispatcher);
+        using DashboardStateAdapter dashboardAdapter = new(dashboard, runtime.Dashboard, window.Dispatcher);
+        window.PreviewGotKeyboardFocus += (_, args) => args.Handled = true;
+        window.SourceInitialized += (_, _) =>
+        {
+            IntPtr handle = new WindowInteropHelper(window).Handle;
+            SetWindowLong(handle, -20, GetWindowLong(handle, -20) | 0x08000000);
+        };
 
         try
         {
             window.Show();
-            window.Activate();
+            True(!window.IsActive && (GetWindowLong(new WindowInteropHelper(window).Handle, -20) & 0x08000000) != 0,
+                "Le test du CTA doit rester hors écran avec WS_EX_NOACTIVATE.");
             await PumpAsync(DispatcherPriority.Loaded);
             GameViewV2 gameView = FindVisualChildren<GameViewV2>(window).Single();
             Button play = (Button)gameView.PrimaryActionFocusTarget;
@@ -686,6 +700,43 @@ internal static class GameLaunchTests
             Equal("Jouer", game.PrimaryActionLabel, "Le bouton doit revenir à Jouer après succès.");
             True(game.IsPrimaryActionEnabled, "Le bouton doit être réutilisable après succès.");
             True(!game.ShowsProgress, "Le lancement ne doit jamais afficher une barre de téléchargement.");
+
+            authentication.StatusHandler = _ => Task.FromResult(OnlineStatus() with { WorldServer = false });
+            await runtime.Dashboard.RefreshAfterAuthenticationAsync();
+            await PumpAsync(DispatcherPriority.DataBind);
+            window.UpdateLayout();
+            Equal("Serveur de jeu hors ligne", Required<TextBlock>(gameView, "RealmStatusText").Text,
+                "Le test doit partir du véritable statut hors ligne affiché dans Jeu.");
+            Equal("Serveur indisponible", game.PrimaryActionLabel, "Le statut hors ligne doit remplacer Jouer.");
+            Equal("Serveur indisponible", Required<TextBlock>(gameView, "PrimaryActionLabelText").Text,
+                "Le bouton WPF doit afficher le nouveau libellé.");
+            True(!play.IsEnabled && !play.Command.CanExecute(play.CommandParameter),
+                "Le CTA et sa commande doivent être désactivés ensemble quand le monde est hors ligne.");
+            for (int index = 0; index < 3; index++)
+            {
+                RaiseClick(play);
+                play.Command.Execute(play.CommandParameter);
+            }
+            Equal(1, authentication.CreateGameTicketCalls, "Le CTA hors ligne ne doit pas demander de nouveau ticket.");
+            Equal(1, process.Calls, "Les clics WPF répétés hors ligne ne doivent pas relancer le jeu.");
+            True(runtime.Session.CurrentSnapshot.IsAuthenticated && !window.AuthState.IsOpen,
+                "La panne du monde ne doit pas déconnecter le compte du launcher.");
+            string originalLocale = LauncherLocalization.CurrentLocale;
+            try
+            {
+                LauncherLocalization.SetLocale(LauncherLocalization.EnglishLocale);
+                await PumpAsync(DispatcherPriority.DataBind);
+                Equal("Server unavailable", Required<TextBlock>(gameView, "PrimaryActionLabelText").Text,
+                    "Le CTA indisponible doit suivre la langue anglaise.");
+            }
+            finally { LauncherLocalization.SetLocale(originalLocale); }
+            authentication.StatusHandler = _ => Task.FromResult(OnlineStatus());
+            await runtime.Dashboard.RefreshAfterAuthenticationAsync();
+            await PumpAsync(DispatcherPriority.DataBind);
+            Equal("Jouer", game.PrimaryActionLabel, "Le rétablissement doit restaurer le libellé Jouer.");
+            True(play.IsEnabled && play.Command.CanExecute(play.CommandParameter), "Le rétablissement doit réactiver le CTA sans redémarrage.");
+            True(!window.IsActive, "Le test du CTA ne doit pas activer sa fenêtre.");
+            Console.WriteLine("Offline game WPF CTA OK: Server unavailable / Serveur indisponible, IsEnabled=false, CanExecute=false, repeated events blocked, session retained and recovery enabled; no OS input.");
         }
         finally
         {
@@ -721,6 +772,12 @@ internal static class GameLaunchTests
             HasPlayableClient = GameInstallServices.HasPlayableClient
         });
     }
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
+    private static extern int GetWindowLong(IntPtr window, int index);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongW")]
+    private static extern int SetWindowLong(IntPtr window, int index, int value);
 
     private static FakeLauncherAuthService AuthenticatedService()
     {

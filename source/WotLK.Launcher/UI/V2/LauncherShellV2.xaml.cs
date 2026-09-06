@@ -1,8 +1,10 @@
 using System.ComponentModel;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2.Commands;
@@ -26,13 +28,25 @@ public partial class LauncherShellV2 : Window
     private IInputElement? _avatarCropFocusReturnTarget;
     private IInputElement? _patchNoteFocusReturnTarget;
     private bool _restoreFriendsFocusAfterClose;
+    private bool _suppressProfileFocusRestore;
     private AuthCommands? _authCommands;
     private AccountCommands? _accountCommands;
     private FriendsCommands? _friendsCommands;
     private AddonsCommands? _addonsCommands;
     private ActivityCancelCommand? _activityCancelCommand;
+    private readonly DispatcherTimer _profileTitleBarHideTimer = new() { Interval = TimeSpan.FromMilliseconds(220) };
+    private bool _profileTitleBarVisible;
+    private bool _draggingTitleBar;
+    private bool _isProfileHeaderHovered;
 
     internal event EventHandler? MinimizeToTrayRequested;
+
+    internal void AttachArmory(Func<CancellationToken, Task<uint?>> getAccount,
+        Func<uint, LauncherArmoryDataRequest, CancellationToken, Task<JsonElement>>? readData = null,
+        Func<string?>? getGameDirectory = null)
+    {
+        ArmoryView.Configure(getAccount, AccountState, readData: readData, getGameDirectory: getGameDirectory);
+    }
 
     public LauncherShellV2(GamePreviewScenario scenario = GamePreviewScenario.Ready)
         : this(
@@ -365,6 +379,11 @@ public partial class LauncherShellV2 : Window
         PreviewKeyDown += LauncherShellV2_PreviewKeyDown;
         PreviewMouseDown += LauncherShellV2_PreviewMouseDown;
         PreviewGotKeyboardFocus += LauncherShellV2_PreviewGotKeyboardFocus;
+        MouseLeave += ProfileTitleBarHover_MouseLeave;
+        _profileTitleBarHideTimer.Tick += ProfileTitleBarHideTimer_Tick;
+        ProfileState.PropertyChanged += ProfileTitleBarOverlay_PropertyChanged;
+        FriendsState.PropertyChanged += ProfileTitleBarOverlay_PropertyChanged;
+        ActivityState.PropertyChanged += ProfileTitleBarOverlay_PropertyChanged;
         ShellState.PropertyChanged += ShellState_PropertyChanged;
         AccountState.PropertyChanged += AccountState_PropertyChanged;
         AddonsState.PropertyChanged += AddonsState_PropertyChanged;
@@ -637,11 +656,19 @@ public partial class LauncherShellV2 : Window
         PreviewKeyDown -= LauncherShellV2_PreviewKeyDown;
         PreviewMouseDown -= LauncherShellV2_PreviewMouseDown;
         PreviewGotKeyboardFocus -= LauncherShellV2_PreviewGotKeyboardFocus;
+        MouseLeave -= ProfileTitleBarHover_MouseLeave;
+        _profileTitleBarHideTimer.Stop();
+        _profileTitleBarHideTimer.Tick -= ProfileTitleBarHideTimer_Tick;
+        ProfileTitleBarTransform.BeginAnimation(TranslateTransform.YProperty, null);
+        ProfileState.PropertyChanged -= ProfileTitleBarOverlay_PropertyChanged;
+        FriendsState.PropertyChanged -= ProfileTitleBarOverlay_PropertyChanged;
+        ActivityState.PropertyChanged -= ProfileTitleBarOverlay_PropertyChanged;
         ShellState.PropertyChanged -= ShellState_PropertyChanged;
         AccountState.PropertyChanged -= AccountState_PropertyChanged;
         AddonsState.PropertyChanged -= AddonsState_PropertyChanged;
         DashboardState.PropertyChanged -= DashboardState_PropertyChanged;
         _localizationBridge.Dispose();
+        ArmoryView.Dispose();
         MinimizeToTrayRequested = null;
         AuthOverlay.SubmissionRequested -= AuthOverlay_SubmissionRequested;
         ProfileMenu.ManageProfileRequested -= ProfileMenu_ManageProfileRequested;
@@ -680,14 +707,167 @@ public partial class LauncherShellV2 : Window
         AdaptiveLayoutMode mode = AdaptiveLayoutClassifier.FromWidth(ActualWidth);
         ShellState.LayoutMode = mode;
 
-        bool wide = mode == AdaptiveLayoutMode.Wide;
-        bool stacked = mode == AdaptiveLayoutMode.Stacked;
-        ProductGameName.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
-        ProductDivider.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
-        PatchNotesNavigationLabel.Text = stacked ? "Notes" : "Mises à jour";
-        TopNavigation.Margin = mode == AdaptiveLayoutMode.Wide
-            ? new Thickness(8, 0, 0, 0)
-            : new Thickness(0);
+        // The floating chrome adapts independently of the content's existing layout modes.
+        bool spacious = ActualWidth >= 1500;
+        bool compact = ActualWidth < 1180;
+        double inset = spacious ? 22 : compact ? 14 : 18;
+        double barHeight = spacious ? 80 : compact ? 64 : 72;
+        double iconSize = spacious ? 44 : compact ? 34 : 38;
+        double actionGap = spacious ? 12 : compact ? 4 : 7;
+        double windowButtonWidth = spacious ? 48 : compact ? 34 : 40;
+
+        TitleBar.Margin = new Thickness(inset, inset, inset, 0);
+        TitleBar.Height = barHeight;
+        TitleBar.CornerRadius = new CornerRadius(spacious ? 14 : 11);
+        ContentTopRow.Height = new GridLength(inset + barHeight + (spacious ? 22 : 16));
+        TopChromeDragZone.Height = ContentTopRow.Height.Value;
+        BrandIdentity.Margin = new Thickness(spacious ? 24 : 14, 0, spacious ? 72 : compact ? 12 : 24, 0);
+        BrandLogo.Width = BrandLogo.Height = spacious ? 42 : compact ? 32 : 36;
+        BrandName.Margin = new Thickness(spacious ? 18 : compact ? 10 : 12, 0, 0, 0);
+        BrandName.FontSize = spacious ? 20 : compact ? 16 : 18;
+        LocalBuildBadge.Margin = new Thickness(spacious ? 18 : 8, 0, 0, 0);
+        LocalBuildBadge.Padding = spacious ? new Thickness(8, 4, 8, 4) : new Thickness(5, 3, 5, 3);
+        LocalBuildBadgeText.FontSize = spacious ? 12 : compact ? 9 : 10;
+        ProductDivider.Margin = new Thickness(spacious ? 14 : 10, 0, spacious ? 14 : 10, 0);
+        ProductGameName.Visibility = ProductDivider.Visibility = Visibility.Visible;
+        ProductGameName.FontSize = spacious ? 16 : compact ? 12 : 13;
+        PatchNotesNavigationLabel.Text = compact ? "Notes" : "Notes de version";
+        PatchNotesNavigationButton.ToolTip = "Notes de version";
+        TopNavigation.Margin = new Thickness(0);
+        foreach (Button navigation in new[] { GameNavigationButton, AddonsNavigationButton, PatchNotesNavigationButton })
+        {
+            navigation.Height = barHeight - 2;
+            navigation.FontSize = spacious ? 16 : compact ? 13 : 14;
+            navigation.Padding = new Thickness(spacious ? 30 : compact ? 12 : 20, 0, spacious ? 30 : compact ? 12 : 20, 0);
+        }
+
+        TopBarActions.Margin = new Thickness(0, 0, spacious ? 12 : 8, 0);
+        foreach (Button action in new[] { LauncherUpdateButton, FriendsButton, SettingsButton })
+        {
+            action.Width = action.Height = iconSize;
+            action.Padding = new Thickness(spacious ? 11 : 8);
+            action.Margin = new Thickness(0, 0, actionGap, 0);
+        }
+        // Width remains controlled by the percent-state trigger while an operation is active.
+        ActivityButton.Height = iconSize;
+        ActivityButton.Margin = new Thickness(0, 0, actionGap, 0);
+        ActivityButton.Padding = new Thickness(8, 0, 8, 0);
+        ProfileDivider.Margin = new Thickness(spacious ? 10 : 6, 0, spacious ? 14 : 8, 0);
+        ProfileButton.Width = ProfileButton.Height = spacious ? 48 : compact ? 38 : 42;
+        ProfileButton.Margin = new Thickness(0, 0, spacious ? 18 : 10, 0);
+        ProfileAvatarVisual.Width = ProfileAvatarVisual.Height = spacious ? 42 : compact ? 32 : 36;
+        foreach (Button windowButton in new[] { MinimizeWindowButton, MaximizeWindowButton, CloseWindowButton })
+        {
+            windowButton.Width = windowButtonWidth;
+            windowButton.Height = iconSize;
+            windowButton.Padding = new Thickness(spacious ? 14 : compact ? 9 : 11);
+        }
+        ProfileMenu.Margin = new Thickness(0, inset + barHeight + 8, inset + 13 + windowButtonWidth * 3, 0);
+        SetProfileTitleBarVisible(CurrentPage != LauncherShellPage.Armory || _profileTitleBarVisible, animate: false);
+    }
+
+    private void RefreshProfileTitleBarMode()
+    {
+        _profileTitleBarHideTimer.Stop();
+        _isProfileHeaderHovered = false;
+        bool immersive = CurrentPage == LauncherShellPage.Armory;
+        TopChromeDragZone.Visibility = immersive ? Visibility.Collapsed : Visibility.Visible;
+        ProfileTitleBarHoverZone.Visibility = immersive ? Visibility.Visible : Visibility.Collapsed;
+        SetProfileTitleBarVisible(!immersive, animate: false);
+    }
+
+    private void ProfileTitleBarHover_MouseEnter(object sender, MouseEventArgs e)
+    {
+        if (CurrentPage != LauncherShellPage.Armory) return;
+        _profileTitleBarHideTimer.Stop();
+        SetProfileTitleBarVisible(true, animate: true);
+    }
+
+    private void ProfileTitleBarHover_MouseLeave(object sender, MouseEventArgs e)
+    {
+        if (ReferenceEquals(sender, this)) _isProfileHeaderHovered = false;
+        ScheduleProfileTitleBarHide(immediately: ReferenceEquals(sender, this));
+    }
+
+    private void ArmoryView_HeaderHoverChanged(object? sender, ArmoryHeaderHoverEventArgs e)
+    {
+        if (CurrentPage != LauncherShellPage.Armory) return;
+        _isProfileHeaderHovered = e.Hovered;
+        if (e.Hovered)
+        {
+            _profileTitleBarHideTimer.Stop();
+            SetProfileTitleBarVisible(true, animate: true);
+        }
+        else ScheduleProfileTitleBarHide(immediately: true);
+    }
+
+    private bool ShouldKeepProfileTitleBarVisible => ProfileTitleBarHoverZone.IsMouseOver || TitleBar.IsMouseOver
+        || _isProfileHeaderHovered || TitleBar.IsMouseCaptureWithin || _draggingTitleBar
+        || ProfileState.IsOpen || FriendsState.IsOpen || ActivityState.IsOpen;
+
+    private void ScheduleProfileTitleBarHide(bool immediately = false)
+    {
+        if (CurrentPage != LauncherShellPage.Armory || !_profileTitleBarVisible) return;
+        _profileTitleBarHideTimer.Stop();
+        if (ShouldKeepProfileTitleBarVisible) return;
+        if (immediately) SetProfileTitleBarVisible(false, animate: true);
+        else _profileTitleBarHideTimer.Start();
+    }
+
+    private void ProfileTitleBarHideTimer_Tick(object? sender, EventArgs e)
+    {
+        _profileTitleBarHideTimer.Stop();
+        if (CurrentPage == LauncherShellPage.Armory && !ShouldKeepProfileTitleBarVisible)
+            SetProfileTitleBarVisible(false, animate: true);
+    }
+
+    private void ProfileTitleBarOverlay_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if ((!string.IsNullOrEmpty(e.PropertyName) && e.PropertyName != nameof(ProfileUiState.IsOpen))
+            || CurrentPage != LauncherShellPage.Armory) return;
+        if (ProfileState.IsOpen || FriendsState.IsOpen || ActivityState.IsOpen)
+        {
+            _profileTitleBarHideTimer.Stop();
+            SetProfileTitleBarVisible(true, animate: true);
+        }
+        else ScheduleProfileTitleBarHide();
+    }
+
+    private void SetProfileTitleBarVisible(bool visible, bool animate)
+    {
+        bool changed = _profileTitleBarVisible != visible;
+        _profileTitleBarVisible = visible;
+        double target = visible ? 0 : -(TitleBar.Margin.Top + TitleBar.Height + 1);
+        ProfileTitleBarHoverZone.Height = visible ? TitleBar.Margin.Top + TitleBar.Height + 14 : 24;
+        TitleBar.IsHitTestVisible = visible;
+        if (!changed && animate) return;
+
+        double from = ProfileTitleBarTransform.Y;
+        ProfileTitleBarTransform.BeginAnimation(TranslateTransform.YProperty, null);
+        ProfileTitleBarTransform.Y = target;
+        if (!animate || !SystemParameters.ClientAreaAnimation || Math.Abs(from - target) < 0.1)
+        {
+            TitleBar.Visibility = visible ? Visibility.Visible : Visibility.Hidden;
+            return;
+        }
+
+        TitleBar.Visibility = Visibility.Visible;
+        // Keep the departing bar interactive so entering it can reverse the slide.
+        TitleBar.IsHitTestVisible = true;
+        DoubleAnimation slide = new(from, target, TimeSpan.FromMilliseconds(visible ? 190 : 160))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            FillBehavior = FillBehavior.Stop
+        };
+        slide.Completed += (_, _) =>
+        {
+            if (!_profileTitleBarVisible && CurrentPage == LauncherShellPage.Armory)
+            {
+                TitleBar.Visibility = Visibility.Hidden;
+                TitleBar.IsHitTestVisible = false;
+            }
+        };
+        ProfileTitleBarTransform.BeginAnimation(TranslateTransform.YProperty, slide, HandoffBehavior.SnapshotAndReplace);
     }
 
     private void LauncherShellV2_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -716,13 +896,30 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
+        BeginWindowDrag();
+    }
+
+    private void ArmoryView_WindowDragRequested(object? sender, EventArgs e)
+    {
+        if (CurrentPage == LauncherShellPage.Armory) BeginWindowDrag();
+    }
+
+    private void BeginWindowDrag()
+    {
+        if (Mouse.LeftButton != MouseButtonState.Pressed) return;
         try
         {
+            _draggingTitleBar = true;
             DragMove();
         }
         catch (InvalidOperationException)
         {
             // The mouse button can be released before WPF enters its native move loop.
+        }
+        finally
+        {
+            _draggingTitleBar = false;
+            ScheduleProfileTitleBarHide();
         }
     }
 
@@ -916,6 +1113,7 @@ public partial class LauncherShellV2 : Window
                 ProfileButton.Focusable = !ProfileState.IsOpen;
                 if (ProfileState.IsOpen)
                 {
+                    _suppressProfileFocusRestore = false;
                     ProfileMenu.FocusFirstControl();
                 }
             }
@@ -948,12 +1146,66 @@ public partial class LauncherShellV2 : Window
 
     private void ProfileMenu_ManageAccountRequested(object? sender, EventArgs e)
     {
+        AccountView.ProfileFallbackEnabled = false;
         OpenAccountSection(AccountSection.Security);
     }
 
     private void ProfileMenu_ManageProfileRequested(object? sender, EventArgs e)
     {
+        if (ArmoryView.IsConfigured && IsAccountNavigationEnabled)
+        {
+            _suppressProfileFocusRestore = true;
+            _overlayCoordinator.CloseProfile();
+            NavigateTo(LauncherShellPage.Armory);
+            _accountCommands?.RefreshProfile();
+            return;
+        }
         OpenAccountSection(AccountSection.Profile);
+    }
+
+    private void ArmoryView_CustomizeRequested(object? sender, EventArgs e)
+    {
+        if (ArmoryView.Browser?.CoreWebView2 is not null) ArmoryView.OpenProfileEditor();
+        else
+        {
+            AccountView.ProfileFallbackEnabled = true;
+            OpenAccountSection(AccountSection.Profile);
+        }
+    }
+
+    private void ArmoryView_ProfileSaveRequested(object? sender, ArmoryProfileSaveRequestedEventArgs e)
+    {
+        if (!IsPreviewMode && CurrentPage == LauncherShellPage.Armory && AccountState.Current.CanUpdateSocialProfile)
+            e.Accepted = _accountCommands?.TryUpdateSocialProfile(e.StatusMessage, e.Bio) == true;
+    }
+
+    private async void ArmoryView_AvatarChangeRequested(object? sender, ArmoryAvatarRequestedEventArgs e)
+    {
+        if (IsPreviewMode || CurrentPage != LauncherShellPage.Armory || !AccountState.Current.CanModifyAvatar
+            || _accountCommands is not { } commands || e.SessionToken.IsCancellationRequested
+            || _overlayCoordinator.Current != ShellOverlayKind.None) return;
+        e.Accepted = true;
+        try
+        {
+            if (!await commands.SelectAvatarAsync(e.SessionToken)) return;
+            if (e.SessionToken.IsCancellationRequested || CurrentPage != LauncherShellPage.Armory
+                || !AccountState.IsNavigationEnabled || !ReferenceEquals(commands, _accountCommands)
+                || !_overlayCoordinator.TryOpenAvatarCrop())
+            {
+                commands.CancelUploadOrCloseCrop();
+                return;
+            }
+            _avatarCropFocusReturnTarget = ArmoryView.Browser;
+            AvatarCropOverlay.FocusFirstControl();
+        }
+        finally { ArmoryView.CompleteAvatarSelection(e.SessionToken); }
+    }
+
+    private void ArmoryView_AvatarRemoveRequested(object? sender, ArmoryAvatarRequestedEventArgs e)
+    {
+        if (!IsPreviewMode && CurrentPage == LauncherShellPage.Armory && AccountState.Current.CanRemoveAvatar
+            && !e.SessionToken.IsCancellationRequested)
+            e.Accepted = _accountCommands?.ConfirmDelete() == true;
     }
 
     private void OpenAccountSection(AccountSection section)
@@ -964,6 +1216,7 @@ public partial class LauncherShellV2 : Window
         }
 
         AccountState.SelectSection(section);
+        _suppressProfileFocusRestore = true;
         _overlayCoordinator.CloseProfile();
         NavigateTo(LauncherShellPage.Account);
         _accountCommands?.RefreshProfile();
@@ -1130,7 +1383,9 @@ public partial class LauncherShellV2 : Window
     private void ProfileMenu_Closed(object? sender, EventArgs e)
     {
         ProfileButton.Focusable = true;
-        if (ProfileState.IsOpen || _overlayCoordinator.Current != ShellOverlayKind.None)
+        bool shouldRestoreFocus = !_suppressProfileFocusRestore;
+        _suppressProfileFocusRestore = false;
+        if (!shouldRestoreFocus || ProfileState.IsOpen || _overlayCoordinator.Current != ShellOverlayKind.None)
         {
             return;
         }
@@ -1163,14 +1418,7 @@ public partial class LauncherShellV2 : Window
 
         if (e.Key == Key.Escape && AvatarCropState.IsOpen)
         {
-            if (IsPreviewMode)
-            {
-                _overlayCoordinator.CloseAvatarCrop();
-            }
-            else
-            {
-                _accountCommands?.CancelUploadOrCloseCrop();
-            }
+            AvatarCropOverlay.TryRequestClose();
             e.Handled = true;
             return;
         }
@@ -1232,6 +1480,7 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
+        _suppressProfileFocusRestore = true;
         _overlayCoordinator.CloseProfile();
     }
 
@@ -1303,6 +1552,17 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
+        if (CurrentPage == LauncherShellPage.Addons && AddonsView.IsDeleteConfirmationOpen
+            && !FriendsState.IsOpen)
+        {
+            if (!AddonsView.ContainsDeleteConfirmationFocus(e.NewFocus as DependencyObject))
+            {
+                e.Handled = true;
+                AddonsView.FocusDeleteConfirmation();
+            }
+            return;
+        }
+
         if (!FriendsState.IsOpen || FriendsDrawer.ContainsKeyboardFocusTarget(e.NewFocus as DependencyObject))
         {
             return;
@@ -1369,7 +1629,7 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
-        if (page == LauncherShellPage.Account && !IsAccountNavigationEnabled)
+        if ((page == LauncherShellPage.Account || page == LauncherShellPage.Armory) && !IsAccountNavigationEnabled)
         {
             return;
         }
@@ -1390,11 +1650,14 @@ public partial class LauncherShellV2 : Window
         bool showPatchNotes = page == LauncherShellPage.PatchNotes;
         bool showSettings = page == LauncherShellPage.Settings;
         bool showAccount = page == LauncherShellPage.Account;
+        SecondaryBackdrop.Visibility = showGame ? Visibility.Collapsed : Visibility.Visible;
         GameView.Visibility = showGame ? Visibility.Visible : Visibility.Collapsed;
         AddonsView.Visibility = showAddons ? Visibility.Visible : Visibility.Collapsed;
         PatchNotesView.Visibility = showPatchNotes ? Visibility.Visible : Visibility.Collapsed;
         SettingsView.Visibility = showSettings ? Visibility.Visible : Visibility.Collapsed;
         AccountView.Visibility = showAccount ? Visibility.Visible : Visibility.Collapsed;
+        ArmoryView.Visibility = page == LauncherShellPage.Armory ? Visibility.Visible : Visibility.Collapsed;
+        RefreshProfileTitleBarMode();
         GameNavigationButton.Tag = showGame ? "Active" : null;
         AddonsNavigationButton.Tag = showAddons ? "Active" : null;
         PatchNotesNavigationButton.Tag = showPatchNotes ? "Active" : null;
@@ -1423,7 +1686,7 @@ public partial class LauncherShellV2 : Window
     private void AccountState_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (!IsPreviewMode
-            && CurrentPage == LauncherShellPage.Account
+            && CurrentPage is LauncherShellPage.Account or LauncherShellPage.Armory
             && !IsAccountNavigationEnabled)
         {
             NavigateTo(LauncherShellPage.Game);
@@ -1471,6 +1734,11 @@ public partial class LauncherShellV2 : Window
 
     private void ToggleMaximizeRestore()
     {
+        if (ResizeMode is not (ResizeMode.CanResize or ResizeMode.CanResizeWithGrip))
+        {
+            return;
+        }
+
         WindowState = WindowState == WindowState.Maximized
             ? WindowState.Normal
             : WindowState.Maximized;

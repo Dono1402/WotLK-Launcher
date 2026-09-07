@@ -360,7 +360,7 @@ public partial class ChatViewV2
             {
                 Title = LauncherLocalization.IsEnglish ? "Add files" : "Ajouter des fichiers", Multiselect = true, CheckFileExists = true,
                 Filter = (LauncherLocalization.IsEnglish ? "Images, documents, audio and video" : "Images, documents, audio et vidéo")
-                    + "|*.png;*.jpg;*.jpeg;*.gif;*.webp;*.pdf;*.txt;*.md;*.docx;*.xlsx;*.pptx;*.odt;*.ods;*.odp;*.mp3;*.ogg;*.wav;*.mp4;*.webm"
+                    + "|" + ChatAttachmentFormats.NativeFileDialogFilterPattern
             };
             return dialog.ShowDialog(_richWindow) == true ? dialog.FileNames.Take(ChatLimits.MaximumAttachmentsPerMessage).ToArray() : [];
         }

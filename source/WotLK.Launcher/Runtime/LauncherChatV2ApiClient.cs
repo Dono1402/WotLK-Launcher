@@ -15,6 +15,7 @@ internal interface ILauncherChatV2ApiClient
     Task<ChatMessagesPageDto> GetMessagesAsync(string threadId, long? beforeId, CancellationToken cancellationToken);
     Task<ChatEventsDto> GetEventsAsync(long afterEventId, int waitSeconds, CancellationToken cancellationToken);
     Task<ChatSendMessageResult> SendAsync(string threadId, ChatSendMessageRequest request, CancellationToken cancellationToken);
+    Task<ChatMessageDto?> FindSentByClientIdAsync(string threadId, Guid clientMessageId, CancellationToken cancellationToken);
     Task<ChatMessageDto> EditAsync(string threadId, long messageId, ChatEditMessageRequest request, CancellationToken cancellationToken);
     Task<ChatMessageDto> DeleteAsync(string threadId, long messageId, CancellationToken cancellationToken);
     Task<ChatMessageDto> ReactAsync(string threadId, long messageId, ChatReactionRequest request, CancellationToken cancellationToken);
@@ -138,6 +139,23 @@ internal sealed partial class LauncherChatV2ApiClient : ILauncherChatV2ApiClient
 
     public Task<ChatMessageDto> EditAsync(string threadId, long messageId, ChatEditMessageRequest request, CancellationToken cancellationToken)
         => MessageMutationAsync(HttpMethod.Patch, threadId, messageId, "", request, cancellationToken);
+
+    public async Task<ChatMessageDto?> FindSentByClientIdAsync(string threadId, Guid clientMessageId, CancellationToken cancellationToken)
+    {
+        if (clientMessageId == Guid.Empty) throw new ArgumentException("A Messages client identifier is required.");
+        try
+        {
+            ChatSendMessageResult result = await ReadAsync<ChatSendMessageResult>(HttpMethod.Get,
+                ThreadPath(threadId) + "/messages/by-client/" + clientMessageId.ToString("D"), null, cancellationToken).ConfigureAwait(false);
+            ValidateMessage(result.Message, threadId);
+            if (result.Message.ClientMessageId != clientMessageId) throw InvalidResponse();
+            return result.Message;
+        }
+        catch (LauncherChatV2ApiException error) when (error.StatusCode == HttpStatusCode.NotFound && error.Code == "chat-not-found")
+        {
+            return null;
+        }
+    }
 
     public Task<ChatMessageDto> DeleteAsync(string threadId, long messageId, CancellationToken cancellationToken)
         => MessageMutationAsync(HttpMethod.Delete, threadId, messageId, "", null, cancellationToken);

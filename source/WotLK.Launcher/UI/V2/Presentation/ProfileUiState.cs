@@ -36,6 +36,8 @@ public sealed class ProfileUiState : BindableUiState
     private BitmapSource? _avatarImage;
     private Runtime.LauncherPresenceSnapshot? _presence;
 
+    internal Runtime.LauncherPresenceSnapshot? PresenceSnapshot => _presence;
+
     public string PresenceLabel => Localization.LauncherLocalization.Text(_presence?.OwnerAccountId is null ? "Hors ligne" : !_presence.IsAvailable
         ? "Statut indisponible" : _presence.IsAutomaticAway ? "Absent · inactivité" : _presence.Status switch
         { "online" => "En ligne", "away" => "Absent", "dnd" => "Ne pas déranger", _ => "Hors ligne" });

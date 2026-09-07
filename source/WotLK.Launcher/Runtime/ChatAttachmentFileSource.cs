@@ -27,28 +27,9 @@ internal sealed class ChatAttachmentFileSource : IChatAttachmentFileSource
         _root = Path.Combine(Path.GetFullPath(root), partition);
     }
 
-    internal static string ContentTypeForName(string fileName) => Path.GetExtension(fileName).ToLowerInvariant() switch
-    {
-        ".png" => "image/png",
-        ".jpg" or ".jpeg" => "image/jpeg",
-        ".gif" => "image/gif",
-        ".webp" => "image/webp",
-        ".pdf" => "application/pdf",
-        ".txt" => "text/plain",
-        ".md" => "text/markdown",
-        ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        ".odt" => "application/vnd.oasis.opendocument.text",
-        ".ods" => "application/vnd.oasis.opendocument.spreadsheet",
-        ".odp" => "application/vnd.oasis.opendocument.presentation",
-        ".mp3" => "audio/mpeg",
-        ".ogg" => "audio/ogg",
-        ".wav" => "audio/wav",
-        ".mp4" => "video/mp4",
-        ".webm" => "video/webm",
-        _ => throw new ChatWorkspaceException("chat-file-type-not-supported")
-    };
+    internal static string ContentTypeForName(string fileName) =>
+        ChatAttachmentFormats.TryGetByFileName(fileName, out ChatAttachmentFormat? format)
+            ? format.ContentType : throw new ChatWorkspaceException("chat-file-type-not-supported");
 
     public async Task<ChatSelectedFile> InspectAsync(uint ownerAccountId, string path, CancellationToken cancellationToken)
     {
@@ -60,6 +41,9 @@ internal sealed class ChatAttachmentFileSource : IChatAttachmentFileSource
         string contentType = ContentTypeForName(fileName);
         await using FileStream stream = Open(resolved);
         if (stream.Length is <= 0 or > ChatLimits.MaximumAttachmentBytes) throw new ChatWorkspaceException("chat-file-too-large");
+        if (ChatAttachmentFormats.TryGetByFileName(fileName, out ChatAttachmentFormat? format)
+            && format.Kind is "audio" or "video" && !ChatMediaSignatures.Matches(stream, format, cancellationToken))
+            throw new ChatWorkspaceException("chat-file-content-mismatch");
         string directory = AccountDirectory(ownerAccountId);
         Directory.CreateDirectory(directory);
         string staged = Path.Combine(directory, Guid.NewGuid().ToString("N") + ".blob");

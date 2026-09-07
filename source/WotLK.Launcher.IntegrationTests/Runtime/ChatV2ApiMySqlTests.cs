@@ -66,6 +66,9 @@ internal static class ChatV2ApiMySqlTests
             await ValidateDirect(db,c,thread);
             await ValidateGroups(db,c);
             await ValidateEvents(db,c,thread);
+            options.MaximumSchemaVersion=8;await new LauncherSchemaMigrator(options).MigrateAsync();
+            await new LauncherSchemaValidator().ValidatePresenceAsync(c,None);
+            Check(Convert.ToInt64(await Scalar(c,"SELECT COUNT(*) FROM atlas_launcher_schema_history;"))==8,"HTTP media replay uses the current production schema8.");
             await ValidateHttp(options,db,c,thread);
             Console.WriteLine($"Chat v2 MySQL {version} PASS: {_checks} assertions. Additive migration/backfill, v1/game projection, authorization, group join history, edits/deletes/reactions/previews, replay/read privacy, long-poll wakeup and authenticated upload/range/download revocation. Synthetic loopback fixtures only.");
             return 0;
@@ -221,8 +224,84 @@ internal static class ChatV2ApiMySqlTests
             using(var lookup=await Request(http,HttpMethod.Get,$"/api/v2/chat/threads/{thread}/messages/by-client/{sent.Message.ClientMessageId}",1))Check((await Read<ChatSendMessageResult>(lookup)).Message.Id==sent.Message.Id,"HTTP UUID reconciliation route.");
             using(var deleted=await Request(http,HttpMethod.Delete,$"/api/v2/chat/threads/{thread}/messages/{sent.Message.Id}",1))Check((await Read<ChatMessageDto>(deleted)).DeletedAt is not null,"HTTP delete tombstone.");
             using(var revoked=await Request(http,HttpMethod.Get,$"/api/v2/chat/attachments/{upload.Id}",2))Check(revoked.StatusCode==HttpStatusCode.NotFound,"Deleted message revokes attachment download.");
+            await ValidateHttpMedia(http,thread);
         }
         finally{await app.StopAsync();}
+    }
+
+    private static async Task ValidateHttpMedia(HttpClient http, long thread)
+    {
+        // Real AAC/M4A: FFmpeg 9.0.1, lavfi anullsrc=r=48000:cl=mono,
+        // -t 0.5 -c:a aac -f ipod. No external corpus or encoder is required to replay.
+        byte[] audio = Convert.FromBase64String("""
+            AAAAHGZ0eXBNNEEgAAACAE00QSBpc29taXNvMgAAAAhmcmVlAAAAe21kYXTcAExhdmM2My4xLjEwMQACMEAOARggBwEYIAcBGCAHARggBwEYIAcBGCAHARgg
+            BwEYIAcBGCAHARggBwEYIAcBGCAHARggBwEYIAcBGCAHARggBwEYIAcBGCAHARggBwEYIAcBGCAHARggBwEYIAcBGCAHAAADXm1vb3YAAABsbXZoZAAAAAAA
+            AAAAAAAAAAAAu4AAAF3AAAEAAAEAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+            AAAAAAIAAAKJdHJhawAAAFx0a2hkAAAAAwAAAAAAAAAAAAAAAQAAAAAAAF3AAAAAAAAAAAAAAAABAQAAAAABAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAA
+            AAAAQAAAAAAAAAAAAAAAAAAAJGVkdHMAAAAcZWxzdAAAAAAAAAABAABdwAAABAAAAQAAAAACAW1kaWEAAAAgbWRoZAAAAAAAAAAAAAAAAAAAu4AAAGHAVcQA
+            AAAAAC1oZGxyAAAAAAAAAABzb3VuAAAAAAAAAAAAAAAAU291bmRIYW5kbGVyAAAAAaxtaW5mAAAAEHNtaGQAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAA
+            AAAAAQAAAAx1cmwgAAAAAQAAAXBzdGJsAAAAanN0c2QAAAAAAAAAAQAAAFptcDRhAAAAAAAAAAEAAAAAAAAAAAABABAAAAAAu4AAAAAAADZlc2RzAAAAAAOA
+            gIAlAAEABICAgBdAFQAAAAABDYgAAAbkBYCAgAURiFblAAaAgIABAgAAACBzdHRzAAAAAAAAAAIAAAAYAAAEAAAAAAEAAAHAAAAAHHN0c2MAAAAAAAAAAQAA
+            AAEAAAAZAAAAAQAAAHhzdHN6AAAAAAAAAAAAAAAZAAAAEwAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAE
+            AAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAABRzdGNvAAAAAAAAAAEAAAAsAAAAGnNncGQBAAAAcm9sbAAAAAIAAAAB//8AAAAc
+            c2JncAAAAAByb2xsAAAAAQAAABkAAAABAAAAYXVkdGEAAABZbWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAbWRpcmFwcGwAAAAAAAAAAAAAAAAsaWxzdAAAACSp
+            dG9vAAAAHGRhdGEAAAABAAAAAExhdmY2My4xLjEwMQ==
+            """);
+        ChatUploadDto upload = await StageHttpMedia(http, "silence.m4a", audio);
+        using (HttpResponseMessage complete = await Request(http, HttpMethod.Post, $"/api/v2/chat/uploads/{upload.Id}/complete", 1))
+            upload = await Read<ChatUploadDto>(complete);
+        Check(upload.IsComplete && upload.Attachment is { Kind: "audio", ContentType: "audio/mp4" },
+            "Encoded M4A passes HTTP completion with server-derived audio MIME.");
+        ChatSendMessageResult sent;
+        using (HttpResponseMessage send = await Request(http, HttpMethod.Post, $"/api/v2/chat/threads/{thread}/messages", 1,
+            ChatSerialize(new ChatSendMessageRequest { ClientMessageId = Guid.NewGuid(), AttachmentIds = [upload.Id] })))
+            sent = await Read<ChatSendMessageResult>(send);
+        Check(sent.Message.Attachments.Single() is { Kind: "audio", ContentType: "audio/mp4" },
+            "The persisted HTTP message retains the new audio format.");
+        using (HttpResponseMessage anonymous = await Request(http, HttpMethod.Get, $"/api/v2/chat/attachments/{upload.Id}", null))
+            Check(anonymous.StatusCode == HttpStatusCode.Unauthorized, "New audio format requires authentication.");
+        using (HttpResponseMessage stranger = await Request(http, HttpMethod.Get, $"/api/v2/chat/attachments/{upload.Id}", 8))
+            Check(stranger.StatusCode == HttpStatusCode.NotFound, "New audio format remains private to participants.");
+        using (HttpRequestMessage range = new(HttpMethod.Get, $"/api/v2/chat/attachments/{upload.Id}"))
+        {
+            range.Headers.Authorization = new("Bearer", Token(2)); range.Headers.Range = new(4, 19);
+            using HttpResponseMessage response = await http.SendAsync(range);
+            Check(response.StatusCode == HttpStatusCode.PartialContent && (await response.Content.ReadAsByteArrayAsync()).SequenceEqual(audio[4..20]),
+                "Encoded M4A authenticated range returns the exact requested bytes.");
+            Check(response.Content.Headers.ContentType?.MediaType == "audio/mp4" && response.Content.Headers.ContentRange?.Length == audio.Length,
+                "Encoded M4A streaming has the correct MIME and total length.");
+            Check(response.Headers.CacheControl?.NoStore == true && response.Headers.GetValues("X-Content-Type-Options").Single() == "nosniff",
+                "Encoded M4A streaming is no-store and nosniff.");
+        }
+        using (HttpResponseMessage deleted = await Request(http, HttpMethod.Delete, $"/api/v2/chat/threads/{thread}/messages/{sent.Message.Id}", 1))
+            Check((await Read<ChatMessageDto>(deleted)).DeletedAt is not null, "New audio message can be deleted by its owner.");
+        using (HttpResponseMessage revoked = await Request(http, HttpMethod.Get, $"/api/v2/chat/attachments/{upload.Id}", 2))
+            Check(revoked.StatusCode == HttpStatusCode.NotFound, "Deleting the new audio message revokes its media URL.");
+
+        ChatUploadDto invalid = await StageHttpMedia(http, "renamed.mkv", "<html><script>not a video</script></html>"u8.ToArray());
+        using (HttpResponseMessage complete = await Request(http, HttpMethod.Post, $"/api/v2/chat/uploads/{invalid.Id}/complete", 1))
+        {
+            Check(complete.StatusCode == HttpStatusCode.BadRequest, "HTTP completion rejects HTML renamed as MKV.");
+            Check((await complete.Content.ReadAsStringAsync()).Contains("chat-file-content-mismatch", StringComparison.Ordinal),
+                "The renamed MKV returns the precise container mismatch reason.");
+        }
+        using (HttpResponseMessage send = await Request(http, HttpMethod.Post, $"/api/v2/chat/threads/{thread}/messages", 1,
+            ChatSerialize(new ChatSendMessageRequest { ClientMessageId = Guid.NewGuid(), AttachmentIds = [invalid.Id] })))
+            Check(send.StatusCode == HttpStatusCode.BadRequest, "An invalid new-format upload cannot be attached to a message.");
+    }
+
+    private static async Task<ChatUploadDto> StageHttpMedia(HttpClient http, string name, byte[] bytes)
+    {
+        ChatUploadDto upload;
+        using (HttpResponseMessage begin = await Request(http, HttpMethod.Post, "/api/v2/chat/uploads", 1,
+            ChatSerialize(new ChatUploadRequest(name, "text/html", bytes.Length)))) upload = await Read<ChatUploadDto>(begin);
+        using HttpRequestMessage append = new(HttpMethod.Put, $"/api/v2/chat/uploads/{upload.Id}?offset=0");
+        append.Headers.Authorization = new("Bearer", Token(1)); append.Content = new ByteArrayContent(bytes);
+        append.Content.Headers.ContentType = new("application/octet-stream");
+        using HttpResponseMessage response = await http.SendAsync(append);
+        upload = await Read<ChatUploadDto>(response);
+        Check(upload.Offset == bytes.Length, "HTTP media transfer writes all encoded bytes: " + name);
+        return upload;
     }
 
     private static string Token(uint account)=>"chat-v2-fixture-access-"+account;

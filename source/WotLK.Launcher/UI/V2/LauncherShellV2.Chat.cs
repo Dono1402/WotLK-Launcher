@@ -201,7 +201,12 @@ public partial class LauncherShellV2
         RefreshChatViewActivation();
     }
 
-    private void ChatOverlayChanged(object? sender, PropertyChangedEventArgs e) => RefreshChatViewActivation();
+    private void ChatOverlayChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (ReferenceEquals(sender, ProfileState) && string.IsNullOrEmpty(e.PropertyName))
+            _chatWorkspace?.RefreshPresentation();
+        RefreshChatViewActivation();
+    }
     private void ChatWindowActivityChanged(object? sender, EventArgs e) => RefreshChatViewActivation();
     private void ChatWindowVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e) => RefreshChatViewActivation();
     private void ChatWindowLoaded(object sender, RoutedEventArgs e) => RefreshChatViewActivation();

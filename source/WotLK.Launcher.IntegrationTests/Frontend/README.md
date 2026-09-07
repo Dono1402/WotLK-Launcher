@@ -15,7 +15,7 @@ Le script résout la racine du dépôt depuis son propre emplacement ; il peut d
 | Variable d’environnement | Valeur par défaut |
 | --- | --- |
 | `ATLAS_CHAT_REPO_ROOT` | Racine du dépôt déduite de l’emplacement du script. |
-| `ATLAS_CHAT_TEST_OUTPUT` | `artifacts/atlas-chat-premium-20260907/dom`, relatif à la racine du dépôt. Accepte également un chemin absolu. |
+| `ATLAS_CHAT_TEST_OUTPUT` | `artifacts/atlas-chat-followup-20260907/dom`, relatif à la racine du dépôt. Accepte également un chemin absolu. |
 | `ATLAS_CHAT_PLAYWRIGHT` | Module `playwright` résolu par Node.js, puis runtime Codex du compte Windows courant sous `.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright`. Pour une autre installation, utiliser son chemin absolu. |
 | `ATLAS_CHAT_EDGE_PATH` | `Microsoft/Edge/Application/msedge.exe` sous `ProgramFiles(x86)`, puis `ProgramFiles`. Pour une autre installation, utiliser le chemin absolu de l’exécutable. |
 
@@ -30,8 +30,23 @@ node source/WotLK.Launcher.IntegrationTests/Frontend/chat-dom-tests.cjs
 
 La suite écrit les captures PNG et `results.json` dans le répertoire de sortie. Toutes les captures utilisent le viewport Messages mesuré dans la shell V2 fixe : **1597 × 872 pixels CSS**, sous un en-tête de 124 DIP ; aucun redimensionnement n’est effectué. Le relevé conserve le viewport et les empreintes des quatre assets testés. Ces fichiers générés, profils et dépendances ne font pas partie des sources de tests.
 
-Les 103 assertions couvrent notamment les statuts et avatars, les images sans cadre, les suppressions, le sélecteur Armory, les brouillons, les pièces jointes, les groupes, les médias, les accusés de lecture et le défilement. Elles vérifient également le signal `composerState` transmis au natif lors de l’entrée et de la sortie d’édition, des changements de fil ou de session et de la révocation du droit d’écrire.
+Les assertions couvrent notamment les statuts et avatars, les images sans cadre, les suppressions, le sélecteur Armory, les brouillons, les pièces jointes, les groupes, les médias, les accusés de lecture et le défilement. Elles vérifient également le signal `composerState` transmis au natif lors de l’entrée et de la sortie d’édition, des changements de fil ou de session et de la révocation du droit d’écrire. Le nombre exact d’assertions du dernier passage figure dans `results.json`.
 
 La finition premium vérifie l’absence des filtres et de la recherche dans la colonne Conversations, le maintien des badges non lus et de la recherche dans Nouvelle conversation, l’envoi par icône seule et ses libellés accessibles FR/EN, l’alignement des commandes à droite, leur ordre clavier et la saisie multiligne.
 
+La suite de finition vérifie également l’absence du bandeau Messages, les aperçus image/vidéo/audio seuls avant l’envoi, les erreurs sur la pièce jointe ou le message concernés et la suppression ciblée des envois refusés. Une tentative dont la réponse serveur a été perdue ne peut pas utiliser l’annulation ordinaire. Quand le natif expose `canDelete`, sa suppression passe par `deleteFailedSend` avec son seul identifiant ; l’état de suppression masque toute action de renvoi ou d’annulation. Une confirmation serveur remplace l’entrée locale sans doublon. Les erreurs tardives ne passent pas dans une autre conversation. Les erreurs antérieures à la file native conservent le brouillon et le même identifiant lors d’un nouvel essai.
+
+Les médias de test sont synthétiques et intégrés aux fixtures : image SVG, une seconde de silence WAV et une courte vidéo VP8/WebM enregistrée localement. Le décodage des métadonnées est vérifié dans le navigateur ; cela ne certifie pas la prise en charge de tous les codecs pouvant se trouver dans chaque extension acceptée. La lightbox est contrôlée sans boutons ni cadre, avec fermeture par Échap ou fond et restauration du focus. Les cartes de personnage utilisent le niveau et la classe fournis, avec le GUID exact réservé à l’action Armory.
+
 Les captures préservent la transparence du document. La vérification CSS ne démontre pas à elle seule la continuité du fond Citadelle : sa composition avec l’en-tête est vérifiée séparément dans la shell WPF complète. Le pont étant simulé, cette suite ne remplace pas un dépôt Explorer dans le launcher réel ou une connexion à deux comptes réels.
+
+## Vérification WPF isolée
+
+`--chat-rich-host-wpf` vérifie le pont natif, les changements de présence, les restrictions de session et le routage FileDrop. `--chat-full-shell-wpf` utilise la véritable shell fixe et WebView2, des données fictives et un résolveur de médias local. La fenêtre reste inactive, hors écran, sans runtime du launcher ni accès au backend. Ses captures directes `RenderTargetBitmap` incluent la WebView, l’en-tête natif, le fond Citadelle unique et le panneau de profil. Les pixels transparents de la marge supérieure sont comparés au fond natif après suppression du bandeau.
+
+```powershell
+dotnet build source/WotLK.Launcher.IntegrationTests/WotLK.Launcher.IntegrationTests.csproj -c Release -p:AtlasLocalClientBuild=true --artifacts-path artifacts/atlas-chat-followup-20260907/build
+$fixture = 'artifacts/atlas-chat-followup-20260907/build/bin/WotLK.Launcher.IntegrationTests/release/WotLK.Launcher.IntegrationTests.exe'
+& $fixture --chat-rich-host-wpf --capture-directory artifacts/atlas-chat-followup-20260907/rich-host
+& $fixture --chat-full-shell-wpf --capture-directory artifacts/atlas-chat-followup-20260907/full-shell
+```

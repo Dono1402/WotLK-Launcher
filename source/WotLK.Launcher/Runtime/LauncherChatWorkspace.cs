@@ -23,6 +23,7 @@ internal sealed partial class LauncherChatWorkspace : IDisposable
     private readonly Dictionary<string, CancellationTokenSource> _uploadCancellations = new(StringComparer.Ordinal);
     private readonly Dictionary<string, long> _uploadProgress = new(StringComparer.Ordinal);
     private readonly Dictionary<string, long> _threadAccessGenerations = new(StringComparer.Ordinal);
+    private readonly Dictionary<Guid, DateTimeOffset> _deletionProbeAfter = [];
     private DateTimeOffset _lastProgressPublishAt;
     private CancellationTokenSource _sessionCancellation;
     private ChatWorkspaceSnapshot _current = new();
@@ -42,6 +43,7 @@ internal sealed partial class LauncherChatWorkspace : IDisposable
     private Task? _sessionLoop;
     private Task? _refreshTask;
     private Task? _outboxTask;
+    private Task? _deletionTask;
     private Task? _uploadTask;
     private Task? _readTask;
     private Task? _preferencesTask;
@@ -139,10 +141,11 @@ internal sealed partial class LauncherChatWorkspace : IDisposable
             _workerWakeVersion++;
             _accessGeneration++;
             _threadAccessGenerations.Clear();
+            _deletionProbeAfter.Clear();
             _lastTypingAt = default;
             _lastTypingThread = null;
             _lastTypingValue = false;
-            _sessionLoop = _refreshTask = _outboxTask = _uploadTask = _readTask = _preferencesTask = null;
+            _sessionLoop = _refreshTask = _outboxTask = _deletionTask = _uploadTask = _readTask = _preferencesTask = null;
             _uploadCancellations.Clear();
             _uploadProgress.Clear();
             _lastProgressPublishAt = default;
@@ -241,7 +244,9 @@ internal sealed partial class LauncherChatWorkspace : IDisposable
             loaded = loaded with
             {
                 Preferences = loaded.Preferences with { MessageSoundEnabled = false },
-                Outbox = loaded.Outbox.Select(item => item.Status == "sending" ? item with { Status = "queued" } : item).ToArray(),
+                Outbox = loaded.Outbox.Select(item => item.DeleteRequested && !item.DeletionConfirmed && item.Status != "cancelled"
+                    ? item with { Status = "deleting" }
+                    : item.Status == "sending" ? item with { Status = "queued" } : item).ToArray(),
                 Uploads = loaded.Uploads.Select(item => item.Status is "uploading" or "preparing"
                     ? item with { Status = "queued" } : item).ToArray()
             };
@@ -375,10 +380,18 @@ internal sealed partial class LauncherChatWorkspace : IDisposable
     private ChatWorkspaceSnapshot SetSnapshotUnsafe(ChatWorkspaceSnapshot snapshot)
     {
         ChatPreferencesDto preferences = _local.HasPreferences ? _local.Preferences : snapshot.State.Preferences;
+        HashSet<(string ThreadId, Guid ClientMessageId)> deletions = _local.Outbox.Where(entry => entry.DeleteRequested)
+            .Select(entry => (entry.ThreadId, entry.ClientMessageId)).ToHashSet();
+        bool HiddenByDeletion(ChatMessageDto message) => message.Sender.AccountId == snapshot.OwnerAccountId
+            && message.DeletedAt is null && deletions.Contains((message.ThreadId, message.ClientMessageId));
         return _current = snapshot with
         {
             Sequence = ++_sequence,
-            State = snapshot.State with { Preferences = preferences with { MessageSoundEnabled = false }, EventCursor = _eventCursor },
+            State = snapshot.State with { Preferences = preferences with { MessageSoundEnabled = false }, EventCursor = _eventCursor,
+                Threads = snapshot.State.Threads.Select(thread => thread with {
+                    LastMessage = thread.LastMessage is { } last && HiddenByDeletion(last) ? null : thread.LastMessage,
+                    PinnedMessages = thread.PinnedMessages.Where(message => !HiddenByDeletion(message)).ToArray() }).ToArray() },
+            Messages = snapshot.Messages.Where(message => !HiddenByDeletion(message)).ToArray(),
             Drafts = _local.Drafts.ToArray(),
             Draft = _local.Drafts.FirstOrDefault(draft => draft.ThreadId == snapshot.SelectedThreadId),
             Outbox = _local.Outbox.ToArray(),

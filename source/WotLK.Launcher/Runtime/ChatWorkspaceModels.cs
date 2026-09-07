@@ -24,6 +24,8 @@ internal sealed record ChatOutboxEntry
     public string ErrorCode { get; init; } = "";
     public DateTimeOffset CreatedAt { get; init; }
     public bool WasSubmitted { get; init; }
+    public bool DeleteRequested { get; init; }
+    public bool DeletionConfirmed { get; init; }
 }
 
 // SourcePath and the fingerprint remain solely in the encrypted native store.

@@ -14,7 +14,7 @@ internal static class ChatRichMediaTests
     internal static async Task<int> RunAsync()
     {
         _checks=0;string root=Path.Combine(Path.GetTempPath(),"atlas-chat-media-fixture-"+Guid.NewGuid().ToString("N"));
-        try{PlainText();await Attachments(new ChatAttachmentStorage(root));await Links();Console.WriteLine($"Chat rich media PASS: {_checks} assertions. Markdown AST to game text, private owned/resumable storage, format signatures, full UTF8 validation, office ZIP markers, byte limits and rollback; public URL/IP/redirect filtering, provider allowlist, inert metadata and bounded media. Mock HTTP only, no external network.");return 0;}
+        try{PlainText();await Attachments(new ChatAttachmentStorage(root));await Links();_checks+=await ChatAttachmentFormatTests.RunAsync(root);Console.WriteLine($"Chat rich media PASS: {_checks} assertions. Markdown AST to game text, private owned/resumable storage, format signatures, full UTF8 validation, office ZIP markers, byte limits and rollback; public URL/IP/redirect filtering, provider allowlist, inert metadata and bounded media. Mock HTTP only, no external network.");return 0;}
         finally{string full=Path.GetFullPath(root);if(!full.StartsWith(Path.GetFullPath(Path.GetTempPath()),StringComparison.OrdinalIgnoreCase)||!Path.GetFileName(full).StartsWith("atlas-chat-media-fixture-",StringComparison.Ordinal))throw new InvalidOperationException("Unsafe media fixture cleanup.");if(Directory.Exists(full))Directory.Delete(full,true);}
     }
 
@@ -65,7 +65,7 @@ internal static class ChatRichMediaTests
             await RejectContent(storage,fixture.Name,fixture.Bytes);
         byte[] lateInvalid=Enumerable.Repeat((byte)'A',65537).ToArray();lateInvalid[^1]=0xff;await RejectContent(storage,"late-invalid.txt",lateInvalid);
         byte[] boundary=Encoding.UTF8.GetBytes(new string('a',65535)+"世界");Check((await Upload(storage,"boundary.txt",boundary)).IsComplete,"Multibyte UTF8 crossing read boundary remains valid.");
-        foreach(var fixture in new (string Name,byte[] Bytes)[]{("sample.png",[137,80,78,71,13,10,26,10,0]),("sample.jpg",[255,216,255,0]),("personal.gif","GIF89a0000"u8.ToArray()),("sample.pdf","%PDF-1.7\n%%EOF"u8.ToArray()),("sample.mp3","ID3sample"u8.ToArray()),("sample.ogg","OggSsample"u8.ToArray()),("sample.wav","RIFF0000WAVEsample"u8.ToArray()),("sample.mp4",[0,0,0,12,102,116,121,112,105,115,111,109])})
+        foreach(var fixture in new (string Name,byte[] Bytes)[]{("sample.png",[137,80,78,71,13,10,26,10,0]),("sample.jpg",[255,216,255,0]),("personal.gif","GIF89a0000"u8.ToArray()),("sample.pdf","%PDF-1.7\n%%EOF"u8.ToArray())})
             Check((await Upload(storage,fixture.Name,fixture.Bytes)).IsComplete,"Recognized signature: "+fixture.Name);
         byte[] office=Zip(new(){["[Content_Types].xml"]="<Types xmlns='http://schemas.openxmlformats.org/package/2006/content-types'><Override PartName='/word/document.xml' ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'/></Types>",["_rels/.rels"]="<Relationships xmlns='http://schemas.openxmlformats.org/package/2006/relationships'/>",["word/document.xml"]="<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'/>"});
         Check((await Upload(storage,"sample.docx",office)).IsComplete,"Office package recognized by required parts.");

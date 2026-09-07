@@ -27,6 +27,7 @@ internal static class ChatRichHostWpfTests
             ValidateOrigins();
             await ValidateAvatarRoutesAsync();
             ValidateOwnCharacterProjection();
+            ValidatePresenceProjection();
             TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
             Thread thread = new(() =>
             {
@@ -84,14 +85,14 @@ internal static class ChatRichHostWpfTests
         type = "snapshot", sessionId = session ?? Session, ownerAccountId = 42u, sequence, locale = "fr", isActive = true,
         isAvailable = true, isLoading = false, state = new ChatStateDto
         {
-            Self = new() { AccountId = 42, Username = "Aster" }, Contacts = [new() { AccountId = 91, Username = "Lyra" }],
+            Self = new() { AccountId = 42, Username = "Aster", Presence = "online" }, Contacts = [new() { AccountId = 91, Username = "Lyra", Presence = "away" }],
             Capabilities = ["markdown", "replies", "reactions", "attachments"],
             Threads = [new() { Id = "17", Title = "Lyra", Kind = "direct", CanSend = true,
                 Members = [new() { Profile = new() { AccountId = 42, Username = "Aster" } }, new() { Profile = new() { AccountId = 91, Username = "Lyra" } }] }]
         },
         selectedThreadId = selected, messages = new ChatMessageDto[]
         {
-            new() { Id = 9007199254741001, ThreadId = "17", Sender = new() { AccountId = 91, Username = "Lyra" },
+            new() { Id = 9007199254741001, ThreadId = "17", Sender = new() { AccountId = 91, Username = "Lyra", Presence = "offline" },
                 Body = "**Bienvenue** à Dalaran. <img src=x onerror=alert(1)>", CreatedAt = DateTimeOffset.Parse("2026-09-07T08:00:00Z"), Version = 1 }
         },
         draft = new { body = "", attachments = Array.Empty<object>() }, pending = Array.Empty<object>(), typing = Array.Empty<object>(),
@@ -130,6 +131,8 @@ internal static class ChatRichHostWpfTests
             await Until(() => view.RichBrowser?.CoreWebView2 is not null, "WebView initializes.");
             CoreWebView2 core = view.RichBrowser!.CoreWebView2;
             await UntilScript(core, "document.querySelector('#thread-title')?.textContent==='Lyra'", "Native snapshot rendered in embedded page.");
+            await UntilScript(core, "!document.querySelector('.page-heading,#page-subtitle,#composer-error')&&innerWidth===1597&&innerHeight===872", "Embedded page keeps its fixed viewport without a redundant heading or global composer error.");
+            await UntilScript(core, "document.querySelector('#thread-avatar .presence-dot')?.dataset.presence==='away'&&document.querySelector('.message-avatar .presence-dot')?.dataset.presence==='away'", "Native WebView uses current contact presence in both the header and old message avatar.");
             await Until(() => view.IsRichComposerAcceptingFiles, "Real composer publishes its initial native file permission.");
             True(!window.IsActive && window.Left < -10000 && !window.ShowInTaskbar, "Fixture cannot activate or appear on user desktop.");
             ValidateNativeDrops(view, directory);
@@ -334,6 +337,32 @@ internal static class ChatRichHostWpfTests
             catch (JsonException) { rejected = true; }
             True(rejected, "Malformed or duplicated owned character identifiers are rejected.");
         }
+    }
+
+    private static void ValidatePresenceProjection()
+    {
+        ChatProfileDto oldSelf = new() { AccountId = 42, Username = "Aster", Presence = "online", CharacterGuid = 942, CharacterName = "Asterion", CharacterClass = "Mage", ZoneName = "Dalaran" };
+        foreach (string status in new[] { "online", "away", "dnd", "offline" })
+        {
+            LauncherPresenceSnapshot current = new(7, 42, status, status, false, true, false, null);
+            ChatProfileDto projected = LauncherShellV2.ProjectRichPresence(oldSelf, 42, null, current);
+            True(projected.Presence == status, "Rich self presence follows each confirmed global status rather than historical message metadata.");
+            if (status == "offline") True(projected.CharacterGuid is null && projected.CharacterName is null && projected.ZoneName is null,
+                "Appearing offline clears historical game-location metadata in rich self profiles.");
+        }
+        foreach (LauncherPresenceSnapshot foreign in new[] { new LauncherPresenceSnapshot(8, 84, "dnd", "dnd", false, true, false, null), new LauncherPresenceSnapshot(8, 42, "dnd", "dnd", false, false, false, null) })
+            True(LauncherShellV2.ProjectRichPresence(oldSelf, 42, null, foreign).Presence == "online", "Unconfirmed or foreign-account global presence cannot overwrite the displayed account.");
+        FriendUiItem friend = new(91, "Lyra", "L", "#123456", false, null, null, null, false, false, "Hors ligne", "", "", false, false, false, false, false, true)
+        { Presence = "offline" };
+        ChatProfileDto oldFriend = oldSelf with { AccountId = 91, Username = "Lyra" };
+        foreach (string status in new[] { "online", "away", "dnd", "offline" })
+        {
+            ChatProfileDto projected = LauncherShellV2.ProjectRichPresence(oldFriend, 42, friend with { Presence = status, IsOnline = status != "offline" }, null);
+            True(projected.Presence == status, "Rich friend profiles use the same current status as the Friends drawer.");
+            True(projected.CharacterName is null && projected.CharacterGuid is null, "No historical character remains when the current friend source has no active character.");
+        }
+        True(LauncherShellV2.ProjectRichPresence(oldFriend, 42, friend with { AccountId = 92, Presence = "dnd" }, null).Presence == "online",
+            "A different friend entry cannot overwrite the message author's presence.");
     }
 
     private static async Task ValidateOwnRosterBridgeAsync()

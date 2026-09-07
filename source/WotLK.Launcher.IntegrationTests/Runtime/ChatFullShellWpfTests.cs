@@ -1,7 +1,9 @@
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -46,10 +48,18 @@ internal static class ChatFullShellWpfTests
                     List<object> cases = [];
                     foreach (string locale in new[] { LauncherLocalization.FrenchLocale, LauncherLocalization.EnglishLocale })
                         cases.Add(await ValidateAsync(locale, directory));
+                    Dictionary<string, string> assetHashes = new(StringComparer.Ordinal);
+                    foreach (string name in new[] { "index.html", "chat.css", "chat.js", "chat-render.js" })
+                    {
+                        using Stream embedded = ChatViewV2.OpenRichAsset(new Uri(ChatViewV2.RichOrigin + name)).Stream
+                            ?? throw new InvalidOperationException("Missing embedded Messages asset: " + name);
+                        assetHashes[name] = Convert.ToHexString(SHA256.HashData(embedded)).ToLowerInvariant();
+                    }
                     await File.WriteAllTextAsync(System.IO.Path.Combine(directory, "verification.json"), JsonSerializer.Serialize(new
                     {
                         status = "PASS", assertions = _checks,
                         method = "Fixed 1597.6x996.8 WPF shell, inactive offscreen WS_EX_NOACTIVATE; embedded WebView2 assets, synthetic snapshots and local media. No launcher runtime, authentication, backend or desktop input.",
+                        assetHashes,
                         cases
                     }, new JsonSerializerOptions { WriteIndented = true }));
                     Console.WriteLine($"Chat full shell WPF PASS: {_checks} assertions; fixed 1597.6x996.8, FR/EN, transparent native WebView, local image, native avatar/profile overlay and routed file drop. Offscreen inactive fixture only.");
@@ -72,6 +82,8 @@ internal static class ChatFullShellWpfTests
         using MemoryStream media = new();
         asset.CopyTo(media);
         byte[] imageBytes = media.ToArray();
+        byte[] audioBytes = SilentWave();
+        byte[] videoBytes = Convert.FromBase64String(FixtureVideo);
         BitmapSource avatar = Decode(imageBytes);
         ProfileUiState profile = LauncherV2PreviewData.CreateProfile(ProfilePreviewScenario.SignedIn, avatar);
         profile.ApplyAccountIdentity("Aster", true);
@@ -102,8 +114,14 @@ internal static class ChatFullShellWpfTests
         view.MediaResolver = (key, range, cancellation) =>
         {
             mediaRequests.Add(key);
-            return Task.FromResult<ChatMediaStream?>(key is "attachments/fixture-image" or "avatars/42/1" or "avatars/91/1"
-                ? new(new MemoryStream(imageBytes, writable: false), "image/png", imageBytes.Length) : null);
+            ChatMediaStream? result = key switch
+            {
+                "attachments/fixture-image" or "avatars/42/1" or "avatars/91/1" or "uploads/fixture-image" => new(new MemoryStream(imageBytes, writable: false), "image/png", imageBytes.Length),
+                "uploads/fixture-audio" => new(new MemoryStream(audioBytes, writable: false), "audio/wav", audioBytes.Length),
+                "uploads/fixture-video" => new(new MemoryStream(videoBytes, writable: false), "video/webm", videoBytes.Length),
+                _ => null
+            };
+            return Task.FromResult(result);
         };
         view.ApplyRichSnapshot(Snapshot(language, imageBytes.Length));
         view.SetRichMode(true);
@@ -119,7 +137,7 @@ internal static class ChatFullShellWpfTests
             CoreWebView2 core = view.RichBrowser!.CoreWebView2;
             await UntilScript(core, "document.querySelector('#thread-title')?.textContent==='Lyra'", "Native snapshot is rendered.");
             await UntilScript(core, "[...document.querySelectorAll('.attachment-image img')].some(i=>i.complete&&i.naturalWidth>0)", "Local attachment image is decoded by the real WebView.");
-            await UntilScript(core, "document.fonts.status==='loaded'&&[...document.images].every(i=>i.complete&&i.naturalWidth>0)", "Fonts and fixture avatars are decoded before the full-shell capture.");
+            await UntilScript(core, "document.fonts.status==='loaded'&&[...document.images].filter(i=>i.hasAttribute('src')).every(i=>i.complete&&i.naturalWidth>0)", "Fonts and fixture avatars with a source are decoded before the full-shell capture.");
             await Until(() => view.IsRichComposerAcceptingFiles, "Composer grants native file admission.");
             await Task.Delay(600);
             await Layout(shell);
@@ -135,6 +153,8 @@ internal static class ChatFullShellWpfTests
             Check((GetWindowLong(new WindowInteropHelper(shell).Handle, -20) & 0x08000000) != 0, "Native no-activation flag remains set.");
             Check(view.RichBrowser.DefaultBackgroundColor.A == 0, "Native WebView default canvas is transparent.");
             Check(dom.GetProperty("html").GetString() == "rgba(0, 0, 0, 0)" && dom.GetProperty("body").GetString() == "rgba(0, 0, 0, 0)", "HTML and body allow the native backdrop through.");
+            Check(dom.GetProperty("width").GetInt32() == 1597 && dom.GetProperty("height").GetInt32() == 872, "The native Messages viewport remains 1597 by 872 CSS pixels after removing its heading.");
+            await UntilScript(core, "!document.querySelector('.page-heading,#page-subtitle,#composer-error')&&document.querySelector('.chat-layout').getBoundingClientRect().top<=24", "No Messages title, subtitle, reserved heading band or global composer error remains.");
             Check(((FrameworkElement)shell.FindName("SecondaryBackdrop")).IsVisible, "The native Citadel backdrop is visible behind the message page.");
             Check(mediaRequests.Contains("attachments/fixture-image"), "Image comes from the native media resolver.");
             Check(((Ellipse)shell.FindName("ShellProfileAvatarImage")).Fill is ImageBrush { ImageSource: not null }, "Real header avatar image is present.");
@@ -150,14 +170,24 @@ internal static class ChatFullShellWpfTests
             await Layout(shell);
             await Until(() => view.IsRichComposerAcceptingFiles, "Composer remains available after capture baseline.");
             List<object> transparentSamples = [];
-            foreach (Point point in new[] { new Point(1000, 150), new Point(1200, 130), new Point(1200, 175) })
+            foreach (Point point in new[] { new Point(2, viewBounds.Top + 4), new Point(1594, viewBounds.Top + 4) })
             {
                 Pixel actual = ReadPixel(direct, (int)point.X, (int)point.Y);
                 Pixel backdrop = ReadPixel(baseline, (int)point.X, (int)point.Y);
                 Pixel browser = ReadPixel(web, (int)point.X, (int)(point.Y - viewBounds.Top));
-                Check(browser.A == 0, "Blank heading pixels in the real browser PNG have zero alpha.");
-                Check(actual == backdrop, "Full-shell pixels below the header and around Messages exactly match the one native backdrop.");
+                Check(browser.A == 0, "Blank margin pixels above the panel in the real browser PNG have zero alpha.");
+                Check(actual == backdrop, "Full-shell pixels immediately below the header exactly match the one native backdrop.");
                 transparentSamples.Add(new { x = point.X, y = point.Y, actual, backdrop, browser });
+            }
+            List<object> marginShadowSamples = [];
+            foreach (Point point in new[] { new Point(1000, viewBounds.Top + 4), new Point(1200, viewBounds.Top + 10), new Point(1500, viewBounds.Top + 15) })
+            {
+                Pixel actual = ReadPixel(direct, (int)point.X, (int)point.Y);
+                Pixel backdrop = ReadPixel(baseline, (int)point.X, (int)point.Y);
+                Pixel browser = ReadPixel(web, (int)point.X, (int)(point.Y - viewBounds.Top));
+                Check(browser.A <= 8, "The upper margin contains only the panel's faint shadow, never an opaque band.");
+                Check(RgbDifference(Over(browser, backdrop), actual) <= 6, "Upper-margin pixels remain the same native backdrop beneath the measured panel shadow.");
+                marginShadowSamples.Add(new { x = point.X, y = point.Y, actual, backdrop, browser });
             }
             JsonElement imageRect = dom.GetProperty("image");
             int imageX = (int)(imageRect.GetProperty("x").GetDouble() + imageRect.GetProperty("width").GetDouble() / 2);
@@ -173,6 +203,21 @@ internal static class ChatFullShellWpfTests
             Pixel panelBackdrop = ReadPixel(baseline, 1200, 500);
             Check(panelWeb.A is > 100 and < 230, "Message panel is visibly tinted while remaining translucent.");
             Check(RgbDifference(Over(panelWeb, panelBackdrop), panelDirect) <= 9, "Direct full-shell panel pixels are the WebView tint over the same native Citadel image.");
+
+            await core.ExecuteScriptAsync("document.querySelector('.attachment-image').focus();document.querySelector('.attachment-image').click()");
+            await UntilScript(core, "document.querySelector('#image-dialog')?.open&&document.querySelector('#image-dialog-image')?.complete&&document.querySelector('#image-dialog-image')?.naturalWidth>0", "The received image opens at full lightbox size inside the real WebView.");
+            await Until(() => !view.IsRichComposerAcceptingFiles, "The open image lightbox revokes native file admission before any clipboard or picker read.");
+            Check(!view.CanAcceptRichFileRequest(JsonSerializer.SerializeToElement(new { type = "action", requestId = Guid.NewGuid().ToString(), sessionId = Session, ownerAccountId = 42u, sequence = "10", action = "pasteImage", payload = new { threadId = "17" } }, ChatJson.Options)),
+                "Native clipboard file requests cannot bypass the lightbox composer gate.");
+            await UntilScript(core, "!document.querySelector('#image-dialog button,#image-dialog footer,#image-dialog .dialog-heading')&&document.querySelector('#image-dialog-image').getBoundingClientRect().height>500", "The enlarged image has no download button, close button or frame header.");
+            // WebView DOM completion precedes the asynchronous WPF composition frame.
+            await Task.Delay(500);
+            await CaptureWebAsync(core, System.IO.Path.Combine(directory, $"chat-{language}-image-lightbox-webview.png"));
+            await Layout(shell);
+            Capture(content, System.IO.Path.Combine(directory, $"chat-{language}-image-lightbox-wpf-direct.png"));
+            await core.ExecuteScriptAsync("document.querySelector('#image-dialog').click()");
+            await UntilScript(core, "!document.querySelector('#image-dialog').open&&document.activeElement===document.querySelector('.attachment-image')", "Lightbox background closes the image and restores the original preview focus.");
+            await Until(() => view.IsRichComposerAcceptingFiles, "Closing the image lightbox restores native file admission for the same thread.");
 
             string dropFile = System.IO.Path.Combine(directory, "native-drop-fixture.png");
             await File.WriteAllBytesAsync(dropFile, imageBytes);
@@ -198,13 +243,14 @@ internal static class ChatFullShellWpfTests
             await Task.Delay(200);
             await Layout(shell);
             Check(!shell.ProfileOverlay.IsOpen, "Profile overlay closes through its real button.");
+            await ValidateFollowupMediaAsync(core, view, shell, content, language, directory, imageBytes.Length, audioBytes.Length, videoBytes.Length);
             Check(!shell.IsActive, "Navigation, captures, avatar and synthetic drops never activate the fixture.");
             return new { locale, shellWidth = content.ActualWidth, shellHeight = content.ActualHeight,
                 view = new { x = viewBounds.X, y = viewBounds.Y, width = viewBounds.Width, height = viewBounds.Height }, dom,
                 webPixelWidth = web.PixelWidth, webPixelHeight = web.PixelHeight,
                 directPixelWidth = direct.PixelWidth, directPixelHeight = direct.PixelHeight,
                 baselinePixelWidth = baseline.PixelWidth, baselinePixelHeight = baseline.PixelHeight,
-                transparentSamples,
+                transparentSamples, marginShadowSamples,
                 imageSample = new { x = imageX, y = imageY + (int)viewBounds.Top, browser = imageWeb, actual = imageDirect, backdrop = imageBackdrop },
                 panelSample = new { x = 1200, y = 500, browser = panelWeb, actual = panelDirect, backdrop = panelBackdrop },
                 captureMethod = "Direct WPF RenderTargetBitmap of actual full shell content, including WebView2CompositionControl, native header, single Citadel backdrop and profile overlay. No compositing or duplicated artwork. Pixel checks compare with the native backdrop and the independent transparent CoreWebView2 PNG."
@@ -238,6 +284,64 @@ internal static class ChatFullShellWpfTests
     }
 
     private static string RichAvatar(uint id) => ChatViewV2.RichMediaOrigin + $"avatars/{id}/1";
+
+    private static async Task ValidateFollowupMediaAsync(CoreWebView2 core, ChatViewV2 view, LauncherShellV2 shell, FrameworkElement content,
+        string language, string directory, int imageLength, int audioLength, int videoLength)
+    {
+        JsonObject previews = JsonSerializer.SerializeToNode(Snapshot(language, imageLength), ChatJson.Options)!.AsObject();
+        previews["sequence"] = "11";
+        previews["draft"] = JsonSerializer.SerializeToNode(new
+        {
+            body = language == "en" ? "Three previews before sending." : "Trois aperçus avant l’envoi.",
+            attachments = new[]
+            {
+                new { id = "fixture-image", fileName = "Portrait privé.png", contentType = "image/png", size = imageLength.ToString(), offset = imageLength.ToString(), status = "ready", isComplete = true, previewUrl = ChatViewV2.RichMediaOrigin + "uploads/fixture-image" },
+                new { id = "fixture-video", fileName = "Souvenir privé.webm", contentType = "video/webm", size = videoLength.ToString(), offset = videoLength.ToString(), status = "ready", isComplete = true, previewUrl = ChatViewV2.RichMediaOrigin + "uploads/fixture-video" },
+                new { id = "fixture-audio", fileName = "Note privée.wav", contentType = "audio/wav", size = audioLength.ToString(), offset = audioLength.ToString(), status = "ready", isComplete = true, previewUrl = ChatViewV2.RichMediaOrigin + "uploads/fixture-audio" }
+            }
+        }, ChatJson.Options);
+        view.ApplyRichSnapshot(previews);
+        await UntilScript(core, "document.querySelectorAll('.queued-file').length===3&&[...document.querySelectorAll('.queued-preview audio,.queued-preview video')].length===2&&[...document.querySelectorAll('.queued-preview audio,.queued-preview video')].every(m=>m.readyState>=1&&!m.error)", "The real WebView decodes queued WAV audio and WebM video through the local native media resolver.");
+        await UntilScript(core, "[...document.querySelectorAll('.queued-file')].every(n=>n.innerText.trim()==='')&&!document.querySelector('.queued-file-name,.queued-file-status')", "Queued media show their preview and removal control without name, size or Ready metadata.");
+        await Task.Delay(500);
+        await Layout(shell);
+        await CaptureWebAsync(core, System.IO.Path.Combine(directory, $"chat-{language}-queued-media-webview.png"));
+        Capture(content, System.IO.Path.Combine(directory, $"chat-{language}-queued-media-wpf-direct.png"));
+
+        JsonObject cards = JsonSerializer.SerializeToNode(Snapshot(language, imageLength), ChatJson.Options)!.AsObject();
+        cards["sequence"] = "12";
+        cards["messages"] = JsonSerializer.SerializeToNode(new[]
+        {
+            new { id = "9007199254741010", clientMessageId = "10000000-0000-4000-8000-000000000010", threadId = "17", sender = new { accountId = 42, username = "Aster", presence = "offline", avatarUrl = RichAvatar(42) },
+                body = language == "en" ? "My character for tonight." : "Mon personnage pour ce soir.", createdAt = "2026-09-07T08:03:00Z", version = "1",
+                card = new { kind = "character", title = "Asterion", referenceId = "4294967295", fields = new { ownerAccountId = "42", characterGuid = "4294967295", level = "80", classId = "6", realmName = "Arthas" } } }
+        }, ChatJson.Options);
+        cards["pending"] = JsonSerializer.SerializeToNode(new[]
+        {
+            new { clientMessageId = "10000000-0000-4000-8000-000000000011", threadId = "17", body = language == "en" ? "This send was refused." : "Cet envoi a été refusé.",
+                status = "failed", canCancel = true, errorCode = "chat-forbidden", createdAt = "2026-09-07T08:04:00Z" }
+        }, ChatJson.Options);
+        cards["state"]!["self"]!["presence"] = "dnd";
+        view.ApplyRichSnapshot(cards);
+        await UntilScript(core, "document.querySelector('.character-card-meta')?.textContent.includes('80')&&!!document.querySelector('[data-client-message-id] .message-state.is-failed')", "Character metadata and the error attached to its own failed send render in the native WebView.");
+        await UntilScript(core, "[...document.querySelectorAll('.message-avatar .presence-dot')].length===2&&[...document.querySelectorAll('.message-avatar .presence-dot')].every(dot=>dot.dataset.presence==='dnd')", "Historical and pending self messages both use the current global status rather than the sender's old value.");
+        await Task.Delay(500);
+        await CaptureWebAsync(core, System.IO.Path.Combine(directory, $"chat-{language}-character-error-webview.png"));
+        await Layout(shell);
+        Capture(content, System.IO.Path.Combine(directory, $"chat-{language}-character-error-wpf-direct.png"));
+        await UntilScript(core, "document.querySelector('.character-card-action')&&document.querySelector('#composer-box').getBoundingClientRect().bottom<=innerHeight&&document.documentElement.scrollWidth===innerWidth", "The character action and composer remain visible at the fixed native size.");
+    }
+
+    private const string FixtureVideo = "GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQRChYECGFOAZwEAAAAAAAHzEU2bdLlNu4tTq4QVSalmU6yBbk27i1OrhBZUrmtTrIGTTbuLU6uEH0O2dVOsgcFNu4xTq4QcU7trU6yCAeHsrgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmoCrXsYMPQkBEiYQ/gAAATYCGQ2hyb21lV0GGQ2hyb21lFlSua6mup9eBAXPFh0peW3PKd6aDgQFV7oEBhoVWX1ZQOOCKsIGguoFaU8CBAR9DtnUBAAAAAAABFOeBAKBBDqFAyYEAAADwCgCdASqgAFoACocIhYWImYSIOAIZwzoL4BjwMlAfz9+FKmAgA7X+vGcGPvgZ6X+v9ecY8yssuAzBFsBYbgHUp8eIu8bgRBb2KnEwFnh2aaiSQdcqQkSiGUz3A5BogccA/t/QE3PS9aWhck5pXk0S/iB3pmAsEgGC+9vdCyTgjlOrXinMPEHgHjsJv49flaCcHnkKB3rqcuuv1aR10QFY3z7Rj1kSWY1cvwyneq3AjmYgBJo5F7MwkntpBLZbZjD9KLcFAHWhv6a97oEBpbhQBQCdASqgAFoACocIhYWImYSIOAIABigPCHVUmu4h1VJruIdVSa7iHVUmu4h1VJruIbwA/uuuABxTu2uNu4uzgQC3hveBAfGBwQ==";
+
+    private static byte[] SilentWave()
+    {
+        using MemoryStream stream = new();
+        using BinaryWriter writer = new(stream);
+        writer.Write("RIFF"u8); writer.Write(16036); writer.Write("WAVEfmt "u8); writer.Write(16); writer.Write((short)1); writer.Write((short)1);
+        writer.Write(8000); writer.Write(16000); writer.Write((short)2); writer.Write((short)16); writer.Write("data"u8); writer.Write(16000); writer.Write(new byte[16000]);
+        return stream.ToArray();
+    }
     private static void RaiseDrop(ChatViewV2 view, string file)
     {
         DataObject data = new(DataFormats.FileDrop, new[] { file });

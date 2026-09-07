@@ -18,24 +18,6 @@ public sealed class ChatAttachmentStorage
     private readonly TimeProvider _time;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new(StringComparer.Ordinal);
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
-    private static readonly IReadOnlyDictionary<string, (string Mime, string Kind)> Formats =
-        new Dictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase)
-        {
-            [".png"] = ("image/png", "image"), [".jpg"] = ("image/jpeg", "image"),
-            [".jpeg"] = ("image/jpeg", "image"), [".gif"] = ("image/gif", "image"),
-            [".webp"] = ("image/webp", "image"), [".pdf"] = ("application/pdf", "document"),
-            [".txt"] = ("text/plain; charset=utf-8", "document"),
-            [".md"] = ("text/markdown; charset=utf-8", "document"),
-            [".docx"] = ("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "document"),
-            [".xlsx"] = ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "document"),
-            [".pptx"] = ("application/vnd.openxmlformats-officedocument.presentationml.presentation", "document"),
-            [".odt"] = ("application/vnd.oasis.opendocument.text", "document"),
-            [".ods"] = ("application/vnd.oasis.opendocument.spreadsheet", "document"),
-            [".odp"] = ("application/vnd.oasis.opendocument.presentation", "document"),
-            [".mp3"] = ("audio/mpeg", "audio"), [".ogg"] = ("audio/ogg", "audio"),
-            [".wav"] = ("audio/wav", "audio"), [".mp4"] = ("video/mp4", "video"),
-            [".webm"] = ("video/webm", "video")
-        };
 
     public ChatAttachmentStorage(LauncherServerOptions options)
         : this(options.ChatMediaRoot ?? Path.Combine(options.AvatarMediaRoot, "chat"), TimeProvider.System) { }
@@ -53,11 +35,12 @@ public sealed class ChatAttachmentStorage
         string name = ValidateName(request.FileName);
         if (request.Size < 0 || request.Size > ChatLimits.MaximumAttachmentBytes)
             throw new ChatOperationException("chat-request-too-large");
-        var format = Formats[Path.GetExtension(name)];
+        if (!ChatAttachmentFormats.TryGetByFileName(name, out ChatAttachmentFormat? format))
+            throw new ChatOperationException("chat-unsupported-file-type");
         string id = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(_root);
         await using (FileStream file = new(FilePath(id, ".part"), FileMode.CreateNew, FileAccess.Write, FileShare.None)) { }
-        UploadRecord record = new(id, owner, name, format.Mime, format.Kind, request.Size, 0,
+        UploadRecord record = new(id, owner, name, format.ResponseContentType, format.Kind, request.Size, 0,
             false, null, _time.GetUtcNow(), _time.GetUtcNow());
         await SaveAsync(record, ct).ConfigureAwait(false);
         return ToDto(record);
@@ -202,12 +185,18 @@ public sealed class ChatAttachmentStorage
             char.IsControl(character) || character is '\\' or '/' or ':' or '\u202e' or '\u202d'))
             throw new ChatOperationException("chat-invalid-file-name");
         string name = value.Trim();
-        if (!Formats.ContainsKey(Path.GetExtension(name))) throw new ChatOperationException("chat-unsupported-file-type");
+        if (!ChatAttachmentFormats.TryGetByFileName(name, out _)) throw new ChatOperationException("chat-unsupported-file-type");
         return name;
     }
 
     private static async Task ValidateContentAsync(FileStream stream, string extension, string mime, CancellationToken ct)
     {
+        if (ChatAttachmentFormats.TryGetByFileName("file" + extension, out ChatAttachmentFormat? format)
+            && format.Kind is "audio" or "video")
+        {
+            if (!ChatMediaSignatures.Matches(stream, format, ct)) throw new ChatOperationException("chat-file-content-mismatch");
+            return;
+        }
         if (extension.Equals(".txt", StringComparison.OrdinalIgnoreCase) || extension.Equals(".md", StringComparison.OrdinalIgnoreCase))
         {
             if (!await IsTextAsync(stream, ct).ConfigureAwait(false)) throw new ChatOperationException("chat-file-content-mismatch");
@@ -225,12 +214,6 @@ public sealed class ChatAttachmentStorage
             ".gif" => Prefix("GIF87a") || Prefix("GIF89a"),
             ".webp" => Prefix("RIFF") && At(8, "WEBP"),
             ".pdf" => Prefix("%PDF-"),
-            ".mp3" => Prefix("ID3") || (prefix.Length >= 2 && prefix[0] == 255 && (prefix[1] & 0xe0) == 0xe0),
-            ".ogg" => Prefix("OggS"),
-            ".wav" => Prefix("RIFF") && At(8, "WAVE"),
-            ".mp4" => At(4, "ftyp"),
-            ".webm" => prefix.AsSpan().StartsWith(new byte[] { 0x1a, 0x45, 0xdf, 0xa3 })
-                && Encoding.ASCII.GetString(prefix.AsSpan(0, Math.Min(prefix.Length, 4096))).Contains("webm", StringComparison.Ordinal),
             ".docx" or ".xlsx" or ".pptx" or ".odt" or ".ods" or ".odp" =>
                 Prefix("PK\u0003\u0004") && ValidateOfficeDocument(stream, extension, mime),
             _ => false

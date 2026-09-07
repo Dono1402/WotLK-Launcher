@@ -39,9 +39,6 @@
     <symbol id="i-alert" viewBox="0 0 24 24"><path d="m12 3 10 18H2Zm0 6v5m0 3v1"/></symbol>
   </svg>
   <main id="chat-app" class="chat-app" aria-label="Messages">
-    <header class="page-heading">
-      <div><h1>Messages</h1><p id="page-subtitle" data-i18n="subtitle">Gardez le contact, en jeu comme ailleurs.</p></div>
-    </header>
     <div class="chat-layout">
       <aside class="conversation-sidebar" aria-label="Conversations">
         <div class="sidebar-heading"><h2 data-i18n="conversations">Conversations</h2><button id="new-conversation-button" class="icon-button accent-icon" type="button" data-title="newConversation"><svg class="icon"><use href="#i-plus"/></svg></button></div>
@@ -78,7 +75,7 @@
                 </div>
               </div>
             </div>
-            <div class="composer-footnote"><span data-i18n="composerHint">Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne</span><span id="draft-status"></span></div><div id="composer-error" class="composer-error" role="alert" hidden></div>
+            <div class="composer-footnote"><span data-i18n="composerHint">Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne</span><span id="draft-status"></span></div>
           </div>
         </div>
       </section>
@@ -87,6 +84,7 @@
   <div id="context-menu" class="context-menu" role="menu" hidden></div>
   <div id="reaction-picker" class="reaction-picker" role="dialog" aria-label="Choisir une réaction" hidden></div>
   <dialog id="app-dialog" class="app-dialog"><form method="dialog" class="dialog-shell"><header class="dialog-heading"><div><h2 id="dialog-title"></h2><p id="dialog-subtitle"></p></div><button class="icon-button" value="cancel" data-title="close"><svg class="icon"><use href="#i-close"/></svg></button></header><div id="dialog-content" class="dialog-content"></div><footer id="dialog-footer" class="dialog-footer"></footer></form></dialog>
+  <dialog id="image-dialog" class="image-dialog" aria-label="Image"><img id="image-dialog-image" alt=""></dialog>
   <div id="toast" class="toast" role="status" hidden></div>
 </body>
 </html>

@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const fixtures = require('./chat-fixtures.cjs');
 const repo = path.resolve(process.env.ATLAS_CHAT_REPO_ROOT || path.join(__dirname, '../../..'));
 const assets = path.join(repo, 'source/WotLK.Launcher/Assets/Chat');
-const output = path.resolve(repo, process.env.ATLAS_CHAT_TEST_OUTPUT || 'artifacts/atlas-chat-premium-20260907/dom');
+const output = path.resolve(repo, process.env.ATLAS_CHAT_TEST_OUTPUT || 'artifacts/atlas-chat-followup-20260907/dom');
 // Measured innerWidth/innerHeight beneath the 124-DIP header in the fixed V2 shell.
 const fixedViewport = { width: 1597, height: 872 };
 const bundledPlaywright = path.join(os.homedir(), '.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
@@ -69,6 +69,9 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
       return route.fulfill({status:200,contentType:type,headers:{'Content-Security-Policy':policy},body:await fs.readFile(target)});
     }
     if (url.origin === 'https://atlas-chat-media.invalid') {
+      if (url.pathname.endsWith('fixture-video.webm')) return route.fulfill({status:200,contentType:'video/webm',body:fixtures.videoBytes});
+      if (url.pathname.endsWith('fixture-audio.wav')) return route.fulfill({status:200,contentType:'audio/wav',body:fixtures.audioBytes});
+      if (url.pathname.endsWith('fixture-broken.mkv')) return route.fulfill({status:200,contentType:'video/x-matroska',body:'Synthetic unreadable media payload.'});
       if (url.pathname.includes('avatar')) return route.fulfill({status:200,contentType:'image/svg+xml',body:svgAvatar(url.pathname.split('/').at(-1))});
       if (url.pathname.includes('landscape')) return route.fulfill({status:200,contentType:'image/svg+xml',body:landscape});
       if (url.pathname.includes('portrait')) return route.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="240" height="960"><rect width="240" height="960" fill="#476978"/><circle cx="120" cy="140" r="62" fill="#bec9c3"/><path d="M0 960V600L120 270l120 330v360Z" fill="#273f4b"/></svg>'});
@@ -88,8 +91,10 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   const apply = async value => { value.sequence=String(++sequence); await page.evaluate(value=>AtlasChat.applySnapshot(value),value); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))); };
   let state=clone(fixtures.snapshot); await apply(state); await page.waitForTimeout(80);
   check('The native composer handshake enables files only for its current session and thread',await page.evaluate(()=>__actions.some(a=>a.action==='composerState'&&a.payload.threadId==='d:42:91'&&a.payload.acceptsFiles===true&&a.ownerAccountId===42&&a.sessionId==='43e20968-4137-4f23-9174-4a097cc6a873')));
-  check('The fixed launcher content keeps both columns and native Atlas typography',await page.evaluate(()=>getComputedStyle(document.querySelector('.chat-layout')).gridTemplateColumns.split(' ').length===2&&getComputedStyle(document.querySelector('h1')).fontFamily.includes('Inter')));
-  check('The document and Messages heading remain transparent for the native Citadel backdrop',await page.evaluate(()=>[document.documentElement,document.body,document.querySelector('#chat-app'),document.querySelector('.page-heading')].every(node=>{const style=getComputedStyle(node);return style.backgroundColor==='rgba(0, 0, 0, 0)'&&style.backgroundImage==='none';})));
+  check('The fixed launcher content keeps both columns and native Atlas typography',await page.evaluate(()=>getComputedStyle(document.querySelector('.chat-layout')).gridTemplateColumns.split(' ').length===2&&getComputedStyle(document.querySelector('.sidebar-heading')).fontFamily.includes('Inter')));
+  check('Messages uses the page directly without a title, subtitle or reserved heading band',await page.locator('.page-heading,#page-subtitle').count()===0&&await page.evaluate(()=>document.querySelector('.chat-layout').getBoundingClientRect().top<=24));
+  check('The document remains transparent around the panel for the native Citadel backdrop',await page.evaluate(()=>[document.documentElement,document.body,document.querySelector('#chat-app')].every(node=>{const style=getComputedStyle(node);return style.backgroundColor==='rgba(0, 0, 0, 0)'&&style.backgroundImage==='none';})));
+  check('No global error slot remains below the composer',await page.locator('#composer-error').count()===0);
   check('The idle French send control is icon-only with an accessible label and tooltip',await iconOnlySend('Envoyer'));
   check('Attach, Armory and send form one aligned group at the right of the composer',await composerOrder());
   check('Int64 identifiers above 2^53 remain exact and ordered',JSON.stringify(await page.locator('.message[data-message-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.messageId)))===JSON.stringify(state.messages.map(m=>m.id)));
@@ -190,7 +195,7 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   check('Group title update includes its original version',await page.evaluate(()=>__actions.some(a=>a.action==='threadUpdate'&&a.payload.title==='Nouveau nom'&&a.payload.expectedVersion==='3')));
 
   state.selectedThreadId='d:42:91';state.messages=clone(fixtures.snapshot.messages);state.sessionId='43e20968-4137-4f23-9174-4a097cc6a875';state.draft={body:'',attachments:[{id:'local-image',fileName:'Capture.png',contentType:'image/png',size:'4000000',offset:'1200000',status:'uploading',isComplete:false,previewUrl:fixtures.mediaOrigin+'attachments/fixture-landscape'}]};await apply(state);
-  check('Local image preview and upload progress render before upload completion',await page.locator('.queued-file img').count()===1&&await page.locator('.queued-file-status').innerText().then(text=>text.includes('30 %')));
+  check('An uploading image has only its preview and compact progress without name, size or Ready',await page.locator('.queued-file.is-image .queued-preview img').count()===1&&await page.locator('.queued-progress > span').evaluate(node=>Math.abs(parseFloat(node.style.width)-30)<1)&&await page.locator('.queued-file').innerText().then(text=>text.trim()===''));
   await page.locator('.queued-file-remove').click();check('Removing an in-progress file removes its draft reference by local ID',await page.evaluate(()=>__actions.some(a=>a.action==='removeAttachment'&&a.payload.uploadId==='local-image')));
   state.isAvailable=false;await apply(state);check('A file can be queued while offline and still uploading',await page.locator('#send-button').isEnabled());await page.locator('#send-button').click();
   check('Queued attachment send carries opaque local IDs and no binary data',await page.evaluate(()=>__actions.some(a=>a.action==='send'&&a.payload.attachmentIds?.[0]==='local-image'&&!('data' in a.payload)&&!('path' in a.payload))));
@@ -215,6 +220,89 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   check('A send already submitted cannot display the cancel action after reconnection',await submitted.getByRole('button',{name:'Annuler l’envoi en attente',exact:true}).count()===0&&await unsent.getByRole('button',{name:'Annuler l’envoi en attente',exact:true}).count()===1);
   check('Queued media messages show native transfer progress and creation time',await unsent.locator('.message-state').innerText().then(text=>text.includes('42 %'))&&await unsent.locator('.message-time').innerText().then(text=>text.length>0));state.pending=[];
 
+  state=clone(fixtures.snapshot);state.sessionId='followup-media-previews';state.draft={body:'Trois aperçus avant l’envoi.',attachments:clone(fixtures.mediaDraft)};await apply(state);
+  await page.waitForFunction(()=>[...document.querySelectorAll('.queued-preview video,.queued-preview audio')].every(media=>media.readyState>=1));
+  check('Image, video and audio use their actual preview elements before sending',await page.locator('.queued-file.is-image .queued-preview img').count()===1&&await page.locator('.queued-file.is-video .queued-preview video').count()===1&&await page.locator('.queued-file.is-audio .queued-preview audio').count()===1);
+  check('Ready media previews display no filename, size, Ready text or metadata row',await page.locator('.queued-file').evaluateAll(nodes=>nodes.every(node=>node.innerText.trim()===''&&!node.querySelector('.queued-file-name,.queued-file-status'))));
+  check('Audio and video metadata decode from isolated local fixture bytes',await page.locator('.queued-preview video,.queued-preview audio').evaluateAll(nodes=>nodes.every(media=>media.readyState>=1&&!media.error&&media.preload!=='none')&&nodes.find(media=>media.tagName==='VIDEO').videoWidth===160&&nodes.find(media=>media.tagName==='AUDIO').duration===1));
+  await page.evaluate(()=>window.__queuedPlayers=[...document.querySelectorAll('.queued-preview video,.queued-preview audio')]);state.draft.attachments=state.draft.attachments.map(upload=>({...upload,isComplete:false,status:'uploading',offset:String(Math.floor(Number(upload.size)/2))}));await apply(state);
+  check('Upload progress updates keep the existing audio and video players and their decoded metadata',await page.evaluate(()=>[...document.querySelectorAll('.queued-preview video,.queued-preview audio')].every((media,index)=>media===__queuedPlayers[index]&&media.readyState>=1)));
+  state.draft.attachments=clone(fixtures.mediaDraft);await apply(state);
+  check('Preview controls retain a removal action for each exact local attachment',await page.locator('.queued-file-remove').count()===3&&await page.locator('.queued-file-remove').evaluateAll(nodes=>nodes.every(node=>node.getAttribute('aria-label'))));
+  check('Multiple media previews keep the composer inside the fixed launcher',await page.evaluate(()=>document.documentElement.scrollWidth===innerWidth&&document.querySelector('#composer-box').getBoundingClientRect().bottom<=innerHeight)&&await composerOrder());
+  await capture('chat-fr-queued-media-fixed.png');
+  await page.locator('.queued-file.is-video .queued-file-remove').click();
+  check('Removing a video preview targets only that upload and never deletes a sent message',await page.evaluate(()=>{const last=__actions.at(-1);return last.action==='removeAttachment'&&last.payload.threadId==='d:42:91'&&last.payload.uploadId==='preview-video'&&!('messageId' in last.payload);}));
+  const refusedRemove=await page.evaluate(()=>__actions.at(-1));await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,error:'chat-unavailable'}),refusedRemove);
+  check('A refused preview removal reports the connection error on that upload alone',await page.locator('.queued-file.is-video .queued-file-error').innerText().then(text=>text.includes('indisponible'))&&await page.locator('.queued-file-error:visible').count()===1&&!await page.locator('#toast').isVisible());
+  await page.locator('.queued-file.is-video .queued-file-remove').click();const acceptedRemove=await page.evaluate(()=>__actions.at(-1));await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,payload:{removed:true}}),acceptedRemove);
+  check('A successful later preview action clears only its earlier local feedback',await page.locator('.queued-file-error:visible').count()===0);
+  state.draft.attachments=[{...clone(fixtures.mediaDraft[1]),status:'failed',isComplete:false,errorCode:'chat-file-type-not-supported'}];await apply(state);
+  check('A failed attachment explains the error on its own preview and offers an inline retry',await page.locator('.queued-file.is-failed .queued-file-error').isVisible()&&await page.locator('.queued-file.is-failed .queued-file-retry').count()===1&&await page.locator('#composer-error').count()===0);
+  await capture('chat-fr-queued-error-fixed.png');
+  state.draft={};state.messages=[fixtures.message('4999',fixtures.lyra,'Un fichier reste accessible même si le lecteur ne peut pas le décoder.',1,{attachments:[{id:'fixture-broken.mkv',fileName:'Vidéo non décodable.mkv',kind:'video',contentType:'video/x-matroska',size:'38',url:fixtures.mediaOrigin+'attachments/fixture-broken.mkv'}]})];await apply(state);await page.locator('.attachment video').evaluate(media=>{media.preload='metadata';media.load();});
+  await page.locator('.media-playback-unavailable').waitFor({state:'visible'});
+  check('An undecodable received media shows local playback feedback while keeping the original file download',await page.locator('.media-playback-unavailable').innerText().then(text=>text.trim().length>0&&!text.includes('mediaPlaybackUnavailable'))&&await page.locator('[data-attachment-id="fixture-broken.mkv"]').getByRole('button',{name:'Télécharger',exact:true}).count()===1&&await page.locator('#composer-error').count()===0);
+
+  state=clone(fixtures.snapshot);state.sessionId='followup-pending-errors';state.messages=[fixtures.message('5001',fixtures.lyra,'Le message de mon ami reste intact.',1)];
+  const failedPending=fixtures.pending(1,{body:'Cet envoi a été refusé.',status:'failed',canCancel:true,errorCode:'chat-forbidden'});
+  const uncertainPending=fixtures.pending(2,{body:'Réponse perdue après soumission.',status:'failed',canCancel:false,errorCode:'chat-unavailable'});
+  const waitingPending=fixtures.pending(3,{body:'Cet envoi attend la reconnexion.'});
+  state.pending=[failedPending,uncertainPending,waitingPending];await apply(state);
+  const failedRow=page.locator('[data-client-message-id="'+failedPending.clientMessageId+'"]'), uncertainRow=page.locator('[data-client-message-id="'+uncertainPending.clientMessageId+'"]');
+  check('Each rejected or uncertain send has its own error and leaves unrelated messages untouched',await failedRow.locator('.message-state.is-failed').innerText().then(text=>text.includes('pouvez plus écrire'))&&await uncertainRow.locator('.message-state.is-failed').innerText().then(text=>text.includes('indisponible'))&&await page.locator('[data-message-id="5001"] .message-state.is-failed').count()===0&&await page.locator('#composer-error').count()===0);
+  check('A certainly rejected pending send exposes removal, while an uncertain submission stays non-cancellable',await failedRow.locator('.message-state button').count()===2&&await uncertainRow.locator('.message-state button').count()===1);
+  await capture('chat-fr-pending-errors-fixed.png');
+  const beforeCancel=await page.evaluate(()=>__actions.length);await failedRow.locator('.message-state button').last().click();
+  check('Removing a failed send passes only its exact client ID and cannot delete the friend message',await page.evaluate(({before,id})=>{const actions=__actions.slice(before);return actions.length===1&&actions[0].action==='cancelSend'&&Object.keys(actions[0].payload).join(',')==='clientMessageId'&&actions[0].payload.clientMessageId===id;},{before:beforeCancel,id:failedPending.clientMessageId}));
+  state.pending=state.pending.filter(item=>item.clientMessageId!==failedPending.clientMessageId);await apply(state);
+  check('Removing the failed local send preserves both the uncertain submission and the other account message',await failedRow.count()===0&&await uncertainRow.count()===1&&await page.locator('[data-message-id="5001"]').count()===1);
+  const deletableUncertain=fixtures.pending(5,{body:'Envoi incertain avec suppression durable.',status:'failed',canCancel:false,canDelete:true,errorCode:'chat-unavailable'});state.pending.push(deletableUncertain);await apply(state);
+  const deletableRow=page.locator('[data-client-message-id="'+deletableUncertain.clientMessageId+'"]');await deletableRow.getByRole('button',{name:'Supprimer',exact:true}).click();
+  check('A native-authorized deletion of an uncertain failed send emits deleteFailedSend with only its client ID',await page.evaluate(id=>{const last=__actions.at(-1);return last.action==='deleteFailedSend'&&Object.keys(last.payload).join(',')==='clientMessageId'&&last.payload.clientMessageId===id;},deletableUncertain.clientMessageId));
+  Object.assign(deletableUncertain,{status:'deleting',deleteRequested:true,canDelete:false});await apply(state);
+  check('A durable deletion in progress shows its state and exposes neither retry, cancel nor another delete',await deletableRow.locator('.message-state').innerText().then(text=>text.includes('Suppression'))&&await deletableRow.locator('.message-state button').count()===0);
+  const queuedDeletion=fixtures.pending(6,{body:'Une réponse perdue garde ce message en attente.',status:'queued',canCancel:false,canDelete:true,errorCode:'chat-unavailable'});state.pending.push(queuedDeletion);await apply(state);
+  const queuedDeletionRow=page.locator('[data-client-message-id="'+queuedDeletion.clientMessageId+'"]');
+  check('A queued send with a native deletion capability shows its error and an actual Delete action',await queuedDeletionRow.locator('.message-state.is-failed').innerText().then(text=>text.includes('indisponible'))&&await queuedDeletionRow.getByRole('button',{name:'Supprimer',exact:true}).count()===1);
+  await queuedDeletionRow.getByRole('button',{name:'Supprimer',exact:true}).click();
+  check('Deleting an errored queued send uses the dedicated native deletion operation',await page.evaluate(id=>{const action=__actions.at(-1);return action.action==='deleteFailedSend'&&action.payload.clientMessageId===id;},queuedDeletion.clientMessageId));
+  Object.assign(queuedDeletion,{status:'deleting',deleteRequested:true,canDelete:false,errorCode:'chat-forbidden'});const postsBeforeDeletionFailure=await page.evaluate(()=>__actions.filter(action=>['send','retrySend'].includes(action.action)).length);await apply(state);
+  check('A refused durable deletion keeps its state and inline reason without exposing or issuing another send',await queuedDeletionRow.locator('.message-state.is-failed').innerText().then(text=>text.includes('Suppression')&&text.includes('pouvez plus écrire'))&&await queuedDeletionRow.locator('.message-state button').count()===0&&await page.evaluate(before=>__actions.filter(action=>['send','retrySend'].includes(action.action)).length===before,postsBeforeDeletionFailure));
+  await capture('chat-fr-deletion-errors-fixed.png');
+  const pendingColors=[];
+  for(const presence of ['online','away','dnd','offline']){
+    state.state.self.presence=presence;state.state.self.avatarUrl=fixtures.mediaOrigin+'avatars/42?revision='+presence;await apply(state);
+    const current=await uncertainRow.locator('.message-avatar').evaluate(node=>({presence:node.querySelector('.presence-dot')?.dataset.presence,color:getComputedStyle(node.querySelector('.presence-dot')).backgroundColor,avatar:node.querySelector('img')?.src}));
+    check('An unchanged pending message refreshes the current self '+presence+' avatar and status',current.presence===presence&&current.avatar.endsWith('revision='+presence));pendingColors.push(current.color);
+  }
+  check('Pending self indicators use distinct colors for all four global statuses',new Set(pendingColors).size===4);
+  state.messages.push(fixtures.message('5002',fixtures.self,uncertainPending.body,42,{clientMessageId:uncertainPending.clientMessageId}));await apply(state);
+  check('A server confirmation replaces the uncertain local send without a duplicate or failed state',await page.locator('[data-message-id="5002"]').count()===1&&await uncertainRow.count()===0&&await page.locator('[data-message-id="5002"] .message-state.is-failed').count()===0);
+  state.selectedThreadId='d:42:92';state.messages=[clone(fixtures.snapshot.state.threads.find(thread=>thread.id==='d:42:92').lastMessage)];state.draft={};await apply(state);
+  check('Changing conversation removes previous pending errors without carrying a composer or toast error',await page.locator('.message-state.is-failed,#composer-error').count()===0&&!await page.locator('#toast').isVisible()&&await page.locator('#message-list').innerText().then(text=>!text.includes('refusé')&&!text.includes('Réponse perdue')));
+
+  state=clone(fixtures.snapshot);state.sessionId='followup-before-outbox';await apply(state);await page.locator('#composer-input').fill('Texte préservé avant la file native.');await page.locator('#send-button').click();
+  const localSend=await page.evaluate(()=>__actions.filter(action=>action.action==='send').at(-1));await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,error:'chat-forbidden'}),localSend);
+  const localFailed=page.locator('[data-client-message-id="'+localSend.payload.clientMessageId+'"]');
+  check('A rejection before native persistence remains attached to that exact local send and keeps the draft',await localFailed.locator('.message-state.is-failed').isVisible()&&await page.locator('#composer-input').inputValue()==='Texte préservé avant la file native.'&&await page.locator('#composer-error').count()===0);
+  const retriesBefore=await page.evaluate(()=>__actions.filter(action=>action.action==='send').length);
+  await localFailed.locator('.message-state button').first().evaluate(button=>{button.click();button.click();});
+  const localRetry=await page.evaluate(()=>__actions.filter(action=>action.action==='send').at(-1));
+  check('Retrying a pre-outbox failure keeps the exact payload and client ID and blocks a double click',JSON.stringify(localRetry.payload)===JSON.stringify(localSend.payload)&&await page.evaluate(before=>__actions.filter(action=>action.action==='send').length===before+1,retriesBefore));
+  await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,error:'chat-forbidden'}),localRetry);
+  const deleteBefore=await page.evaluate(()=>__actions.length);await localFailed.locator('.message-state button').last().click();
+  check('Deleting an unpersisted failed send only clears its local entry and never calls native cancel or server delete',await localFailed.count()===0&&await page.evaluate(before=>!__actions.slice(before).some(action=>['cancelSend','deleteMessage'].includes(action.action)),deleteBefore)&&await page.locator('#composer-input').inputValue()==='Texte préservé avant la file native.');
+  await page.locator('#composer-input').fill('Un refus tardif appartient à Lyra.');await page.locator('#send-button').click();const delayedSend=await page.evaluate(()=>__actions.filter(action=>action.action==='send').at(-1));
+  state.selectedThreadId='d:42:92';state.messages=[clone(fixtures.snapshot.state.threads.find(thread=>thread.id==='d:42:92').lastMessage)];state.draft={};await apply(state);await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,error:'chat-forbidden'}),delayedSend);
+  check('A late send failure cannot attach an error or toast to the newly selected conversation',await page.locator('.message-state.is-failed,#composer-error').count()===0&&!await page.locator('#toast').isVisible()&&await page.locator('#message-list').innerText().then(text=>!text.includes('refus tardif')));
+
+  state=clone(fixtures.snapshot);state.sessionId='followup-message-error';await apply(state);const editErrorOwn=page.locator('.message[data-message-id="9007199254740995"]');await editErrorOwn.scrollIntoViewIfNeeded();await editErrorOwn.hover();await editErrorOwn.getByRole('button',{name:'Actions du message',exact:true}).click();await page.getByRole('menuitem',{name:'Modifier',exact:true}).click();await page.locator('#composer-input').fill('Modification refusée.');await page.locator('#send-button').click();
+  const refusedEdit=await page.evaluate(()=>__actions.filter(action=>action.action==='editMessage').at(-1));await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,error:'chat-forbidden'}),refusedEdit);
+  check('A rejected edit displays feedback only on the original message and preserves its text',await editErrorOwn.locator('.message-state.is-failed').isVisible()&&await editErrorOwn.innerText().then(text=>text.includes('Avec plaisir. Je peux venir avec mon prêtre'))&&await page.locator('.message-state.is-failed').count()===1&&await page.locator('#composer-error').count()===0);
+  state.selectedThreadId='d:42:92';state.messages=[clone(fixtures.snapshot.state.threads.find(thread=>thread.id==='d:42:92').lastMessage)];state.draft={};await apply(state);
+  check('A message action failure is cleared when changing conversation',await page.locator('.message-state.is-failed,#composer-error').count()===0&&!await page.locator('#toast').isVisible());
+
   state=clone(fixtures.snapshot);state.sessionId='polish-presence';await apply(state);await page.locator('#toast').waitFor({state:'hidden'});
   const presenceColors=[];
   for (const [presence,label] of [['online','En ligne'],['away','Absent'],['dnd','Ne pas déranger'],['offline','Hors ligne']]) {
@@ -231,8 +319,19 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   check('Portrait image occupies exactly its 87.5 by 350 preview without a frame or footer',Math.abs(imageMetrics[0].width-87.5)<1&&imageMetrics[0].height===350&&imageMetrics[0].width===imageMetrics[0].imgWidth&&imageMetrics[0].height===imageMetrics[0].imgHeight&&imageMetrics[0].border==='0px'&&imageMetrics[0].background==='rgba(0, 0, 0, 0)'&&!imageMetrics[0].footer&&!imageMetrics[0].text);
   check('Small images keep their natural dimensions and document download stays available',imageMetrics[1].width===96&&imageMetrics[1].height===64&&await page.locator('[data-attachment-id="document"]').getByRole('button',{name:'Télécharger',exact:true}).count()===1);
   await page.locator('#timeline').evaluate(node=>node.scrollTop=0);await capture('chat-fr-portrait-fixed.png');
-  await page.locator('.attachment-image').first().click();await page.locator('dialog').getByRole('button',{name:'Télécharger',exact:true}).click();
-  check('Image viewer retains the native attachment download action',await page.evaluate(()=>__actions.some(a=>a.action==='downloadAttachment'&&a.payload.attachmentId==='portrait')));await page.getByRole('button',{name:'Fermer',exact:true}).last().click();
+  const downloadsBefore=await page.evaluate(()=>__actions.filter(action=>action.action==='downloadAttachment').length);await page.locator('.attachment-image').first().click();
+  const imageDialog=page.locator('#image-dialog');await imageDialog.waitFor({state:'visible'});
+  check('The image opens in a large lightbox with no buttons, footer or surrounding frame',await imageDialog.locator('button,footer,.dialog-footer,.dialog-heading').count()===0&&await imageDialog.evaluate(node=>{const img=node.querySelector('#image-dialog-image'),box=img.getBoundingClientRect(),css=getComputedStyle(node);return box.height>500&&Math.abs(box.width/box.height-0.25)<0.01&&css.borderTopWidth==='0px';}));
+  const lightboxFiles=await page.evaluate(value=>{
+    const before=__actions.length,data=new DataTransfer();data.items.add(new File(['fixture'],'lightbox.png',{type:'image/png'}));document.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:data}));document.querySelector('#composer-input').dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:data}));AtlasChat.receive({type:'dropState',active:true,sessionId:value.sessionId,ownerAccountId:value.ownerAccountId});
+    return{actions:__actions.slice(before).filter(action=>['dropFiles','pasteImage'].includes(action.action)),acceptsFiles:__actions.filter(action=>action.action==='composerState').at(-1)?.payload.acceptsFiles,overlay:!document.querySelector('#drop-overlay').hidden};
+  },state);
+  check('The image lightbox closes native file admission and rejects hidden drops or image paste',lightboxFiles.actions.length===0&&lightboxFiles.acceptsFiles===false&&!lightboxFiles.overlay);
+  await capture('chat-fr-image-lightbox-fixed.png');
+  await page.locator('#image-dialog-image').click();check('Clicking the enlarged image leaves it open and never starts a download',await imageDialog.isVisible()&&await page.evaluate(before=>__actions.filter(action=>action.action==='downloadAttachment').length===before,downloadsBefore));
+  await page.keyboard.press('Escape');check('Escape closes the lightbox and restores focus to its original image',!await imageDialog.isVisible()&&await page.locator('.attachment-image').first().evaluate(node=>node===document.activeElement));
+  check('Closing the lightbox publishes fresh native file admission for the same conversation',await page.evaluate(()=>__actions.filter(action=>action.action==='composerState').at(-1)?.payload.acceptsFiles===true));
+  await page.locator('.attachment-image').first().click();await imageDialog.click({position:{x:5,y:5}});check('Clicking the lightbox background closes it and restores image focus',!await imageDialog.isVisible()&&await page.locator('.attachment-image').first().evaluate(node=>node===document.activeElement));
 
   const removed=fixtures.message('3003',fixtures.lyra,'Texte effacé',5,{deletedAt:fixtures.at(6)});
   state.messages=[fixtures.message('3001',fixtures.lyra,'Message conservé',1),fixtures.message('3002',fixtures.self,'La réponse reste lisible.',3,{replyTo:{messageId:'3003',senderUsername:'Lyra',body:'Texte effacé',isDeleted:true}}),removed];state.state.threads[0].lastMessage=removed;state.state.threads[0].pinnedMessages=[removed];state.state.threads[0].unreadCount=2;state.state.threads[0].lastReadMessageId='3001';state.sessionId='polish-deleted';await page.evaluate(()=>window.__actions=[]);await apply(state);
@@ -256,11 +355,14 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   await page.locator('.armory-character[data-character-guid="4294967295"]').click();const characterSelection=await page.evaluate(()=>__actions.filter(a=>a.action==='selectOwnCharacter').at(-1));
   check('Character selection sends only the current thread and exact GUID to native validation',characterSelection.payload.threadId==='d:42:91'&&characterSelection.payload.characterGuid==='4294967295'&&Object.keys(characterSelection.payload).length===2);
   await page.locator('#composer-input').fill('Texte complété pendant la sélection.');
-  const ownCard={kind:'character',title:'Asterion',referenceId:'4294967295',fields:{ownerAccountId:'42',characterGuid:'4294967295',level:'80',classId:'6',raceId:'1'}};state.draft.body='Voici mon personnage.';state.draft.card=ownCard;await apply(state);await page.evaluate(({request,card})=>AtlasChat.receive({type:'result',requestId:request.requestId,payload:{card}}),{request:characterSelection,card:ownCard});await page.waitForTimeout(310);
+  const ownCard=clone(fixtures.characterCard);state.draft.body='Voici mon personnage.';state.draft.card=ownCard;await apply(state);await page.evaluate(({request,card})=>AtlasChat.receive({type:'result',requestId:request.requestId,payload:{card}}),{request:characterSelection,card:ownCard});await page.waitForTimeout(310);
   check('Canonical Armory result preserves fresh text and existing upload while closing the picker',await page.locator('#composer-input').inputValue()==='Texte complété pendant la sélection.'&&await page.locator('#composer-context-body').innerText()==='Asterion'&&await page.locator('.queued-file').count()===1&&!await page.locator('#armory-picker').isVisible());
   await page.locator('#send-button').click();const armorySend=await page.evaluate(()=>__actions.filter(a=>a.action==='send'&&a.payload.card?.title==='Asterion').at(-1));
   check('Sending an Armory includes canonical ownership and retains the attachment reference',armorySend?.payload.card.fields.ownerAccountId==='42'&&armorySend.payload.card.fields.characterGuid==='4294967295'&&armorySend.payload.attachmentIds[0]==='keep-upload'&&armorySend.payload.body==='Texte complété pendant la sélection.');
-  await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,payload:{accepted:true}}),armorySend);state.draft={};state.messages=[fixtures.message('4001',fixtures.self,'',1,{card:ownCard})];state.state.threads[0].lastMessage=state.messages[0];await apply(state);await page.locator('.game-card button').click();
+  await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,payload:{accepted:true}}),armorySend);state.draft={};state.messages=[fixtures.message('4001',fixtures.self,'',1,{card:ownCard})];state.state.threads[0].lastMessage=state.messages[0];state.pending=[fixtures.pending(4,{body:'Le même personnage attend l’envoi.',card:ownCard})];await apply(state);
+  check('The final and pending character cards share a clear name, level and actual class identity',await page.locator('.game-card.character-card').count()===2&&await page.locator('.character-card-identity').evaluateAll(nodes=>nodes.every(node=>node.textContent.includes('Asterion')))&&await page.locator('.character-card-meta').evaluateAll(nodes=>nodes.every(node=>node.textContent.includes('80')&&node.textContent.includes('Chevalier de la mort'))));
+  check('Character cards expose one Armory action and keep raw account identifiers out of the visible card',await page.locator('.character-card-action').count()===2&&await page.locator('.character-card').evaluateAll(nodes=>nodes.every(node=>!node.innerText.includes('4294967295')&&!node.innerText.includes('ownerAccountId'))));
+  await capture('chat-fr-character-cards-fixed.png');await page.locator('[data-message-id="4001"] .character-card-action').click();
   check('A received Armory opens the exact owner and character without rounding the GUID',await page.evaluate(()=>__actions.some(a=>a.action==='openCharacterArmory'&&a.payload.ownerAccountId===42&&a.payload.characterGuid==='4294967295')));
   await page.locator('#share-game-button').click();const emptyRequest=await page.evaluate(()=>__actions.filter(a=>a.action==='requestOwnCharacters').at(-1));state.ownCharacters={status:'ready',characters:[],error:null};await apply(state);await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,payload:{status:'ready'}}),emptyRequest);
   check('An empty account receives inline feedback and no invented character',await page.locator('.armory-character').count()===0&&await page.locator('#armory-picker-status').innerText().then(text=>text.includes('pas encore de personnage')));
@@ -282,6 +384,22 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   check('Revoked write access closes native file intake',await page.evaluate(()=>__actions.filter(a=>a.action==='composerState').at(-1)?.payload.acceptsFiles===false));
   state.state.threads[0].canSend=true;state.sessionId='polish-native-drop-new-session';await apply(state);
   check('A replacement session sends its own fresh native file handshake',await page.evaluate(()=>{const last=__actions.filter(a=>a.action==='composerState').at(-1);return last?.sessionId==='polish-native-drop-new-session'&&last.payload.acceptsFiles===true;}));
+  state.supportedAttachmentExtensions=['.png','.mp3','.ogg','.wav','.mp4','.webm','.flac','.mkv','.opus','.m4a','.avi'];await apply(state);
+  const extraFormats=await page.evaluate(()=>{
+    const data=new DataTransfer();for(const [name,type] of [['son.flac','audio/flac'],['video.mkv','video/x-matroska'],['son.opus','audio/opus'],['son.m4a','audio/mp4'],['video.avi','video/x-msvideo']])data.items.add(new File(['synthetic fixture'],name,{type}));
+    const before=__actions.length;document.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:data}));return __actions.slice(before).find(action=>action.action==='dropFiles');
+  });
+  check('Additional native-declared audio and video formats cross the browser bridge together',extraFormats?.additionalObjectCount===5&&extraFormats.payload.threadId==='d:42:91');
+  const formatDrop=async name=>page.evaluate(name=>{
+    const data=new DataTransfer();data.items.add(new File(['synthetic fixture'],name,{type:'application/octet-stream'}));const before=__actions.length;document.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:data}));return __actions.slice(before).some(action=>action.action==='dropFiles');
+  },name);
+  check('Native media-format declarations do not admit executable or archive drops',!await formatDrop('blocked.exe')&&!await formatDrop('blocked.zip'));
+  delete state.supportedAttachmentExtensions;await apply(state);
+  check('A later snapshot for the same account retains the previously declared media formats',await formatDrop('still-supported.MKV'));
+  const newOwner={...clone(fixtures.self),accountId:84,username:'Second'};
+  await apply({...state,sessionId:'followup-other-formats-account',ownerAccountId:84,selectedThreadId:'d:84:92',state:{...state.state,self:newOwner,contacts:[fixtures.kael],threads:[{id:'d:84:92',kind:'direct',members:[fixtures.member(newOwner),fixtures.member(fixtures.kael)],canSend:true,lastMessage:null,unreadCount:0,pinnedMessages:[]}]},messages:[],pending:[],draft:{}});
+  check('A new account without a formats declaration starts from legacy support instead of inheriting another account list',!await formatDrop('must-not-inherit.mkv')&&await formatDrop('legacy.png'));
+  await apply(state);
 
   const many=[];for(let i=1;i<=80;i++)many.push(fixtures.message(String(1000+i),i%3?fixtures.lyra:fixtures.self,'Message de test '+i+' — une ligne conservée pendant les mises à jour du fil.\nDétail de la conversation pour vérifier le défilement.',i));
   state.messages=many;state.selectedThreadId='d:42:91';state.state.threads[0].lastMessage=many.at(-1);await apply(state);

@@ -83,7 +83,7 @@ public sealed class ChatLinkPreviewService : IDisposable
         {
             string type = response.Content.Headers.ContentType?.MediaType?.ToLowerInvariant() ?? "";
             if (response.StatusCode is not (HttpStatusCode.OK or HttpStatusCode.PartialContent)
-                || type is not ("video/mp4" or "video/webm" or "audio/mpeg" or "audio/ogg" or "audio/wav" or "audio/x-wav"))
+                || ChatAttachmentFormats.MediaKindForContentType(type) is null)
                 throw new ChatOperationException("chat-link-media-unavailable");
             long? total = response.Content.Headers.ContentRange?.Length ?? response.Content.Headers.ContentLength;
             if (total > ChatLimits.MaximumAttachmentBytes) throw new ChatOperationException("chat-request-too-large");
@@ -129,9 +129,9 @@ public sealed class ChatLinkPreviewService : IDisposable
             ChatLinkPreviewDto result;
             if (mime is "image/png" or "image/jpeg" or "image/gif" or "image/webp")
                 result = fallback with { Kind = "image", ImageUrl = finalUrl, Title = FileTitle(uri) };
-            else if (mime is "video/mp4" or "video/webm")
+            else if (ChatAttachmentFormats.MediaKindForContentType(mime) == "video")
                 result = fallback with { Kind = "video", EmbedUrl = finalUrl, CanRemove = false, Title = FileTitle(uri) };
-            else if (mime is "audio/mpeg" or "audio/ogg" or "audio/wav" or "audio/x-wav")
+            else if (ChatAttachmentFormats.MediaKindForContentType(mime) == "audio")
                 result = fallback with { Kind = "audio", EmbedUrl = finalUrl, Title = FileTitle(uri) };
             else if (mime is "text/html" or "application/xhtml+xml")
             {
@@ -223,7 +223,7 @@ public sealed class ChatLinkPreviewService : IDisposable
         {
             await _validate(uri, ct).ConfigureAwait(false);
             using HttpRequestMessage request = new(HttpMethod.Get, uri);
-            request.Headers.Accept.ParseAdd("text/html,application/xhtml+xml,image/*,video/mp4,video/webm,audio/*;q=0.8,*/*;q=0.1");
+            request.Headers.Accept.ParseAdd("text/html,application/xhtml+xml,image/*,video/*,audio/*;q=0.8,*/*;q=0.1");
             if (!string.IsNullOrWhiteSpace(range)) request.Headers.Range = RangeHeaderValue.Parse(range);
             HttpResponseMessage response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             if (response.StatusCode is HttpStatusCode.MovedPermanently or HttpStatusCode.Redirect or HttpStatusCode.SeeOther

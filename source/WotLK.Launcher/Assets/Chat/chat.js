@@ -4,8 +4,11 @@
   if (!R) return;
   const $ = name => document.getElementById(name);
   const e = R.element;
-  const fileExtensions = new Set(['png','jpg','jpeg','gif','webp','pdf','txt','md','docx','xlsx','pptx','odt','ods','odp','mp3','ogg','wav','mp4','webm']);
+  const defaultFileExtensions = ['png','jpg','jpeg','gif','webp','pdf','txt','md','docx','xlsx','pptx','odt','ods','odp','mp3','ogg','wav','mp4','webm'];
+  let fileExtensions = new Set(defaultFileExtensions);
   const strings = {
+    mediaPlaybackUnavailable:['Lecture intégrée indisponible.','In-app playback unavailable.'],
+    deletingMessage:['Suppression en cours…','Deleting message…'],
     subtitle:['Gardez le contact, en jeu comme ailleurs.','Keep in touch, in game and beyond.'], conversations:['Conversations','Conversations'], unread:['Non lus','Unread'], searchContacts:['Rechercher un contact…','Find a contact…'], newConversation:['Nouvelle conversation','New conversation'], chooseConversation:['Une conversation commence ici','A conversation starts here'], chooseConversationHint:['Retrouvez vos amis ou créez un groupe pour votre prochaine aventure.','Catch up with friends or make a group for your next adventure.'], dnd:['Ne pas déranger','Do not disturb'], online:['En ligne','Online'], offline:['Hors ligne','Offline'], inGame:['En jeu','In game'], playingOn:['En jeu sur','Playing as'], today:['Aujourd’hui','Today'], yesterday:['Hier','Yesterday'], noConversations:['Vos conversations apparaîtront ici.','Your conversations will appear here.'], noResults:['Aucun contact ne correspond à votre recherche.','No contacts match your search.'], pinned:['Épinglées','Pinned'], recent:['Récentes','Recent'], contacts:['Contacts','Contacts'], invitation:['Invitation à un groupe','Group invitation'], invitations:['Invitations','Invitations'], newMessages:['Nouveaux messages','New messages'], loadEarlier:['Afficher les messages précédents','Show earlier messages'], loading:['Chargement…','Loading…'], noMessages:['Écrivez le premier message.','Write the first message.'], details:['Participants et détails','Members and details'], conversationActions:['Actions de la conversation','Conversation actions'], pinnedMessages:['Messages épinglés','Pinned messages'], pinnedMessage:['Message épinglé','Pinned message'], noPinned:['Aucun message épinglé.','No pinned messages.'], composerPlaceholder:['Écrire un message…','Write a message…'], composerName:['Texte du message','Message text'], composerHint:['Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne','Enter to send · Shift + Enter for a new line'], send:['Envoyer','Send'], sending:['Envoi…','Sending…'], save:['Enregistrer','Save'], cancel:['Annuler','Cancel'], close:['Fermer','Close'], draftSaved:['Brouillon conservé','Draft saved'], reply:['Répondre','Reply'], replyingTo:['Réponse à','Replying to'], editingMessage:['Modification du message','Editing message'], edited:['modifié','edited'], edit:['Modifier','Edit'], delete:['Supprimer','Delete'], deleteMessage:['Supprimer ce message ?','Delete this message?'], deleteMessageHint:['Il sera retiré de l’historique du launcher pour tous les participants. Un texte déjà affiché en jeu ne peut pas être effacé.','It will be removed from the launcher history for everyone. Text already shown in game cannot be erased.'], copy:['Copier le texte','Copy text'], copied:['Texte copié','Text copied'], copyFailed:['Impossible de copier le texte.','Could not copy the text.'], react:['Ajouter une réaction','Add a reaction'], addReaction:['Ajouter la réaction','Add reaction'], removeReaction:['Retirer ma réaction','Remove my reaction'], messageActions:['Actions du message','Message actions'], read:['Lu','Read'], pinMessage:['Épingler le message','Pin message'], unpinMessage:['Désépingler le message','Unpin message'], pinConversation:['Épingler la conversation','Pin conversation'], unpinConversation:['Désépingler la conversation','Unpin conversation'], goToMessage:['Revenir au message','Go to message'], messageNotLoaded:['Ce message se trouve plus haut dans la conversation.','This message is further up in the conversation.'], revealSpoiler:['Afficher le texte masqué','Reveal spoiler'], hideSpoiler:['Masquer le texte','Hide spoiler'], attachFiles:['Ajouter des fichiers','Add files'], attachmentHint:['Images, GIF, documents, audio et vidéo · 500 Mo par fichier','Images, GIFs, documents, audio and video · 500 MB per file'], dropFiles:['Déposez vos fichiers ici','Drop your files here'], dropUnavailable:['Utilisez le bouton + pour ajouter ces fichiers.','Use the + button to add these files.'], shareGame:['Partager l’Armory d’un personnage','Share a character’s Armory'], download:['Télécharger','Download'], viewImage:['Afficher l’image','View image'], image:['Image','Image'], imageUnavailable:['Image indisponible','Image unavailable'], video:['Vidéo','Video'], audio:['Audio','Audio'], playVideo:['Lire la vidéo','Play video'], openLink:['Ouvrir le lien','Open link'], openOnSite:['Ouvrir sur le site','Open on website'], removePreviewForEveryone:['Retirer cet aperçu pour tous les participants','Remove this preview for everyone'], previewRemoved:['Aperçu retiré pour tous les participants.','Preview removed for everyone.'], waiting:['En attente','Waiting'], uploading:['Transfert','Uploading'], processing:['Préparation','Preparing'], ready:['Prêt','Ready'], failed:['Échec','Failed'], retry:['Réessayer','Retry'], retrySend:['Réessayer l’envoi','Retry send'], cancelSend:['Annuler l’envoi en attente','Cancel queued message'], cancelUpload:['Annuler le transfert','Cancel upload'], removeAttachment:['Retirer la pièce jointe','Remove attachment'], disconnected:['Connexion interrompue. Vos messages restent en attente.','Connection lost. Your messages remain queued.'], unavailable:['La messagerie est indisponible. Votre brouillon est conservé.','Messaging is unavailable. Your draft is kept.'], accessRevoked:['Vous ne pouvez plus écrire dans cette conversation.','You can no longer send messages in this conversation.'], genericError:['L’action n’a pas abouti. Réessayez dans un instant.','The action could not be completed. Try again shortly.'], group:['Groupe','Group'], direct:['Un ami','One friend'], createGroup:['Créer le groupe','Create group'], groupName:['Nom du groupe','Group name'], groupNamePlaceholder:['Par exemple : Les aventuriers du soir','For example: Evening adventurers'], selectFriends:['Choisissez vos amis','Choose your friends'], newConversationHint:['Échangez avec un ami ou réunissez votre groupe.','Chat with a friend or bring your group together.'], members:['participants','members'], activeMembers:['Participants','Members'], pendingMembers:['Invitations en attente','Pending invitations'], inviteMembers:['Inviter des amis','Invite friends'], invite:['Inviter','Invite'], invited:['Invité','Invited'], accept:['Accepter','Accept'], decline:['Refuser','Decline'], invitationHint:['Vous êtes invité à rejoindre cette conversation.','You’ve been invited to join this conversation.'], manageGroup:['Modifier le groupe','Edit group'], groupImage:['Image du groupe','Group image'], chooseGroupImage:['Choisir une image','Choose an image'], useGroupImage:['Utiliser pour le groupe','Use for the group'], groupImageHint:['Ajoutez une image, puis choisissez-la ci-dessous.','Add an image, then choose it below.'], leaveGroup:['Quitter le groupe','Leave group'], leaveGroupHint:['Vous ne recevrez plus les nouveaux messages de ce groupe.','You will no longer receive new messages from this group.'], removeMember:['Retirer du groupe','Remove from group'], makeAdmin:['Nommer administrateur','Make administrator'], makeMember:['Retirer le rôle administrateur','Remove administrator role'], admin:['Administrateur','Administrator'], owner:['Créateur','Owner'], self:['Vous','You'], openProfile:['Ouvrir le profil','Open profile'], typingOne:['écrit…','is typing…'], typingMany:['sont en train d’écrire…','are typing…'], gameCard:['Carte Atlas','Atlas card'], item:['Objet','Item'], character:['Personnage','Character'], quest:['Quête','Quest'], location:['Lieu','Location'], outing:['Sortie','Outing'], title:['Titre','Title'], description:['Description','Description'], reference:['Identifiant de référence','Reference ID'], optional:['facultatif','optional'], date:['Date','Date'], level:['Niveau','Level'], tank:['Tank','Tank'], healer:['Soigneur','Healer'], damage:['DPS','Damage'], joining:['Participe','Joining'], cardAttached:['Armory joint','Armory attached'], limitReached:['Un message peut contenir jusqu’à 1 000 caractères.','A message can contain up to 1,000 characters.'], attachmentLimit:['Vous pouvez joindre jusqu’à 10 fichiers par message.','You can attach up to 10 files to a message.'], noFriends:['Votre liste d’amis est vide.','Your friends list is empty.'], legacyHint:['Les fonctions avancées seront disponibles après la mise à jour du service.','Advanced features will be available after the service is updated.'],
     away:['Absent','Away'], characterArmory:['Armory du personnage','Character Armory'], openArmory:['Ouvrir l’Armory','Open Armory'], chooseOwnCharacter:['Choisissez l’un de vos personnages.','Choose one of your characters.'], yourCharacters:['Vos personnages','Your characters'], shareCharacter:['Partager l’Armory de','Share the Armory of'], loadingCharacters:['Chargement de vos personnages…','Loading your characters…'], noCharacters:['Vous n’avez pas encore de personnage à partager.','You do not have a character to share yet.'], charactersUnavailable:['Impossible de charger vos personnages. Réessayez dans un instant.','Your characters could not be loaded. Try again shortly.'], addingArmory:['Ajout de l’Armory…','Adding the Armory…'], warrior:['Guerrier','Warrior'], paladin:['Paladin','Paladin'], hunter:['Chasseur','Hunter'], rogue:['Voleur','Rogue'], priest:['Prêtre','Priest'], deathKnight:['Chevalier de la mort','Death Knight'], shaman:['Chaman','Shaman'], mage:['Mage','Mage'], warlock:['Démoniste','Warlock'], druid:['Druide','Druid']
   };
@@ -15,8 +18,9 @@
   let renderVersion = 0, layoutPending = false, followBottom = true, stableAnchor = null, unreadBoundary = null, lastReadKey = '';
   let lastUserScroll = 0, programmaticScroll = false, dialogRefresh = null, toastTimer = 0, menuReturnFocus = null;
   let armoryPickerOpen = false, armoryPickerFocusPending = false, armoryRequestPending = false, armorySelection = null, armoryError = '';
-  let lastComposerStateKey = '';
+  let lastComposerStateKey = '', imageReturnFocus = null;
   const requests = new Map(), localDrafts = new Map(), inFlightSends = new Map(), armorySelections = new Map();
+  const localSendFailures = new Map(), messageFeedback = new Map();
   const timeline = $('timeline'), messageList = $('message-list'), composer = $('composer-input');
   const t = key => strings[key] ? strings[key][String(snapshot.locale).startsWith('en') ? 1 : 0] : key;
   const uuid = () => global.crypto && crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
@@ -42,9 +46,19 @@
 
   function action(name, payload, options) {
     if (name !== 'ready' && !hasIdentity()) return null;
+    const threadId = payload?.threadId || currentThreadId();
+    const feedbackKey = payload?.messageId ? 'message:' + payload.messageId : payload?.clientMessageId ? 'pending:' + payload.clientMessageId : payload?.uploadId ? 'upload:' + payload.uploadId : null;
+    const handle = options?.result || ((_, error) => {
+      if (feedbackKey) {
+        if (threadId === currentThreadId()) {
+          if (error) messageFeedback.set(feedbackKey, { threadId, error }); else messageFeedback.delete(feedbackKey);
+          if (feedbackKey.startsWith('upload:')) renderUploads(); else renderTimeline(false);
+        }
+      } else if (error && !options?.silent && threadId === currentThreadId()) toast(errorText(error));
+    });
     const result = post(name, payload, options && options.files);
-    if (result.delivered && (options?.result || !options?.silent)) requests.set(result.requestId, { handler: options?.result || ((_, error) => { if (error) toast(errorText(error)); }), session: sessionKey(snapshot) });
-    if (!result.delivered && name !== 'ready' && !(options && options.silent)) toast(t('genericError'));
+    if (result.delivered && (options?.result || !options?.silent)) requests.set(result.requestId, { handler: handle, session: sessionKey(snapshot) });
+    if (!result.delivered && name !== 'ready' && (options?.result || !options?.silent)) handle(null, 'chat-bridge-unavailable');
     return result.delivered ? result.requestId : null;
   }
 
@@ -77,7 +91,8 @@
   function resolveProfile(profile) {
     if (!profile) return null;
     const current = snapshot.state.self?.accountId === profile.accountId ? snapshot.state.self
-      : (snapshot.state.contacts || []).find(contact => contact.accountId === profile.accountId);
+      : (snapshot.state.contacts || []).find(contact => contact.accountId === profile.accountId)
+        || (snapshot.state.threads || []).flatMap(thread => thread.members || []).find(member => member.profile?.accountId === profile.accountId)?.profile;
     return current ? { ...profile, ...current } : profile;
   }
   function peer(thread) { return resolveProfile((thread && thread.members || []).find(member => member.profile && member.profile.accountId !== snapshot.ownerAccountId)?.profile || null); }
@@ -202,17 +217,19 @@
       if (beginsUnread) { unreadAdded = true; const key = 'unread', divider = existing.get(key) || e('div', 'unread-divider'); divider.textContent = t('newMessages'); keep(key, divider); }
       context.grouped = !beginsUnread && R.canGroup(previous, message);
       const key = 'message:' + message.id;
-      const node = R.reconcileMessage(existing.get(key), message, { ...context });
+      const node = R.reconcileMessage(existing.get(key), message, { ...context, messageError: errorText(messageFeedback.get(key)?.error) });
       keep(key, node); previous = message;
     }
-    const pending = (snapshot.pending || []).filter(item => item.threadId === currentThreadId() && !allMessages.some(message => message.clientMessageId === item.clientMessageId));
+    const nativePending = snapshot.pending || [];
+    const pending = [...nativePending, ...Array.from(localSendFailures.values()).filter(item => !nativePending.some(native => native.clientMessageId === item.clientMessageId))]
+      .filter(item => item.threadId === currentThreadId() && !allMessages.some(message => message.clientMessageId === item.clientMessageId));
     for (const queued of pending) {
       const key = 'pending:' + queued.clientMessageId;
       let node = existing.get(key);
-      const signature = JSON.stringify([queued, snapshot.locale]);
+      const signature = JSON.stringify([queued, snapshot.state.self, snapshot.isAvailable, messageFeedback.get(key), snapshot.locale]);
       if (!node || node._signature !== signature) {
         const replacement = renderPending(queued); replacement._signature = signature;
-        if (node) { node.replaceWith(replacement); if (cursor === node) cursor = replacement; }
+        if (node) { R.suspendMedia(node); node.replaceWith(replacement); if (cursor === node) cursor = replacement; }
         node = replacement;
       }
       keep(key, node);
@@ -232,15 +249,27 @@
     const main = e('div', 'message-main');
     const heading = e('div', 'message-heading'); heading.append(e('span', 'message-author', snapshot.state.self?.username || t('self')), e('span', 'message-time', R.time(queued.createdAt, snapshot.locale)));
     main.append(heading, R.renderMarkdown(queued.body, t));
-    if (queued.card) main.append(e('div', 'game-card', queued.card.title || t('cardAttached')));
+    if (queued.card) main.append(R.renderCard(queued.card, { threadId: queued.threadId }, { t, action, locale: snapshot.locale, mediaOrigin: snapshot.mediaOrigin, ownerAccountId: snapshot.ownerAccountId }));
     if (queued.attachments?.length) main.append(e('div', 'message-content', queued.attachments.map(attachment => attachment.fileName || '').filter(Boolean).join(', ')));
-    const failed = queued.status === 'failed', sending = ['sending', 'posting'].includes(queued.status);
+    const deleting = queued.status === 'deleting' || !!queued.deleteRequested;
+    const failed = queued.status === 'failed' && !deleting, sending = ['sending', 'posting'].includes(queued.status);
     const status = e('div', 'message-state' + (failed ? ' is-failed' : ''));
     const progress = Math.min(100, Math.max(0, Math.round((Number(queued.progress) || 0) * 100)));
-    const stateLabel = queued.status === 'uploading' ? t('uploading') + ' ' + progress + ' %' : t(sending ? 'sending' : 'waiting');
-    status.append(R.icon(failed ? 'alert' : 'clock'), document.createTextNode(failed ? errorText(queued.error || queued.errorCode) || t('failed') : stateLabel));
-    if (failed) { const retry = R.button('', t('retrySend'), null, () => action('retrySend', { clientMessageId: queued.clientMessageId })); retry.textContent = t('retry'); status.append(retry); }
-    if (!sending && queued.canCancel !== false) { const cancel = R.button('', t('cancelSend'), null, () => action('cancelSend', { clientMessageId: queued.clientMessageId })); cancel.textContent = t('cancel'); status.append(cancel); }
+    const stateLabel = deleting ? t('deletingMessage') + (!snapshot.isAvailable ? ' ' + t('disconnected') : '')
+      : queued.status === 'uploading' ? t('uploading') + ' ' + progress + ' %' : !snapshot.isAvailable && !sending ? t('disconnected') : t(sending ? 'sending' : 'waiting');
+    const error = messageFeedback.get('pending:' + queued.clientMessageId)?.error || queued.error || queued.errorCode;
+    status.classList.toggle('is-failed', failed || !!error); status.setAttribute('role', error || failed ? 'alert' : 'status');
+    status.append(R.icon(error || failed ? 'alert' : 'clock'), document.createTextNode(error ? (deleting ? stateLabel + ' ' : '') + errorText(error) : failed ? t('failed') : stateLabel));
+    if (failed) { const retry = R.button('', t('retrySend'), null, () => queued.localOnly ? retryLocalSend(queued) : action('retrySend', { clientMessageId: queued.clientMessageId })); retry.textContent = t('retry'); status.append(retry); }
+    const deleteAction = queued.canDelete === true, deleteLabel = failed || deleteAction;
+    if (!sending && !deleting && (deleteAction || queued.canCancel !== false)) {
+      const remove = () => {
+        if (queued.localOnly) { localSendFailures.delete(queued.clientMessageId); messageFeedback.delete('pending:' + queued.clientMessageId); renderTimeline(false); }
+        else action(deleteAction ? 'deleteFailedSend' : 'cancelSend', { clientMessageId: queued.clientMessageId });
+      };
+      const cancel = R.button('', t(deleteLabel ? 'delete' : 'cancelSend'), null, remove); cancel.textContent = t(deleteLabel ? 'delete' : 'cancel'); status.append(cancel);
+      node.addEventListener('contextmenu', event => { event.preventDefault(); showMenu([{ label: t(deleteLabel ? 'delete' : 'cancel'), icon: 'trash', danger: true, run: remove }], event.clientX, event.clientY); });
+    }
     main.append(status); node.append(avatar, main); return node;
   }
 
@@ -260,7 +289,9 @@
     resizeComposer(); renderComposerContext();
   }
   function completeLocalSend(clientMessageId) {
+    localSendFailures.delete(clientMessageId);
     const send = inFlightSends.get(clientMessageId); if (!send) return;
+    messageFeedback.delete('pending:' + clientMessageId);
     inFlightSends.delete(clientMessageId);
     const local = localDrafts.get(send.threadId);
     if (local && draftSignature(local) === send.signature) {
@@ -272,11 +303,16 @@
   function sendMessage() {
     if (!selectedThread || !selectedThread.canSend || !hasIdentity()) return;
     const body = normalizedBody(composer.value);
-    if (body.length > 1000) { showComposerError(t('limitReached')); return; }
+    if (body.length > 1000) { toast(t('limitReached')); return; }
     if (editTarget) {
       if (!body || !snapshot.isAvailable) return;
       const target = editTarget;
-      action('editMessage', { threadId: target.threadId, messageId: target.id, body, expectedVersion: target.version }, { result: (_, error) => { if (error) showComposerError(errorText(error)); else if (editTarget?.id === target.id) cancelContext(); } });
+      action('editMessage', { threadId: target.threadId, messageId: target.id, body, expectedVersion: target.version }, { result: (_, error) => {
+        if (target.threadId !== currentThreadId()) return;
+        if (error) messageFeedback.set('message:' + target.id, { threadId: target.threadId, error });
+        else { messageFeedback.delete('message:' + target.id); if (editTarget?.id === target.id) cancelContext(); }
+        renderTimeline(false);
+      } });
       return;
     }
     const uploads = snapshot.draft?.attachments || [];
@@ -285,17 +321,31 @@
     if (!body && !attachmentIds.length && !composerCard) return;
     if (inFlightSends.size && Array.from(inFlightSends.values()).some(send => send.threadId === currentThreadId() && send.signature === draftSignature(currentDraft()))) return;
     const clientMessageId = uuid(), draft = currentDraft();
-    const send = { threadId: currentThreadId(), signature: draftSignature(draft) }; inFlightSends.set(clientMessageId, send);
+    const payload = { threadId: currentThreadId(), clientMessageId, body, replyToMessageId: draft.replyToMessageId, attachmentIds, card: draft.card };
+    const send = { threadId: currentThreadId(), signature: draftSignature(draft), payload, createdAt: new Date().toISOString(), attachments: uploads.map(upload => upload.attachment || upload) }; inFlightSends.set(clientMessageId, send);
     localDrafts.set(send.threadId, draft); flushDraft(); stopTyping();
-    const requestId = action('send', { threadId: send.threadId, clientMessageId, body, replyToMessageId: draft.replyToMessageId, attachmentIds, card: draft.card }, { result: (_, error) => {
-      if (error) { inFlightSends.delete(clientMessageId); showComposerError(errorText(error)); updateComposer(); }
-      else completeLocalSend(clientMessageId);
-    } });
-    if (!requestId) inFlightSends.delete(clientMessageId);
-    else showComposerError('');
+    submitLocalSend(send);
     updateComposer();
   }
-  function showComposerError(text) { $('composer-error').textContent = text; $('composer-error').hidden = !text; }
+  function submitLocalSend(send) {
+    const clientMessageId = send.payload.clientMessageId;
+    inFlightSends.set(clientMessageId, send);
+    action('send', send.payload, { result: (_, error) => {
+      if (error) {
+        inFlightSends.delete(clientMessageId);
+        const accepted = (snapshot.pending || []).some(item => item.clientMessageId === clientMessageId) || snapshot.messages.some(item => item.clientMessageId === clientMessageId);
+        if (!accepted) localSendFailures.set(clientMessageId, { ...send.payload, createdAt: send.createdAt, attachments: send.attachments, status: 'failed', errorCode: error, canCancel: true, localOnly: true, send });
+      } else completeLocalSend(clientMessageId);
+      if (send.threadId === currentThreadId()) renderTimeline(false);
+      updateComposer();
+    } });
+  }
+  function retryLocalSend(queued) {
+    if (!queued.send || inFlightSends.has(queued.clientMessageId)) return;
+    localSendFailures.set(queued.clientMessageId, { ...queued, status: 'sending', errorCode: '', canCancel: false });
+    messageFeedback.delete('pending:' + queued.clientMessageId);
+    submitLocalSend(queued.send); renderTimeline(false); updateComposer();
+  }
   function resizeComposer() { composer.style.height = 'auto'; composer.style.height = Math.min(148, Math.max(46, composer.scrollHeight)) + 'px'; }
   function publishComposerState() {
     const threadId = currentThreadId(), acceptsFiles = canReceiveFiles();
@@ -363,21 +413,51 @@
     const uploads = snapshot.draft?.attachments || [];
     $('attachment-queue').hidden = !uploads.length || !!editTarget;
     R.reconcileKeyed($('attachment-queue'), uploads, upload => upload.id || upload.localId, upload => {
-      const failed = upload.status === 'failed' || !upload.status && (!!upload.error || !!upload.errorCode);
-      const complete = upload.isComplete || !!upload.attachment;
-      const node = e('div', 'queued-file' + (failed ? ' is-failed' : ''));
-      const preview = e('div', 'queued-file-icon');
-      const thumbnail = R.mediaUrl(upload.previewUrl || upload.attachment?.thumbnailUrl || (String(upload.contentType).startsWith('image/') && upload.attachment?.url), snapshot.mediaOrigin);
-      if (thumbnail) { const image = e('img'); image.src = thumbnail; image.alt = ''; preview.append(image); } else preview.append(R.icon('file'));
+      const contentType = String(upload.contentType || upload.attachment?.contentType || '').toLowerCase();
+      const kind = String(upload.kind || upload.attachment?.kind || '');
+      const mediaKind = contentType.startsWith('image/') || ['image', 'animated-image', 'animation'].includes(kind) ? 'image'
+        : contentType.startsWith('video/') || kind === 'video' ? 'video' : contentType.startsWith('audio/') || kind === 'audio' ? 'audio' : 'file';
+      const node = e('div', 'queued-file is-' + mediaKind);
+      const preview = e('div', 'queued-preview');
+      const name = upload.fileName || upload.attachment?.fileName || t(mediaKind === 'file' ? 'attachFiles' : mediaKind);
+      node.setAttribute('aria-label', name); node.title = name;
+      const url = R.mediaUrl(upload.previewUrl || upload.attachment?.url, snapshot.mediaOrigin);
+      if (url && mediaKind === 'image') {
+        const image = e('img'); image.src = url; image.alt = name; image.decoding = 'async'; image.draggable = false;
+        image.addEventListener('error', () => { preview.replaceChildren(R.icon('file')); preview.setAttribute('aria-label', t('imageUnavailable')); }, { once: true });
+        preview.append(image);
+      } else if (url && (mediaKind === 'audio' || mediaKind === 'video')) {
+        const player = e(mediaKind); player.controls = true; player.preload = 'metadata'; player.src = url;
+        player.setAttribute('aria-label', name); player.setAttribute('controlsList', 'nodownload');
+        if (mediaKind === 'video') { player.playsInline = true; const poster = R.mediaUrl(upload.attachment?.thumbnailUrl, snapshot.mediaOrigin); if (poster) player.poster = poster; }
+        player.addEventListener('error', () => { node.dataset.playbackUnavailable = 'true'; preview.replaceChildren(R.icon('file')); updateUploadState(node, node._upload); }, { once: true });
+        preview.append(player);
+      } else preview.append(R.icon('file'));
       const uploadId = upload.id || upload.localId;
-      const remove = R.button('icon-button queued-file-remove', t(complete ? 'removeAttachment' : 'cancelUpload'), 'close', () => action('removeAttachment', { threadId: currentThreadId(), uploadId }));
-      const size = Number(upload.size), offset = Number(upload.offset), percent = size > 0 ? Math.min(100, Math.round(offset * 100 / size)) : 0;
-      const status = e('div', 'queued-file-status', failed ? t('failed') : complete ? R.formatBytes(upload.size, snapshot.locale) + ' · ' + t('ready') : t(offset ? 'uploading' : 'waiting') + (offset ? ' ' + percent + ' %' : ''));
-      node.append(preview, remove, e('div', 'queued-file-name', upload.fileName || upload.attachment?.fileName), status);
-      if (!complete && !failed) { const progress = e('div', 'queued-progress'), bar = e('span'); bar.style.width = percent + '%'; progress.append(bar); node.append(progress); }
-      if (failed) { const retry = R.button('secondary-button', t('retry'), null, () => action('retryUpload', { threadId: currentThreadId(), uploadId })); retry.textContent = t('retry'); node.append(retry); }
+      const remove = R.button('icon-button queued-file-remove', t('removeAttachment'), 'close', () => action('removeAttachment', { threadId: currentThreadId(), uploadId }));
+      const progress = e('div', 'queued-progress'), bar = e('span'); progress.append(bar);
+      progress.setAttribute('role', 'progressbar'); progress.setAttribute('aria-label', t('uploading')); progress.setAttribute('aria-valuemin', '0'); progress.setAttribute('aria-valuemax', '100');
+      const error = e('div', 'queued-file-error'); error.setAttribute('role', 'alert');
+      const retry = R.button('queued-file-retry', t('retry'), null, () => action('retryUpload', { threadId: currentThreadId(), uploadId })); retry.textContent = t('retry');
+      node.append(preview, remove, progress, error, retry); node._parts = { remove, progress, bar, error, retry };
+      updateUploadState(node, upload);
       return node;
-    }, upload => JSON.stringify([upload, snapshot.locale]));
+    }, upload => JSON.stringify([upload.id || upload.localId, upload.fileName, upload.contentType, upload.kind, upload.previewUrl, upload.attachment?.url, upload.attachment?.thumbnailUrl, upload.attachment?.contentType, upload.attachment?.kind, snapshot.locale]));
+    for (let index = 0; index < uploads.length; index++) updateUploadState($('attachment-queue').children[index], uploads[index]);
+  }
+  function updateUploadState(node, upload) {
+    if (!node || !upload) return;
+    node._upload = upload;
+    const failed = upload.status === 'failed' || upload.status === 'cancelled' || !upload.status && (!!upload.error || !!upload.errorCode);
+    const complete = upload.isComplete || !!upload.attachment;
+    const size = Number(upload.size), offset = Number(upload.offset), percent = size > 0 ? Math.min(100, Math.max(0, Math.round(offset * 100 / size))) : 0;
+    const actionError = messageFeedback.get('upload:' + (upload.id || upload.localId))?.error;
+    const { remove, progress, bar, error, retry } = node._parts;
+    node.classList.toggle('is-failed', !!failed || !!actionError); node.setAttribute('aria-busy', String(!complete && !failed));
+    remove.title = t(complete ? 'removeAttachment' : 'cancelUpload'); remove.setAttribute('aria-label', remove.title);
+    progress.hidden = complete || failed; bar.style.width = percent + '%'; progress.setAttribute('aria-valuenow', String(percent));
+    error.textContent = actionError ? errorText(actionError) : failed ? errorText(upload.error || upload.errorCode) || t('failed') : node.dataset.playbackUnavailable ? t('mediaPlaybackUnavailable') : '';
+    error.hidden = !error.textContent; retry.hidden = !failed;
   }
 
   function renderThreadHeader() {
@@ -416,18 +496,20 @@
       next.draft = { ...draft, attachments: (next.uploads || []).filter(item => item.threadId === next.selectedThreadId).map(upload => ({ ...upload, id: upload.id || upload.localId, isComplete: !!upload.attachment })) };
     }
     if (identityChanged) {
-      R.suspendMedia(document); localDrafts.clear(); inFlightSends.clear(); requests.clear(); armorySelections.clear(); messageList.replaceChildren();
+      R.suspendMedia(document); localDrafts.clear(); inFlightSends.clear(); localSendFailures.clear(); messageFeedback.clear(); requests.clear(); armorySelections.clear(); messageList.replaceChildren();
       clearTimeout(draftTimer); clearTimeout(typingTimer); draftDirty = false; typingActive = false; lastTypingAt = 0; lastReadKey = ''; lastComposerStateKey = ''; unreadBoundary = null;
       closeMenus(); closeDialog(); closeArmoryPicker(); armoryRequestPending = false; armorySelection = null; armoryError = ''; editTarget = null; editBackup = null; replyTarget = null; composerCard = null; composer.value = '';
       $('armory-character-list').replaceChildren(); $('armory-picker-status').replaceChildren(); $('armory-picker-status')._signature = null;
     }
-    if (changedThread) { R.suspendMedia(messageList); messageList.replaceChildren(); editTarget = null; editBackup = null; replyTarget = null; composerCard = null; stableAnchor = null; lastReadKey = ''; closeMenus(); closeArmoryPicker(); armorySelection = null; dragDepth = 0; nativeDropActive = false; }
+    if (changedThread) { R.suspendMedia(messageList); messageList.replaceChildren(); messageFeedback.clear(); toast(''); closeImageViewer(false); editTarget = null; editBackup = null; replyTarget = null; composerCard = null; stableAnchor = null; lastReadKey = ''; closeMenus(); closeArmoryPicker(); armorySelection = null; dragDepth = 0; nativeDropActive = false; }
     const oldLocale = snapshot.locale;
     snapshot = next;
+    if (Array.isArray(next.supportedAttachmentExtensions)) fileExtensions = new Set(next.supportedAttachmentExtensions.map(extension => String(extension).replace(/^\./, '').toLowerCase()).filter(extension => /^[a-z0-9]{1,12}$/.test(extension)));
+    else if (identityChanged) fileExtensions = new Set(defaultFileExtensions);
     selectedThread = (next.state.threads || []).find(thread => thread.id === next.selectedThreadId) || null;
     if (oldLocale !== next.locale || identityChanged) localize();
     if (changedThread) unreadBoundary = selectedThread && selectedThread.unreadCount > 0 ? R.id(selectedThread.lastReadMessageId) || '0' : null;
-    for (const message of next.messages) if (message.clientMessageId) completeLocalSend(message.clientMessageId);
+    for (const message of next.messages) if (message.clientMessageId) { completeLocalSend(message.clientMessageId); messageFeedback.delete('pending:' + message.clientMessageId); }
     for (const pending of next.pending) if (pending.clientMessageId) completeLocalSend(pending.clientMessageId);
     if (selectedThread && !editTarget) {
       const local = localDrafts.get(selectedThread.id);
@@ -439,8 +521,7 @@
     renderConversations(); renderThreadHeader();
     if (selectedThread) renderTimeline(changedThread);
     renderUploads(); updateComposer(); renderTyping(); renderArmoryPicker(); renderDropOverlay();
-    if (snapshot.error || snapshot.errorCode) showComposerError(errorText(snapshot.error || snapshot.errorCode));
-    if (!active()) { lastReadKey = ''; R.suspendMedia(document); stopTyping(); }
+    if (!active()) { lastReadKey = ''; R.suspendMedia(document); closeImageViewer(false); stopTyping(); }
     if (dialogRefresh) dialogRefresh();
     return true;
   }
@@ -618,9 +699,20 @@
   }
   function viewImage(attachment) {
     const url = R.mediaUrl(attachment.url, snapshot.mediaOrigin) || (attachment.id ? snapshot.mediaOrigin + 'attachments/' + encodeURIComponent(attachment.id) : ''); if (!url) return;
-    const dialog = openDialog(attachment.fileName || t('image'), R.formatBytes(attachment.size, snapshot.locale));
-    const image = e('img', 'image-viewer'); image.src = url; image.alt = attachment.fileName || t('image'); dialog.content.append(image);
-    footerButton(dialog.footer, t('download'), () => action('downloadAttachment', { attachmentId: attachment.id, fileName: attachment.fileName })); footerButton(dialog.footer, t('close'), closeDialog);
+    closeMenus(); closeArmoryPicker();
+    imageReturnFocus = document.activeElement;
+    const dialog = $('image-dialog'), image = $('image-dialog-image');
+    dialog.setAttribute('aria-label', t('viewImage')); image.alt = attachment.fileName || t('image'); image.src = url;
+    if (!dialog.open) dialog.showModal();
+    publishComposerState();
+  }
+  function closeImageViewer(restoreFocus = true) {
+    const dialog = $('image-dialog');
+    if (!dialog.open) return;
+    const returnFocus = imageReturnFocus; imageReturnFocus = null;
+    dialog.close(); $('image-dialog-image').removeAttribute('src');
+    publishComposerState();
+    if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
   }
   function closeArmoryPicker(restoreFocus) {
     armoryPickerOpen = false; armoryPickerFocusPending = false;
@@ -719,15 +811,15 @@
   $('send-button').addEventListener('click', sendMessage); $('cancel-context-button').addEventListener('click', cancelContext);
   $('attach-button').addEventListener('click', () => { if (currentThreadId()) action('pickFiles', { threadId: currentThreadId() }); });
   $('share-game-button').addEventListener('click', showCardComposer); $('close-armory-picker').addEventListener('click', () => closeArmoryPicker(true));
-  composer.addEventListener('input', () => { resizeComposer(); saveLocalDraft(); updateComposer(); showComposerError(''); sendTyping(); });
+  composer.addEventListener('input', () => { resizeComposer(); saveLocalDraft(); updateComposer(); sendTyping(); });
   composer.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !event.isComposing && event.keyCode !== 229) { event.preventDefault(); sendMessage(); } });
   composer.addEventListener('paste', event => {
-    if (!capable('attachments') || !currentThreadId() || editTarget) return;
+    if (!canReceiveFiles()) return;
     const items = Array.from(event.clipboardData?.items || []);
     if (items.some(item => item.kind === 'file')) { event.preventDefault(); action('pasteImage', { threadId: currentThreadId() }); }
   });
   let dragDepth = 0, nativeDropActive = false;
-  function canReceiveFiles() { return !!currentThreadId() && hasIdentity() && capable('attachments') && !!selectedThread?.canSend && !editTarget; }
+  function canReceiveFiles() { return !!currentThreadId() && hasIdentity() && capable('attachments') && !!selectedThread?.canSend && !editTarget && !$('image-dialog').open; }
   function renderDropOverlay() { $('drop-overlay').hidden = !canReceiveFiles() || !(nativeDropActive || dragDepth > 0); }
   function receiveMessage(message) {
     if (message?.type === 'result') return handleResult(message);
@@ -769,6 +861,7 @@
     if (!event.target.closest('#context-menu, #reaction-picker, .message-actions, #thread-menu-button, .details-member')) closeMenus();
   });
   document.addEventListener('keydown', event => {
+    if ($('image-dialog').open) { if (event.key === 'Escape') { event.preventDefault(); closeImageViewer(); } return; }
     const floating = !$('reaction-picker').hidden ? $('reaction-picker') : !$('context-menu').hidden ? $('context-menu') : null;
     if (event.key === 'Escape') { if (floating) { event.preventDefault(); closeMenus(); menuReturnFocus?.focus({ preventScroll: true }); } else if (armoryPickerOpen) { event.preventDefault(); closeArmoryPicker(true); } else if (editTarget || replyTarget) { event.preventDefault(); cancelContext(); } }
     if (floating && ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
@@ -780,8 +873,10 @@
   });
   $('app-dialog').addEventListener('close', () => { dialogRefresh = null; closeMenus(); });
   $('app-dialog').addEventListener('click', event => { if (event.target === $('app-dialog')) { const rect = $('app-dialog').getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeDialog(); } });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { flushDraft(); stopTyping(); R.suspendMedia(document); dragDepth = 0; nativeDropActive = false; renderDropOverlay(); } else requestAnimationFrame(requestRead); });
-  global.addEventListener('pagehide', () => { flushDraft(); stopTyping(); R.suspendMedia(document); });
+  $('image-dialog').addEventListener('cancel', event => { event.preventDefault(); closeImageViewer(); });
+  $('image-dialog').addEventListener('click', event => { if (event.target === $('image-dialog')) closeImageViewer(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { flushDraft(); stopTyping(); closeImageViewer(false); R.suspendMedia(document); dragDepth = 0; nativeDropActive = false; renderDropOverlay(); } else requestAnimationFrame(requestRead); });
+  global.addEventListener('pagehide', () => { flushDraft(); stopTyping(); closeImageViewer(false); R.suspendMedia(document); });
   setInterval(renderTyping, 2000);
   if (global.chrome?.webview) chrome.webview.addEventListener('message', event => receiveMessage(event.data));
   global.AtlasChat = Object.freeze({ applySnapshot, receive: receiveMessage, version: 2 });

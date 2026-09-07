@@ -224,6 +224,13 @@
     footer.append(details, button('icon-button', context.t('download'), 'download', () => context.action('downloadAttachment', { attachmentId: attachment.id, fileName: attachment.fileName })));
     return footer;
   }
+  function handlePlaybackFailure(media, context) {
+    media.addEventListener('error', () => {
+      const fallback = element('div', 'media-playback-unavailable'); fallback.setAttribute('role', 'status');
+      fallback.append(icon('alert'), element('span', '', context.t('mediaPlaybackUnavailable')));
+      media.replaceWith(fallback);
+    }, { once: true });
+  }
   function attachmentNode(attachment, context) {
     let node = element('div', 'attachment');
     const url = mediaUrl(attachment.url, context.mediaOrigin) || (attachment.id ? MEDIA_ORIGIN + '/attachments/' + encodeURIComponent(attachment.id) : '');
@@ -246,10 +253,12 @@
       video.setAttribute('aria-label', attachment.fileName || context.t('video'));
       video.setAttribute('controlsList', 'nodownload');
       const thumbnail = mediaUrl(attachment.thumbnailUrl, context.mediaOrigin); if (thumbnail) video.poster = thumbnail;
+      handlePlaybackFailure(video, context);
       node.append(video);
     } else if (kind === 'audio' && url) {
       const audio = element('audio'); audio.controls = true; audio.preload = 'none'; audio.src = url;
       audio.setAttribute('aria-label', attachment.fileName || context.t('audio')); audio.setAttribute('controlsList', 'nodownload');
+      handlePlaybackFailure(audio, context);
       node.append(audio);
     }
     node.dataset.attachmentId = String(attachment.id || '');
@@ -292,6 +301,7 @@
             playerHost.replaceChildren(frame);
           } else {
             const player = element('video'); player.controls = true; player.preload = 'none'; player.playsInline = true; player.src = directMedia;
+            handlePlaybackFailure(player, context);
             player.setAttribute('aria-label', preview.title || context.t('video')); playerHost.replaceChildren(player);
             player.play().catch(() => {});
           }
@@ -303,7 +313,7 @@
       playerHost._suspendPlayer = showPlaceholder;
       showPlaceholder(); node.append(playerHost);
     } else if (preview.kind === 'audio' && directMedia) {
-      const audio = element('audio'); audio.controls = true; audio.preload = 'none'; audio.src = directMedia; node.append(audio);
+      const audio = element('audio'); audio.controls = true; audio.preload = 'none'; audio.src = directMedia; handlePlaybackFailure(audio, context); node.append(audio);
     }
     if (video && url) {
       const fallback = button('preview-fallback', context.t('openOnSite'), 'external', () => context.action('openExternal', { url }));
@@ -312,7 +322,56 @@
     return node;
   }
 
+  function characterCard(card, context) {
+    const fields = card.fields || {};
+    const names = { 1: 'warrior', 2: 'paladin', 3: 'hunter', 4: 'rogue', 5: 'priest', 6: 'deathKnight', 7: 'shaman', 8: 'mage', 9: 'warlock', 11: 'druid' };
+    const classId = String(fields.classId || '');
+    const className = Object.hasOwn(names, classId) ? context.t(names[classId]) : '';
+    const level = String(fields.level || '');
+    const levelLabel = /^[1-9]\d?$/.test(level) && Number(level) <= 80 ? context.t('level') + ' ' + level : '';
+    const name = card.title || context.t('character');
+    const node = element('div', 'game-card character-card');
+    if (className) node.dataset.classId = classId;
+    const heading = element('div', 'character-card-heading');
+    const emblem = element('span', 'character-card-emblem', initials(name));
+    emblem.setAttribute('aria-hidden', 'true');
+    const imageUrl = previewImageUrl(card.imageUrl, context.mediaOrigin);
+    if (imageUrl) {
+      const image = element('img'); image.alt = ''; image.src = imageUrl; image.loading = 'lazy'; image.decoding = 'async';
+      image.addEventListener('error', () => emblem.replaceChildren(document.createTextNode(initials(name))), { once: true });
+      emblem.replaceChildren(image);
+    }
+    const identity = element('div', 'character-card-identity');
+    const title = element('div', 'game-card-title', name); title.title = name;
+    identity.append(element('div', 'character-card-label', context.t('characterArmory')), title);
+    const meta = element('div', 'character-card-meta');
+    if (levelLabel) meta.append(element('span', 'character-card-level', levelLabel));
+    if (className) meta.append(element('span', 'character-card-class', className));
+    if (meta.childElementCount) identity.append(meta);
+    heading.append(emblem, identity); node.append(heading);
+    const details = [card.description, fields.zone ? context.t('location') + ' · ' + fields.zone : '', fields.stats].filter(Boolean);
+    if (details.length) node.append(element('div', 'game-card-details', details.join('\n')));
+    const accountId = String(fields.ownerAccountId || fields.accountId || '');
+    const characterGuid = id(String(fields.characterGuid || card.referenceId || ''));
+    let open = null;
+    if (/^[1-9]\d*$/.test(accountId) && Number(accountId) <= 4294967295) {
+      const exactCharacter = characterGuid && characterGuid !== '0';
+      const label = context.t(exactCharacter ? 'openArmory' : 'openProfile');
+      open = button('character-card-action', label, null, () => exactCharacter
+        ? context.action('openCharacterArmory', { ownerAccountId: Number(accountId), characterGuid })
+        : context.action('openProfile', { accountId: Number(accountId) }));
+      open.append(element('span', '', label), icon('chevron'));
+    } else if (safeUrl(card.url)) {
+      const label = context.t('openLink');
+      open = button('character-card-action', label, null, () => context.action('openExternal', { url: safeUrl(card.url) }));
+      open.append(element('span', '', label), icon('external'));
+    }
+    if (open) { const footer = element('div', 'game-card-actions character-card-footer'); footer.append(open); node.append(footer); }
+    return node;
+  }
+
   function cardNode(card, message, context) {
+    if (card.kind === 'character') return characterCard(card, context);
     const node = element('div', 'game-card');
     const heading = element('div', 'game-card-heading');
     const imageUrl = previewImageUrl(card.imageUrl, context.mediaOrigin);
@@ -330,15 +389,7 @@
     if (fields.stats) lines.push(fields.stats);
     if (lines.length) node.append(element('div', 'game-card-details', lines.join('\n')));
     const actions = element('div', 'game-card-actions');
-    const accountId = String(fields.ownerAccountId || fields.accountId || '');
-    const characterGuid = id(String(fields.characterGuid || card.referenceId || ''));
-    if (card.kind === 'character' && /^[1-9]\d*$/.test(accountId) && Number(accountId) <= 4294967295) {
-      const exactCharacter = characterGuid && characterGuid !== '0';
-      const open = button('', context.t(exactCharacter ? 'openArmory' : 'openProfile'), null, () => exactCharacter
-        ? context.action('openCharacterArmory', { ownerAccountId: Number(accountId), characterGuid })
-        : context.action('openProfile', { accountId: Number(accountId) }));
-      open.textContent = context.t(exactCharacter ? 'openArmory' : 'openProfile'); actions.append(open);
-    } else if (safeUrl(card.url)) {
+    if (safeUrl(card.url)) {
       const open = button('', context.t('openLink'), null, () => context.action('openExternal', { url: safeUrl(card.url) })); open.textContent = context.t('openLink'); actions.append(open);
     }
     if (card.kind === 'outing') {
@@ -466,10 +517,18 @@
       }
     }
     p.reactions.hidden = !p.reactions.childElementCount;
-    const readKey = JSON.stringify([own, message.readByAccountIds, message.deletedAt, context.locale]);
+    const messageError = typeof context.messageError === 'string' ? context.messageError : '';
+    const readKey = JSON.stringify([own, message.readByAccountIds, message.deletedAt, messageError, context.locale]);
     if (node._readKey !== readKey) {
       node._readKey = readKey; p.status.replaceChildren();
-      if (own && !message.deletedAt && (message.readByAccountIds || []).some(accountId => accountId !== context.ownerAccountId)) p.status.append(icon('check'), document.createTextNode(context.t('read')));
+      p.status.classList.toggle('is-failed', !!messageError && !message.deletedAt);
+      if (messageError && !message.deletedAt) {
+        p.status.setAttribute('role', 'alert');
+        p.status.append(icon('alert'), document.createTextNode(messageError));
+      } else {
+        p.status.removeAttribute('role');
+        if (own && !message.deletedAt && (message.readByAccountIds || []).some(accountId => accountId !== context.ownerAccountId)) p.status.append(icon('check'), document.createTextNode(context.t('read')));
+      }
     }
     p.status.hidden = !p.status.childNodes.length;
     const actionsKey = JSON.stringify([own, message.deletedAt, context.locale, context.capable('replies'), context.capable('reactions')]);
@@ -490,5 +549,5 @@
     for (const host of root.querySelectorAll('.preview-player')) if (host.querySelector('iframe') && host._suspendPlayer) host._suspendPlayer();
   }
 
-  global.AtlasChatRender = Object.freeze({ element, icon, button, id, compareIds, safeUrl, mediaUrl, linkedMediaUrl, embedUrl, initials, formatBytes, time, fullDate, dayKey, dayLabel, presenceStatus, presenceText, avatar, renderMarkdown, isVideoPreview, canGroup, reconcileKeyed, reconcileMessage, suspendMedia });
+  global.AtlasChatRender = Object.freeze({ element, icon, button, id, compareIds, safeUrl, mediaUrl, linkedMediaUrl, embedUrl, initials, formatBytes, time, fullDate, dayKey, dayLabel, presenceStatus, presenceText, avatar, renderMarkdown, renderCard: cardNode, isVideoPreview, canGroup, reconcileKeyed, reconcileMessage, suspendMedia });
 })(window);

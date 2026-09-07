@@ -22,11 +22,21 @@ internal static class ChatWorkspaceTests
         await DraftsAndCancellation();
         await CharacterCardDuringDraftSave();
         await RetryAfterLostResponse();
+        await RejectedSendCanBeRemoved();
+        await UncertainSendRemainsProtectedAfterRejection();
+        await InvalidSuccessRemainsProtected();
+        await DeleteLegacyFailedSend();
+        await DeleteMissingAndLateCommit();
+        await RestartDeletionWithoutEvent();
+        await DeleteWhileRetryWaits();
+        await ProbeDeletionAfterMissedEvent();
+        await DeleteIdentityGuardsAndLostResponse();
+        await DeletedTombstonesDoNotFillQueue();
         await PrivateReadAndLogout();
         await RevocationWhileReadIsInFlight();
         await PreferencesDuringStaleRefresh();
         await UploadResume();
-        Console.WriteLine($"Chat workspace PASS: {_checks} assertions. DPAPI account/environment isolation, durable drafts/outbox, cancel before POST, lost-response UUID retry, private read opt-out, session isolation, staged-file lifecycle and streaming 500000000-byte upload/resume. Synthetic HTTP/files only; no real account or launcher UI.");
+        Console.WriteLine($"Chat workspace PASS: {_checks} assertions. DPAPI account/environment isolation, durable drafts/outbox, definite rejection cancellation, uncertain UUID retry, durable failed-send deletion with exact GET/DELETE identity, late commits and restart without resending, private read opt-out, session isolation, staged-file lifecycle and streaming 500000000-byte upload/resume. Synthetic HTTP/files only; no real account or launcher UI.");
         return 0;
     }
 
@@ -179,6 +189,245 @@ internal static class ChatWorkspaceTests
         }
     }
 
+    private static async Task RejectedSendCanBeRemoved()
+    {
+        foreach (HttpStatusCode status in new[] { HttpStatusCode.BadRequest, HttpStatusCode.Forbidden, HttpStatusCode.RequestEntityTooLarge })
+        {
+            MemoryStore store = new();
+            await using (Environment env = await Environment.Create(store))
+            {
+                await env.Workspace.OpenThreadAsync(ThreadId);
+                env.Api.RejectSendStatus = status;
+                Guid id = Guid.NewGuid();
+                await env.Workspace.QueueSendAsync(ThreadId, new() { ClientMessageId = id, Body = "refus confirmé" });
+                await Until(() => env.Workspace.CurrentSnapshot.Outbox.Single().Status == "failed", "Definite rejection becomes a failed outbox entry.");
+                ChatOutboxEntry failed = env.Workspace.CurrentSnapshot.Outbox.Single();
+                Check(!failed.WasSubmitted && LauncherChatWorkspace.CanCancelSend(failed), "A completed rejecting response makes the failed attempt removable.");
+                await env.Workspace.CancelSendAsync(id);
+                Check(env.Workspace.CurrentSnapshot.Outbox.Single().Status == "cancelled" && env.Api.Server.Messages.IsEmpty,
+                    "Removing a definitely rejected attempt cannot create or delete a server message.");
+            }
+            await using Environment restored = await Environment.Create(store);
+            Check(restored.Workspace.CurrentSnapshot.Outbox.Single().Status == "cancelled" && restored.Api.Sends.IsEmpty,
+                "A removed rejected attempt stays removed after restart and never posts again.");
+        }
+    }
+
+    private static async Task UncertainSendRemainsProtectedAfterRejection()
+    {
+        MemoryStore store = new(); FixtureServer server = new(); Guid id = Guid.NewGuid();
+        await using (Environment env = await Environment.Create(store, server: server))
+        {
+            await env.Workspace.OpenThreadAsync(ThreadId); env.Api.LoseSendResponse = true;
+            await env.Workspace.QueueSendAsync(ThreadId, new() { ClientMessageId = id, Body = "issue incertaine" });
+            await Until(() => !env.Workspace.CurrentSnapshot.IsAvailable && env.Workspace.CurrentSnapshot.Outbox.Single().Status == "queued", "First POST response is lost.");
+        }
+        await using (Environment restored = await Environment.Create(store, server: server, rejectSendStatus: HttpStatusCode.BadRequest))
+        {
+            await Until(() => restored.Workspace.CurrentSnapshot.Outbox.Single().Status == "failed", "Retry receives a rejecting response.");
+            ChatOutboxEntry failed = restored.Workspace.CurrentSnapshot.Outbox.Single();
+            Check(failed.WasSubmitted && !LauncherChatWorkspace.CanCancelSend(failed), "A later rejection cannot erase uncertainty from a previously issued attempt.");
+            await Fails<ChatWorkspaceException>(() => restored.Workspace.CancelSendAsync(id));
+            restored.Api.RejectSendStatus = null;
+            await restored.Workspace.RetrySendAsync(id);
+            await Until(() => restored.Workspace.CurrentSnapshot.Outbox.Single().Status == "sent", "Retry reconciles the original message.");
+            Check(server.Messages.Count == 1 && restored.Api.Sends.All(sent => sent == id), "Uncertain retry preserves UUID and never duplicates the committed message.");
+        }
+    }
+
+    private static async Task InvalidSuccessRemainsProtected()
+    {
+        await using Environment env = await Environment.Create(new());
+        await env.Workspace.OpenThreadAsync(ThreadId); env.Api.InvalidSendSuccess = true;
+        Guid id = Guid.NewGuid();
+        await env.Workspace.QueueSendAsync(ThreadId, new() { ClientMessageId = id, Body = "réponse incomplète" });
+        await Until(() => env.Workspace.CurrentSnapshot.Outbox.Single().Status == "failed", "Malformed success response is reported as a failed operation.");
+        ChatOutboxEntry failed = env.Workspace.CurrentSnapshot.Outbox.Single();
+        Check(failed.WasSubmitted && !LauncherChatWorkspace.CanCancelSend(failed) && env.Api.Server.Messages.Count == 1,
+            "An invalid success body is not a rejection: the committed attempt remains protected.");
+        await Fails<ChatWorkspaceException>(() => env.Workspace.CancelSendAsync(id));
+    }
+
+    private static ChatOutboxEntry LegacyFailed(Guid id) => new() { ClientMessageId = id, ThreadId = ThreadId,
+        Body = "ancienne tentative incertaine", Status = "failed", WasSubmitted = true, ErrorCode = "chat-unavailable", CreatedAt = DateTimeOffset.UnixEpoch };
+
+    private static ChatMessageDto Committed(Guid id) => new() { Id = 9007199254741001, ThreadId = ThreadId,
+        ClientMessageId = id, Sender = new() { AccountId = 1, Username = "Self" }, Body = "ancienne tentative incertaine",
+        CreatedAt = DateTimeOffset.UnixEpoch, Version = 1 };
+
+    private static async Task DeleteLegacyFailedSend()
+    {
+        Guid id = Guid.NewGuid(); MemoryStore store = new(); FixtureServer server = new();
+        await store.SaveAsync(1, new ChatWorkspaceLocalState { Outbox = [LegacyFailed(id)] }, None);
+        server.Messages[id] = Committed(id);
+        await using Environment env = await Environment.Create(store, server: server);
+        await env.Workspace.OpenThreadAsync(ThreadId);
+        Check(LauncherChatWorkspace.CanDeleteFailedSend(env.Workspace.CurrentSnapshot.Outbox.Single()), "An old submitted failed entry exposes deletion.");
+        env.Api.LookupGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        await env.Workspace.DeleteFailedSendAsync(id);
+        await Until(() => env.Api.Lookups.Contains(id), "Deletion should resolve the existing UUID before mutation.");
+        ChatOutboxEntry pending = (await store.LoadAsync<ChatWorkspaceLocalState>(1, None))!.Outbox.Single();
+        Check(pending.DeleteRequested && pending.Status == "deleting" && !pending.DeletionConfirmed,
+            "Deletion intent is durable before lookup completes.");
+        Check(env.Workspace.CurrentSnapshot.Messages.All(message => message.ClientMessageId != id), "The obsolete own body is hidden while deletion is pending.");
+        await Fails<ChatWorkspaceException>(() => env.Workspace.RetrySendAsync(id));
+        await Fails<ChatWorkspaceException>(() => env.Workspace.QueueSendAsync(ThreadId, new() { ClientMessageId = id, Body = pending.Body }));
+        Check(env.Api.Deletes.Count == 0 && env.Api.Sends.Count == 0, "A pending lookup cannot delete or resend any message.");
+        env.Api.LookupGate.TrySetResult();
+        await Until(() => env.Workspace.CurrentSnapshot.Outbox.Single().DeletionConfirmed, "Resolved failed send should be deleted.");
+        Check(env.Api.Deletes.Single() == server.Messages[id].Id && server.Messages[id].DeletedAt is not null
+            && env.Api.Sends.Count == 0, "Only the matching committed message is deleted; POST is never retried.");
+        Check(env.Workspace.CurrentSnapshot.Outbox.Single().Status == "cancelled", "Confirmed deletion removes the failed local row.");
+    }
+
+    private static async Task DeleteMissingAndLateCommit()
+    {
+        Guid id = Guid.NewGuid(); MemoryStore store = new(); FixtureServer server = new();
+        await store.SaveAsync(1, new ChatWorkspaceLocalState { Outbox = [LegacyFailed(id)] }, None);
+        await using Environment env = await Environment.Create(store, server: server);
+        await env.Workspace.OpenThreadAsync(ThreadId);
+        await env.Workspace.DeleteFailedSendAsync(id);
+        await Until(() => env.Workspace.CurrentSnapshot.Outbox.Single().Status == "cancelled", "A missing server message should remove the local failed row.");
+        ChatOutboxEntry tombstone = (await store.LoadAsync<ChatWorkspaceLocalState>(1, None))!.Outbox.Single();
+        Check(tombstone.DeleteRequested && !tombstone.DeletionConfirmed && env.Api.Deletes.Count == 0,
+            "404 keeps an unresolved durable tombstone and performs no DELETE.");
+        int leakedBodies = 0;
+        env.Workspace.SnapshotChanged += (_, args) => { if (args.Snapshot.Messages.Any(message => message.ClientMessageId == id && message.DeletedAt is null)) Interlocked.Increment(ref leakedBodies); };
+        server.Messages[id] = Committed(id);
+        await env.Api.Events.Writer.WriteAsync(new() { EventCursor = 1, Events = [new() { Id = 1, Kind = "message", ThreadId = ThreadId, Message = server.Messages[id] }] });
+        await Until(() => env.Workspace.CurrentSnapshot.Outbox.Single().DeletionConfirmed, "A late own commit should wake exact deletion.");
+        Check(leakedBodies == 0 && server.Messages[id].DeletedAt is not null && env.Api.Deletes.Count == 1 && env.Api.Sends.Count == 0,
+            "A delayed commit never reappears or resends and is deleted once.");
+    }
+
+    private static async Task RestartDeletionWithoutEvent()
+    {
+        Guid id = Guid.NewGuid(); MemoryStore store = new(); FixtureServer server = new();
+        await store.SaveAsync(1, new ChatWorkspaceLocalState { Outbox = [LegacyFailed(id)] }, None);
+        await using (Environment env = await Environment.Create(store, server: server))
+        {
+            await env.Workspace.OpenThreadAsync(ThreadId); await env.Workspace.DeleteFailedSendAsync(id);
+            await Until(() => env.Workspace.CurrentSnapshot.Outbox.Single().Status == "cancelled", "Missing result should persist before shutdown.");
+        }
+        server.Messages[id] = Committed(id);
+        await using (Environment other = await Environment.Create(store, owner: 7, server: server))
+            Check(other.Workspace.CurrentSnapshot.Outbox.Count == 0 && other.Api.Lookups.Count == 0 && other.Api.Deletes.Count == 0,
+                "Another signed-in account cannot process a stored deletion intent.");
+        await using (Environment restored = await Environment.Create(store, server: server))
+        {
+            await Until(() => restored.Workspace.CurrentSnapshot.Outbox.Single().DeletionConfirmed, "Restart should resolve a commit whose event was missed.");
+            Check(restored.Api.Lookups.Single() == id && restored.Api.Deletes.Single() == server.Messages[id].Id && restored.Api.Sends.Count == 0,
+                "Restart recovers the UUID tombstone through GET and exact DELETE without POST or an event.");
+        }
+    }
+
+    private static async Task DeleteIdentityGuardsAndLostResponse()
+    {
+        foreach (string mismatch in new[] { "owner", "thread", "uuid" })
+        {
+            Guid id = Guid.NewGuid(); MemoryStore store = new();
+            await store.SaveAsync(1, new ChatWorkspaceLocalState { Outbox = [LegacyFailed(id)] }, None);
+            await using Environment env = await Environment.Create(store);
+            await env.Workspace.OpenThreadAsync(ThreadId);
+            ChatMessageDto wrong = Committed(id);
+            env.Api.LookupOverride = mismatch switch { "owner" => wrong with { Sender = wrong.Sender with { AccountId = 2 } },
+                "thread" => wrong with { ThreadId = "another-thread" }, _ => wrong with { ClientMessageId = Guid.NewGuid() } };
+            await env.Workspace.DeleteFailedSendAsync(id);
+            await Until(() => env.Workspace.CurrentSnapshot.Outbox.Single().ErrorCode.Length > 0, "Invalid lookup identity must remain unconfirmed.");
+            Check(env.Api.Deletes.Count == 0 && env.Api.Sends.Count == 0 && !env.Workspace.CurrentSnapshot.Outbox.Single().DeletionConfirmed,
+                "Lookup mismatch in " + mismatch + " cannot delete another request or report success.");
+        }
+        foreach (bool loseDeleteResponse in new[] { false, true })
+        {
+            Guid id = Guid.NewGuid(); MemoryStore store = new(); FixtureServer server = new(); server.Messages[id] = Committed(id);
+            await store.SaveAsync(1, new ChatWorkspaceLocalState { Outbox = [LegacyFailed(id)] }, None);
+            await using (Environment env = await Environment.Create(store, server: server))
+            {
+                await env.Workspace.OpenThreadAsync(ThreadId);
+                env.Api.FailLookup = !loseDeleteResponse; env.Api.LoseDeleteResponse = loseDeleteResponse;
+                await env.Workspace.DeleteFailedSendAsync(id);
+                await Until(() => env.Workspace.CurrentSnapshot.Outbox.Single().ErrorCode.Length > 0, "Network loss keeps a pending deletion intent.");
+                Check(env.Workspace.CurrentSnapshot.Outbox.Single().DeleteRequested && !env.Workspace.CurrentSnapshot.Outbox.Single().DeletionConfirmed
+                    && env.Api.Sends.Count == 0, "Failed lookup or lost DELETE response remains durable without retrying POST.");
+            }
+            await using Environment restored = await Environment.Create(store, server: server);
+            await Until(() => restored.Workspace.CurrentSnapshot.Outbox.Single().DeletionConfirmed, "Pending deletion should recover on restart.");
+            Check(server.Messages[id].DeletedAt is not null && restored.Api.Sends.Count == 0
+                && restored.Api.Deletes.Count == (loseDeleteResponse ? 0 : 1),
+                "Restart confirms an already deleted message or performs its one required DELETE.");
+        }
+    }
+
+    private static async Task DeleteWhileRetryWaits()
+    {
+        Guid id = Guid.NewGuid(); MemoryStore store = new();
+        await store.SaveAsync(1, new ChatWorkspaceLocalState { Outbox = [LegacyFailed(id)] }, None);
+        await using Environment env = await Environment.Create(store);
+        await env.Workspace.OpenThreadAsync(ThreadId);
+        env.Api.PreferenceGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        await env.Workspace.SetPreferencesAsync(new() { DoNotDisturb = true });
+        await Until(() => env.Api.PreferenceEntered, "Preference must occupy command gate before retry.");
+        await env.Workspace.RetrySendAsync(id);
+        // A queued retry without an error is deliberately not removable. A
+        // transient failed retry is, including one waiting for the command gate.
+        Check(!LauncherChatWorkspace.CanDeleteFailedSend(env.Workspace.CurrentSnapshot.Outbox.Single()), "A deliberate new retry cannot be mistaken for a failed operation.");
+        env.Api.RejectSendStatus = HttpStatusCode.BadRequest;
+        env.Api.PreferenceGate.TrySetResult();
+        await Until(() => env.Workspace.CurrentSnapshot.Outbox.Single().Status == "failed", "Retry rejection should retain previous uncertainty.");
+        await env.Workspace.DeleteFailedSendAsync(id);
+        await Until(() => env.Workspace.CurrentSnapshot.Outbox.Single().Status == "cancelled", "Failed retry should be removable by UUID lookup.");
+        Check(env.Api.Sends.Count == 1 && env.Api.Lookups.Single() == id && env.Api.Deletes.Count == 0,
+            "Deleting the rejected retry performs lookup only and cannot replay its POST.");
+
+        Guid transient = Guid.NewGuid(); MemoryStore second = new();
+        await second.SaveAsync(1, new ChatWorkspaceLocalState { Outbox = [LegacyFailed(transient)] }, None);
+        await using Environment logout = await Environment.Create(second);
+        await logout.Workspace.OpenThreadAsync(ThreadId);
+        logout.Api.LookupGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        await logout.Workspace.DeleteFailedSendAsync(transient);
+        await Until(() => logout.Api.Lookups.Count == 1, "Lookup must be pending before logout.");
+        var operation = logout.Session.TryLogout(None);
+        if (operation.Completion is not null) await operation.Completion;
+        logout.Api.LookupGate.TrySetResult();
+        Check(logout.Workspace.CurrentSnapshot.OwnerAccountId == 0 && logout.Api.Deletes.Count == 0 && logout.Api.Sends.Count == 0,
+            "Logout prevents pending resolution from issuing a DELETE under another session.");
+    }
+
+    private static async Task ProbeDeletionAfterMissedEvent()
+    {
+        Guid id = Guid.NewGuid(); MemoryStore store = new(); FixtureServer server = new(); ProbeClock time = new();
+        await store.SaveAsync(1, new ChatWorkspaceLocalState { Outbox = [LegacyFailed(id)] }, None);
+        await using Environment env = await Environment.Create(store, server: server, time: time);
+        await env.Workspace.OpenThreadAsync(ThreadId); await env.Workspace.DeleteFailedSendAsync(id);
+        await Until(() => env.Workspace.CurrentSnapshot.Outbox.Single().Status == "cancelled", "Initial 404 should leave a dormant tombstone.");
+        server.Messages[id] = Committed(id); time.Advance(TimeSpan.FromSeconds(31));
+        await env.Api.Events.Writer.WriteAsync(new() { EventCursor = 0, Events = [] });
+        await Until(() => env.Workspace.CurrentSnapshot.Outbox.Single().DeletionConfirmed, "Ordinary empty long-poll wake must retry a due deletion.");
+        Check(env.Api.Lookups.Count == 2 && env.Api.Deletes.Single() == server.Messages[id].Id && env.Api.Sends.Count == 0,
+            "A delayed commit is found by a bounded periodic lookup without its event or an application restart.");
+    }
+
+    private sealed class ProbeClock : TimeProvider
+    {
+        private long _ticks = DateTimeOffset.UtcNow.UtcTicks;
+        public override DateTimeOffset GetUtcNow() => new(Interlocked.Read(ref _ticks), TimeSpan.Zero);
+        internal void Advance(TimeSpan duration) => Interlocked.Add(ref _ticks, duration.Ticks);
+    }
+
+    private static async Task DeletedTombstonesDoNotFillQueue()
+    {
+        MemoryStore store = new();
+        await store.SaveAsync(1, new ChatWorkspaceLocalState { Outbox = Enumerable.Range(0, 1001).Select(_ =>
+            LegacyFailed(Guid.NewGuid()) with { Status = "cancelled", DeleteRequested = true, DeletionConfirmed = true }).ToArray() }, None);
+        await using Environment env = await Environment.Create(store);
+        await env.Workspace.OpenThreadAsync(ThreadId);
+        Guid id = Guid.NewGuid(); await env.Workspace.QueueSendAsync(ThreadId, new() { ClientMessageId = id, Body = "nouveau message" });
+        await Until(() => env.Workspace.CurrentSnapshot.Outbox.Any(entry => entry.ClientMessageId == id && entry.Status == "sent"),
+            "Cancelled deletion tombstones must not exhaust the active outbox limit.");
+        Check(env.Api.Sends.Single() == id && env.Api.Lookups.Count == 0 && env.Api.Deletes.Count == 0,
+            "A new message sends once while 1001 confirmed tombstones remain inert.");
+    }
+
     private static async Task PrivateReadAndLogout()
     {
         FixtureServer server = new() { Preferences = new() { ShareReadReceipts = false, ShareTyping = false, MessageSoundEnabled = true } };
@@ -301,22 +550,24 @@ internal static class ChatWorkspaceTests
     {
         private readonly CancellationTokenSource _lifetime = new();
         private readonly HttpClient _http;
-        private Environment(MemoryStore store, uint owner, FixtureServer? server, FakeFiles? files)
+        private Environment(MemoryStore store, uint owner, FixtureServer? server, FakeFiles? files, TimeProvider? time)
         {
             LauncherAuthSession session = FakeLauncherAuthService.CreateSession();
             Auth = new() { Session = session with { Profile = session.Profile with { AccountId = owner } }, RestoreResult = true, EnsureFreshHandler = _ => Task.FromResult(true) };
             Session = new(Auth, _lifetime.Token, _ => { });
             Api = new() { Owner = owner, Server = server ?? new() }; _http = new(Api);
             Workspace = new(Session, Auth, new LauncherChatV2ApiClient(_http, new Uri("https://fixture.invalid/api/v1/")), store,
-                _lifetime.Token, _ => { }, files: files ?? new FakeFiles(16));
+                _lifetime.Token, _ => { }, files: files ?? new FakeFiles(16), timeProvider: time);
         }
         internal FakeLauncherAuthService Auth { get; }
         internal LauncherSessionCoordinator Session { get; }
         internal LauncherChatWorkspace Workspace { get; }
         internal FixtureApi Api { get; }
-        internal static async Task<Environment> Create(MemoryStore store, uint owner = 1, FixtureServer? server = null, FakeFiles? files = null)
+        internal static async Task<Environment> Create(MemoryStore store, uint owner = 1, FixtureServer? server = null, FakeFiles? files = null,
+            HttpStatusCode? rejectSendStatus = null, TimeProvider? time = null)
         {
-            Environment env = new(store, owner, server, files); await env.Session.RestoreOnceAsync(); env.Workspace.Start();
+            Environment env = new(store, owner, server, files, time); env.Api.RejectSendStatus = rejectSendStatus;
+            await env.Session.RestoreOnceAsync(); env.Workspace.Start();
             await Until(() => env.Workspace.CurrentSnapshot.IsAvailable, "Workspace initial state must load."); return env;
         }
         public async ValueTask DisposeAsync()
@@ -342,6 +593,12 @@ internal static class ChatWorkspaceTests
         internal FixtureServer Server = new();
         internal bool FailState;
         internal bool LoseSendResponse;
+        internal HttpStatusCode? RejectSendStatus;
+        internal bool InvalidSendSuccess;
+        internal bool FailLookup;
+        internal bool LoseDeleteResponse;
+        internal TaskCompletionSource? LookupGate;
+        internal ChatMessageDto? LookupOverride;
         internal bool LoseChunkResponse;
         internal TaskCompletionSource? PreferenceGate;
         internal bool PreferenceEntered;
@@ -353,6 +610,8 @@ internal static class ChatWorkspaceTests
         internal Channel<ChatEventsDto> Events { get; } = Channel.CreateUnbounded<ChatEventsDto>();
         internal ConcurrentQueue<string> Requests { get; } = new();
         internal ConcurrentQueue<Guid> Sends { get; } = new();
+        internal ConcurrentQueue<Guid> Lookups { get; } = new();
+        internal ConcurrentQueue<long> Deletes { get; } = new();
         internal ConcurrentQueue<long> Reads { get; } = new();
         internal ConcurrentQueue<long> ChunkOffsets { get; } = new();
         private ChatMessageDto Incoming => new() { Id = 9007199254740993, ThreadId = ThreadId, ClientMessageId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Sender = new() { AccountId = 2, Username = "Alice" }, Body = "bonjour", CreatedAt = DateTimeOffset.UtcNow, Version = 1 };
@@ -380,14 +639,34 @@ internal static class ChatWorkspaceTests
             }
             if (route == "threads/" + ThreadId + "/messages" && request.Method == HttpMethod.Get)
                 return Json(new ChatMessagesPageDto { Thread = Thread, Messages = new[] { Incoming }.Concat(Server.Messages.Values).OrderBy(message => message.Id).ToArray() });
+            if (route.StartsWith("threads/" + ThreadId + "/messages/by-client/", StringComparison.Ordinal) && request.Method == HttpMethod.Get)
+            {
+                Guid id = Guid.Parse(route[(route.LastIndexOf('/') + 1)..]); Lookups.Enqueue(id);
+                if (LookupGate is not null) await LookupGate.Task.WaitAsync(token);
+                if (FailLookup) throw new HttpRequestException("Synthetic lookup response loss.");
+                ChatMessageDto? found = LookupOverride ?? Server.Messages.GetValueOrDefault(id);
+                return found is null ? Json(new ChatErrorDto("chat-not-found"), HttpStatusCode.NotFound)
+                    : Json(new ChatSendMessageResult { Message = found, IsDuplicate = true });
+            }
+            if (route.StartsWith("threads/" + ThreadId + "/messages/", StringComparison.Ordinal) && request.Method == HttpMethod.Delete)
+            {
+                long id = long.Parse(route[(route.LastIndexOf('/') + 1)..], System.Globalization.CultureInfo.InvariantCulture); Deletes.Enqueue(id);
+                ChatMessageDto found = Server.Messages.Values.Single(message => message.Id == id);
+                ChatMessageDto deleted = found with { DeletedAt = DateTimeOffset.UtcNow, Body = "", Version = found.Version + 1 };
+                Server.Messages[found.ClientMessageId] = deleted;
+                if (LoseDeleteResponse) throw new HttpRequestException("Synthetic committed deletion response loss.");
+                return Json(deleted);
+            }
             if (route == "threads/" + ThreadId + "/messages" && request.Method == HttpMethod.Post)
             {
                 ChatSendMessageRequest send = await Read<ChatSendMessageRequest>(request, token); Sends.Enqueue(send.ClientMessageId);
+                if (RejectSendStatus is HttpStatusCode rejection) return Json(new ChatErrorDto("chat-invalid-card"), rejection);
                 bool existed = Server.Messages.TryGetValue(send.ClientMessageId, out ChatMessageDto? message);
                 message ??= new() { Id = 9007199254740994 + Server.Messages.Count, ThreadId = ThreadId, ClientMessageId = send.ClientMessageId,
                     Sender = new() { AccountId = Owner, Username = "Self" }, Body = send.Body, CreatedAt = DateTimeOffset.UtcNow, Version = 1 };
                 Server.Messages[send.ClientMessageId] = message;
                 if (LoseSendResponse) { LoseSendResponse = false; throw new HttpRequestException("Synthetic response loss."); }
+                if (InvalidSendSuccess) return Json(new { message = new { id = 0 } });
                 return Json(new ChatSendMessageResult { Message = message, IsDuplicate = existed });
             }
             if (route.EndsWith("/read", StringComparison.Ordinal))

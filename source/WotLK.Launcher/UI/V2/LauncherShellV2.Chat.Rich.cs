@@ -109,13 +109,8 @@ public partial class LauncherShellV2
             ChatProfileDto projected = profile with { AvatarUrl = profile.AvatarUrl is not null || nativeAvatar
                 ? ChatViewV2.RichMediaOrigin + "avatars/" + profile.AccountId.ToString(CultureInfo.InvariantCulture) + "/"
                     + Uri.EscapeDataString(friend?.AvatarVersion?.ToString(CultureInfo.InvariantCulture) ?? profile.AvatarVersion ?? "0") : null };
-            if (projected.Presence == "offline")
-                return projected with { CharacterGuid = null, CharacterName = null, CharacterClass = null, ZoneName = null };
-            if (friend is null) return projected;
-            FriendCharacterUiItem? character = friend.AllCharacters.FirstOrDefault(item => item.IsOnline);
-            return projected with {
-                CharacterName = character?.Name ?? profile.CharacterName, CharacterClass = character?.ClassName ?? profile.CharacterClass,
-                ZoneName = character?.ZoneName ?? profile.ZoneName };
+            FriendUiItem? currentFriend = FriendsState.Current.LoadState == FriendsViewLoadState.Loaded && !FriendsState.Current.IsStale ? friend : null;
+            return ProjectRichPresence(projected, snapshot.OwnerAccountId, currentFriend, ProfileState.PresenceSnapshot);
         }
         ChatMessageDto Message(ChatMessageDto message) => message with { Sender = Profile(message.Sender) };
         ChatThreadDto Thread(ChatThreadDto thread) => thread with { Members = thread.Members.Select(member => member with
@@ -146,7 +141,31 @@ public partial class LauncherShellV2
             pending = snapshot.Outbox.Where(entry => entry.Status is not ("sent" or "cancelled")).Select(entry => new
             { entry.ClientMessageId, entry.ThreadId, entry.Body, entry.CreatedAt, entry.Status, error = entry.ErrorCode,
                 entry.ReplyToMessageId, entry.Card, attachments = Attachments(entry.AttachmentIds), progress = Progress(entry),
-                canCancel = !entry.WasSubmitted }).ToArray(), snapshot.Typing, mediaOrigin = ChatViewV2.RichMediaOrigin };
+                canCancel = LauncherChatWorkspace.CanCancelSend(entry), canDelete = LauncherChatWorkspace.CanDeleteFailedSend(entry) }).ToArray(),
+            snapshot.Typing, supportedAttachmentExtensions = ChatAttachmentFormats.Extensions, mediaOrigin = ChatViewV2.RichMediaOrigin };
+    }
+
+    internal static ChatProfileDto ProjectRichPresence(ChatProfileDto profile, uint ownerAccountId,
+        FriendUiItem? friend, LauncherPresenceSnapshot? selfPresence)
+    {
+        // Message DTOs retain the presence seen when their history page loaded.
+        // Use the same confirmed native sources as the header and Friends drawer.
+        if (profile.AccountId == ownerAccountId)
+        {
+            if (selfPresence is { IsAvailable: true } && selfPresence.OwnerAccountId == ownerAccountId)
+                profile = profile with { Presence = selfPresence.Status };
+        }
+        else if (friend is not null && friend.AccountId == profile.AccountId)
+        {
+            string presence = friend.Presence is "online" or "away" or "dnd" or "offline" ? friend.Presence
+                : !friend.IsOnline ? "offline" : friend.IsInGame ? "game" : "online";
+            FriendCharacterUiItem? character = friend.AllCharacters.FirstOrDefault(item => item.IsOnline);
+            profile = profile with { Presence = presence,
+                CharacterGuid = character is not null && character.Name == profile.CharacterName ? profile.CharacterGuid : null,
+                CharacterName = character?.Name, CharacterClass = character?.ClassName, ZoneName = character?.ZoneName };
+        }
+        return profile.Presence == "offline"
+            ? profile with { CharacterGuid = null, CharacterName = null, CharacterClass = null, ZoneName = null } : profile;
     }
 
     private async Task<ChatMediaStream?> ResolveChatMediaAsync(string resource, string? range, CancellationToken token)
@@ -244,6 +263,7 @@ public partial class LauncherShellV2
                 case "removeAttachment": await workspace.RemoveAttachmentAsync(Text("threadId"), Text("uploadId")); break;
                 case "retryUpload": await workspace.RetryUploadAsync(Text("threadId"), Text("uploadId")); break;
                 case "cancelSend": await workspace.CancelSendAsync(payload.GetProperty("clientMessageId").GetGuid()); break;
+                case "deleteFailedSend": await workspace.DeleteFailedSendAsync(payload.GetProperty("clientMessageId").GetGuid()); break;
                 case "retrySend": await workspace.RetrySendAsync(payload.GetProperty("clientMessageId").GetGuid()); break;
                 case "openExternal": OpenRichExternal(Text("url")); break;
                 case "openProfile": OpenRichProfile(payload.GetProperty("accountId").GetUInt32()); break;

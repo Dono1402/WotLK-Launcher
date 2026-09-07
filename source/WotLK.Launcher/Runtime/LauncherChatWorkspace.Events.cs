@@ -78,8 +78,11 @@ internal sealed partial class LauncherChatWorkspace
         {
             ChatOutboxEntry? entry = state.Outbox.FirstOrDefault(item => item.ClientMessageId == message.ClientMessageId
                 && item.ThreadId == message.ThreadId && item.Status != "sent");
-            return entry is null ? state : state with { Outbox = state.Outbox.Select(item => ReferenceEquals(item, entry)
-                ? item with { Status = "sent", ErrorCode = "", WasSubmitted = true } : item).ToArray() };
+            if (entry is null) return state;
+            if (entry.DeleteRequested) _deletionProbeAfter.Remove(entry.ClientMessageId);
+            return state with { Outbox = state.Outbox.Select(item => ReferenceEquals(item, entry)
+                ? item with { Status = entry.DeleteRequested ? message.DeletedAt is null ? "deleting" : "cancelled" : "sent",
+                    ErrorCode = "", WasSubmitted = true, DeletionConfirmed = entry.DeleteRequested && message.DeletedAt is not null } : item).ToArray() };
         }).ConfigureAwait(false);
         await CleanupUnreferencedUploadsAsync(guard).ConfigureAwait(false);
     }
@@ -107,7 +110,7 @@ internal sealed partial class LauncherChatWorkspace
         });
         await MutateLocalAsync(guard, state => state with
         {
-            Outbox = state.Outbox.Select(item => item.ThreadId == threadId && item.Status is not ("sent" or "cancelled")
+            Outbox = state.Outbox.Select(item => item.ThreadId == threadId && !item.DeleteRequested && item.Status is not ("sent" or "cancelled")
                 ? item with { Status = "failed", ErrorCode = "chat-forbidden" } : item).ToArray(),
             Uploads = state.Uploads.Select(item => item.ThreadId == threadId && item.Status is not ("complete" or "cancelled")
                 ? item with { Status = "failed", ErrorCode = "chat-forbidden" } : item).ToArray()
@@ -124,7 +127,9 @@ internal sealed partial class LauncherChatWorkspace
                 StartWorkerUnsafe(guard, "preferences", () => FlushPreferencesAsync(guard));
             if (_uploadTask is not { IsCompleted: false } && _local.Uploads.Any(upload => upload.Status == "queued"))
                 StartWorkerUnsafe(guard, "uploads", () => DrainUploadsAsync(guard));
-            if (_outboxTask is not { IsCompleted: false } && _local.Outbox.Any(item => item.Status is "queued" or "uploading"))
+            if (_deletionTask is not { IsCompleted: false } && _local.Outbox.Any(ShouldProbeDeletionUnsafe))
+                StartWorkerUnsafe(guard, "deletions", () => DrainDeletionsAsync(guard));
+            if (_outboxTask is not { IsCompleted: false } && _local.Outbox.Any(item => !item.DeleteRequested && item.Status is "queued" or "uploading"))
                 StartWorkerUnsafe(guard, "outbox", () => DrainOutboxAsync(guard));
         }
     }
@@ -135,6 +140,7 @@ internal sealed partial class LauncherChatWorkspace
         Task task = TrackUnsafe(Task.Run(action));
         if (kind == "preferences") _preferencesTask = task;
         else if (kind == "uploads") _uploadTask = task;
+        else if (kind == "deletions") _deletionTask = task;
         else _outboxTask = task;
         _ = task.ContinueWith(completed =>
         {
@@ -143,6 +149,7 @@ internal sealed partial class LauncherChatWorkspace
                 if (!IsCurrentUnsafe(guard)) return;
                 if (kind == "preferences" && ReferenceEquals(_preferencesTask, completed)) _preferencesTask = null;
                 else if (kind == "uploads" && ReferenceEquals(_uploadTask, completed)) _uploadTask = null;
+                else if (kind == "deletions" && ReferenceEquals(_deletionTask, completed)) _deletionTask = null;
                 else if (kind == "outbox" && ReferenceEquals(_outboxTask, completed)) _outboxTask = null;
                 if (_workerWakeVersion != wakeVersion) KickWorkers(guard, wake: false);
             }
@@ -160,7 +167,7 @@ internal sealed partial class LauncherChatWorkspace
                 lock (_sync)
                 {
                     if (!IsCurrentUnsafe(guard) || !_current.IsAvailable) return;
-                    entry = _local.Outbox.Where(item => item.Status is "queued" or "uploading")
+                    entry = _local.Outbox.Where(item => !item.DeleteRequested && item.Status is "queued" or "uploading")
                         .OrderBy(item => item.CreatedAt).GroupBy(item => item.ThreadId)
                         .Select(group => group.First()).FirstOrDefault(item => !waiting.Contains(item.ClientMessageId));
                 }
@@ -170,7 +177,7 @@ internal sealed partial class LauncherChatWorkspace
                 await MutateLocalAsync(guard, state =>
                 {
                     ChatOutboxEntry? current = state.Outbox.FirstOrDefault(item => item.ClientMessageId == entry.ClientMessageId);
-                    if (current is null || current.Status is not ("queued" or "uploading")) { cancelled = true; return state; }
+                    if (current is null || current.DeleteRequested || current.Status is not ("queued" or "uploading")) { cancelled = true; return state; }
                     lock (_sync)
                     {
                         ChatThreadDto? thread = _current.State.Threads.FirstOrDefault(item => item.Id == current.ThreadId);
@@ -191,6 +198,8 @@ internal sealed partial class LauncherChatWorkspace
                 }).ConfigureAwait(false);
                 if (cancelled) continue;
                 if (!ready) { waiting.Add(entry.ClientMessageId); continue; }
+                bool previouslyUncertain = entry.WasSubmitted;
+                bool requestIssued = false;
                 try
                 {
                     long sendAccessGeneration = 0;
@@ -200,7 +209,7 @@ internal sealed partial class LauncherChatWorkspace
                         await MutateLocalAsync(guard, state =>
                         {
                             ChatOutboxEntry? current = state.Outbox.FirstOrDefault(item => item.ClientMessageId == entry.ClientMessageId);
-                            if (current is null || current.Status is not ("queued" or "uploading")) return state;
+                            if (current is null || current.DeleteRequested || current.Status is not ("queued" or "uploading")) return state;
                             RequireThreadUnsafe(guard, current.ThreadId, canSend: true);
                             sendAccessGeneration = _threadAccessGenerations.GetValueOrDefault(current.ThreadId);
                             ChatLocalUpload[] attachments = current.AttachmentIds.Select(id => state.Uploads.FirstOrDefault(upload =>
@@ -209,10 +218,13 @@ internal sealed partial class LauncherChatWorkspace
                                 throw new ChatWorkspaceException("chat-attachment-failed");
                             request = new ChatSendMessageRequest { ClientMessageId = current.ClientMessageId, Body = current.Body,
                                 ReplyToMessageId = current.ReplyToMessageId, AttachmentIds = attachments.Select(upload => upload.Attachment!.Id).ToArray(), Card = current.Card };
+                            LauncherChatV2ApiClient.ValidateSend(request);
+                            previouslyUncertain = current.WasSubmitted;
                             return state with { Outbox = state.Outbox.Select(item => item.ClientMessageId == entry.ClientMessageId
                                 ? item with { Status = "sending", ErrorCode = "", WasSubmitted = true } : item).ToArray() };
                         }).ConfigureAwait(false);
                         if (request is null) throw new ChatWorkspaceException("chat-send-cancelled");
+                        requestIssued = true;
                         return await _api.SendAsync(entry.ThreadId, request, token).ConfigureAwait(false);
                     }).ConfigureAwait(false);
                     if (result.Message.Sender.AccountId != guard.OwnerAccountId)
@@ -225,9 +237,16 @@ internal sealed partial class LauncherChatWorkspace
                 {
                     bool transient = error is System.Net.Http.HttpRequestException or TimeoutException or OperationCanceledException
                         || error is LauncherChatV2ApiException api && api.IsTransient;
+                    // A completed client-error response rejects this attempt. A timeout,
+                    // invalid success response or earlier lost response may still have
+                    // committed; keep that UUID protected across retries and restarts.
+                    bool rejected = error is LauncherChatV2ApiException refusal
+                        && (int)refusal.StatusCode is >= 400 and < 500
+                        && refusal.StatusCode is not (HttpStatusCode.RequestTimeout or HttpStatusCode.Conflict);
+                    bool uncertain = previouslyUncertain || requestIssued && !rejected;
                     await MutateLocalAsync(guard, state => state with { Outbox = state.Outbox.Select(item =>
-                        item.ClientMessageId == entry.ClientMessageId && item.Status is not ("sent" or "cancelled")
-                            ? item with { Status = transient ? "queued" : "failed", ErrorCode = ErrorCode(error) } : item).ToArray() }).ConfigureAwait(false);
+                        item.ClientMessageId == entry.ClientMessageId && !item.DeleteRequested && item.Status is not ("sent" or "cancelled")
+                            ? item with { Status = transient ? "queued" : "failed", ErrorCode = ErrorCode(error), WasSubmitted = uncertain } : item).ToArray() }).ConfigureAwait(false);
                     if (ErrorCode(error) != "chat-send-cancelled") ApplyOperationFailure(guard, error);
                     if (transient) return;
                 }

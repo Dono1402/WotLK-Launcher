@@ -176,6 +176,8 @@ internal sealed partial class LauncherChatWorkspace
             ChatOutboxEntry? duplicate = state.Outbox.FirstOrDefault(item => item.ClientMessageId == request.ClientMessageId);
             if (duplicate is not null)
             {
+                if (duplicate.DeleteRequested || duplicate.Status == "cancelled")
+                    throw new ChatWorkspaceException("chat-send-cancelled");
                 if (duplicate.ThreadId != threadId || duplicate.Body != request.Body || duplicate.ReplyToMessageId != request.ReplyToMessageId
                     || !duplicate.AttachmentIds.SequenceEqual(request.AttachmentIds) || !SameCard(duplicate.Card, request.Card))
                     throw new ChatWorkspaceException("chat-idempotency-conflict");
@@ -209,13 +211,16 @@ internal sealed partial class LauncherChatWorkspace
     internal Task CancelSendAsync(Guid clientMessageId)
         => Track(CancelSendCoreAsync(RequireGuard(), clientMessageId));
 
+    internal static bool CanCancelSend(ChatOutboxEntry entry)
+        => !entry.DeleteRequested && !entry.WasSubmitted && entry.Status is not ("sending" or "sent");
+
     private async Task CancelSendCoreAsync(Guard guard, Guid clientMessageId)
     {
         await MutateLocalAsync(guard, state =>
         {
             ChatOutboxEntry entry = state.Outbox.FirstOrDefault(item => item.ClientMessageId == clientMessageId)
                 ?? throw new ChatWorkspaceException("chat-not-found");
-            if (entry.WasSubmitted || entry.Status is "sending" or "sent")
+            if (!CanCancelSend(entry))
                 throw new ChatWorkspaceException("chat-send-already-started");
             return state with { Outbox = state.Outbox.Select(item => item.ClientMessageId == clientMessageId
                 ? item with { Status = "cancelled", ErrorCode = "" } : item).ToArray() };
@@ -232,6 +237,7 @@ internal sealed partial class LauncherChatWorkspace
         {
             ChatOutboxEntry entry = state.Outbox.FirstOrDefault(item => item.ClientMessageId == clientMessageId)
                 ?? throw new ChatWorkspaceException("chat-not-found");
+            if (entry.DeleteRequested) throw new ChatWorkspaceException("chat-send-cancelled");
             lock (_sync) RequireThreadUnsafe(guard, entry.ThreadId, canSend: true);
             if (entry.Status is "sent" or "sending" or "cancelled") throw new ChatWorkspaceException("chat-send-not-retryable");
             return state with { Outbox = state.Outbox.Select(item => item.ClientMessageId == clientMessageId

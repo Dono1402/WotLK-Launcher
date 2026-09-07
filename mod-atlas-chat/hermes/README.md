@@ -51,13 +51,15 @@ Publication native Linux x64 self-contained réussie dans
 SHA-256 de `HermesProxy.dll` :
 `9790faf84cba359474945aeeeb64ee17416b93fc22913074c1c5aed726aa1f85`.
 
-## Activation restante
+## Activation vérifiée
 
-Le candidat est préparé, sans bascule du service. Il doit être déployé avec le
-nouveau module du worldserver et `AtlasChat.Enable = 1`. La configuration privée,
-le certificat et les dossiers d'état existants doivent être conservés.
+Le candidat a été déployé avec le nouveau module du worldserver et
+`AtlasChat.Enable = 1`, après l'accord explicite « GO » du 7 septembre 2026.
+Les deux services répondent depuis 18:07:54 UTC. La configuration privée,
+les certificats et les dossiers d'état existants ont été conservés.
 
-Les redémarrages nécessitent une autorisation explicite et interrompent les
-connexions en cours. Les tests de paquets et de compilation ne certifient pas
-l'affichage dans le client WoW : un aller-retour réel, la touche de réponse et
-les changements de session restent à vérifier après activation.
+Le [rapport d'activation](../../docs/chat-refonte/whispers-deployment-20260907.md)
+précise la bascule de 69,079 secondes, les versions actives, les sondes de
+protocole et les observations des journaux. Les tests de paquets et les contrôles
+de démarrage ne certifient pas l'affichage dans le client WoW : un aller-retour
+réel, la touche de réponse et les changements de session restent à vérifier.

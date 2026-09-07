@@ -1,10 +1,12 @@
 # Messages privés Atlas : module AzerothCore
 
-Module autonome préparé localement pour la migration launcher **0006_private_chat.sql**.
+Module autonome pour la migration launcher **0006_private_chat.sql**.
 Il utilise la base auth déjà ouverte par AzerothCore et le worker de messagerie du
 launcher. Il ne crée aucune table, aucun compte SQL, aucun service HTTP ni secret.
-Il est **désactivé par défaut**. Les candidats du 7 septembre 2026 sont compilés,
-mais le pont n'est pas activé dans les services de production.
+Il est **désactivé par défaut**. Après autorisation explicite, les candidats du
+7 septembre 2026 ont été activés ensemble à 18:07:54 UTC. Le
+[rapport de déploiement](../docs/chat-refonte/whispers-deployment-20260907.md)
+précise les contrôles de démarrage et les essais en jeu restant à effectuer.
 
 ## Utilisation en jeu
 
@@ -176,7 +178,7 @@ effectivement utilisé : la liste de fichiers de configuration des modules de la
 base n'a pas été régénérée. Une compilation CMake complète peut utiliser le
 fichier de configuration du module normalement.
 
-**Limites de validation :** ces tests ne démarrent ni monde de test ni client WoW.
-Le pont n'est pas actif en production. Il reste à vérifier un aller-retour entre
-deux comptes amis dans le jeu réel, la réponse par `/r`, la reconnexion du
-destinataire et le retrait d'amitié après l'activation autorisée.
+**Limites de validation :** les tests locaux ne démarrent ni monde de test ni client
+WoW. Le pont est maintenant actif en production, avec initialisation et connexions
+vérifiées. Il reste à vérifier un aller-retour entre deux comptes amis dans le jeu
+réel, la réponse par `/r`, la reconnexion du destinataire et le retrait d'amitié.

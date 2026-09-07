@@ -101,6 +101,28 @@ public sealed record FriendUiItem(
             ? CharacterName
             : $"{CharacterName} · {CharacterDetails}";
 
+    public bool IsCharacterActive => IsOnline && Presence != "offline"
+        && (AllCharacters.Any(character => character.IsOnline
+            && string.Equals(character.Name, CharacterName, StringComparison.OrdinalIgnoreCase))
+            || AllCharacters.IsEmpty && IsInGame);
+
+    public string IdentityHint
+    {
+        get
+        {
+            bool english = Localization.LauncherLocalization.IsEnglish;
+            string account = $"{(english ? "Atlas account" : "Compte Atlas")} : {Username}";
+            if (!HasCharacter) return account;
+            string label = IsCharacterActive
+                ? (english ? "Active character" : "Personnage actif")
+                : (english ? "Last character played" : "Dernier personnage joué");
+            string character = english
+                ? Localization.LauncherLocalization.TranslateFromFrench(CharacterSummary)
+                : CharacterSummary;
+            return $"{account}\n{label} : {character}";
+        }
+    }
+
     public bool HasStatusMessage => !string.IsNullOrWhiteSpace(StatusMessage);
 
     public bool IsInGame => AllCharacters.Any(character => character.IsOnline) || IsOnline && !IsLauncherOnline;
@@ -195,6 +217,10 @@ public sealed record FriendsViewState(
     public bool ShowsError => !string.IsNullOrWhiteSpace(ErrorMessage);
 
     public bool ShowsNotice => !string.IsNullOrWhiteSpace(NoticeMessage);
+
+    public bool HasStatusMessage => !string.IsNullOrWhiteSpace(StatusMessage);
+
+    public bool ShowsFeedback => IsLoading || ShowsError || ShowsNotice || HasStatusMessage;
 }
 
 public sealed class FriendsUiState : BindableUiState
@@ -202,6 +228,9 @@ public sealed class FriendsUiState : BindableUiState
     private FriendsViewState _current;
     private bool _isOpen;
     private string _searchText = string.Empty;
+    private string _filterText = string.Empty;
+    private bool _isOnlineGroupExpanded = true;
+    private bool _isOfflineGroupExpanded = true;
     private uint? _selectedFriendAccountId;
 
     internal FriendsUiState(FriendsViewState? current = null)
@@ -240,6 +269,93 @@ public sealed class FriendsUiState : BindableUiState
         get => _searchText;
         set => SetProperty(ref _searchText, value ?? string.Empty);
     }
+
+    // This query only filters existing friends; SearchText remains the add-friend input.
+    public string FilterText
+    {
+        get => _filterText;
+        set
+        {
+            if (!SetProperty(ref _filterText, value ?? string.Empty)) return;
+            if (HasFilter)
+            {
+                IsOnlineGroupExpanded = true;
+                IsOfflineGroupExpanded = true;
+            }
+            RaisePropertyChanged(nameof(HasFilter));
+            RaisePropertyChanged(nameof(ShowsFilter));
+            RaisePropertyChanged(nameof(FilteredOnlineFriends));
+            RaisePropertyChanged(nameof(FilteredOfflineFriends));
+            RaisePropertyChanged(nameof(HasFilteredOnlineFriends));
+            RaisePropertyChanged(nameof(HasFilteredOfflineFriends));
+            RaisePropertyChanged(nameof(OnlineGroupLabel));
+            RaisePropertyChanged(nameof(OfflineGroupLabel));
+            RaisePropertyChanged(nameof(ShowsFilterEmpty));
+            RaisePropertyChanged(nameof(ShowsGlobalEmpty));
+        }
+    }
+
+    public bool HasFilter => !string.IsNullOrWhiteSpace(FilterText);
+
+    public bool ShowsFilter => Current.HasFriends || HasFilter;
+
+    public ImmutableArray<FriendUiItem> FilteredOnlineFriends => Current.OnlineFriends.Where(MatchesFilter).ToImmutableArray();
+
+    public ImmutableArray<FriendUiItem> FilteredOfflineFriends => Current.OfflineFriends.Where(MatchesFilter).ToImmutableArray();
+
+    public bool HasFilteredOnlineFriends => FilteredOnlineFriends.Length > 0;
+
+    public bool HasFilteredOfflineFriends => FilteredOfflineFriends.Length > 0;
+
+    public bool ShowsFilterEmpty => HasFilter && Current.LoadState == FriendsViewLoadState.Loaded
+        && !HasFilteredOnlineFriends && !HasFilteredOfflineFriends;
+
+    public bool ShowsGlobalEmpty => !HasFilter && Current.ShowsGlobalEmpty;
+
+    public bool IsOnlineGroupExpanded
+    {
+        get => _isOnlineGroupExpanded;
+        set => SetProperty(ref _isOnlineGroupExpanded, value);
+    }
+
+    public bool IsOfflineGroupExpanded
+    {
+        get => _isOfflineGroupExpanded;
+        set => SetProperty(ref _isOfflineGroupExpanded, value);
+    }
+
+    public string OnlineGroupLabel => $"{I18n("En ligne", "Online")} ({FilteredOnlineFriends.Length})";
+
+    public string OfflineGroupLabel => $"{I18n("Hors ligne", "Offline")} ({FilteredOfflineFriends.Length})";
+
+    public string FilterHint => I18n("Rechercher un ami ou un personnage", "Find a friend or character");
+
+    public string ClearFilterLabel => I18n("Effacer la recherche", "Clear search");
+
+    public string NoFilterResultsLabel => I18n("Aucun ami ne correspond à cette recherche.", "No friends match this search.");
+
+    public string MessageActionLabel => I18n("Envoyer un message", "Send a message");
+
+    internal void RefreshLocalizedText()
+    {
+        foreach (string name in new[] { nameof(OnlineGroupLabel), nameof(OfflineGroupLabel),
+            nameof(FilterHint), nameof(ClearFilterLabel), nameof(NoFilterResultsLabel), nameof(MessageActionLabel) })
+        {
+            RaisePropertyChanged(name);
+        }
+    }
+
+    private bool MatchesFilter(FriendUiItem friend)
+    {
+        string query = FilterText.Trim();
+        return query.Length == 0
+            || friend.Username.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || friend.CharacterName.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || friend.AllCharacters.Any(character => character.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string I18n(string french, string english) =>
+        Localization.LauncherLocalization.IsEnglish ? english : french;
 
     public FriendUiItem? SelectedFriend => _selectedFriendAccountId is uint accountId
         ? _current.Friends.FirstOrDefault(friend => friend.AccountId == accountId)
@@ -294,6 +410,9 @@ public sealed class FriendsUiState : BindableUiState
         {
             _isOpen = false;
             _searchText = string.Empty;
+            _filterText = string.Empty;
+            _isOnlineGroupExpanded = true;
+            _isOfflineGroupExpanded = true;
             _selectedFriendAccountId = null;
         }
         else if (_selectedFriendAccountId is uint accountId

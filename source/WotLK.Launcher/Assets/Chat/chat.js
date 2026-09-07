@@ -37,6 +37,26 @@
   const currentThreadId = () => selectedThread && selectedThread.id;
   const hasIdentity = () => !!snapshot.sessionId && snapshot.ownerAccountId > 0;
   const normalizedBody = text => String(text || '').replace(/\r\n/g, '\n').trim();
+  let searchReadSuppressed = false;
+  const conversationSearch = global.AtlasChatSearch?.create({
+    snapshot: () => snapshot, messageList, action,
+    canOpen: () => !!selectedThread && !!snapshot.isActive && !$('app-dialog').open && !$('image-dialog').open,
+    open: () => {
+      closeMenus(true); closeArmoryPicker(); cancelSmoothScroll(); searchReadSuppressed = true;
+      $('load-earlier-button').disabled = true;
+      followBottom = false; stableAnchor = captureAnchor(); settleLayout(stableAnchor, false);
+    },
+    close: () => { updateEarlierButton(); if (selectedThread) settleLayout(captureAnchor(), false); },
+    historyChanged: updateEarlierButton,
+    jump: node => {
+      cancelSmoothScroll(); ++renderVersion; layoutPending = false; programmaticScroll = true;
+      const bounds = node.getBoundingClientRect(), viewport = timeline.getBoundingClientRect();
+      timeline.scrollTop += bounds.top - viewport.top - Math.max(0, (viewport.height - bounds.height) / 2);
+      followBottom = false; stableAnchor = captureAnchor();
+      requestAnimationFrame(() => { programmaticScroll = false; updateJumpButton(); });
+    }
+  });
+  function updateEarlierButton() { $('load-earlier-button').disabled = snapshot.isLoadingEarlier || !snapshot.isAvailable || !!conversationSearch?.isOpen() || !!conversationSearch?.isLoadingHistory(); }
 
   function animate(node, frames, duration = 160, options = {}) {
     if (!node || motionPreference.matches || !active() || typeof node.animate !== 'function') return null;
@@ -157,7 +177,7 @@
     const date = new Date(value);
     return Number.isFinite(date.getTime()) ? date.toLocaleDateString(snapshot.locale, { day: 'numeric', month: 'short' }) : '';
   }
-  function selectThread(threadId) { if (threadId === currentThreadId()) return; flushDraft(); stopTyping(); closeMenus(); action('selectThread', { threadId }); }
+  function selectThread(threadId) { if (threadId === currentThreadId()) return; conversationSearch?.close(false); flushDraft(); stopTyping(); closeMenus(); action('selectThread', { threadId }); }
 
   function renderConversations() {
     const threads = (snapshot.state.threads || []).slice();
@@ -238,7 +258,7 @@
     requestAnimationFrame(() => { if (!smoothScroll) programmaticScroll = false; });
   }
   function requestRead() {
-    if (layoutPending || smoothScroll || !active() || !isAtBottom(2) || timeline.clientHeight <= 0) return;
+    if (searchReadSuppressed || conversationSearch?.isOpen() || layoutPending || smoothScroll || !active() || !isAtBottom(2) || timeline.clientHeight <= 0) return;
     const messages = (snapshot.messages || []).filter(message => R.id(message.id)).sort((a, b) => R.compareIds(a.id, b.id));
     const last = messages.at(-1);
     if (!last) return;
@@ -271,7 +291,7 @@
 
   function renderTimeline(changedThread) {
     const oldAnchor = changedThread ? null : captureAnchor();
-    const toBottom = changedThread || followBottom || isAtBottom(36);
+    const toBottom = changedThread || !conversationSearch?.isOpen() && !searchReadSuppressed && (followBottom || isAtBottom(36));
     const session = sessionKey(snapshot) + ':' + currentThreadId();
     const animateNew = !changedThread && timelineSession === session && !timelineWasLoading && !snapshot.isLoading && active();
     timelineWasLoading = !!snapshot.isLoading;
@@ -323,10 +343,11 @@
     for (const node of existing.values()) { R.suspendMedia(node, true); node.remove(); }
     $('no-messages').hidden = messages.length > 0 || pending.length > 0 || snapshot.isLoading;
     $('load-earlier-button').hidden = !snapshot.hasEarlier;
-    $('load-earlier-button').disabled = snapshot.isLoadingEarlier || !snapshot.isAvailable;
+    updateEarlierButton();
     $('load-earlier-button').textContent = t(snapshot.isLoadingEarlier ? 'loading' : 'loadEarlier');
     if (changedThread) followBottom = true;
     settleLayout(oldAnchor, toBottom);
+    conversationSearch?.refresh();
     const version = renderVersion;
     if (arrivals.length) requestAnimationFrame(() => requestAnimationFrame(() => {
       if (version !== renderVersion || session !== sessionKey(snapshot) + ':' + currentThreadId()) return;
@@ -676,6 +697,7 @@
     const identityChanged = sessionKey(next) !== sessionKey(snapshot);
     if (!identityChanged && R.compareIds(next.sequence, String(snapshot.sequence || '0')) < 0) return false;
     const changedThread = identityChanged || next.selectedThreadId !== snapshot.selectedThreadId;
+    if (changedThread) { conversationSearch?.close(false); searchReadSuppressed = false; }
     if (!next.draft) {
       const draft = (next.drafts || []).find(item => item.threadId === next.selectedThreadId) || {};
       next.draft = { ...draft, attachments: (next.uploads || []).filter(item => item.threadId === next.selectedThreadId).map(upload => ({ ...upload, id: upload.id || upload.localId, isComplete: !!upload.attachment })) };
@@ -708,6 +730,7 @@
     if (replyTarget && next.messages.some(message => message.id === (replyTarget.id || replyTarget.messageId) && message.deletedAt)) { replyTarget = null; saveLocalDraft(); }
     renderConversations(); renderThreadHeader();
     if (selectedThread) renderTimeline(changedThread);
+    conversationSearch?.update();
     renderUploads(); updateComposer(); renderTyping(); renderArmoryPicker(); renderDropOverlay();
     if (changedThread && selectedThread) { enter(document.querySelector('.thread-header'), 0, 140); enter(timeline, 0, 140); }
     if (!active()) { lastReadKey = ''; stopTyping(); }
@@ -1145,12 +1168,12 @@
   $('thread-details-button').addEventListener('click', () => { if (selectedThread) showDetails(selectedThread); });
   $('thread-menu-button').addEventListener('click', event => { if (!selectedThread) return; const rect = event.currentTarget.getBoundingClientRect(); showThreadMenu(selectedThread, rect.right, rect.bottom); });
   $('pinned-strip').addEventListener('click', showPinned);
-  $('load-earlier-button').addEventListener('click', () => { const first = snapshot.messages.filter(message => R.id(message.id)).sort((a, b) => R.compareIds(a.id, b.id))[0]; if (selectedThread && first) action('loadEarlier', { threadId: selectedThread.id, beforeId: first.id }); });
-  $('jump-latest-button').addEventListener('click', () => { scrollBottom(true); updateJumpButton(); requestAnimationFrame(requestRead); });
+  $('load-earlier-button').addEventListener('click', () => { if (conversationSearch?.isOpen() || conversationSearch?.isLoadingHistory()) return; const first = snapshot.messages.filter(message => R.id(message.id)).sort((a, b) => R.compareIds(a.id, b.id))[0]; if (selectedThread && first) action('loadEarlier', { threadId: selectedThread.id, beforeId: first.id }); });
+  $('jump-latest-button').addEventListener('click', () => { conversationSearch?.close(false); searchReadSuppressed = false; scrollBottom(true); updateJumpButton(); requestAnimationFrame(requestRead); });
   $('send-button').addEventListener('click', sendMessage); $('cancel-context-button').addEventListener('click', cancelContext);
   $('attach-button').addEventListener('click', () => { if (currentThreadId()) action('pickFiles', { threadId: currentThreadId() }); });
   $('share-game-button').addEventListener('click', showCardComposer); $('close-armory-picker').addEventListener('click', () => closeArmoryPicker(true));
-  composer.addEventListener('input', () => { resizeComposer(); saveLocalDraft(); updateComposer(); sendTyping(); });
+  composer.addEventListener('input', () => { if (!conversationSearch?.isOpen()) searchReadSuppressed = false; resizeComposer(); saveLocalDraft(); updateComposer(); sendTyping(); });
   composer.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !event.isComposing && event.keyCode !== 229) { event.preventDefault(); sendMessage(); } });
   composer.addEventListener('paste', event => {
     if (!canReceiveFiles()) return;
@@ -1184,10 +1207,10 @@
     if (!action('dropFiles', { threadId: currentThreadId() }, { files, silent: true })) toast(t('dropUnavailable'));
   });
   timeline.addEventListener('scroll', () => {
-    if (!programmaticScroll && !layoutPending) { followBottom = isAtBottom(36); stableAnchor = followBottom ? null : captureAnchor(); lastUserScroll = performance.now(); }
+    if (!programmaticScroll && !layoutPending) { followBottom = !conversationSearch?.isOpen() && isAtBottom(36); stableAnchor = followBottom ? null : captureAnchor(); lastUserScroll = performance.now(); }
     updateJumpButton(); requestAnimationFrame(requestRead);
   }, { passive: true });
-  const interruptScroll = () => { cancelSmoothScroll(); if (layoutPending) { layoutPending = false; ++renderVersion; } programmaticScroll = false; };
+  const interruptScroll = () => { if (!conversationSearch?.isOpen()) searchReadSuppressed = false; cancelSmoothScroll(); if (layoutPending) { layoutPending = false; ++renderVersion; } programmaticScroll = false; };
   timeline.addEventListener('wheel', interruptScroll, { passive: true });
   timeline.addEventListener('pointerdown', interruptScroll, { passive: true });
   timeline.addEventListener('touchstart', interruptScroll, { passive: true });
@@ -1204,6 +1227,11 @@
     if (!event.target.closest('#context-menu, #reaction-picker, .message-actions, #thread-menu-button, .details-member')) closeMenus();
   });
   document.addEventListener('keydown', event => {
+    if (event.isComposing || event.keyCode === 229) return;
+    if (event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === 'f') {
+      if (conversationSearch?.open()) event.preventDefault();
+      return;
+    }
     if ($('image-dialog').open) {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -1213,6 +1241,7 @@
       return;
     }
     const floating = !$('reaction-picker').hidden && !$('reaction-picker').inert ? $('reaction-picker') : !$('context-menu').hidden && !$('context-menu').inert ? $('context-menu') : null;
+    if (event.key === 'Escape' && !floating && !$('app-dialog').open && conversationSearch?.isOpen()) { event.preventDefault(); conversationSearch.close(); return; }
     if (event.key === 'Escape') { if (floating) { event.preventDefault(); closeMenus(); menuReturnFocus?.focus({ preventScroll: true }); } else if (armoryPickerOpen) { event.preventDefault(); closeArmoryPicker(true); } else if (editTarget || replyTarget) { event.preventDefault(); cancelContext(); } }
     if (floating && ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
       event.preventDefault(); const buttons = Array.from(floating.querySelectorAll('button')), index = buttons.indexOf(document.activeElement);

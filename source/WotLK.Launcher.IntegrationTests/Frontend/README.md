@@ -7,11 +7,14 @@ Depuis la racine du dépôt :
 ```powershell
 node source/WotLK.Launcher.IntegrationTests/Frontend/chat-dom-tests.cjs
 node source/WotLK.Launcher.IntegrationTests/Frontend/chat-media-tests.cjs
+node source/WotLK.Launcher.IntegrationTests/Frontend/chat-search-tests.cjs
 ```
 
 Le script résout la racine du dépôt depuis son propre emplacement ; il peut donc aussi être lancé depuis un autre répertoire. Node.js, Playwright et Microsoft Edge doivent être disponibles. Aucune installation ou modification du poste n’est effectuée par la suite.
 
 La suite `chat-media-tests.cjs` vérifie le décodage de la première image avant lecture, le préchargement limité aux vidéos proches de l’écran, les commandes et le temps en surimpression, leur disparition après inactivité et leur accès au clavier. Elle utilise de vrais médias synthétiques, vérifie lecture/pause, recherche, volume, plein écran et libération des lecteurs retirés, puis enregistre ses captures et résultats dans `ATLAS_CHAT_TEST_OUTPUT`.
+
+La suite `chat-search-tests.cjs` vérifie Ctrl+F, Entrée/Maj+Entrée et Échap, le retour du focus et du brouillon, la recherche littérale sans distinction de casse ou d’accent, ainsi que la conservation des liens et des médias. Elle couvre les spoilers masqués, les messages supprimés, les changements de compte et de conversation, les pages d’historique chargées progressivement, les erreurs et réponses tardives, et l’absence d’accusé de lecture causé par un déplacement automatique. Une seule page peut être en cours de chargement ; après vingt pages, la recherche propose explicitement de continuer. Ses captures et `report.json` sont écrits dans `ATLAS_CHAT_SEARCH_TEST_OUTPUT` (par défaut `artifacts/atlas-chat-search-20260907`).
 
 ## Configuration facultative
 
@@ -31,7 +34,7 @@ $env:ATLAS_CHAT_TEST_OUTPUT = 'artifacts/chat-dom-ci'
 node source/WotLK.Launcher.IntegrationTests/Frontend/chat-dom-tests.cjs
 ```
 
-La suite écrit les captures PNG et `results.json` dans le répertoire de sortie. Toutes les captures utilisent le viewport Messages mesuré dans la shell V2 fixe : **1597 × 872 pixels CSS**, sous un en-tête de 124 DIP ; aucun redimensionnement n’est effectué. Le relevé conserve le viewport et les empreintes des quatre assets testés. Ces fichiers générés, profils et dépendances ne font pas partie des sources de tests.
+La suite DOM écrit les captures PNG et `results.json` dans le répertoire de sortie. Toutes les captures utilisent le viewport Messages mesuré dans la shell V2 fixe : **1597 × 872 pixels CSS**, sous un en-tête de 124 DIP ; aucun redimensionnement n’est effectué. Le relevé conserve le viewport et les empreintes des assets testés, y compris `chat-search.js`. Ces fichiers générés, profils et dépendances ne font pas partie des sources de tests.
 
 Les assertions couvrent notamment les statuts et avatars, les images sans cadre, les suppressions, le sélecteur Armory, les brouillons, les pièces jointes, les groupes, les médias, les accusés de lecture et le défilement. Elles vérifient également le signal `composerState` transmis au natif lors de l’entrée et de la sortie d’édition, des changements de fil ou de session et de la révocation du droit d’écrire. Le nombre exact d’assertions du dernier passage figure dans `results.json`.
 
@@ -46,6 +49,8 @@ Les captures préservent la transparence du document. La vérification CSS ne d�
 ## Vérification WPF isolée
 
 `--chat-rich-host-wpf` vérifie le pont natif, les changements de présence, les restrictions de session et le routage FileDrop. `--chat-full-shell-wpf` utilise la véritable shell fixe et WebView2, des données fictives et un résolveur de médias local. La fenêtre reste inactive, hors écran, sans runtime du launcher ni accès au backend. Ses captures directes `RenderTargetBitmap` incluent la WebView, l’en-tête natif, le fond Citadelle unique et le panneau de profil. Les pixels transparents de la marge supérieure sont comparés au fond natif après suppression du bandeau.
+
+La suite complète vérifie aussi le rendu de Ctrl+F en français et en anglais, ses résultats et la restauration du brouillon. Pour exercer la branche clavier, elle injecte un état de conversation active dans le DOM de test ; la fenêtre native reste inactive. `--friends-right-click` vérifie les actions et la liste compacte, le filtre, les groupes et les propriétés d’accessibilité sur des contrôles WPF sans créer de fenêtre native. Ces scénarios isolés ne constituent pas une validation manuelle dans une session utilisateur.
 
 ```powershell
 dotnet build source/WotLK.Launcher.IntegrationTests/WotLK.Launcher.IntegrationTests.csproj -c Release -p:AtlasLocalClientBuild=true --artifacts-path artifacts/atlas-chat-followup-20260907/build

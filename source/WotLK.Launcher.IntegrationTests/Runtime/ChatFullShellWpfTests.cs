@@ -50,7 +50,7 @@ internal static class ChatFullShellWpfTests
                     foreach (string locale in new[] { LauncherLocalization.FrenchLocale, LauncherLocalization.EnglishLocale })
                         cases.Add(await ValidateAsync(locale, directory));
                     Dictionary<string, string> assetHashes = new(StringComparer.Ordinal);
-                    foreach (string name in new[] { "index.html", "chat.css", "chat.js", "chat-render.js", "chat-media.js", "chat-media.css" })
+                    foreach (string name in new[] { "index.html", "chat.css", "chat.js", "chat-search.js", "chat-render.js", "chat-media.js", "chat-media.css" })
                     {
                         using Stream embedded = ChatViewV2.OpenRichAsset(new Uri(ChatViewV2.RichOrigin + name)).Stream
                             ?? throw new InvalidOperationException("Missing embedded Messages asset: " + name);
@@ -248,6 +248,7 @@ internal static class ChatFullShellWpfTests
             await Task.Delay(200);
             await Layout(shell);
             Check(!shell.ProfileOverlay.IsOpen, "Profile overlay closes through its real button.");
+            await ValidateConversationSearchAsync(core, shell, content, language, directory, imageBytes.Length);
             await ValidateFollowupMediaAsync(core, view, shell, content, language, directory, imageBytes.Length, audioBytes.Length, videoBytes.Length);
             Check(!shell.IsActive, "Navigation, captures, avatar and synthetic drops never activate the fixture.");
             return new { locale, shellWidth = content.ActualWidth, shellHeight = content.ActualHeight,
@@ -262,6 +263,33 @@ internal static class ChatFullShellWpfTests
             };
         }
         finally { view.DisposeRich(); shell.Close(); await Dispatcher.Yield(DispatcherPriority.ApplicationIdle); }
+    }
+
+    private static async Task ValidateConversationSearchAsync(CoreWebView2 core, LauncherShellV2 shell,
+        FrameworkElement content, string language, string directory, int imageLength)
+    {
+        await UntilScript(core, "typeof AtlasChatSearch?.create==='function'&&document.querySelector('#conversation-search').hidden",
+            "Packaged search asset is available and does not add a permanent search control.");
+        // The host correctly reports an inactive offscreen window. Exercise the
+        // focused UI branch with synthetic DOM state, without activating an HWND.
+        await Script(core, $"AtlasChat.receive({JsonSerializer.Serialize(Snapshot(language, imageLength), ChatJson.Options)});true");
+        await Script(core, "(() => {const input=document.querySelector('#composer-input');input.value='Draft for native search';input.dispatchEvent(new Event('input',{bubbles:true}));input.focus({preventScroll:true});input.setSelectionRange(3,8);document.dispatchEvent(new KeyboardEvent('keydown',{key:'f',ctrlKey:true,bubbles:true,cancelable:true}));return true;})()");
+        await UntilScript(core, "!document.querySelector('#conversation-search').hidden&&document.activeElement===document.querySelector('#conversation-search-input')",
+            "Ctrl+F handled inside the inactive native WebView opens and focuses conversation search.");
+        string query = JsonSerializer.Serialize(language == "en" ? "Icecrown" : "Citadelle");
+        await Script(core, $"(() => {{const input=document.querySelector('#conversation-search-input');input.value={query};input.dispatchEvent(new Event('input',{{bubbles:true}}));return true;}})()");
+        await UntilScript(core, "document.querySelectorAll('mark.search-match.is-current').length===1&&document.querySelector('#conversation-search').dataset.coverage==='complete'",
+            "Native search highlights the localized fixture message and reports complete available history.");
+        await UntilScript(core, "document.documentElement.scrollWidth===innerWidth&&document.querySelector('#composer-input').getBoundingClientRect().bottom<=innerHeight",
+            "Search fits above the timeline without hiding the composer at the fixed launcher dimensions.");
+        await Layout(shell);
+        await CaptureWebAsync(core, System.IO.Path.Combine(directory, $"chat-{language}-search-webview.png"));
+        Capture(content, System.IO.Path.Combine(directory, $"chat-{language}-search-wpf-direct.png"));
+        await Script(core, "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));true");
+        await UntilScript(core, "(() => {const input=document.querySelector('#composer-input');return document.querySelector('#conversation-search').hidden&&!document.querySelector('mark.search-match')&&document.activeElement===input&&input.value==='Draft for native search'&&input.selectionStart===3&&input.selectionEnd===8;})()",
+            "Escape clears search highlights and restores the draft, focus and selection inside the native WebView.");
+        await Script(core, "(() => {const input=document.querySelector('#composer-input');input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));return true;})()");
+        Check(!shell.IsActive, "Search keyboard events target only WebView DOM and never activate the native fixture.");
     }
 
     private static object Snapshot(string language, int imageLength)

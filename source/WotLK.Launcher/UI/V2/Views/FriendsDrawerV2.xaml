@@ -18,6 +18,54 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="../Resources/AtlasV2.OverlaysPilot.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+        <Style x:Key="AtlasV2.Friends.IconButton" TargetType="{x:Type Button}"
+               BasedOn="{StaticResource AtlasV2.Overlay.IconButton}">
+            <Setter Property="IsTabStop" Value="True"/>
+            <Setter Property="ToolTipService.IsEnabled" Value="True"/>
+            <Setter Property="FocusVisualStyle" Value="{StaticResource AtlasV2.FocusVisual.Button}"/>
+        </Style>
+        <Style x:Key="AtlasV2.Friends.GroupToggle" TargetType="{x:Type ToggleButton}">
+            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+            <Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Inter}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ToggleButton}">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1" CornerRadius="5" Padding="2,2">
+                            <DockPanel>
+                                <Path x:Name="GroupChevron" Width="10" Height="10" Margin="0,0,7,0"
+                                      Data="{StaticResource AtlasV2.Icon.ChevronDown}"
+                                      Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="{TemplateBinding Foreground}"
+                                      RenderTransformOrigin="0.5,0.5">
+                                    <Path.RenderTransform><RotateTransform Angle="-90"/></Path.RenderTransform>
+                                </Path>
+                                <ContentPresenter VerticalAlignment="Center"/>
+                            </DockPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="GroupChevron" Property="RenderTransform">
+                                    <Setter.Value><RotateTransform Angle="0"/></Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{StaticResource AtlasV2.Overlay.CardHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <DataTemplate x:Key="AtlasV2.Friends.Avatar">
             <Grid Width="38" Height="38">
                 <Ellipse Fill="{Binding AvatarColor}"/>
@@ -263,9 +311,9 @@
         </DataTemplate>
 
         <DataTemplate x:Key="AtlasV2.Friends.FriendItem">
-            <Border x:Name="FriendCard" MinHeight="66"
-                    Margin="0,0,0,7"
-                    Padding="9"
+            <Border x:Name="FriendCard" MinHeight="62"
+                    Margin="0,0,0,5"
+                    Padding="8,6"
                     Background="{StaticResource AtlasV2.Overlay.Card}"
                     BorderBrush="{StaticResource AtlasV2.Overlay.Divider}"
                     BorderThickness="1"
@@ -277,15 +325,18 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="38"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="30"/>
                     </Grid.ColumnDefinitions>
-                    <Button x:Name="OpenFriendProfileButton" Grid.ColumnSpan="2" Panel.ZIndex="1"
+                    <Button x:Name="OpenFriendProfileButton" Grid.ColumnSpan="3" Panel.ZIndex="1"
                             Margin="-5" Style="{StaticResource AtlasV2.Overlay.FriendHitTarget}"
+                            IsTabStop="True" ToolTipService.IsEnabled="True"
                             AutomationProperties.Name="{Binding Username}"
-                            ToolTip="Voir le profil" Click="OpenFriendProfileButton_Click"/>
-                    <Grid>
+                            ToolTip="{Binding IdentityHint}" ToolTipOpening="FriendIdentityToolTip_Opening"
+                            Click="OpenFriendProfileButton_Click"/>
+                    <Grid x:Name="FriendAvatarFrame" Width="38" Height="38" VerticalAlignment="Center">
                         <ContentControl Content="{Binding}"
                                         ContentTemplate="{StaticResource AtlasV2.Friends.Avatar}"/>
-                        <Ellipse Width="9"
+                        <Ellipse x:Name="FriendPresenceBadge" Width="9"
                                  Height="9"
                                  Margin="0,0,-1,-1"
                                  HorizontalAlignment="Right"
@@ -295,23 +346,42 @@
                                  Fill="{Binding PresenceColor}"/>
                     </Grid>
                     <StackPanel Grid.Column="1" Margin="10,0,6,0" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Username}"
+                        <TextBlock x:Name="FriendUsernameText" Text="{Binding Username}"
                                    TextTrimming="CharacterEllipsis"
                                    Style="{StaticResource AtlasV2.Text.Body}"
-                                   FontWeight="SemiBold"
+                                    FontWeight="SemiBold" FontSize="15"
                                    Foreground="{StaticResource AtlasV2.Brush.Text}"/>
-                        <TextBlock Margin="0,2,0,0"
+                        <TextBlock x:Name="FriendCharacterText" Margin="0,1,0,0"
                                    Text="{Binding CharacterSummary}"
                                    TextTrimming="CharacterEllipsis"
                                    Visibility="{Binding HasCharacter, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
-                                   Style="{StaticResource AtlasV2.Text.Caption}"
-                                   Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
-                        <TextBlock Margin="0,2,0,0"
+                                    FontSize="12">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource AtlasV2.Text.Caption}">
+                                    <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsCharacterActive}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Cyan}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock x:Name="FriendPresenceText" Margin="0,1,0,0" FontSize="12"
                                    Text="{Binding PresenceText}"
                                    Foreground="{Binding PresenceColor}"
                                    Style="{StaticResource AtlasV2.Text.Caption}"
                                    TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
+                    <Button x:Name="QuickMessageButton" Grid.Column="2" Panel.ZIndex="2"
+                            Width="28" Height="28" Padding="6" VerticalAlignment="Center"
+                            Opacity="0" IsHitTestVisible="False"
+                            Style="{StaticResource AtlasV2.Friends.IconButton}"
+                            ToolTip="{Binding State.MessageActionLabel, RelativeSource={RelativeSource AncestorType={x:Type views:FriendsDrawerV2}}}"
+                            AutomationProperties.Name="{Binding State.MessageActionLabel, RelativeSource={RelativeSource AncestorType={x:Type views:FriendsDrawerV2}}}"
+                            Click="QuickMessageButton_Click">
+                        <Path Data="{StaticResource AtlasV2.Icon.Mail}" Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                    </Button>
                         <Popup x:Name="FriendActionsPopup" Grid.ColumnSpan="2"
                                DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
                                PlacementTarget="{Binding ElementName=OpenFriendProfileButton}"
@@ -330,6 +400,7 @@
                                     <StackPanel.Resources>
                                         <Style x:Key="FriendActionMenuButton" TargetType="{x:Type Button}"
                                                BasedOn="{StaticResource AtlasV2.Overlay.CompactButton}">
+                                            <Setter Property="IsTabStop" Value="True"/>
                                             <Setter Property="Height" Value="40"/>
                                             <Setter Property="Padding" Value="10,0"/>
                                             <Setter Property="HorizontalContentAlignment" Value="Left"/>
@@ -373,9 +444,13 @@
             <DataTemplate.Triggers>
                 <Trigger SourceName="FriendCard" Property="IsMouseOver" Value="True">
                     <Setter TargetName="FriendCard" Property="Background" Value="{StaticResource AtlasV2.Overlay.CardHover}"/>
+                    <Setter TargetName="QuickMessageButton" Property="Opacity" Value="1"/>
+                    <Setter TargetName="QuickMessageButton" Property="IsHitTestVisible" Value="True"/>
                 </Trigger>
                 <Trigger SourceName="FriendCard" Property="IsKeyboardFocusWithin" Value="True">
                     <Setter TargetName="FriendCard" Property="Background" Value="{StaticResource AtlasV2.Overlay.CardHover}"/>
+                    <Setter TargetName="QuickMessageButton" Property="Opacity" Value="1"/>
+                    <Setter TargetName="QuickMessageButton" Property="IsHitTestVisible" Value="True"/>
                 </Trigger>
             </DataTemplate.Triggers>
         </DataTemplate>
@@ -412,17 +487,13 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
                 <Grid Grid.Row="0">
-                    <StackPanel>
-                        <TextBlock Text="AMIS ATLAS"
-                                   Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
-                        <TextBlock Margin="0,4,0,0"
-                                   Text="Mes amis"
-                                   Style="{StaticResource AtlasV2.Overlay.Title}"/>
-                    </StackPanel>
+                    <TextBlock Text="Mes amis" Margin="0,0,82,0" VerticalAlignment="Center"
+                               FontSize="24" Style="{StaticResource AtlasV2.Overlay.Title}"/>
                     <StackPanel HorizontalAlignment="Right"
                                 VerticalAlignment="Top"
                                 Orientation="Horizontal">
@@ -431,7 +502,7 @@
                                 Height="38"
                                 Padding="10"
                                 Margin="0,0,4,0"
-                                Style="{StaticResource AtlasV2.Overlay.IconButton}"
+                                Style="{StaticResource AtlasV2.Friends.IconButton}"
                                 ToolTip="Ajouter un ami"
                                 AutomationProperties.Name="Ajouter un ami"
                                 Click="AddFriendToggleButton_Click">
@@ -442,7 +513,7 @@
                                 Width="38"
                                 Height="38"
                                 Padding="10"
-                                Style="{StaticResource AtlasV2.Overlay.IconButton}"
+                                Style="{StaticResource AtlasV2.Friends.IconButton}"
                                 ToolTip="Fermer"
                                 AutomationProperties.Name="Fermer le panneau Amis"
                                 Click="CloseButton_Click">
@@ -454,12 +525,53 @@
 
                 <TextBlock x:Name="FriendsSummaryText"
                            Grid.Row="1"
-                           Margin="0,18,0,12"
+                           Margin="0,4,0,10" FontSize="12"
                            Text="{Binding State.Current.FriendsSummary, ElementName=Root, Mode=OneWay}"
                            Style="{StaticResource AtlasV2.Text.Caption}"/>
 
+                <Border x:Name="FriendsFilterPanel" Grid.Row="2" Height="34" Margin="0,0,0,8"
+                        Visibility="{Binding State.ShowsFilter, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
+                        Background="{StaticResource AtlasV2.Overlay.Field}"
+                        BorderBrush="{StaticResource AtlasV2.Overlay.Divider}" BorderThickness="1" CornerRadius="8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="30"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="28"/>
+                        </Grid.ColumnDefinitions>
+                        <Path Width="13" Height="13" Data="{StaticResource AtlasV2.Icon.Search}"
+                              Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                        <TextBox x:Name="FriendsFilterBox" Grid.Column="1" FontSize="12" MaxLength="64"
+                                 Style="{StaticResource AtlasV2.TextBox.Field}"
+                                 Text="{Binding State.FilterText, ElementName=Root, UpdateSourceTrigger=PropertyChanged}"
+                                 AutomationProperties.Name="{Binding State.FilterHint, ElementName=Root}"/>
+                        <TextBlock Grid.Column="1" IsHitTestVisible="False" VerticalAlignment="Center"
+                                   Text="{Binding State.FilterHint, ElementName=Root}" FontSize="12"
+                                   Foreground="{StaticResource AtlasV2.Brush.TextMuted}" TextTrimming="CharacterEllipsis">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=FriendsFilterBox}" Value="">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <Button x:Name="ClearFriendsFilterButton" Grid.Column="2" Width="26" Height="26" Padding="7"
+                                Style="{StaticResource AtlasV2.Friends.IconButton}"
+                                Visibility="{Binding State.HasFilter, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
+                                ToolTip="{Binding State.ClearFilterLabel, ElementName=Root}"
+                                AutomationProperties.Name="{Binding State.ClearFilterLabel, ElementName=Root}"
+                                Click="ClearFriendsFilterButton_Click">
+                            <Path Data="{StaticResource AtlasV2.Icon.Close}" Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                        </Button>
+                    </Grid>
+                </Border>
+
                 <Border x:Name="AddFriendPanel"
-                        Grid.Row="2"
+                        Grid.Row="3"
                         MaxHeight="0"
                         Opacity="0"
                         IsHitTestVisible="False"
@@ -494,7 +606,7 @@
                                     Padding="10"
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Center"
-                                    Style="{StaticResource AtlasV2.Overlay.IconButton}"
+                                    Style="{StaticResource AtlasV2.Friends.IconButton}"
                                     Command="{Binding State.SendRequestCommand, ElementName=Root}"
                                     ToolTip="Envoyer la demande"
                                     AutomationProperties.Name="Envoyer la demande d’ami">
@@ -509,7 +621,8 @@
                     </Border.RenderTransform>
                 </Border>
 
-                <StackPanel Grid.Row="3" Margin="0,0,0,10">
+                <StackPanel Grid.Row="4" Margin="0,0,0,6"
+                            Visibility="{Binding State.Current.ShowsFeedback, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                     <ProgressBar x:Name="FriendsBusyProgress"
                                  Margin="0,0,0,8"
                                  IsIndeterminate="True"
@@ -536,12 +649,13 @@
                                    Foreground="{StaticResource AtlasV2.Brush.Success}"/>
                     </Border>
                     <TextBlock Text="{Binding State.Current.StatusMessage, ElementName=Root}"
+                               Visibility="{Binding State.Current.HasStatusMessage, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
                                TextWrapping="Wrap"
                                Style="{StaticResource AtlasV2.Text.Caption}"/>
                 </StackPanel>
 
                 <ScrollViewer x:Name="FriendsScrollViewer"
-                              Grid.Row="4"
+                              Grid.Row="5"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <ScrollViewer.Resources>
@@ -570,30 +684,41 @@
                         </StackPanel>
 
                         <StackPanel x:Name="OnlineFriendsSection"
-                                    Margin="0,0,0,12"
-                                    Visibility="{Binding State.Current.HasOnlineFriends, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
-                            <TextBlock Margin="0,0,0,7"
-                                       Text="EN LIGNE"
-                                       Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
+                                    Margin="0,0,0,6"
+                                    Visibility="{Binding State.HasFilteredOnlineFriends, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                            <ToggleButton x:Name="OnlineFriendsToggle" Style="{StaticResource AtlasV2.Friends.GroupToggle}"
+                                          Content="{Binding State.OnlineGroupLabel, ElementName=Root}"
+                                          AutomationProperties.Name="{Binding State.OnlineGroupLabel, ElementName=Root}"
+                                          IsChecked="{Binding State.IsOnlineGroupExpanded, ElementName=Root, Mode=TwoWay}"/>
                             <ItemsControl x:Name="OnlineFriendsItemsControl"
-                                          ItemsSource="{Binding State.Current.OnlineFriends, ElementName=Root}"
+                                          Visibility="{Binding State.IsOnlineGroupExpanded, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
+                                          ItemsSource="{Binding State.FilteredOnlineFriends, ElementName=Root}"
                                           ItemTemplate="{StaticResource AtlasV2.Friends.FriendItem}"/>
                         </StackPanel>
 
                         <StackPanel x:Name="OfflineFriendsSection"
-                                    Visibility="{Binding State.Current.HasOfflineFriends, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
-                            <TextBlock Margin="0,0,0,7"
-                                       Text="HORS LIGNE"
-                                       Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
+                                    Visibility="{Binding State.HasFilteredOfflineFriends, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                            <ToggleButton x:Name="OfflineFriendsToggle" Style="{StaticResource AtlasV2.Friends.GroupToggle}"
+                                          Foreground="{StaticResource AtlasV2.Brush.TextMuted}"
+                                          Content="{Binding State.OfflineGroupLabel, ElementName=Root}"
+                                          AutomationProperties.Name="{Binding State.OfflineGroupLabel, ElementName=Root}"
+                                          IsChecked="{Binding State.IsOfflineGroupExpanded, ElementName=Root, Mode=TwoWay}"/>
                             <ItemsControl x:Name="OfflineFriendsItemsControl"
-                                          ItemsSource="{Binding State.Current.OfflineFriends, ElementName=Root}"
+                                          Visibility="{Binding State.IsOfflineGroupExpanded, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
+                                          ItemsSource="{Binding State.FilteredOfflineFriends, ElementName=Root}"
                                           ItemTemplate="{StaticResource AtlasV2.Friends.FriendItem}"/>
+                        </StackPanel>
+
+                        <StackPanel x:Name="FriendsFilterEmptyState" Margin="12,20" HorizontalAlignment="Center"
+                                    Visibility="{Binding State.ShowsFilterEmpty, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                            <TextBlock Text="{Binding State.NoFilterResultsLabel, ElementName=Root}" TextWrapping="Wrap"
+                                       TextAlignment="Center" FontSize="12" Style="{StaticResource AtlasV2.Text.Caption}"/>
                         </StackPanel>
 
                         <StackPanel x:Name="FriendsEmptyState"
                                     Margin="12,42"
                                     HorizontalAlignment="Center"
-                                    Visibility="{Binding State.Current.ShowsGlobalEmpty, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                                    Visibility="{Binding State.ShowsGlobalEmpty, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                             <Path Width="28"
                                   Height="28"
                                   Margin="0,0,0,10"
@@ -610,7 +735,7 @@
                 </ScrollViewer>
 
                 <Grid x:Name="FriendProfilePanel"
-                      Grid.RowSpan="5"
+                      Grid.RowSpan="6"
                       Panel.ZIndex="10"
                       Background="{StaticResource AtlasV2.Overlay.Panel}">
                     <Grid.Style>

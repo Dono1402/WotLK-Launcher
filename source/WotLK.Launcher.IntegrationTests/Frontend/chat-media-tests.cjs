@@ -18,6 +18,7 @@ const check = (name, condition) => { assert.ok(condition, name); checks.push(nam
     await page.route('**/*', route => route.abort());
     await page.setContent('<!doctype html><html lang="fr"><head><meta charset="utf-8"></head><body style="margin:0;padding:28px;background:#132333;color:#ecf0f4;font:14px Segoe UI"><main style="display:flex;align-items:flex-start;gap:30px;flex-wrap:wrap"><div id="audio"></div><div id="video" style="width:450px"></div><div id="draft-audio" style="width:250px;height:104px;overflow:hidden"></div><div id="draft-video" style="width:180px;height:104px;overflow:hidden"></div></main><button id="outside">Outside</button><dialog id="viewer" style="width:90vw;max-height:90vh;border:0;padding:0;background:#081523"><div id="viewer-host"></div></dialog></body></html>');
     await page.addStyleTag({content:'*{box-sizing:border-box}[hidden]{display:none!important}button,input{font:inherit}'});
+    await page.addStyleTag({content:'@font-face{font-family:Inter;src:url(data:font/ttf;base64,'+(await fs.readFile(path.join(assets,'fonts/Inter-Regular.ttf'))).toString('base64')+');font-weight:400}'});
     await page.addStyleTag({content:await fs.readFile(path.join(assets,'chat-media.css'),'utf8')});
     await page.addScriptTag({content:await fs.readFile(path.join(assets,'chat-media.js'),'utf8')});
     await page.evaluate(data => {
@@ -30,10 +31,35 @@ const check = (name, condition) => { assert.ok(condition, name); checks.push(nam
       }
     },{audio:fixture.viewerAudioBytes.toString('base64'),video:fixture.viewerVideoBytes.toString('base64')});
     await page.waitForFunction(()=>Object.values(instances).every(({player})=>player.readyState>=1));
+    await page.evaluate(()=>document.fonts.ready);
     check('Stable shell holds the original player with native controls disabled',await page.evaluate(()=>Object.values(instances).every(({player,shell})=>shell.contains(player)&&!player.controls&&AtlasChatMedia.shellFor(player)===shell)));
     check('No visible filenames or file size chrome',await page.evaluate(()=>Object.values(instances).every(({shell})=>!shell.innerText.includes('private-test')&&shell.getAttribute('aria-label').startsWith('private-test'))));
     check('Finite metadata enables the real seek controls',await page.evaluate(()=>Object.values(instances).every(({shell})=>!shell.querySelector('.media-seek').disabled&&Number(shell.querySelector('.media-seek').max)>3)));
     check('Draft audio and video fit their exact reserved dimensions',await page.evaluate(()=>['draft-audio','draft-video'].every(name=>{const {shell}=instances[name],r=shell.getBoundingClientRect(),host=shell.parentElement.getBoundingClientRect();return Math.abs(r.height-104)<1&&Math.abs(r.width-host.width)<1&&shell.scrollWidth<=Math.ceil(r.width)&&shell.scrollHeight<=Math.ceil(r.height);} )));
+    const draftLongTimes = await page.evaluate(()=>{
+      const {player,shell}=instances['draft-video'];
+      const descriptors=Object.fromEntries(['currentTime','duration'].map(name=>[name,Object.getOwnPropertyDescriptor(player,name)]));
+      try {
+        return [754,5025,445556].map(seconds=>{
+          for(const name of ['currentTime','duration']) Object.defineProperty(player,name,{configurable:true,value:seconds});
+          AtlasChatMedia.update(shell,{});
+          const bounds=shell.getBoundingClientRect();
+          const nodes=[...shell.querySelectorAll('.media-play,.media-elapsed,.media-duration,.media-seek,.media-volume-button,.media-expand,.media-fullscreen')]
+            .filter(node=>!node.hidden).map(node=>({name:node.className,rect:node.getBoundingClientRect()}));
+          const collisions=nodes.flatMap((first,index)=>nodes.slice(index+1).filter(second=>
+            Math.min(first.rect.right,second.rect.right)-Math.max(first.rect.left,second.rect.left)>.5
+            && Math.min(first.rect.bottom,second.rect.bottom)-Math.max(first.rect.top,second.rect.top)>.5)
+            .map(second=>[first.name,second.name]));
+          return {label:shell.querySelector('.media-duration').textContent,fontSize:getComputedStyle(shell.querySelector('.media-times')).fontSize,
+            collisions,inside:nodes.every(({rect})=>rect.width>0&&rect.height>0&&rect.left>=bounds.left&&rect.top>=bounds.top&&rect.right<=bounds.right&&rect.bottom<=bounds.bottom)};
+        });
+      } finally {
+        for(const name of ['currentTime','duration']) {if(descriptors[name]) Object.defineProperty(player,name,descriptors[name]);else delete player[name];}
+        AtlasChatMedia.update(shell,{});
+      }
+    });
+    check('Long draft video timestamps stay at 12px without overlapping controls or leaving the 180px preview '+JSON.stringify(draftLongTimes),
+      draftLongTimes.every(result=>result.fontSize==='12px'&&result.inside&&result.collisions.length===0));
     await page.waitForFunction(()=>instances.video.player.readyState>=2);
     check('Visible videos decode their first frame before any play click',await page.evaluate(()=>instances.video.player.preload==='metadata'&&instances.video.player.paused&&instances.video.player.currentTime===0&&instances.video.player.videoWidth>0));
     check('Video time and controls overlay the image without a footer',await page.evaluate(()=>{const {shell}=instances.video,box=shell.getBoundingClientRect(),stage=shell.querySelector('.media-stage').getBoundingClientRect(),controls=shell.querySelector('.media-controls').getBoundingClientRect();return Math.abs(box.height-stage.height)<=2&&controls.top>=stage.top&&controls.bottom<=stage.bottom+1&&getComputedStyle(shell.querySelector('.media-controls')).backgroundImage.includes('linear-gradient');}));

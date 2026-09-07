@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using WotLK.Launcher.UI.V2.Localization;
 using WotLK.Launcher.UI.V2.Presentation;
 
 namespace WotLK.Launcher.UI.V2.Views;
@@ -39,7 +40,8 @@ public partial class FriendsDrawerV2 : UserControl
     public FriendsDrawerV2()
     {
         InitializeComponent();
-        Loaded += (_, _) => ApplyOpenState(IsOpen, animate: false);
+        Loaded += FriendsDrawer_Loaded;
+        Unloaded += (_, _) => LauncherLocalization.LocaleChanged -= LauncherLocaleChanged;
     }
 
     public event EventHandler? CloseRequested;
@@ -68,6 +70,8 @@ public partial class FriendsDrawerV2 : UserControl
 
     internal TextBox SearchInput => FriendSearchBox;
 
+    internal TextBox FilterInput => FriendsFilterBox;
+
     internal ScrollViewer ScrollHost => FriendsScrollViewer;
 
     internal bool IsAddFriendEditorOpen => _isAddFriendExpanded;
@@ -75,6 +79,21 @@ public partial class FriendsDrawerV2 : UserControl
     internal bool IsFriendProfileOpen => State?.IsFriendProfileOpen == true;
 
     internal bool IsRemoveFriendConfirmationOpen => RemoveFriendConfirmationLayer.Visibility == Visibility.Visible;
+
+    private void FriendsDrawer_Loaded(object sender, RoutedEventArgs e)
+    {
+        LauncherLocalization.LocaleChanged -= LauncherLocaleChanged;
+        LauncherLocalization.LocaleChanged += LauncherLocaleChanged;
+        State?.RefreshLocalizedText();
+        ApplyOpenState(IsOpen, animate: false);
+    }
+
+    private void LauncherLocaleChanged(object? sender, EventArgs e)
+    {
+        if (Dispatcher.CheckAccess()) State?.RefreshLocalizedText();
+        else if (!Dispatcher.HasShutdownStarted)
+            _ = Dispatcher.BeginInvoke(new Action(() => State?.RefreshLocalizedText()));
+    }
 
     public bool ContainsKeyboardFocusTarget(DependencyObject? target)
     {
@@ -390,10 +409,35 @@ public partial class FriendsDrawerV2 : UserControl
 
     private void Root_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && TryCloseTransientPanel())
+        if (e.Key != Key.Escape) return;
+        if (TryCloseTransientPanel())
         {
             e.Handled = true;
         }
+        else if (State?.HasFilter == true)
+        {
+            ClearFriendsFilter();
+            e.Handled = true;
+        }
+    }
+
+    private void ClearFriendsFilterButton_Click(object sender, RoutedEventArgs e)
+    {
+        ClearFriendsFilter();
+        e.Handled = true;
+    }
+
+    private void ClearFriendsFilter()
+    {
+        if (State is null) return;
+        State.FilterText = string.Empty;
+        Keyboard.Focus(FriendsFilterBox);
+    }
+
+    private void FriendIdentityToolTip_Opening(object sender, ToolTipEventArgs e)
+    {
+        if (sender is Button { DataContext: FriendUiItem } button)
+            button.GetBindingExpression(ToolTipProperty)?.UpdateTarget();
     }
 
     private void FriendSearchBox_KeyDown(object sender, KeyEventArgs e)
@@ -525,6 +569,19 @@ public partial class FriendsDrawerV2 : UserControl
             MessageRequested?.Invoke(this, new(friend.AccountId, friend.Username));
         }
         e.Handled = true;
+    }
+
+    private void QuickMessageButton_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (!IsOpen || IsRemoveFriendConfirmationOpen || State is null
+            || sender is not Button { DataContext: FriendUiItem requested, IsVisible: true } button
+            || !IsDescendantOf(button, this)) return;
+
+        FriendUiItem? friend = State.Current.Friends.FirstOrDefault(item => item.AccountId == requested.AccountId);
+        if (friend is null) return;
+        CloseFriendActionsPopup();
+        MessageRequested?.Invoke(this, new(friend.AccountId, friend.Username));
     }
 
     private void OpenFriendProfileButton_Click(object sender, RoutedEventArgs e)

@@ -454,7 +454,7 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   const fallbackApply=async value=>{value.sequence=String(++sequence);await fallbackPage.evaluate(value=>AtlasChat.applySnapshot(value),value);await fallbackPage.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));};
   await exerciseDraftMediaViewer(fallbackPage,fallbackApply,null,'fallback');await fallbackPage.close();
   check('No uncaught browser script errors',errors.length===0);
-  const assetHashes={};for(const name of ['index.html','chat.css','chat.js','chat-render.js','chat-media.js','chat-media.css'])assetHashes[name]=createHash('sha256').update(await fs.readFile(path.join(assets,name))).digest('hex');
+  const assetHashes={};for(const name of ['index.html','chat.css','chat.js','chat-search.js','chat-render.js','chat-media.js','chat-media.css'])assetHashes[name]=createHash('sha256').update(await fs.readFile(path.join(assets,name))).digest('hex');
   await fs.writeFile(path.join(output,'results.json'),JSON.stringify({passed:checks.length,viewport:fixedViewport,runtime,background:'Transparent DOM capture; native Citadel composition is verified separately.',assetHashes,checks,errors},null,2));
   await browser.close();console.log('Chat DOM: '+checks.length+' checks passed. Headless isolated Edge, synthetic accounts, no user session.');
 })().catch(async error=>{console.error(error);if(fixtureBrowser)await fixtureBrowser.close();process.exitCode=1;});

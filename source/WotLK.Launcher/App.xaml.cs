@@ -475,6 +475,7 @@ public partial class App : Application
             friendsState,
             window.Dispatcher);
         window.AttachFriends(friendsCommands);
+        window.AttachPresence(runtime.Presence);
         window.AttachChat(runtime.Chat);
         window.AttachChatWorkspace(runtime.ChatWorkspace);
         FriendsStateAdapter friendsStateAdapter = new(
@@ -490,11 +491,15 @@ public partial class App : Application
                     runtime.SettingsRuntime,
                     trayController,
                     runtime.WriteRuntimeDiagnostic,
-                    () => runtime.ChatWorkspace.CurrentSnapshot.State.Preferences.DoNotDisturb);
+                    () => runtime.ChatWorkspace.CurrentSnapshot.State.Preferences.DoNotDisturb
+                        || (runtime.Presence.CurrentSnapshot.OwnerAccountId == runtime.Friends.CurrentSnapshot.CurrentUserId
+                            && runtime.Presence.CurrentSnapshot.DoNotDisturb));
         LauncherChatNotificationCoordinator? chatNotificationCoordinator = trayController is null ? null : new(
             runtime.ChatWorkspace, trayController, window.IsChatThreadVisible,
             action => { if (!window.Dispatcher.HasShutdownStarted) _ = window.Dispatcher.BeginInvoke(action); },
-            runtime.WriteRuntimeDiagnostic);
+            runtime.WriteRuntimeDiagnostic,
+            () => runtime.Presence.CurrentSnapshot.OwnerAccountId == runtime.ChatWorkspace.CurrentSnapshot.OwnerAccountId
+                && runtime.Presence.CurrentSnapshot.DoNotDisturb);
         AccountStateAdapter accountStateAdapter = new(
             accountState,
             avatarCropState,

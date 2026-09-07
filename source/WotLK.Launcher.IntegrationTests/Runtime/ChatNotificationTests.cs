@@ -13,8 +13,9 @@ internal static class ChatNotificationTests
             Sink sink = new();
             Queue<Action> dispatch = new();
             string? visible = null;
+            bool globalDnd = false;
             using LauncherChatNotificationCoordinator coordinator = new(() => snapshot, sink,
-                thread => thread == visible, dispatch.Enqueue, _ => { });
+                thread => thread == visible, dispatch.Enqueue, _ => { }, () => globalDnd);
             coordinator.Observe(snapshot);
             Drain();
             Check(0, "Initial history must not trigger alerts.");
@@ -46,7 +47,19 @@ internal static class ChatNotificationTests
             Observe(Build(snapshot.SessionId, 77, 112));
             snapshot = snapshot with { State = snapshot.State with { Threads = [] } };
             Drain(); Check(2, "Access revocation cancels a queued alert.");
-            Console.WriteLine("Chat notification policy OK: 13 checks; baseline, deduplication, DND, active thread, sound off, account switch and access revocation.");
+            globalDnd = true;
+            Observe(Build(snapshot.SessionId, 77, 113)); Drain();
+            Check(2, "Profile DND suppresses messages before chat preferences refresh.");
+            globalDnd = false;
+            coordinator.Observe(snapshot); Drain();
+            Check(2, "Leaving profile DND does not replay the suppressed message.");
+            Observe(Build(snapshot.SessionId, 77, 114));
+            globalDnd = true;
+            Drain(); Check(2, "Profile DND cancels an alert already queued on the UI dispatcher.");
+            globalDnd = false;
+            Observe(Build(snapshot.SessionId, 77, 115)); Drain();
+            Check(3, "Messages received after leaving profile DND notify normally.");
+            Console.WriteLine("Chat notification policy OK: 17 checks; baseline, deduplication, chat and global profile DND, active thread, sound off, account switch and access revocation.");
             return 0;
 
             void Observe(ChatWorkspaceSnapshot next) { snapshot = next; coordinator.Observe(snapshot); }

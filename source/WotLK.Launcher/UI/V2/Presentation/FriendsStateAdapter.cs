@@ -179,7 +179,7 @@ internal sealed class FriendsStateAdapter : IDisposable
             friend.Bio,
             GetZoneName(friend.ZoneId),
             characters,
-            friend.IsLauncherOnline);
+            friend.IsLauncherOnline) { Presence = friend.Presence };
     }
 
     private static ImmutableArray<FriendCharacterUiItem> ProjectCharacters(
@@ -399,6 +399,11 @@ internal sealed class FriendsStateAdapter : IDisposable
         FriendRuntimeItem friend,
         DateTimeOffset? now = null)
     {
+        bool english = Localization.LauncherLocalization.IsEnglish;
+        if (friend.Presence == "away") return english ? "Away" : "Absent";
+        if (friend.Presence == "dnd") return english ? "Do not disturb" : "Ne pas déranger";
+        if (friend.Presence == "offline") return english ? "Offline" : "Hors ligne";
+        if (friend.Presence == "online" && !friend.IsOnline) return english ? "Online" : "En ligne";
         if (friend.IsOnline)
         {
             string zone = GetZoneName(friend.ZoneId);

@@ -110,6 +110,13 @@ public sealed partial class LauncherDatabase
         Dictionary<uint,ChatProfileDto> cache=V2Profiles.GetOrCreateValue(t);
         if(cache.TryGetValue(account,out ChatProfileDto? cached))return cached;
         ChatProfileDto profile;
+        string manual="online"; bool idle=false; bool launcherOnline=false;
+        if(PresenceAvailable)
+        {
+            await using MySqlCommand presence=V2Command(c,t,"SELECT manual_status,last_active_at<=UTC_TIMESTAMP(6)-INTERVAL 20 MINUTE is_idle FROM atlas_launcher_presence WHERE account_id=@account;",("@account",account));
+            await using MySqlDataReader reader=await presence.ExecuteReaderAsync(token);
+            if(await reader.ReadAsync(token)){manual=reader.GetString("manual_status");idle=reader.GetBoolean("is_idle");}
+        }
         await using(MySqlCommand command = V2Command(c, t, """
             SELECT p.display_username,aa.id avatar_id,aa.version avatar_version,COALESCE(pref.do_not_disturb,FALSE) do_not_disturb,
               EXISTS(SELECT 1 FROM atlas_launcher_session s WHERE s.account_id=p.account_id AND s.revoked_at IS NULL AND s.access_expires_at>UTC_TIMESTAMP() AND s.updated_at>UTC_TIMESTAMP()-INTERVAL 60 SECOND) launcher_online
@@ -120,6 +127,7 @@ public sealed partial class LauncherDatabase
         {
             await using MySqlDataReader r = await command.ExecuteReaderAsync(token);
             if (!await r.ReadAsync(token)) throw new ChatOperationException("chat-not-found");
+            launcherOnline=r.GetBoolean("launcher_online");
             Avatars.AvatarDescriptor? avatar = r.IsDBNull("avatar_id") ? null : Avatars.AvatarDescriptor.Create(new Guid((byte[])r["avatar_id"], bigEndian: true), r.GetUInt64("avatar_version"));
             profile = new ChatProfileDto { AccountId = account, Username = r.GetString("display_username"), Presence = r.GetBoolean("launcher_online") ? (r.GetBoolean("do_not_disturb")?"dnd":"online") : "offline", AvatarUrl = avatar?.Url64, AvatarVersion = avatar?.Version.ToString(CultureInfo.InvariantCulture) };
         }
@@ -127,6 +135,13 @@ public sealed partial class LauncherDatabase
         {
             await using MySqlDataReader r=await command.ExecuteReaderAsync(token);
             if(await r.ReadAsync(token))profile=profile with{Presence=profile.Presence=="dnd"?"dnd":"game",CharacterGuid=r.GetUInt32("guid"),CharacterName=r.GetString("name"),CharacterClass=r.GetByte("class").ToString(CultureInfo.InvariantCulture)};
+        }
+        if(PresenceAvailable)
+        {
+            bool connected=launcherOnline||profile.CharacterGuid is not null;
+            string status=LauncherPresenceStatus.Resolve(manual,connected,idle);
+            profile=profile with{Presence=status};
+            if(manual=="offline")profile=profile with{CharacterGuid=null,CharacterName=null,CharacterClass=null};
         }
         cache[account]=profile;return profile;
     }
@@ -142,6 +157,11 @@ public sealed partial class LauncherDatabase
 
     internal Task<ChatPreferencesDto> UpdateChatV2PreferencesAsync(uint account, ChatPreferencesRequest request, CancellationToken token) => MutateV2Async(async (c,t) =>
     {
+        if(PresenceAvailable && request.DoNotDisturb is bool requestedDnd)
+            await V2ExecuteAsync(c,t,"""
+                INSERT INTO atlas_launcher_presence(account_id,manual_status,last_active_at) VALUES(@account,@status,UTC_TIMESTAMP(6))
+                ON DUPLICATE KEY UPDATE manual_status=@status,version=version+1,updated_at=UTC_TIMESTAMP(6);
+                """,token,("@account",account),("@status",requestedDnd?"dnd":"online"));
         await V2ExecuteAsync(c,t,"""
             INSERT INTO atlas_launcher_chat_v2_preferences(account_id,do_not_disturb,share_read_receipts,share_typing) VALUES(@account,COALESCE(@dnd,FALSE),COALESCE(@read,TRUE),COALESCE(@typing,TRUE))
             ON DUPLICATE KEY UPDATE do_not_disturb=COALESCE(@dnd,do_not_disturb),share_read_receipts=COALESCE(@read,share_read_receipts),share_typing=COALESCE(@typing,share_typing);

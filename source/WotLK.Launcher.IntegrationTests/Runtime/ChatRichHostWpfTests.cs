@@ -1,12 +1,19 @@
 using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using System.Windows.Media.Imaging;
 using Microsoft.Web.WebView2.Core;
 using WotLK.Launcher.Chat;
 using WotLK.Launcher.Runtime;
+using WotLK.Launcher.UI.V2;
+using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Views;
 
 internal static class ChatRichHostWpfTests
@@ -18,6 +25,8 @@ internal static class ChatRichHostWpfTests
         try
         {
             ValidateOrigins();
+            await ValidateAvatarRoutesAsync();
+            ValidateOwnCharacterProjection();
             TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
             Thread thread = new(() =>
             {
@@ -33,6 +42,7 @@ internal static class ChatRichHostWpfTests
                         foreach (string resource in new[] { "UI/V2/Resources/AtlasV2.Tokens.xaml", "Assets/Icons/AtlasV2.Icons.xaml", "UI/V2/Resources/AtlasV2.Controls.xaml" })
                             application.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/WotLK.Launcher;component/" + resource, UriKind.Relative) });
                         await ValidateBrowserAsync(captureDirectory);
+                        await ValidateOwnRosterBridgeAsync();
                         completion.TrySetResult();
                     }
                     catch (Exception error) { completion.TrySetException(error); }
@@ -90,7 +100,7 @@ internal static class ChatRichHostWpfTests
 
     private static async Task ValidateBrowserAsync(string? captureDirectory)
     {
-        string directory = captureDirectory ?? Path.Combine(Path.GetTempPath(), "atlas-chat-rich-" + Guid.NewGuid().ToString("N"));
+        string directory = Path.GetFullPath(captureDirectory ?? Path.Combine(Path.GetTempPath(), "atlas-chat-rich-" + Guid.NewGuid().ToString("N")));
         Directory.CreateDirectory(directory);
         ChatViewV2 view = new() { RichUserDataFolder = Path.Combine(directory, "webview-data-" + Guid.NewGuid().ToString("N")) };
         List<ChatRichActionEventArgs> actions = [];
@@ -119,7 +129,18 @@ internal static class ChatRichHostWpfTests
             await Until(() => view.RichBrowser?.CoreWebView2 is not null, "WebView initializes.");
             CoreWebView2 core = view.RichBrowser!.CoreWebView2;
             await UntilScript(core, "document.querySelector('#thread-title')?.textContent==='Lyra'", "Native snapshot rendered in embedded page.");
+            await Until(() => view.IsRichComposerAcceptingFiles, "Real composer publishes its initial native file permission.");
             True(!window.IsActive && window.Left < -10000 && !window.ShowInTaskbar, "Fixture cannot activate or appear on user desktop.");
+            ValidateNativeDrops(view, directory);
+            BitmapSource decoded = await Task.Run(() =>
+            {
+                using MemoryStream bytes = new(Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aC9sAAAAASUVORK5CYII="));
+                BitmapSource frame = BitmapDecoder.Create(bytes, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad).Frames[0];
+                frame.Freeze();
+                return frame;
+            });
+            using (ChatMediaStream? avatar = LauncherShellV2.EncodeRichAvatar(decoded))
+                True(avatar is { ContentType: "image/png", Length: > 0 }, "Worker-decoded frozen avatar becomes a usable native PNG.");
             using (JsonDocument result = JsonDocument.Parse(await core.ExecuteScriptAsync("({body:document.querySelector('#message-list').textContent,strong:document.querySelector('#message-list strong')?.textContent,images:document.querySelectorAll('#message-list .message-content img').length})")))
             {
                 True(result.RootElement.GetProperty("body").GetString()!.Contains("<img src=x onerror=alert(1)>", StringComparison.Ordinal), "User HTML stays text.");
@@ -127,6 +148,11 @@ internal static class ChatRichHostWpfTests
                 True(result.RootElement.GetProperty("images").GetInt32() == 0, "User HTML cannot create images.");
             }
             True(actions.All(action => action.Action.GetProperty("action").GetString() != "read"), "Inactive offscreen page never marks messages read.");
+            await Post("composerState", new { threadId = "17", acceptsFiles = false });
+            await Until(() => !view.IsRichComposerAcceptingFiles, "Real WebView composer state closes native file permission while editing.");
+            await Post("composerState", new { threadId = "17", acceptsFiles = true });
+            await Until(() => view.IsRichComposerAcceptingFiles, "Real WebView cancellation restores native file permission.");
+            True(actions.Count == 0, "Composer state is handled by the native host and never reaches workspace commands.");
             await Post("draft", new { threadId = "17", body = "Un brouillon", replyToMessageId = (string?)null });
             await Until(() => actions.Count == 1, "Real WebView message delivered to native bridge.");
             True(actions[0].SessionId == Session && actions[0].OwnerAccountId == 42 && actions[0].Sequence == 10, "Native bridge preserves identity.");
@@ -169,6 +195,172 @@ internal static class ChatRichHostWpfTests
             }
         }
         finally { view.DisposeRich(); window.Close(); }
+    }
+
+    private static void ValidateNativeDrops(ChatViewV2 view, string directory)
+    {
+        string image = Path.Combine(directory, "native-drop-fixture.png"), text = Path.Combine(directory, "native-drop-fixture.txt");
+        File.WriteAllBytes(image, [137, 80, 78, 71, 13, 10, 26, 10]);
+        File.WriteAllText(text, "Only the native fixture owns this file.");
+        List<ChatFilesAddedEventArgs> received = [];
+        bool allowed = true;
+        view.CanAcceptNativeDrop = () => allowed;
+        view.FilesAddedRequested += Receive;
+        try
+        {
+            True(view.RichBrowser!.AllowDrop && !view.RichBrowser.AllowExternalDrop, "WPF owns Explorer files without Chromium file navigation.");
+            Drop([image, text, image]);
+            True(received.Count == 1 && received[0].Paths.SequenceEqual([image, text]) && received[0].IsNativeDrop,
+                "Real WPF FileDrop routed events deliver image and text exactly once with duplicate normalization.");
+            True(received[0].SessionId == Session && received[0].OwnerAccountId == 42 && received[0].ConversationId == "17",
+                "Native drop is scoped to the displayed identity and selected thread while the window remains inactive.");
+            True(view.TryApplyRichComposerState(ComposerState(false)), "Editing composer closes native file admission.");
+            Drop([image]);
+            True(received.Count == 1, "Editing cannot start a hidden upload through the native WPF drop path.");
+            foreach (string action in new[] { "pasteImage", "pickFiles", "dropFiles" })
+                True(!view.CanAcceptRichFileRequest(FileRequest(action)), "Editing closes the shared file/clipboard/picker gate before any source is read.");
+            foreach (JsonElement invalidState in new[] { ComposerState(true, owner: 88), ComposerState(true, session: Guid.NewGuid()),
+                ComposerState(true, thread: "18"), ComposerState(true, sequence: 999), ComposerState("true") })
+                True(!view.TryApplyRichComposerState(invalidState) && !view.IsRichComposerAcceptingFiles,
+                    "Wrong identity, thread, sequence or non-boolean composer state cannot reopen native file admission.");
+            True(view.TryApplyRichComposerState(ComposerState(true)), "Cancelling edit reopens native file admission.");
+            foreach (string action in new[] { "pasteImage", "pickFiles", "dropFiles" })
+                True(view.CanAcceptRichFileRequest(FileRequest(action)), "Cancelled edit restores the shared file/clipboard/picker gate.");
+            Drop([image]);
+            True(received.Count == 2, "A new native drop after cancelling edit reaches workspace ingestion.");
+            Drop([Path.Combine(directory, "missing.png")]);
+            Drop([directory]);
+            string executable = Path.Combine(directory, "not-allowed.exe"); File.WriteAllText(executable, "fixture");
+            Drop([executable]);
+            Drop(Enumerable.Repeat(image, 11).ToArray());
+            True(received.Count == 2, "Missing files, directories, executable types and excessive counts are refused before workspace ingestion.");
+            allowed = false; Drop([image]); allowed = true;
+            True(received.Count == 2, "Native overlay/hidden-page gate rejects a drop.");
+            JsonObject invalid = JsonSerializer.SerializeToNode(Snapshot(), ChatJson.Options)!.AsObject();
+            invalid["state"]!["threads"] = new JsonArray();
+            view.ApplyRichSnapshot(invalid); Drop([image]);
+            True(received.Count == 2, "A removed thread cannot receive files.");
+            view.ApplyRichSnapshot(Snapshot());
+            DataObject pending = new(DataFormats.FileDrop, new[] { image });
+            Raise(DragDrop.PreviewDragEnterEvent, pending);
+            Guid replacementSession = Guid.NewGuid();
+            view.ApplyRichSnapshot(Snapshot(replacementSession, sequence: 11));
+            True(!view.IsRichComposerAcceptingFiles, "A replacement session waits for its own composer state.");
+            True(!view.TryApplyRichComposerState(ComposerState(true, session: replacementSession, sequence: 10)),
+                "A composer signal older than the replacement snapshot cannot authorize files.");
+            Raise(DragDrop.PreviewDropEvent, pending);
+            True(received.Count == 2, "A drag started before a login replacement cannot deliver files into the next session.");
+            view.ApplyRichSnapshot(Snapshot());
+            True(!view.IsRichComposerAcceptingFiles, "Returning to a previous identity does not reuse its former file permission.");
+            True(view.TryApplyRichComposerState(ComposerState(true)), "Current identity can acknowledge its composer again.");
+            Raise(DragDrop.PreviewDragEnterEvent, pending);
+            view.ApplyRichSnapshot(Snapshot(selected: "18"));
+            True(!view.IsRichComposerAcceptingFiles, "Changing thread clears the composer permission.");
+            Raise(DragDrop.PreviewDropEvent, pending);
+            True(received.Count == 2, "A changed conversation invalidates the captured drop target.");
+            view.ApplyRichSnapshot(Snapshot());
+            True(!view.IsRichComposerAcceptingFiles, "Returning to a previous thread still requires the current composer signal.");
+            True(view.TryApplyRichComposerState(ComposerState(true)), "Final fixture restores the initial composer permission.");
+        }
+        finally { view.FilesAddedRequested -= Receive; view.CanAcceptNativeDrop = null; }
+
+        void Receive(object? sender, ChatFilesAddedEventArgs args) => received.Add(args);
+        JsonElement ComposerState(object acceptsFiles, uint owner = 42, Guid? session = null, string thread = "17", long sequence = 10)
+            => JsonSerializer.SerializeToElement(new { type = "action", requestId = Guid.NewGuid().ToString(), sessionId = session ?? Session,
+                ownerAccountId = owner, sequence = sequence.ToString(), action = "composerState", payload = new { threadId = thread, acceptsFiles } }, ChatJson.Options);
+        JsonElement FileRequest(string action) => JsonSerializer.SerializeToElement(new { type = "action", requestId = Guid.NewGuid().ToString(), sessionId = Session,
+            ownerAccountId = 42u, sequence = "10", action, payload = new { threadId = "17" } }, ChatJson.Options);
+        void Drop(string[] paths)
+        {
+            DataObject data = new(DataFormats.FileDrop, paths);
+            Raise(DragDrop.PreviewDragEnterEvent, data);
+            Raise(DragDrop.PreviewDragOverEvent, data);
+            Raise(DragDrop.PreviewDropEvent, data);
+        }
+        void Raise(RoutedEvent routedEvent, DataObject data)
+        {
+            // WPF's constructor is internal; build the same event object OLE
+            // supplies, then exercise its actual routed event handlers.
+            DragEventArgs args = (DragEventArgs)Activator.CreateInstance(typeof(DragEventArgs),
+                BindingFlags.Instance | BindingFlags.NonPublic, binder: null,
+                args: [data, DragDropKeyStates.None, DragDropEffects.Copy, view.RichBrowser!, new Point(40, 40)], culture: null)!;
+            args.RoutedEvent = routedEvent;
+            view.RichBrowser!.RaiseEvent(args);
+            True(args.Handled, "WPF native file drag is consumed by the registered preview handler.");
+        }
+    }
+
+    private static async Task ValidateAvatarRoutesAsync()
+    {
+        foreach (string api in new[] { "https://fixture.invalid/api/v1/", "https://fixture.invalid/wotlk/api/v1/", "https://fixture.invalid/wotlk/api/v2/chat/" })
+        {
+            string prefix = api.Contains("/wotlk/", StringComparison.Ordinal) ? "/wotlk" : "";
+            List<Uri> requests = [];
+            using HttpClient http = new(new AvatarHandler(request =>
+            {
+                requests.Add(request.RequestUri!);
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([137, 80, 78, 71]) };
+            }));
+            LauncherChatV2ApiClient client = new(http, new Uri(api));
+            foreach (string path in new[] { "/media/avatars/fixture/7/64.png", "media/avatars/fixture/7/64.png", "https://fixture.invalid" + prefix + "/media/avatars/fixture/7/64.png" })
+            {
+                using ChatMediaStream media = await client.OpenAvatarAsync(path, CancellationToken.None);
+                True(requests[^1].AbsolutePath == prefix + "/media/avatars/fixture/7/64.png", "Avatar fallback preserves the authenticated application's prefix.");
+            }
+            int count = requests.Count;
+            foreach (string invalid in new[] { "https://foreign.invalid/media/avatars/x", "https://user@fixture.invalid" + prefix + "/media/avatars/x", "/api/v1/profile", "/media/avatars/../secret", "/media/avatars/x?token=hidden", "/media/avatars/x#fragment", "file:///C:/avatar.png" })
+            {
+                bool rejected = false;
+                try { using ChatMediaStream _ = await client.OpenAvatarAsync(invalid, CancellationToken.None); }
+                catch (ArgumentException) { rejected = true; }
+                True(rejected && requests.Count == count, "An avatar resource cannot change the authorized origin or escape the media route.");
+            }
+        }
+    }
+
+    private static JsonElement OwnRoster(uint guid = 17, string name = "Personnage de test") => JsonSerializer.SerializeToElement(new
+    {
+        characters = new[] { new { character = new { guid, name, level = 40, classId = 8, race = 1, gender = 0 },
+            snapshot = new { privateField = "must not enter the chooser" }, values = new { privateStatistic = 123 }, equipment = new[] { 999 } } }
+    });
+
+    private static void ValidateOwnCharacterProjection()
+    {
+        IReadOnlyList<ChatOwnCharacter> characters = LauncherShellV2.ParseOwnCharacters(OwnRoster(uint.MaxValue));
+        True(characters.Single().Guid == uint.MaxValue.ToString() && characters[0].Name == "Personnage de test", "Roster chooser preserves the full owned character GUID and its name.");
+        string projected = JsonSerializer.Serialize(characters, ChatJson.Options);
+        True(!projected.Contains("private", StringComparison.Ordinal) && !projected.Contains("equipment", StringComparison.Ordinal), "Only display metadata enters the roster chooser.");
+        foreach (JsonElement invalid in new[] { OwnRoster(0), OwnRoster(1, "bad\nname"), JsonSerializer.SerializeToElement(new { characters = new[] { OwnRoster().GetProperty("characters")[0], OwnRoster().GetProperty("characters")[0] } }) })
+        {
+            bool rejected = false;
+            try { _ = LauncherShellV2.ParseOwnCharacters(invalid); }
+            catch (JsonException) { rejected = true; }
+            True(rejected, "Malformed or duplicated owned character identifiers are rejected.");
+        }
+    }
+
+    private static async Task ValidateOwnRosterBridgeAsync()
+    {
+        AccountUiState state = new(AccountUiState.Empty.Current with { IsRuntimeConnected = true, Username = "RosterFixture" });
+        using ArmoryViewV2 view = new() { Visibility = Visibility.Collapsed };
+        int reads = 0;
+        view.Configure(_ => Task.FromResult<uint?>(42), state, readData: (owner, request, token) =>
+        {
+            True(owner == 42 && request.Operation == "roster" && request.CharacterId is null, "Picker reads the authenticated own-account roster without a supplied character ID.");
+            reads++;
+            return Task.FromResult(OwnRoster());
+        });
+        JsonElement roster = await view.ReadOwnCharactersForChatAsync(42, CancellationToken.None);
+        True(roster.GetProperty("characters").GetArrayLength() == 1 && reads == 1, "Own roster can be read without opening the armory WebView or local helper.");
+        bool refused = false;
+        try { await view.ReadOwnCharactersForChatAsync(84, CancellationToken.None); }
+        catch (UnauthorizedAccessException) { refused = true; }
+        True(refused && reads == 1, "Another account cannot be substituted by a chooser request.");
+    }
+
+    private sealed class AvatarHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) => Task.FromResult(respond(request));
     }
 
     private static async Task Until(Func<bool> condition, string message)

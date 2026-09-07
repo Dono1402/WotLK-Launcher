@@ -629,7 +629,8 @@ internal sealed record LauncherFriend(
     string Bio = "",
     IReadOnlyList<LauncherFriendCharacter>? Characters = null,
     bool LauncherOnline = false,
-    DateTimeOffset? LauncherLastSeenAt = null)
+    DateTimeOffset? LauncherLastSeenAt = null,
+    string? Presence = null)
 {
     public string Initial => string.IsNullOrWhiteSpace(Username)
         ? "?"

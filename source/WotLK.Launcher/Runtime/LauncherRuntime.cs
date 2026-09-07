@@ -113,6 +113,13 @@ internal sealed class LauncherRuntimeDependencies
 
     internal TimeProvider ChatTimeProvider { get; init; } = TimeProvider.System;
 
+    internal TimeProvider PresenceTimeProvider { get; init; } = TimeProvider.System;
+
+    internal ILauncherIdleTimeSource? PresenceIdleTimeSource { get; init; }
+
+    internal Func<HttpClient, Uri, ILauncherPresenceApiClient> CreatePresenceApiClient { get; init; } =
+        static (client, apiBaseUri) => new LauncherPresenceApiClient(client, apiBaseUri);
+
     internal Func<HttpClient, Uri, ILauncherChatApiClient> CreateChatApiClient { get; init; } =
         static (client, apiBaseUri) => new LauncherChatApiClient(client, apiBaseUri);
 
@@ -401,6 +408,10 @@ internal sealed partial class LauncherRuntime : IDisposable
             () => _authentication.Session?.Profile,
             dependencies.WriteRuntimeLog,
             dependencies.FriendsTimeProvider);
+        Presence = new LauncherPresenceCoordinator(_sessionCoordinator, _authentication,
+            dependencies.CreatePresenceApiClient(_clientHttpClient, dependencies.AvatarApiBaseUri),
+            Operations.ShutdownToken, dependencies.WriteRuntimeLog, dependencies.PresenceTimeProvider,
+            dependencies.PresenceIdleTimeSource);
         Chat = new LauncherChatCoordinator(_sessionCoordinator, _authentication, Friends,
             dependencies.CreateChatApiClient(_clientHttpClient, dependencies.AvatarApiBaseUri),
             Operations.ShutdownToken, dependencies.WriteRuntimeLog, dependencies.ChatTimeProvider);
@@ -450,6 +461,8 @@ internal sealed partial class LauncherRuntime : IDisposable
     internal LauncherAccountCoordinator Account { get; }
 
     internal LauncherFriendsCoordinator Friends { get; }
+
+    internal LauncherPresenceCoordinator Presence { get; }
 
     internal LauncherChatCoordinator Chat { get; }
 
@@ -548,6 +561,7 @@ internal sealed partial class LauncherRuntime : IDisposable
             Dashboard.BeginShutdown();
             Chat.BeginShutdown();
             ChatWorkspace.BeginShutdown();
+            Presence.BeginShutdown();
             _sessionCoordinator.BeginShutdown();
             Addons.BeginShutdown();
             Game.BeginShutdown();
@@ -570,6 +584,7 @@ internal sealed partial class LauncherRuntime : IDisposable
         Task<bool> friends = Friends.WaitForIdleAsync(timeout);
         Task<bool> chat = Chat.WaitForIdleAsync(timeout);
         Task<bool> chatWorkspace = ChatWorkspace.WaitForIdleAsync(timeout);
+        Task<bool> presence = Presence.WaitForIdleAsync(timeout);
         bool[] results = await Task.WhenAll(
             operations,
             selfUpdate,
@@ -581,7 +596,8 @@ internal sealed partial class LauncherRuntime : IDisposable
             account,
             friends,
             chat,
-            chatWorkspace).ConfigureAwait(false);
+            chatWorkspace,
+            presence).ConfigureAwait(false);
         return results.All(result => result);
     }
 
@@ -614,6 +630,7 @@ internal sealed partial class LauncherRuntime : IDisposable
             Dashboard.BeginShutdown();
             Chat.BeginShutdown();
             ChatWorkspace.BeginShutdown();
+            Presence.BeginShutdown();
             _sessionCoordinator.BeginShutdown();
             Addons.BeginShutdown();
             Game.BeginShutdown();
@@ -621,6 +638,7 @@ internal sealed partial class LauncherRuntime : IDisposable
             Friends.BeginShutdown();
             Chat.Dispose();
             ChatWorkspace.Dispose();
+            Presence.Dispose();
             Friends.Dispose();
             Account.Dispose();
             Profile.Dispose();

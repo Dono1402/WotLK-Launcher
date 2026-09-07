@@ -26,12 +26,9 @@
     <symbol id="i-reply" viewBox="0 0 24 24"><path d="m9 4-7 7 7 7M2 11h12a7 7 0 0 1 7 7v2"/></symbol>
     <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></symbol>
     <symbol id="i-pin" viewBox="0 0 24 24"><path d="m8 3 13 13m-9-9-7 5 7 7 5-7M5 19l-3 3m10-3-7-7M12 3l9 9"/></symbol>
-    <symbol id="i-archive" viewBox="0 0 24 24"><path d="M4 9v12h16V9M9 13h6"/><rect x="2" y="3" width="20" height="6" rx="1"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7"/></symbol>
     <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 14c1 4 7 4 8 0M8 8v2m8-2v2"/></symbol>
     <symbol id="i-group" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M2 21v-3a7 7 0 0 1 14 0v3M17 5a3 3 0 0 1 0 6m2 4a6 6 0 0 1 3 6"/></symbol>
-    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/></symbol>
-    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 13A9 9 0 0 1 11 3a9 9 0 1 0 10 10Z"/></symbol>
     <symbol id="i-link" viewBox="0 0 24 24"><path d="m10 14 4-4m-6 6-2 2a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0m2 10a4 4 0 0 0 6 0l5-5a4 4 0 0 0-6-6l-2 2"/></symbol>
     <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 3h7v7m0-7L10 14M10 3H3v18h18v-7"/></symbol>
     <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H4v20h16V8Zm0 0v6h6M8 13h8m-8 4h5"/></symbol>
@@ -45,16 +42,12 @@
   <main id="chat-app" class="chat-app" aria-label="Messages">
     <header class="page-heading">
       <div><h1>Messages</h1><p id="page-subtitle" data-i18n="subtitle">Gardez le contact, en jeu comme ailleurs.</p></div>
-      <div class="page-actions">
-        <button id="dnd-button" class="quiet-button" type="button" aria-pressed="false"><svg class="icon"><use href="#i-moon"/></svg><span data-i18n="dnd">Ne pas déranger</span></button>
-        <button id="settings-button" class="icon-button" type="button" data-title="settings"><svg class="icon"><use href="#i-settings"/></svg></button>
-      </div>
     </header>
     <div class="chat-layout">
       <aside class="conversation-sidebar" aria-label="Conversations">
-        <div class="sidebar-heading"><h2 data-i18n="conversations">Conversations</h2><button id="new-conversation-button" class="icon-button accent-icon" type="button" data-title="newConversation"><svg class="icon"><use href="#i-edit"/></svg></button></div>
+        <div class="sidebar-heading"><h2 data-i18n="conversations">Conversations</h2><button id="new-conversation-button" class="icon-button accent-icon" type="button" data-title="newConversation"><svg class="icon"><use href="#i-plus"/></svg></button></div>
         <label class="search-field"><svg class="icon"><use href="#i-search"/></svg><input id="contact-search" type="search" autocomplete="off" spellcheck="false" data-placeholder="searchContacts" data-label="searchContacts"></label>
-        <div class="conversation-filters" role="group" aria-label="Filtrer les conversations"><button type="button" class="filter-button is-active" data-filter="all" data-i18n="all">Toutes</button><button type="button" class="filter-button" data-filter="unread"><span data-i18n="unread">Non lus</span><span id="unread-filter-count" class="filter-count" hidden></span></button><button type="button" class="icon-button archives-filter" data-filter="archived" data-title="archived"><svg class="icon"><use href="#i-archive"/></svg></button></div>
+        <div class="conversation-filters" role="group" aria-label="Filtrer les conversations"><button type="button" class="filter-button is-active" data-filter="all" data-i18n="all">Toutes</button><button type="button" class="filter-button" data-filter="unread"><span data-i18n="unread">Non lus</span><span id="unread-filter-count" class="filter-count" hidden></span></button></div>
         <div id="conversation-list" class="conversation-list" role="list" aria-label="Conversations"></div>
         <div id="conversation-empty" class="sidebar-empty" hidden><svg class="icon"><use href="#i-chat"/></svg><p></p></div>
         <div id="sidebar-status" class="sidebar-status" aria-live="polite"></div>
@@ -66,7 +59,18 @@
           <button id="pinned-strip" class="pinned-strip" type="button" hidden><svg class="icon"><use href="#i-pin"/></svg><span><strong data-i18n="pinnedMessages">Messages épinglés</strong><span id="pinned-excerpt"></span></span><span id="pinned-count"></span><svg class="icon"><use href="#i-chevron"/></svg></button>
           <div id="connection-banner" class="connection-banner" role="status" hidden></div>
           <div class="timeline-shell"><div id="timeline" class="timeline" tabindex="0" aria-label="Historique des messages"><button id="load-earlier-button" class="load-earlier" type="button" data-i18n="loadEarlier" hidden>Afficher les messages précédents</button><div id="message-list" class="message-list" role="log" aria-live="off" aria-relevant="additions text"></div><div id="no-messages" class="no-messages" data-i18n="noMessages" hidden>Écrivez le premier message.</div><div id="timeline-end" class="timeline-end" aria-hidden="true"></div></div><button id="jump-latest-button" class="jump-latest" type="button" hidden><svg class="icon"><use href="#i-down"/></svg><span data-i18n="newMessages">Nouveaux messages</span></button><div id="drop-overlay" class="drop-overlay" hidden><svg class="icon"><use href="#i-attach"/></svg><strong data-i18n="dropFiles">Déposez vos fichiers ici</strong><span data-i18n="attachmentHint">Images, GIF, documents, audio et vidéo · 500 Mo par fichier</span></div></div>
-          <div class="composer-area"><div id="typing-indicator" class="typing-indicator" aria-live="polite"></div><div id="composer-context" class="composer-context" hidden><svg class="icon"><use href="#i-reply"/></svg><span><strong id="composer-context-title"></strong><span id="composer-context-body"></span></span><button id="cancel-context-button" class="icon-button" type="button" data-title="cancel"><svg class="icon"><use href="#i-close"/></svg></button></div><div id="attachment-queue" class="attachment-queue" aria-label="Pièces jointes à envoyer" hidden></div><div id="composer-box" class="composer-box"><textarea id="composer-input" rows="1" maxlength="1000" data-placeholder="composerPlaceholder" data-label="composerName" spellcheck="true"></textarea><div class="composer-toolbar"><div class="composer-tools"><button id="attach-button" class="icon-button" type="button" data-title="attachFiles"><svg class="icon"><use href="#i-plus"/></svg></button><button id="format-button" class="format-button" type="button" data-title="formatting">Aa</button><button id="share-game-button" class="icon-button" type="button" data-title="shareGame"><svg class="icon"><use href="#i-game"/></svg></button></div><span id="composer-counter" class="composer-counter"></span><button id="send-button" class="send-button" type="button" disabled><svg class="icon"><use href="#i-send"/></svg><span data-i18n="send">Envoyer</span></button></div></div><div class="composer-footnote"><span data-i18n="composerHint">Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne</span><span id="draft-status"></span></div><div id="composer-error" class="composer-error" role="alert" hidden></div></div>
+          <div class="composer-area">
+            <div id="typing-indicator" class="typing-indicator" aria-live="polite"></div>
+            <section id="armory-picker" class="armory-picker" data-label="shareGame" hidden>
+              <header class="armory-picker-heading"><div><h3 data-i18n="shareGame">Partager l’Armory d’un personnage</h3><p data-i18n="chooseOwnCharacter">Choisissez l’un de vos personnages.</p></div><button id="close-armory-picker" class="icon-button" type="button" data-title="close"><svg class="icon"><use href="#i-close"/></svg></button></header>
+              <div id="armory-picker-status" class="armory-picker-status" role="status" aria-live="polite"></div>
+              <div id="armory-character-list" class="armory-character-list" role="list" data-label="yourCharacters"></div>
+            </section>
+            <div id="composer-context" class="composer-context" hidden><svg class="icon"><use href="#i-reply"/></svg><span><strong id="composer-context-title"></strong><span id="composer-context-body"></span></span><button id="cancel-context-button" class="icon-button" type="button" data-title="cancel"><svg class="icon"><use href="#i-close"/></svg></button></div>
+            <div id="attachment-queue" class="attachment-queue" aria-label="Pièces jointes à envoyer" hidden></div>
+            <div id="composer-box" class="composer-box"><textarea id="composer-input" rows="1" maxlength="1000" data-placeholder="composerPlaceholder" data-label="composerName" spellcheck="true"></textarea><div class="composer-toolbar"><div class="composer-tools"><button id="attach-button" class="icon-button" type="button" data-title="attachFiles"><svg class="icon"><use href="#i-plus"/></svg></button><button id="share-game-button" class="icon-button" type="button" data-title="shareGame" aria-controls="armory-picker" aria-expanded="false"><svg class="icon"><use href="#i-game"/></svg></button></div><span id="composer-counter" class="composer-counter"></span><button id="send-button" class="send-button" type="button" disabled><svg class="icon"><use href="#i-send"/></svg><span data-i18n="send">Envoyer</span></button></div></div>
+            <div class="composer-footnote"><span data-i18n="composerHint">Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne</span><span id="draft-status"></span></div><div id="composer-error" class="composer-error" role="alert" hidden></div>
+          </div>
         </div>
       </section>
     </div>

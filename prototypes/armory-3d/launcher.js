@@ -25,6 +25,7 @@ const text = {
 };
 let locale = new URLSearchParams(location.search).get('lang')==='en' ? 'en' : 'fr';
 let roster = [], selected, status = 'loading', timer, pending, syncing = false, profile = {}, rosterPaused = false;
+let sharedCharacterRequest, sharedCharacterNonce;
 let characterFrame = $('character-view'), pendingCharacterFrame, previousCharacterFrame, characterFade;
 const reducedCharacterMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let editing = false, draft, profileSave, profileFeedback, profileNotice, avatarPending, avatarFeedback, avatarRestoreFocus = false;
@@ -487,6 +488,23 @@ function select(id,force=false) {
   render();
 }
 
+function applySharedCharacterRequest() {
+  if (!sharedCharacterRequest) return false;
+  const row = roster.find(character => character.id===sharedCharacterRequest);
+  if (row) {
+    sharedCharacterRequest = undefined;
+    characterFeedback = undefined;
+    select(row.id);
+  } else if (status==='ready') {
+    selected = null;
+    clearCharacterView();
+    characterFeedback = {kind:'error',message:locale==='en'?'The shared character is unavailable.':'Le personnage partagé est indisponible.'};
+    renderNotification();
+  }
+  // Do not silently display a different character if the shared GUID is gone.
+  return true;
+}
+
 function render() {
   $('character-count').textContent = String(roster.length);
   document.querySelector('.search').hidden = roster.length<=1;
@@ -504,7 +522,7 @@ function render() {
     const copy = document.createElement('span'); copy.className='character-copy';
     const name = document.createElement('strong'); name.textContent=row.name; name.style.color=classColor(row.classId);
     const subtitle = document.createElement('small'); subtitle.textContent=`${className(row.classId,locale)} · ${label('level')} ${row.level}`;
-    copy.append(name,subtitle); button.append(icon,copy); button.addEventListener('click',() => select(row.id)); return button;
+    copy.append(name,subtitle); button.append(icon,copy); button.addEventListener('click',() => { sharedCharacterRequest=undefined; select(row.id); }); return button;
   }));
   if (focused) $('characters').querySelector(`[data-id="${focused}"]`)?.focus({preventScroll:true});
   const message = syncing ? 'refreshing' : status==='unavailable' ? 'unavailable' : status==='loading' ? 'loading' : status==='cached' ? 'cached' : !roster.length ? 'empty' : !visible.length ? 'noMatch' : null;
@@ -533,7 +551,8 @@ async function refresh(force=false) {
     roster=result.characters; status=['loading','ready','cached','unavailable'].includes(result.status)?result.status:'unavailable'; syncing=result.refreshing===true;
     if (characterFrame.dataset.characterId && !roster.some(row => row.id===characterFrame.dataset.characterId)) clearCharacterView();
     if (selected && !roster.some(row => row.id===selected)) { selected=null; clearCharacterView(); }
-    if (!selected && roster.length) select(roster[0].id);
+    if (applySharedCharacterRequest()) { }
+    else if (!selected && roster.length) select(roster[0].id);
     else if (selected) select(selected);
   } catch { status=roster.length?'cached':'unavailable'; syncing=false; }
   finally {
@@ -682,9 +701,14 @@ window.chrome?.webview?.addEventListener('message',event => {
   }
   if (message?.type==='banner-save-result') { receiveBannerResult(message); return; }
   if (message?.type!=='profile') return;
+  if (typeof message.requestedCharacterNonce==='string' && message.requestedCharacterNonce!==sharedCharacterNonce
+    && typeof message.requestedCharacterGuid==='string' && /^[1-9][0-9]{0,9}$/.test(message.requestedCharacterGuid)) {
+    sharedCharacterNonce = message.requestedCharacterNonce;
+    sharedCharacterRequest = message.requestedCharacterGuid;
+  }
   const nextLocale = message.locale==='en'?'en':'fr', languageChanged = locale!==nextLocale;
   locale = nextLocale; receiveProfile(message);
-  applyProfile(); if (selected && languageChanged) select(selected,true);
+  applyProfile(); if (!applySharedCharacterRequest() && selected && languageChanged) select(selected,true);
 });
 document.addEventListener('visibilitychange',() => {
   clearTimeout(timer);

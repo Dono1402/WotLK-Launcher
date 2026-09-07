@@ -291,18 +291,8 @@
                                  HorizontalAlignment="Right"
                                  VerticalAlignment="Bottom"
                                  Stroke="{StaticResource AtlasV2.Overlay.Card}"
-                                 StrokeThickness="2">
-                            <Ellipse.Style>
-                                <Style TargetType="{x:Type Ellipse}">
-                                    <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsOnline}" Value="True">
-                                            <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Success}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Ellipse.Style>
-                        </Ellipse>
+                                 StrokeThickness="2"
+                                 Fill="{Binding PresenceColor}"/>
                     </Grid>
                     <StackPanel Grid.Column="1" Margin="10,0,6,0" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Username}"
@@ -318,19 +308,9 @@
                                    Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
                         <TextBlock Margin="0,2,0,0"
                                    Text="{Binding PresenceText}"
-                                   TextTrimming="CharacterEllipsis">
-                            <TextBlock.Style>
-                                <Style TargetType="{x:Type TextBlock}"
-                                       BasedOn="{StaticResource AtlasV2.Text.Caption}">
-                                    <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsOnline}" Value="True">
-                                            <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Success}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
+                                   Foreground="{Binding PresenceColor}"
+                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                   TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
                         <Popup x:Name="FriendActionsPopup" Grid.ColumnSpan="2"
                                DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
@@ -707,19 +687,9 @@
                             <TextBlock Margin="0,2,0,0"
                                        HorizontalAlignment="Center"
                                        Text="{Binding ProfilePresenceText}"
+                                       Foreground="{Binding PresenceColor}"
                                        FontSize="13"
-                                       >
-                                <TextBlock.Style>
-                                    <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource AtlasV2.Text.Caption}">
-                                        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsOnline}" Value="True">
-                                                <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Success}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
+                                       Style="{StaticResource AtlasV2.Text.Caption}"/>
 
                             <Border Height="1" Margin="0,18" Background="{StaticResource AtlasV2.Overlay.Divider}"/>
                             <TextBlock Text="BIO" Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>

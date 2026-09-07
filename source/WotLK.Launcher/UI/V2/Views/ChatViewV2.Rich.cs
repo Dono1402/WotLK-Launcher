@@ -37,6 +37,7 @@ public partial class ChatViewV2
     public event EventHandler<ChatRichActionEventArgs>? RichActionRequested;
     public event EventHandler<ChatFilesAddedEventArgs>? FilesAddedRequested;
     public Func<string, string?, CancellationToken, Task<ChatMediaStream?>>? MediaResolver { get; set; }
+    internal Func<bool>? CanAcceptNativeDrop { get; set; }
     internal WebView2CompositionControl? RichBrowser => _richBrowser;
     internal string? RichUserDataFolder { get; set; }
 
@@ -88,6 +89,10 @@ public partial class ChatViewV2
         if (_richDisposed) return;
         JsonObject next = JsonSerializer.SerializeToNode(snapshot, ChatJson.Options)?.AsObject()
             ?? throw new ArgumentException("A snapshot object is required.", nameof(snapshot));
+        bool composerIdentityChanged = _richSnapshot is null
+            || NodeText(_richSnapshot["sessionId"]) != NodeText(next["sessionId"])
+            || NodeText(_richSnapshot["ownerAccountId"]) != NodeText(next["ownerAccountId"])
+            || NodeText(_richSnapshot["selectedThreadId"]) != NodeText(next["selectedThreadId"]);
         if (_richSnapshot is not null &&
             (NodeText(_richSnapshot["sessionId"]) != NodeText(next["sessionId"])
                 || NodeText(_richSnapshot["ownerAccountId"]) != NodeText(next["ownerAccountId"])
@@ -100,6 +105,7 @@ public partial class ChatViewV2
             foreach (OwnedChatResponseStream stream in _richStreams.Values) stream.Dispose();
         }
         _richSnapshot = next;
+        if (composerIdentityChanged) ResetRichComposerState();
         PublishRichSnapshot();
     }
 
@@ -145,8 +151,16 @@ public partial class ChatViewV2
         {
             WebView2CompositionControl browser = _richBrowser = new()
             {
-                DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 13, 20, 28)
+                DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 13, 20, 28),
+                AllowDrop = true,
+                AllowExternalDrop = false
             };
+            // CompositionControl does not reliably forward Explorer drops to
+            // Chromium. WPF owns file drops; paths never enter web messages.
+            browser.PreviewDragEnter += RichNativeDragOver;
+            browser.PreviewDragOver += RichNativeDragOver;
+            browser.PreviewDragLeave += RichNativeDragLeave;
+            browser.PreviewDrop += RichNativeDrop;
             RichHost.Children.Add(browser);
             string cache = RichUserDataFolder ?? Path.GetFullPath(Path.Combine(LauncherBuildFlavor.GetAvatarCacheRoot(), "..", "chat-webview"));
             CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(userDataFolder: cache);
@@ -280,15 +294,22 @@ public partial class ChatViewV2
             if (action == "ready")
             {
                 _richReady = true;
+                ResetRichComposerState();
                 RichStatus.Visibility = Visibility.Collapsed;
                 PublishRichSnapshot();
                 return;
             }
             if (!TryValidateRichAction(envelope, out ChatRichActionEventArgs? request) || request is null) return;
+            if (action == "composerState")
+            {
+                SendRichResult(request.RequestId, new { accepted = TryApplyRichComposerState(envelope) });
+                return;
+            }
             if (action == "read" && !IsRichActuallyActive) return;
             if (action is "pickFiles" or "dropFiles" or "pasteImage")
             {
-                if (!IsRichActuallyActive || _richPickerOpen) return;
+                if (!IsRichActuallyActive || !CanAcceptRichFileRequest(envelope))
+                { SendRichResult(request.RequestId, new { accepted = false }); return; }
                 string threadId = envelope.GetProperty("payload").GetProperty("threadId").GetString()!;
                 IReadOnlyList<string> paths = action switch
                 {
@@ -297,7 +318,7 @@ public partial class ChatViewV2
                     _ => PickRichFiles()
                 };
                 // A modal picker can outlive the session or selected conversation.
-                if (paths.Count != 0 && TryValidateRichAction(envelope, out _))
+                if (paths.Count != 0 && CanAcceptRichFileRequest(envelope))
                     FilesAddedRequested?.Invoke(this, new(request.RequestId, request.SessionId, request.OwnerAccountId, request.Sequence, threadId, paths));
                 else SendRichResult(request.RequestId, new { accepted = false });
                 return;
@@ -385,6 +406,7 @@ public partial class ChatViewV2
         _richBrowser = null;
         _richSnapshot = null;
         MediaResolver = null;
+        CanAcceptNativeDrop = null;
         DetachRichWindow();
         _richLifetime.Dispose();
         _richMediaLifetime.Dispose();

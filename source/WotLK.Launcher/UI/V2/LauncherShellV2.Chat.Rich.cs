@@ -31,6 +31,7 @@ public partial class LauncherShellV2
         _richSnapshotSequence = -1;
         workspace.SnapshotChanged += ChatWorkspace_SnapshotChanged;
         ChatView.MediaResolver = ResolveChatMediaAsync;
+        ChatView.CanAcceptNativeDrop = () => IsChatDropAvailable;
         ApplyRichChatSnapshot(workspace.CurrentSnapshot);
         workspace.Start();
         RefreshChatViewActivation();
@@ -45,6 +46,8 @@ public partial class LauncherShellV2
 
     private void DetachRichChatPresentation()
     {
+        _richCharacterLifetime.Cancel();
+        _richCharacterLifetime.Dispose();
         if (_chatWorkspace is { } workspace)
         {
             workspace.SnapshotChanged -= ChatWorkspace_SnapshotChanged;
@@ -59,6 +62,11 @@ public partial class LauncherShellV2
 
     internal bool IsChatThreadVisible(string threadId) => Dispatcher.CheckAccess() && IsChatActuallyActive
         && _chatWorkspace?.CurrentSnapshot is { IsLegacyFallback: false } snapshot && snapshot.SelectedThreadId == threadId;
+
+    private bool IsChatDropAvailable => !_chatPresentationClosed && IsLoaded && IsVisible
+        && WindowState != System.Windows.WindowState.Minimized && CurrentPage == LauncherShellPage.Chat
+        && !AuthState.IsOpen && !FriendsState.IsOpen && !ProfileState.IsOpen && !AvatarCropState.IsOpen
+        && !ActivityState.IsOpen && !PatchNoteState.IsOpen;
 
     private void AccountState_RichChatChanged(object? sender, PropertyChangedEventArgs e) => _chatWorkspace?.RefreshPresentation();
 
@@ -76,6 +84,7 @@ public partial class LauncherShellV2
     private void ApplyRichChatSnapshot(ChatWorkspaceSnapshot snapshot)
     {
         if (_chatPresentationClosed || snapshot.Sequence < _richSnapshotSequence) return;
+        EnsureRichCharacterSession(snapshot);
         _richSnapshotSequence = snapshot.Sequence;
         ChatView.SetRichMode(!snapshot.IsLegacyFallback);
         _chatCoordinator?.SetPollingEnabled(snapshot.IsLegacyFallback);
@@ -100,9 +109,11 @@ public partial class LauncherShellV2
             ChatProfileDto projected = profile with { AvatarUrl = profile.AvatarUrl is not null || nativeAvatar
                 ? ChatViewV2.RichMediaOrigin + "avatars/" + profile.AccountId.ToString(CultureInfo.InvariantCulture) + "/"
                     + Uri.EscapeDataString(friend?.AvatarVersion?.ToString(CultureInfo.InvariantCulture) ?? profile.AvatarVersion ?? "0") : null };
+            if (projected.Presence == "offline")
+                return projected with { CharacterGuid = null, CharacterName = null, CharacterClass = null, ZoneName = null };
             if (friend is null) return projected;
             FriendCharacterUiItem? character = friend.AllCharacters.FirstOrDefault(item => item.IsOnline);
-            return projected with { Presence = friend.IsInGame ? "game" : friend.IsLauncherOnline ? "launcher" : "offline",
+            return projected with {
                 CharacterName = character?.Name ?? profile.CharacterName, CharacterClass = character?.ClassName ?? profile.CharacterClass,
                 ZoneName = character?.ZoneName ?? profile.ZoneName };
         }
@@ -131,6 +142,7 @@ public partial class LauncherShellV2
             messages = snapshot.Messages.Select(Message).ToArray(), snapshot.HasEarlier, snapshot.IsLoadingEarlier,
             draft = new { body = snapshot.Draft?.Body ?? "", replyToMessageId = snapshot.Draft?.ReplyToMessageId,
                 attachments = Attachments(snapshot.Draft?.AttachmentIds ?? []), card = snapshot.Draft?.Card },
+            ownCharacters = OwnCharactersProjection,
             pending = snapshot.Outbox.Where(entry => entry.Status is not ("sent" or "cancelled")).Select(entry => new
             { entry.ClientMessageId, entry.ThreadId, entry.Body, entry.CreatedAt, entry.Status, error = entry.ErrorCode,
                 entry.ReplyToMessageId, entry.Card, attachments = Attachments(entry.AttachmentIds), progress = Progress(entry),
@@ -157,12 +169,7 @@ public partial class LauncherShellV2
                 BitmapSource? bitmap = account == snapshot.OwnerAccountId ? AccountState.Current.AvatarImage
                     : FriendsState.Current.Friends.FirstOrDefault(friend => friend.AccountId == account)?.AvatarImage as BitmapSource;
                 if (bitmap is null) return null;
-                PngBitmapEncoder encoder = new();
-                encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                MemoryStream stream = new();
-                encoder.Save(stream);
-                stream.Position = 0;
-                return new ChatMediaStream(stream, "image/png", stream.Length);
+                return EncodeRichAvatar(bitmap);
             });
             if (native is not null) return native;
         }
@@ -170,6 +177,30 @@ public partial class LauncherShellV2
         if (!ReferenceEquals(_chatWorkspace, workspace) || workspace.CurrentSnapshot.SessionId != snapshot.SessionId)
         { result?.Dispose(); return null; }
         return result;
+    }
+
+    internal static ChatMediaStream? EncodeRichAvatar(BitmapSource bitmap)
+    {
+        try
+        {
+            int width = bitmap.PixelWidth, height = bitmap.PixelHeight;
+            if (width is < 1 or > 4096 || height is < 1 or > 4096) return null;
+            int stride = checked((width * bitmap.Format.BitsPerPixel + 7) / 8);
+            byte[] pixels = new byte[checked(stride * height)];
+            bitmap.CopyPixels(pixels, stride, 0);
+            // A frozen decoder frame can still own thread-bound metadata.
+            // Rebuild from pixels before handing it to the WPF PNG encoder.
+            BitmapSource detached = BitmapSource.Create(width, height, 96, 96, bitmap.Format, bitmap.Palette, pixels, stride);
+            using MemoryStream encoded = new();
+            PngBitmapEncoder encoder = new();
+            encoder.Frames.Add(BitmapFrame.Create(detached));
+            encoder.Save(encoded);
+            if (encoded.Length > 4 * 1024 * 1024) return null;
+            byte[] bytes = encoded.ToArray();
+            return new ChatMediaStream(new MemoryStream(bytes, writable: false), "image/png", bytes.Length);
+        }
+        catch (Exception error) when (error is InvalidOperationException or NotSupportedException or ArgumentException or IOException)
+        { return null; }
     }
 
     private async void ChatView_RichActionRequested(object? sender, ChatRichActionEventArgs request)
@@ -191,6 +222,9 @@ public partial class LauncherShellV2
                 case "createThread": result = await workspace.CreateThreadAsync(Read<ChatCreateThreadRequest>()); break;
                 case "loadEarlier": await workspace.LoadEarlierAsync(Text("threadId"), Id("beforeId")); break;
                 case "draft": await workspace.SaveDraftAsync(Read<ChatWorkspaceDraft>()); break;
+                case "requestOwnCharacters": await RequestRichOwnCharactersAsync(workspace); result = OwnCharactersProjection; break;
+                case "selectOwnCharacter": result = await SelectRichOwnCharacterAsync(workspace, Text("threadId"), Text("characterGuid")); break;
+                case "openCharacterArmory": OpenRichCharacterArmory(payload.GetProperty("ownerAccountId").GetUInt32(), Text("characterGuid")); break;
                 case "send":
                     ChatOutboxEntry entry = await workspace.QueueSendAsync(Text("threadId"), Read<ChatSendMessageRequest>());
                     result = new { entry.ClientMessageId, entry.Status }; break;
@@ -231,7 +265,8 @@ public partial class LauncherShellV2
     private async void ChatView_RichFilesAdded(object? sender, ChatFilesAddedEventArgs request)
     {
         LauncherChatWorkspace? workspace = _chatWorkspace;
-        if (workspace is null || !IsChatActuallyActive || !workspace.AcceptsAction(request.SessionId, request.OwnerAccountId, request.Sequence)) return;
+        if (workspace is null || !(request.IsNativeDrop ? IsChatDropAvailable : IsChatActuallyActive)
+            || !workspace.AcceptsAction(request.SessionId, request.OwnerAccountId, request.Sequence)) return;
         try
         {
             await workspace.AddFilesAsync(request.ConversationId, request.Paths);

@@ -20,6 +20,7 @@ internal static class ChatWorkspaceTests
         await ProtectedStoreAndStaging();
         await BoundedChunks();
         await DraftsAndCancellation();
+        await CharacterCardDuringDraftSave();
         await RetryAfterLostResponse();
         await PrivateReadAndLogout();
         await RevocationWhileReadIsInFlight();
@@ -130,6 +131,34 @@ internal static class ChatWorkspaceTests
             Check(!env.Workspace.CurrentSnapshot.IsAvailable && env.Api.Sends.Count == 0 && env.Workspace.CurrentSnapshot.Outbox.Single().Status == "queued", "Offline send is durable and waits for connectivity.");
             await env.Workspace.CancelSendAsync(id);
         }
+    }
+
+    private static async Task CharacterCardDuringDraftSave()
+    {
+        MemoryStore store = new();
+        await using Environment env = await Environment.Create(store);
+        await env.Workspace.OpenThreadAsync(ThreadId);
+        await env.Workspace.SaveDraftAsync(new() { ThreadId = ThreadId, Body = "ancien texte" });
+        MemoryStore.DraftSaveGate gate = store.BlockDraftSave("texte juste saisi");
+        Task textSave = env.Workspace.SaveDraftAsync(new()
+            { ThreadId = ThreadId, Body = "texte juste saisi", ReplyToMessageId = 9007199254740993 });
+        await gate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Check(env.Workspace.CurrentSnapshot.Draft?.Body == "ancien texte", "The published snapshot can lag behind a pending draft write.");
+        ChatCardDto card = new() { Kind = "character", Title = "Fixture", ReferenceId = "4294967295",
+            Fields = new Dictionary<string, string> { ["ownerAccountId"] = "1", ["characterGuid"] = "4294967295" } };
+        Task cardSave = env.Workspace.SetDraftCardAsync(ThreadId, card);
+        Check(!cardSave.IsCompleted, "Character selection waits for the draft persistence gate.");
+        gate.Release.TrySetResult();
+        await Task.WhenAll(textSave, cardSave);
+        ChatWorkspaceDraft current = env.Workspace.CurrentSnapshot.Draft!;
+        Check(current.Body == "texte juste saisi" && current.ReplyToMessageId == 9007199254740993
+            && current.Card?.ReferenceId == "4294967295", "Character selection preserves newly saved text and reply while applying only its card.");
+        ChatWorkspaceDraft persisted = (await store.LoadAsync<ChatWorkspaceLocalState>(1, None))!.Drafts.Single();
+        Check(persisted.Body == current.Body && persisted.ReplyToMessageId == current.ReplyToMessageId
+            && persisted.Card?.ReferenceId == current.Card?.ReferenceId, "The merged draft is also durable.");
+        await env.Workspace.SetDraftCardAsync(ThreadId, null);
+        Check(env.Workspace.CurrentSnapshot.Draft?.Body == current.Body && env.Workspace.CurrentSnapshot.Draft?.Card is null,
+            "Removing a card also preserves draft text.");
     }
 
     private static async Task RetryAfterLostResponse()
@@ -244,10 +273,28 @@ internal static class ChatWorkspaceTests
     private sealed class MemoryStore : IChatWorkspaceStore
     {
         private readonly ConcurrentDictionary<uint, byte[]> _states = new();
+        private DraftSaveGate? _draftSaveGate;
+        internal sealed class DraftSaveGate(string body)
+        {
+            internal string Body { get; } = body;
+            internal TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+        internal DraftSaveGate BlockDraftSave(string body) => _draftSaveGate = new(body);
         public Task<T?> LoadAsync<T>(uint owner, CancellationToken token) where T : class
         { token.ThrowIfCancellationRequested(); return Task.FromResult(_states.TryGetValue(owner, out byte[]? bytes) ? JsonSerializer.Deserialize<T>(bytes, ChatJson.Options) : null); }
-        public Task SaveAsync<T>(uint owner, T state, CancellationToken token) where T : class
-        { token.ThrowIfCancellationRequested(); _states[owner] = JsonSerializer.SerializeToUtf8Bytes(state, ChatJson.Options); return Task.CompletedTask; }
+        public async Task SaveAsync<T>(uint owner, T state, CancellationToken token) where T : class
+        {
+            token.ThrowIfCancellationRequested();
+            DraftSaveGate? gate = _draftSaveGate;
+            if (gate is not null && state is ChatWorkspaceLocalState local && local.Drafts.Any(draft => draft.Body == gate.Body)
+                && Interlocked.CompareExchange(ref _draftSaveGate, null, gate) == gate)
+            {
+                gate.Entered.TrySetResult();
+                await gate.Release.Task.WaitAsync(token);
+            }
+            _states[owner] = JsonSerializer.SerializeToUtf8Bytes(state, ChatJson.Options);
+        }
     }
 
     private sealed class Environment : IAsyncDisposable

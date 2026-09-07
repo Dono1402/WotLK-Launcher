@@ -28,9 +28,15 @@ internal sealed partial class LauncherChatV2ApiClient
 
     public Task<ChatMediaStream> OpenAvatarAsync(string authorizedUrl, CancellationToken cancellationToken)
     {
-        if (!Uri.TryCreate(_baseUri, authorizedUrl, out Uri? uri) || uri.Scheme != _baseUri.Scheme
+        Uri applicationRoot = new(_baseUri, "../../../");
+        Uri avatarRoot = new(applicationRoot, "media/avatars/");
+        string value = authorizedUrl.Trim();
+        // Avatar descriptors are application-root relative, while a public API
+        // can be mounted under /wotlk/. Match the account avatar client's rule.
+        string candidate = value.StartsWith("/media/avatars/", StringComparison.Ordinal) ? value.TrimStart('/') : value;
+        if (!Uri.TryCreate(applicationRoot, candidate, out Uri? uri) || uri.Scheme != _baseUri.Scheme
             || uri.IdnHost != _baseUri.IdnHost || uri.Port != _baseUri.Port || uri.UserInfo.Length != 0
-            || uri.Query.Length != 0 || uri.Fragment.Length != 0 || !uri.AbsolutePath.StartsWith("/media/avatars/", StringComparison.Ordinal))
+            || uri.Query.Length != 0 || uri.Fragment.Length != 0 || !uri.AbsolutePath.StartsWith(avatarRoot.AbsolutePath, StringComparison.Ordinal))
             throw new ArgumentException("Invalid authorized avatar resource.");
         return OpenMediaAsync(uri.AbsoluteUri, null, cancellationToken);
     }

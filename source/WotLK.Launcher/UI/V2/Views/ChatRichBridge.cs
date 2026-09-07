@@ -15,7 +15,7 @@ public sealed class ChatRichActionEventArgs(
 
 public sealed class ChatFilesAddedEventArgs(
     string requestId, Guid sessionId, uint ownerAccountId, long sequence,
-    string conversationId, IReadOnlyList<string> paths) : EventArgs
+    string conversationId, IReadOnlyList<string> paths, bool isNativeDrop = false) : EventArgs
 {
     public string RequestId { get; } = requestId;
     public Guid SessionId { get; } = sessionId;
@@ -23,4 +23,5 @@ public sealed class ChatFilesAddedEventArgs(
     public long Sequence { get; } = sequence;
     public string ConversationId { get; } = conversationId;
     public IReadOnlyList<string> Paths { get; } = paths;
+    public bool IsNativeDrop { get; } = isNativeDrop;
 }

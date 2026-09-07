@@ -807,7 +807,8 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
                         character.LastSeenAt))
                     .ToImmutableArray(),
                 item.LauncherOnline,
-                item.LauncherLastSeenAt);
+                item.LauncherLastSeenAt,
+                item.Presence);
             switch (relationship)
             {
                 case FriendRelationship.Incoming:

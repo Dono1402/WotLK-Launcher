@@ -120,14 +120,17 @@
     if (dayKey(date) === dayKey(yesterday)) return t('yesterday');
     return date.toLocaleDateString(locale || 'fr', { day: 'numeric', month: 'long', year: 'numeric' });
   }
+  function presenceStatus(profile) {
+    const status = String(profile && profile.presence || 'offline').toLowerCase();
+    if (['online', 'away', 'dnd', 'offline'].includes(status)) return status;
+    return ['launcher', 'game', 'in-game', 'ingame'].includes(status) ? 'online' : 'offline';
+  }
   function presenceText(profile, t) {
     if (!profile) return '';
     if (profile.presence === 'game' || profile.presence === 'in-game' || profile.presence === 'ingame') {
       return profile.characterName ? t('playingOn') + ' ' + profile.characterName + (profile.zoneName ? ' · ' + profile.zoneName : '') : t('inGame');
     }
-    if (profile.presence === 'online' || profile.presence === 'launcher') return t('online');
-    if (profile.presence === 'dnd') return t('dnd');
-    return t('offline');
+    return t(presenceStatus(profile));
   }
   function avatar(profile, options) {
     options = options || {};
@@ -141,10 +144,9 @@
     } else if (options.group) node.append(icon('group'));
     else node.append(document.createTextNode(initials(name)));
     if (options.presence && !options.group) {
-      const status = String(profile && profile.presence || 'offline');
-      const online = ['online', 'launcher'].includes(status);
-      const game = ['game', 'ingame', 'in-game'].includes(status);
-      node.append(element('span', 'presence-dot ' + (online ? 'online' : game ? 'game' : status === 'dnd' ? 'dnd' : 'offline')));
+      const status = presenceStatus(profile);
+      const dot = element('span', 'presence-dot ' + status); dot.dataset.presence = status;
+      node.append(dot);
     }
     node.setAttribute('aria-hidden', 'true');
     return node;
@@ -223,16 +225,22 @@
     return footer;
   }
   function attachmentNode(attachment, context) {
-    const node = element('div', 'attachment'); node.dataset.attachmentId = String(attachment.id || '');
+    let node = element('div', 'attachment');
     const url = mediaUrl(attachment.url, context.mediaOrigin) || (attachment.id ? MEDIA_ORIGIN + '/attachments/' + encodeURIComponent(attachment.id) : '');
     const contentType = String(attachment.contentType || '');
     const kind = String(attachment.kind || 'document');
     const isImage = kind === 'image' || kind === 'animated-image' || kind === 'animation' || /^image\//.test(contentType);
     if (isImage && url) {
-      const open = button('attachment-image' + (kind === 'animation' || contentType === 'image/gif' ? ' is-animated' : ''), context.t('viewImage'), null, () => context.viewImage(attachment));
+      const open = button('attachment attachment-image', context.t('viewImage'), null, () => context.viewImage(attachment));
       const image = element('img'); image.alt = attachment.fileName || context.t('image'); image.loading = 'lazy'; image.decoding = 'async'; image.draggable = false; image.src = url;
+      image.addEventListener('load', () => {
+        if (!image.naturalWidth || !image.naturalHeight) return;
+        // Never upscale small images. Bound either dimension without a wide,
+        // empty card around portrait images or a file-information footer.
+        open.style.width = Math.min(image.naturalWidth, 420, image.naturalWidth * 350 / image.naturalHeight) + 'px';
+      }, { once: true });
       image.addEventListener('error', () => { open.replaceChildren(element('span', 'media-placeholder-label', context.t('imageUnavailable'))); open.style.minHeight = '80px'; }, { once: true });
-      open.append(image); node.append(open);
+      open.append(image); node = open;
     } else if (kind === 'video' && url) {
       const video = element('video'); video.controls = true; video.preload = 'none'; video.playsInline = true; video.src = url;
       video.setAttribute('aria-label', attachment.fileName || context.t('video'));
@@ -244,7 +252,8 @@
       audio.setAttribute('aria-label', attachment.fileName || context.t('audio')); audio.setAttribute('controlsList', 'nodownload');
       node.append(audio);
     }
-    node.append(fileFooter(attachment, context));
+    node.dataset.attachmentId = String(attachment.id || '');
+    if (!isImage || !url) node.append(fileFooter(attachment, context));
     return node;
   }
   function isVideoPreview(preview) { return ['video', 'youtube', 'vimeo'].includes(String(preview.kind || '').toLowerCase()); }
@@ -313,7 +322,7 @@
     const quality = String(card.fields?.quality || '').toLowerCase(); if (card.kind === 'item' && qualityColors[quality]) title.style.color = qualityColors[quality];
     heading.append(title); node.append(heading);
     const labels = { item: 'item', character: 'character', quest: 'quest', location: 'location', outing: 'outing' };
-    node.append(element('div', 'game-card-subtitle', context.t(labels[card.kind] || 'gameCard')));
+    node.append(element('div', 'game-card-subtitle', context.t(card.kind === 'character' ? 'characterArmory' : labels[card.kind] || 'gameCard')));
     if (card.description) node.append(element('div', 'game-card-details', card.description));
     const fields = card.fields || {};
     const lines = [];
@@ -321,9 +330,14 @@
     if (fields.stats) lines.push(fields.stats);
     if (lines.length) node.append(element('div', 'game-card-details', lines.join('\n')));
     const actions = element('div', 'game-card-actions');
-    if (card.kind === 'character' && fields.accountId && /^\d+$/.test(fields.accountId)) {
-      const open = button('', context.t('openProfile'), null, () => context.action('openProfile', { accountId: Number(fields.accountId), characterGuid: fields.characterGuid && /^\d+$/.test(fields.characterGuid) ? Number(fields.characterGuid) : undefined }));
-      open.textContent = context.t('openProfile'); actions.append(open);
+    const accountId = String(fields.ownerAccountId || fields.accountId || '');
+    const characterGuid = id(String(fields.characterGuid || card.referenceId || ''));
+    if (card.kind === 'character' && /^[1-9]\d*$/.test(accountId) && Number(accountId) <= 4294967295) {
+      const exactCharacter = characterGuid && characterGuid !== '0';
+      const open = button('', context.t(exactCharacter ? 'openArmory' : 'openProfile'), null, () => exactCharacter
+        ? context.action('openCharacterArmory', { ownerAccountId: Number(accountId), characterGuid })
+        : context.action('openProfile', { accountId: Number(accountId) }));
+      open.textContent = context.t(exactCharacter ? 'openArmory' : 'openProfile'); actions.append(open);
     } else if (safeUrl(card.url)) {
       const open = button('', context.t('openLink'), null, () => context.action('openExternal', { url: safeUrl(card.url) })); open.textContent = context.t('openLink'); actions.append(open);
     }
@@ -371,7 +385,8 @@
   }
 
   function reconcileMessage(node, message, context) {
-    const own = message.sender && message.sender.accountId === context.ownerAccountId;
+    const sender = context.profile ? context.profile(message.sender) : message.sender;
+    const own = sender && sender.accountId === context.ownerAccountId;
     if (!node) {
       node = element('article', 'message'); node.dataset.messageId = message.id; node.tabIndex = -1;
       const avatarHost = element('div', 'message-avatar');
@@ -396,13 +411,13 @@
     node.classList.toggle('is-own', !!own);
     node.classList.toggle('is-continuation', !!context.grouped);
     node.classList.toggle('is-group-start', !context.grouped);
-    node.setAttribute('aria-label', (message.sender && message.sender.username || '') + ', ' + fullDate(message.createdAt, context.locale));
+    node.setAttribute('aria-label', (sender && sender.username || '') + ', ' + fullDate(message.createdAt, context.locale));
     const p = node._parts;
-    const headerKey = JSON.stringify([message.sender, message.origin, message.senderCharacterName, message.createdAt, context.locale]);
+    const headerKey = JSON.stringify([sender, message.origin, message.senderCharacterName, message.createdAt, context.locale]);
     if (node._headerKey !== headerKey) {
       node._headerKey = headerKey;
-      p.avatarHost.replaceChildren(avatar(message.sender, { small: true, mediaOrigin: context.mediaOrigin }));
-      const author = element('span', 'message-author', message.sender && message.sender.username);
+      p.avatarHost.replaceChildren(avatar(sender, { small: true, presence: true, mediaOrigin: context.mediaOrigin }));
+      const author = element('span', 'message-author', sender && sender.username);
       const timestamp = element('time', 'message-time', time(message.createdAt, context.locale)); timestamp.dateTime = message.createdAt; timestamp.title = fullDate(message.createdAt, context.locale);
       p.heading.replaceChildren(author, timestamp);
       if (['game', 'in-game', 'ingame'].includes(message.origin)) p.heading.append(element('span', 'message-origin', message.senderCharacterName || context.t('inGame')));
@@ -413,19 +428,21 @@
     const bodyKey = JSON.stringify([message.body, message.deletedAt, message.editedAt, context.locale]);
     if (node._bodyKey !== bodyKey) {
       node._bodyKey = bodyKey;
-      p.body.replaceChildren(message.deletedAt ? element('div', 'message-deleted', context.t('deletedMessage')) : renderMarkdown(message.body, context.t));
+      p.body.replaceChildren();
+      if (!message.deletedAt && message.body) p.body.append(renderMarkdown(message.body, context.t));
+      p.body.hidden = !p.body.childElementCount;
       if (message.editedAt && !message.deletedAt) {
         const edited = element('span', 'message-edited', '(' + context.t('edited') + ')'); edited.title = fullDate(message.editedAt, context.locale);
-        const last = p.body.firstElementChild.lastElementChild;
+        const last = p.body.firstElementChild?.lastElementChild;
         if (last && last.tagName === 'P') last.append(edited); else p.body.append(edited);
       }
     }
     const replyKey = JSON.stringify([message.replyTo, message.deletedAt, context.locale]);
     if (node._replyKey !== replyKey) {
       node._replyKey = replyKey; p.reply.replaceChildren();
-      if (message.replyTo && !message.deletedAt) {
+      if (message.replyTo && !message.replyTo.isDeleted && !message.deletedAt) {
         const reply = button('message-reply', context.t('goToMessage'), 'reply', () => context.jumpTo(message.replyTo.messageId));
-        reply.append(element('strong', '', message.replyTo.senderUsername), element('span', '', message.replyTo.isDeleted ? context.t('deletedMessage') : message.replyTo.body)); p.reply.append(reply);
+        reply.append(element('strong', '', message.replyTo.senderUsername), element('span', '', message.replyTo.body)); p.reply.append(reply);
       }
     }
     const attachments = message.deletedAt ? [] : (message.attachments || []);
@@ -433,6 +450,7 @@
     reconcileKeyed(p.attachments, attachments, attachment => attachment.id, attachment => attachmentNode(attachment, context), attachment => JSON.stringify([attachment, context.locale]));
     reconcileKeyed(p.previews, previews, preview => preview.id, preview => linkPreviewNode(preview, message, context), preview => JSON.stringify([preview, context.locale]));
     p.attachments.hidden = !attachments.length; p.previews.hidden = !previews.length;
+    p.attachments.classList.toggle('is-media-only', !message.body && (!message.replyTo || message.replyTo.isDeleted));
     const cardKey = JSON.stringify([message.card, message.deletedAt, context.locale]);
     if (node._cardKey !== cardKey) { node._cardKey = cardKey; p.cards.replaceChildren(); if (message.card && !message.deletedAt) p.cards.append(cardNode(message.card, message, context)); }
     p.cards.hidden = !p.cards.childElementCount;
@@ -472,5 +490,5 @@
     for (const host of root.querySelectorAll('.preview-player')) if (host.querySelector('iframe') && host._suspendPlayer) host._suspendPlayer();
   }
 
-  global.AtlasChatRender = Object.freeze({ element, icon, button, id, compareIds, safeUrl, mediaUrl, linkedMediaUrl, embedUrl, initials, formatBytes, time, fullDate, dayKey, dayLabel, presenceText, avatar, renderMarkdown, isVideoPreview, canGroup, reconcileKeyed, reconcileMessage, suspendMedia });
+  global.AtlasChatRender = Object.freeze({ element, icon, button, id, compareIds, safeUrl, mediaUrl, linkedMediaUrl, embedUrl, initials, formatBytes, time, fullDate, dayKey, dayLabel, presenceStatus, presenceText, avatar, renderMarkdown, isVideoPreview, canGroup, reconcileKeyed, reconcileMessage, suspendMedia });
 })(window);

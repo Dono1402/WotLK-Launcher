@@ -121,6 +121,7 @@ app.MapAtlasAvatarEndpoints();
 app.MapArmoryEndpoints();
 app.MapChatEndpoints();
 app.MapChatV2Endpoints();
+app.MapPresenceEndpoints();
 
 app.MapPost("/api/v1/accounts", async (
     RegisterRequest request,

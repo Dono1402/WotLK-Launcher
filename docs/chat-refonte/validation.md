@@ -1,5 +1,7 @@
 # Atlas Messages — résultat de la refonte
 
+Ce rapport conserve les preuves de la livraison initiale. Les corrections demandées ensuite sur le dépôt, les images, l'armurerie et les statuts sont décrites dans les [finitions du 7 septembre](polish-20260907.md).
+
 Atlas Messages est déployé depuis le 7 septembre 2026. Le client local habituel a été remplacé à 10 h 46 (Paris), après vérification de sa fermeture et sauvegarde de l’ancien fichier. Après l’autorisation de l’utilisateur à 10 h 52 min 01 s, l’API v2 et la migration 7 ont été activées ; le déploiement s’est terminé à 11 h 17 min 05 s. Seule l’API du launcher a été redémarrée, avec une indisponibilité mesurée de 2,125 secondes. Le serveur de jeu et Hermes ont conservé leurs processus. Les résultats de production et leurs limites sont détaillés dans le [rapport de déploiement](deployment-report.md).
 
 ## Fonctionnalités livrées dans le code

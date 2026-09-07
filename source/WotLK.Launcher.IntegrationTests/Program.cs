@@ -53,6 +53,28 @@ if (args.Length == 1 && string.Equals(args[0], "--chat-notifications", StringCom
 if (args.Length == 1 && string.Equals(args[0], "--chat-workspace", StringComparison.OrdinalIgnoreCase))
     return await ChatWorkspaceTests.RunAsync();
 
+if (args.Length == 1 && string.Equals(args[0], "--presence-api-mysql", StringComparison.OrdinalIgnoreCase))
+{
+    return await PresenceApiMySqlTests.RunAsync();
+}
+
+if (args.Length == 1 && string.Equals(args[0], "--presence-runtime", StringComparison.OrdinalIgnoreCase))
+    return await PresenceRuntimeTests.RunAsync();
+
+if (args.Length >= 1 && string.Equals(args[0], "--armory-shared-character-wpf", StringComparison.OrdinalIgnoreCase))
+{
+    int captureIndex = Array.IndexOf(args, "--capture-directory");
+    string? directory = captureIndex >= 0 && captureIndex + 1 < args.Length ? args[captureIndex + 1] : null;
+    return await ArmoryLauncherTests.RunSharedCharacterAsync(directory);
+}
+
+if (args.Length >= 1 && string.Equals(args[0], "--presence-profile-wpf", StringComparison.OrdinalIgnoreCase))
+{
+    int captureIndex = Array.IndexOf(args, "--capture-directory");
+    string? directory = captureIndex >= 0 && captureIndex + 1 < args.Length ? args[captureIndex + 1] : null;
+    return await PresenceProfileWpfTests.RunAsync(directory);
+}
+
 if (args.Length >= 1 && string.Equals(args[0], "--chat-rich-host-wpf", StringComparison.OrdinalIgnoreCase))
 {
     int captureIndex = Array.IndexOf(args, "--capture-directory");

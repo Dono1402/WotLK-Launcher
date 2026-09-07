@@ -300,7 +300,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
         catch (OperationCanceledException) { }
         catch (Exception)
         {
-            if (ReferenceEquals(_lifetime, lifetime)) { ResetSession(); ShowFailure(); }
+            if (ReferenceEquals(_lifetime, lifetime)) { ResetSession(preserveSharedCharacter: true); ShowFailure(); }
         }
     }
 
@@ -610,6 +610,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
             if (_friendProfile is FriendUiItem publicProfile)
             {
                 core.PostWebMessageAsJson(JsonSerializer.Serialize(new { type = "profile", readOnly = true,
+                    requestedCharacterGuid = RequestedCharacterGuid, requestedCharacterNonce = _requestedCharacterNonce,
                     username = publicProfile.Username, statusMessage = publicProfile.StatusMessage, bio = publicProfile.Bio,
                     avatar = _avatarData, canUpdateSocialProfile = false, canModifyAvatar = false, canRemoveAvatar = false,
                     canModifyBanner = false, canSendMessage = state.IsRuntimeConnected && !state.IsPreview,
@@ -617,6 +618,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
                 return;
             }
             core.PostWebMessageAsJson(JsonSerializer.Serialize(new { type = "profile", username = state.Username,
+                requestedCharacterGuid = RequestedCharacterGuid, requestedCharacterNonce = _requestedCharacterNonce,
                 statusMessage = state.StatusMessage, bio = state.Bio, avatar = _avatarData,
                 canUpdateSocialProfile = state.IsRuntimeConnected && !state.IsPreview && state.CanUpdateSocialProfile,
                 canModifyAvatar = state.IsRuntimeConnected && !state.IsPreview && !_avatarSelectionPending && state.CanModifyAvatar,
@@ -702,14 +704,17 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
         else AutomationProperties.SetName(ProfileLoadingIndicator, LocalText("Chargement du profil", "Loading profile"));
         PublishProfile();
     }
-    private void RetryButton_Click(object sender, RoutedEventArgs args) { ResetSession(); _ = OpenAsync(); }
+    private void RetryButton_Click(object sender, RoutedEventArgs args) { ResetSession(preserveSharedCharacter: true); _ = OpenAsync(); }
     private void CustomizeButton_Click(object sender, RoutedEventArgs args)
     {
         if (!IsReadOnlyProfile) CustomizeRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    internal void ResetSession()
+    internal void ResetSession(bool preserveSharedCharacter = false)
     {
+        // An opening failure/retry still targets the same profile and shared
+        // character. Navigation, account changes and disposal clear the target.
+        if (!preserveSharedCharacter) ResetSharedCharacter();
         ProfileLoadingIndicator.Visibility = Visibility.Collapsed;
         StatusPanel.Visibility = Visibility.Collapsed;
         CancellationTokenSource? lifetime = _lifetime;

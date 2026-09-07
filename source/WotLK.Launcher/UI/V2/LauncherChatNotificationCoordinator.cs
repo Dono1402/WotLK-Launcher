@@ -13,6 +13,7 @@ internal sealed class LauncherChatNotificationCoordinator : IDisposable
     private readonly Func<string, bool> _isThreadVisible;
     private readonly Action<Action> _dispatch;
     private readonly Action<string> _log;
+    private readonly Func<bool> _isGlobalDoNotDisturb;
     private readonly Dictionary<string, long> _lastIds = new(StringComparer.Ordinal);
     private Guid _session;
     private uint _owner;
@@ -21,8 +22,8 @@ internal sealed class LauncherChatNotificationCoordinator : IDisposable
 
     internal LauncherChatNotificationCoordinator(LauncherChatWorkspace workspace,
         ILauncherDesktopNotificationSink sink, Func<string, bool> isThreadVisible,
-        Action<Action> dispatch, Action<string> log)
-        : this(() => workspace.CurrentSnapshot, sink, isThreadVisible, dispatch, log)
+        Action<Action> dispatch, Action<string> log, Func<bool>? isGlobalDoNotDisturb = null)
+        : this(() => workspace.CurrentSnapshot, sink, isThreadVisible, dispatch, log, isGlobalDoNotDisturb)
     {
         _workspace = workspace;
         workspace.SnapshotChanged += Changed;
@@ -31,8 +32,11 @@ internal sealed class LauncherChatNotificationCoordinator : IDisposable
 
     internal LauncherChatNotificationCoordinator(Func<ChatWorkspaceSnapshot> current,
         ILauncherDesktopNotificationSink sink, Func<string, bool> isThreadVisible,
-        Action<Action> dispatch, Action<string> log)
-    { _current = current; _sink = sink; _isThreadVisible = isThreadVisible; _dispatch = dispatch; _log = log; }
+        Action<Action> dispatch, Action<string> log, Func<bool>? isGlobalDoNotDisturb = null)
+    {
+        _current = current; _sink = sink; _isThreadVisible = isThreadVisible; _dispatch = dispatch; _log = log;
+        _isGlobalDoNotDisturb = isGlobalDoNotDisturb ?? (static () => false);
+    }
 
     private void Changed(object? sender, ChatWorkspaceSnapshotEventArgs args) => Observe(args.Snapshot);
 
@@ -56,14 +60,15 @@ internal sealed class LauncherChatNotificationCoordinator : IDisposable
             }
             _baseline = true;
         }
-        if (snapshot.State.Preferences.DoNotDisturb || incoming.Count == 0) return;
+        if (snapshot.State.Preferences.DoNotDisturb || _isGlobalDoNotDisturb() || incoming.Count == 0) return;
         // Check visibility and preferences on the UI thread again: a queued alert may
         // outlive a navigation, a DND click, or an account change.
         _dispatch(() =>
         {
             ChatWorkspaceSnapshot current = _current();
             if (Volatile.Read(ref _disposed) != 0 || current.SessionId != snapshot.SessionId
-                || current.OwnerAccountId != snapshot.OwnerAccountId || current.State.Preferences.DoNotDisturb) return;
+                || current.OwnerAccountId != snapshot.OwnerAccountId || current.State.Preferences.DoNotDisturb
+                || _isGlobalDoNotDisturb()) return;
             var visible = incoming.Where(item => !_isThreadVisible(item.Thread.Id)
                 && current.State.Threads.Any(thread => thread.Id == item.Thread.Id && thread.LastReadMessageId < item.Message.Id)).ToArray();
             if (visible.Length == 0) return;

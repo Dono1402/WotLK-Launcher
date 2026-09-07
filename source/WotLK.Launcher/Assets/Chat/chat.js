@@ -6,14 +6,17 @@
   const e = R.element;
   const fileExtensions = new Set(['png','jpg','jpeg','gif','webp','pdf','txt','md','docx','xlsx','pptx','odt','ods','odp','mp3','ogg','wav','mp4','webm']);
   const strings = {
-    subtitle:['Gardez le contact, en jeu comme ailleurs.','Keep in touch, in game and beyond.'], conversations:['Conversations','Conversations'], all:['Toutes','All'], unread:['Non lus','Unread'], archived:['Conversations archivées','Archived conversations'], searchContacts:['Rechercher un contact…','Find a contact…'], newConversation:['Nouvelle conversation','New conversation'], chooseConversation:['Une conversation commence ici','A conversation starts here'], chooseConversationHint:['Retrouvez vos amis ou créez un groupe pour votre prochaine aventure.','Catch up with friends or make a group for your next adventure.'], settings:['Réglages des messages','Message settings'], dnd:['Ne pas déranger','Do not disturb'], online:['En ligne','Online'], offline:['Hors ligne','Offline'], inGame:['En jeu','In game'], playingOn:['En jeu sur','Playing as'], today:['Aujourd’hui','Today'], yesterday:['Hier','Yesterday'], noConversations:['Vos conversations apparaîtront ici.','Your conversations will appear here.'], noResults:['Aucun contact ne correspond à votre recherche.','No contacts match your search.'], noUnread:['Vous avez tout lu.','You’re all caught up.'], noArchived:['Aucune conversation archivée.','No archived conversations.'], pinned:['Épinglées','Pinned'], recent:['Récentes','Recent'], contacts:['Contacts','Contacts'], invitation:['Invitation à un groupe','Group invitation'], invitations:['Invitations','Invitations'], newMessages:['Nouveaux messages','New messages'], loadEarlier:['Afficher les messages précédents','Show earlier messages'], loading:['Chargement…','Loading…'], noMessages:['Écrivez le premier message.','Write the first message.'], details:['Participants et détails','Members and details'], conversationActions:['Actions de la conversation','Conversation actions'], pinnedMessages:['Messages épinglés','Pinned messages'], pinnedMessage:['Message épinglé','Pinned message'], noPinned:['Aucun message épinglé.','No pinned messages.'], composerPlaceholder:['Écrire un message…','Write a message…'], composerName:['Texte du message','Message text'], composerHint:['Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne','Enter to send · Shift + Enter for a new line'], send:['Envoyer','Send'], sending:['Envoi…','Sending…'], save:['Enregistrer','Save'], cancel:['Annuler','Cancel'], close:['Fermer','Close'], draftSaved:['Brouillon conservé','Draft saved'], reply:['Répondre','Reply'], replyingTo:['Réponse à','Replying to'], editingMessage:['Modification du message','Editing message'], edited:['modifié','edited'], edit:['Modifier','Edit'], delete:['Supprimer','Delete'], deletedMessage:['Ce message a été supprimé.','This message was deleted.'], deleteMessage:['Supprimer ce message ?','Delete this message?'], deleteMessageHint:['Il sera retiré de l’historique du launcher pour tous les participants. Un texte déjà affiché en jeu ne peut pas être effacé.','It will be removed from the launcher history for everyone. Text already shown in game cannot be erased.'], copy:['Copier le texte','Copy text'], copied:['Texte copié','Text copied'], copyFailed:['Impossible de copier le texte.','Could not copy the text.'], react:['Ajouter une réaction','Add a reaction'], addReaction:['Ajouter la réaction','Add reaction'], removeReaction:['Retirer ma réaction','Remove my reaction'], messageActions:['Actions du message','Message actions'], read:['Lu','Read'], pinMessage:['Épingler le message','Pin message'], unpinMessage:['Désépingler le message','Unpin message'], pinConversation:['Épingler la conversation','Pin conversation'], unpinConversation:['Désépingler la conversation','Unpin conversation'], archive:['Archiver la conversation','Archive conversation'], unarchive:['Désarchiver la conversation','Unarchive conversation'], goToMessage:['Revenir au message','Go to message'], messageNotLoaded:['Ce message se trouve plus haut dans la conversation.','This message is further up in the conversation.'], revealSpoiler:['Afficher le texte masqué','Reveal spoiler'], hideSpoiler:['Masquer le texte','Hide spoiler'], attachFiles:['Ajouter des fichiers','Add files'], attachmentHint:['Images, GIF, documents, audio et vidéo · 500 Mo par fichier','Images, GIFs, documents, audio and video · 500 MB per file'], dropFiles:['Déposez vos fichiers ici','Drop your files here'], dropUnavailable:['Utilisez le bouton + pour ajouter ces fichiers.','Use the + button to add these files.'], formatting:['Aide Markdown','Markdown help'], shareGame:['Partager une carte Atlas','Share an Atlas card'], download:['Télécharger','Download'], viewImage:['Afficher l’image','View image'], image:['Image','Image'], imageUnavailable:['Image indisponible','Image unavailable'], video:['Vidéo','Video'], audio:['Audio','Audio'], playVideo:['Lire la vidéo','Play video'], openLink:['Ouvrir le lien','Open link'], openOnSite:['Ouvrir sur le site','Open on website'], removePreviewForEveryone:['Retirer cet aperçu pour tous les participants','Remove this preview for everyone'], previewRemoved:['Aperçu retiré pour tous les participants.','Preview removed for everyone.'], waiting:['En attente','Waiting'], uploading:['Transfert','Uploading'], processing:['Préparation','Preparing'], ready:['Prêt','Ready'], failed:['Échec','Failed'], retry:['Réessayer','Retry'], retrySend:['Réessayer l’envoi','Retry send'], cancelSend:['Annuler l’envoi en attente','Cancel queued message'], cancelUpload:['Annuler le transfert','Cancel upload'], removeAttachment:['Retirer la pièce jointe','Remove attachment'], disconnected:['Connexion interrompue. Vos messages restent en attente.','Connection lost. Your messages remain queued.'], unavailable:['La messagerie est indisponible. Votre brouillon est conservé.','Messaging is unavailable. Your draft is kept.'], accessRevoked:['Vous ne pouvez plus écrire dans cette conversation.','You can no longer send messages in this conversation.'], genericError:['L’action n’a pas abouti. Réessayez dans un instant.','The action could not be completed. Try again shortly.'], group:['Groupe','Group'], direct:['Un ami','One friend'], createGroup:['Créer le groupe','Create group'], groupName:['Nom du groupe','Group name'], groupNamePlaceholder:['Par exemple : Les aventuriers du soir','For example: Evening adventurers'], selectFriends:['Choisissez vos amis','Choose your friends'], newConversationHint:['Échangez avec un ami ou réunissez votre groupe.','Chat with a friend or bring your group together.'], members:['participants','members'], activeMembers:['Participants','Members'], pendingMembers:['Invitations en attente','Pending invitations'], inviteMembers:['Inviter des amis','Invite friends'], invite:['Inviter','Invite'], invited:['Invité','Invited'], accept:['Accepter','Accept'], decline:['Refuser','Decline'], invitationHint:['Vous êtes invité à rejoindre cette conversation.','You’ve been invited to join this conversation.'], manageGroup:['Modifier le groupe','Edit group'], groupImage:['Image du groupe','Group image'], chooseGroupImage:['Choisir une image','Choose an image'], useGroupImage:['Utiliser pour le groupe','Use for the group'], groupImageHint:['Ajoutez une image, puis choisissez-la ci-dessous.','Add an image, then choose it below.'], leaveGroup:['Quitter le groupe','Leave group'], leaveGroupHint:['Vous ne recevrez plus les nouveaux messages de ce groupe.','You will no longer receive new messages from this group.'], removeMember:['Retirer du groupe','Remove from group'], makeAdmin:['Nommer administrateur','Make administrator'], makeMember:['Retirer le rôle administrateur','Remove administrator role'], admin:['Administrateur','Administrator'], owner:['Créateur','Owner'], self:['Vous','You'], openProfile:['Ouvrir le profil','Open profile'], readReceipts:['Partager les indications « Lu »','Share read receipts'], readReceiptsHint:['Vos correspondants verront les messages que vous avez lus. Vos badges Non lus restent à jour dans tous les cas.','Others can see which messages you have read. Your own unread badges stay up to date either way.'], shareTyping:['Partager « est en train d’écrire »','Share typing activity'], shareTypingHint:['Vos correspondants verront quand vous rédigez un message.','Others can see when you are writing a message.'], dndHint:['Masque les alertes jusqu’à ce que vous désactiviez ce mode.','Suppresses alerts until you turn this mode off.'], messageSound:['Son des messages','Message sound'], messageSoundHint:['Les nouveaux messages s’affichent sans signal sonore.','New messages appear without a notification sound.'], typingOne:['écrit…','is typing…'], typingMany:['sont en train d’écrire…','are typing…'], gameCard:['Carte Atlas','Atlas card'], item:['Objet','Item'], character:['Personnage','Character'], quest:['Quête','Quest'], location:['Lieu','Location'], outing:['Sortie','Outing'], title:['Titre','Title'], description:['Description','Description'], reference:['Identifiant de référence','Reference ID'], optional:['facultatif','optional'], cardHint:['Renseignez les informations que vous souhaitez partager.','Enter the details you want to share.'], addCard:['Ajouter la carte','Add card'], date:['Date','Date'], level:['Niveau','Level'], tank:['Tank','Tank'], healer:['Soigneur','Healer'], damage:['DPS','Damage'], joining:['Participe','Joining'], cardAttached:['Carte jointe','Card attached'], bold:['Gras','Bold'], italic:['Italique','Italic'], strike:['Barré','Strikethrough'], quote:['Citation','Quote'], list:['Liste','List'], code:['Code','Code'], spoiler:['Texte masqué','Spoiler'], limitReached:['Un message peut contenir jusqu’à 1 000 caractères.','A message can contain up to 1,000 characters.'], attachmentLimit:['Vous pouvez joindre jusqu’à 10 fichiers par message.','You can attach up to 10 files to a message.'], noFriends:['Votre liste d’amis est vide.','Your friends list is empty.'], legacyHint:['Les fonctions avancées seront disponibles après la mise à jour du service.','Advanced features will be available after the service is updated.']
+    subtitle:['Gardez le contact, en jeu comme ailleurs.','Keep in touch, in game and beyond.'], conversations:['Conversations','Conversations'], all:['Toutes','All'], unread:['Non lus','Unread'], searchContacts:['Rechercher un contact…','Find a contact…'], newConversation:['Nouvelle conversation','New conversation'], chooseConversation:['Une conversation commence ici','A conversation starts here'], chooseConversationHint:['Retrouvez vos amis ou créez un groupe pour votre prochaine aventure.','Catch up with friends or make a group for your next adventure.'], dnd:['Ne pas déranger','Do not disturb'], online:['En ligne','Online'], offline:['Hors ligne','Offline'], inGame:['En jeu','In game'], playingOn:['En jeu sur','Playing as'], today:['Aujourd’hui','Today'], yesterday:['Hier','Yesterday'], noConversations:['Vos conversations apparaîtront ici.','Your conversations will appear here.'], noResults:['Aucun contact ne correspond à votre recherche.','No contacts match your search.'], noUnread:['Vous avez tout lu.','You’re all caught up.'], pinned:['Épinglées','Pinned'], recent:['Récentes','Recent'], contacts:['Contacts','Contacts'], invitation:['Invitation à un groupe','Group invitation'], invitations:['Invitations','Invitations'], newMessages:['Nouveaux messages','New messages'], loadEarlier:['Afficher les messages précédents','Show earlier messages'], loading:['Chargement…','Loading…'], noMessages:['Écrivez le premier message.','Write the first message.'], details:['Participants et détails','Members and details'], conversationActions:['Actions de la conversation','Conversation actions'], pinnedMessages:['Messages épinglés','Pinned messages'], pinnedMessage:['Message épinglé','Pinned message'], noPinned:['Aucun message épinglé.','No pinned messages.'], composerPlaceholder:['Écrire un message…','Write a message…'], composerName:['Texte du message','Message text'], composerHint:['Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne','Enter to send · Shift + Enter for a new line'], send:['Envoyer','Send'], sending:['Envoi…','Sending…'], save:['Enregistrer','Save'], cancel:['Annuler','Cancel'], close:['Fermer','Close'], draftSaved:['Brouillon conservé','Draft saved'], reply:['Répondre','Reply'], replyingTo:['Réponse à','Replying to'], editingMessage:['Modification du message','Editing message'], edited:['modifié','edited'], edit:['Modifier','Edit'], delete:['Supprimer','Delete'], deleteMessage:['Supprimer ce message ?','Delete this message?'], deleteMessageHint:['Il sera retiré de l’historique du launcher pour tous les participants. Un texte déjà affiché en jeu ne peut pas être effacé.','It will be removed from the launcher history for everyone. Text already shown in game cannot be erased.'], copy:['Copier le texte','Copy text'], copied:['Texte copié','Text copied'], copyFailed:['Impossible de copier le texte.','Could not copy the text.'], react:['Ajouter une réaction','Add a reaction'], addReaction:['Ajouter la réaction','Add reaction'], removeReaction:['Retirer ma réaction','Remove my reaction'], messageActions:['Actions du message','Message actions'], read:['Lu','Read'], pinMessage:['Épingler le message','Pin message'], unpinMessage:['Désépingler le message','Unpin message'], pinConversation:['Épingler la conversation','Pin conversation'], unpinConversation:['Désépingler la conversation','Unpin conversation'], goToMessage:['Revenir au message','Go to message'], messageNotLoaded:['Ce message se trouve plus haut dans la conversation.','This message is further up in the conversation.'], revealSpoiler:['Afficher le texte masqué','Reveal spoiler'], hideSpoiler:['Masquer le texte','Hide spoiler'], attachFiles:['Ajouter des fichiers','Add files'], attachmentHint:['Images, GIF, documents, audio et vidéo · 500 Mo par fichier','Images, GIFs, documents, audio and video · 500 MB per file'], dropFiles:['Déposez vos fichiers ici','Drop your files here'], dropUnavailable:['Utilisez le bouton + pour ajouter ces fichiers.','Use the + button to add these files.'], shareGame:['Partager l’Armory d’un personnage','Share a character’s Armory'], download:['Télécharger','Download'], viewImage:['Afficher l’image','View image'], image:['Image','Image'], imageUnavailable:['Image indisponible','Image unavailable'], video:['Vidéo','Video'], audio:['Audio','Audio'], playVideo:['Lire la vidéo','Play video'], openLink:['Ouvrir le lien','Open link'], openOnSite:['Ouvrir sur le site','Open on website'], removePreviewForEveryone:['Retirer cet aperçu pour tous les participants','Remove this preview for everyone'], previewRemoved:['Aperçu retiré pour tous les participants.','Preview removed for everyone.'], waiting:['En attente','Waiting'], uploading:['Transfert','Uploading'], processing:['Préparation','Preparing'], ready:['Prêt','Ready'], failed:['Échec','Failed'], retry:['Réessayer','Retry'], retrySend:['Réessayer l’envoi','Retry send'], cancelSend:['Annuler l’envoi en attente','Cancel queued message'], cancelUpload:['Annuler le transfert','Cancel upload'], removeAttachment:['Retirer la pièce jointe','Remove attachment'], disconnected:['Connexion interrompue. Vos messages restent en attente.','Connection lost. Your messages remain queued.'], unavailable:['La messagerie est indisponible. Votre brouillon est conservé.','Messaging is unavailable. Your draft is kept.'], accessRevoked:['Vous ne pouvez plus écrire dans cette conversation.','You can no longer send messages in this conversation.'], genericError:['L’action n’a pas abouti. Réessayez dans un instant.','The action could not be completed. Try again shortly.'], group:['Groupe','Group'], direct:['Un ami','One friend'], createGroup:['Créer le groupe','Create group'], groupName:['Nom du groupe','Group name'], groupNamePlaceholder:['Par exemple : Les aventuriers du soir','For example: Evening adventurers'], selectFriends:['Choisissez vos amis','Choose your friends'], newConversationHint:['Échangez avec un ami ou réunissez votre groupe.','Chat with a friend or bring your group together.'], members:['participants','members'], activeMembers:['Participants','Members'], pendingMembers:['Invitations en attente','Pending invitations'], inviteMembers:['Inviter des amis','Invite friends'], invite:['Inviter','Invite'], invited:['Invité','Invited'], accept:['Accepter','Accept'], decline:['Refuser','Decline'], invitationHint:['Vous êtes invité à rejoindre cette conversation.','You’ve been invited to join this conversation.'], manageGroup:['Modifier le groupe','Edit group'], groupImage:['Image du groupe','Group image'], chooseGroupImage:['Choisir une image','Choose an image'], useGroupImage:['Utiliser pour le groupe','Use for the group'], groupImageHint:['Ajoutez une image, puis choisissez-la ci-dessous.','Add an image, then choose it below.'], leaveGroup:['Quitter le groupe','Leave group'], leaveGroupHint:['Vous ne recevrez plus les nouveaux messages de ce groupe.','You will no longer receive new messages from this group.'], removeMember:['Retirer du groupe','Remove from group'], makeAdmin:['Nommer administrateur','Make administrator'], makeMember:['Retirer le rôle administrateur','Remove administrator role'], admin:['Administrateur','Administrator'], owner:['Créateur','Owner'], self:['Vous','You'], openProfile:['Ouvrir le profil','Open profile'], typingOne:['écrit…','is typing…'], typingMany:['sont en train d’écrire…','are typing…'], gameCard:['Carte Atlas','Atlas card'], item:['Objet','Item'], character:['Personnage','Character'], quest:['Quête','Quest'], location:['Lieu','Location'], outing:['Sortie','Outing'], title:['Titre','Title'], description:['Description','Description'], reference:['Identifiant de référence','Reference ID'], optional:['facultatif','optional'], date:['Date','Date'], level:['Niveau','Level'], tank:['Tank','Tank'], healer:['Soigneur','Healer'], damage:['DPS','Damage'], joining:['Participe','Joining'], cardAttached:['Armory joint','Armory attached'], limitReached:['Un message peut contenir jusqu’à 1 000 caractères.','A message can contain up to 1,000 characters.'], attachmentLimit:['Vous pouvez joindre jusqu’à 10 fichiers par message.','You can attach up to 10 files to a message.'], noFriends:['Votre liste d’amis est vide.','Your friends list is empty.'], legacyHint:['Les fonctions avancées seront disponibles après la mise à jour du service.','Advanced features will be available after the service is updated.'],
+    away:['Absent','Away'], characterArmory:['Armory du personnage','Character Armory'], openArmory:['Ouvrir l’Armory','Open Armory'], chooseOwnCharacter:['Choisissez l’un de vos personnages.','Choose one of your characters.'], yourCharacters:['Vos personnages','Your characters'], shareCharacter:['Partager l’Armory de','Share the Armory of'], loadingCharacters:['Chargement de vos personnages…','Loading your characters…'], noCharacters:['Vous n’avez pas encore de personnage à partager.','You do not have a character to share yet.'], charactersUnavailable:['Impossible de charger vos personnages. Réessayez dans un instant.','Your characters could not be loaded. Try again shortly.'], addingArmory:['Ajout de l’Armory…','Adding the Armory…'], warrior:['Guerrier','Warrior'], paladin:['Paladin','Paladin'], hunter:['Chasseur','Hunter'], rogue:['Voleur','Rogue'], priest:['Prêtre','Priest'], deathKnight:['Chevalier de la mort','Death Knight'], shaman:['Chaman','Shaman'], mage:['Mage','Mage'], warlock:['Démoniste','Warlock'], druid:['Druide','Druid']
   };
   let snapshot = { sessionId: '', ownerAccountId: 0, sequence: '0', locale: 'fr', isActive: false, isAvailable: false, state: { threads: [], contacts: [], preferences: {}, capabilities: [] }, messages: [], selectedThreadId: null, draft: {}, pending: [], typing: [], mediaOrigin: 'https://atlas-chat-media.invalid/' };
   let filter = 'all', search = '', selectedThread = null, editTarget = null, editBackup = null;
   let replyTarget = null, composerCard = null, draftDirty = false, draftTimer = 0, typingTimer = 0, lastTypingAt = 0, typingActive = false;
   let renderVersion = 0, layoutPending = false, followBottom = true, stableAnchor = null, unreadBoundary = null, lastReadKey = '';
   let lastUserScroll = 0, programmaticScroll = false, dialogRefresh = null, toastTimer = 0, menuReturnFocus = null;
-  const requests = new Map(), localDrafts = new Map(), inFlightSends = new Map();
+  let armoryPickerOpen = false, armoryPickerFocusPending = false, armoryRequestPending = false, armorySelection = null, armoryError = '';
+  let lastComposerStateKey = '';
+  const requests = new Map(), localDrafts = new Map(), inFlightSends = new Map(), armorySelections = new Map();
   const timeline = $('timeline'), messageList = $('message-list'), composer = $('composer-input');
   const t = key => strings[key] ? strings[key][String(snapshot.locale).startsWith('en') ? 1 : 0] : key;
   const uuid = () => global.crypto && crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
@@ -49,10 +52,13 @@
     const request = requests.get(result.requestId);
     requests.delete(result.requestId);
     if (request && request.session === sessionKey(snapshot)) request.handler(result.payload, result.error);
+    else if (!request && /^native-drop-[a-f0-9-]{32,36}$/i.test(result.requestId || '') && result.error && hasIdentity()
+      && (!result.sessionId || result.sessionId === snapshot.sessionId)
+      && (!result.ownerAccountId || result.ownerAccountId === snapshot.ownerAccountId)) toast(errorText(result.error));
   }
   function errorText(code) {
     if (!code) return '';
-    const errors = { 'chat-unavailable': 'unavailable', 'chat-unauthorized': 'unavailable', 'chat-not-friends': 'accessRevoked', 'chat-forbidden': 'accessRevoked', 'chat-invalid-message': 'limitReached', 'chat-too-many-attachments': 'attachmentLimit' };
+    const errors = { 'chat-unavailable': 'unavailable', 'chat-unauthorized': 'unavailable', 'chat-not-friends': 'accessRevoked', 'chat-forbidden': 'accessRevoked', 'chat-invalid-message': 'limitReached', 'chat-too-many-attachments': 'attachmentLimit', 'chat-file-type-not-supported': 'attachmentHint', 'chat-file-too-large': 'attachmentHint', 'chat-armory-unavailable': 'charactersUnavailable', 'chat-character-not-owned': 'charactersUnavailable' };
     if (typeof code === 'string' && !code.startsWith('chat-') && !code.startsWith('http-') && code.length < 300) return code;
     return t(errors[code] || 'genericError');
   }
@@ -68,18 +74,25 @@
     $('attachment-queue').setAttribute('aria-label', t('attachFiles'));
   }
 
-  function peer(thread) { return (thread && thread.members || []).find(member => member.profile && member.profile.accountId !== snapshot.ownerAccountId)?.profile || null; }
+  function resolveProfile(profile) {
+    if (!profile) return null;
+    const current = snapshot.state.self?.accountId === profile.accountId ? snapshot.state.self
+      : (snapshot.state.contacts || []).find(contact => contact.accountId === profile.accountId);
+    return current ? { ...profile, ...current } : profile;
+  }
+  function peer(thread) { return resolveProfile((thread && thread.members || []).find(member => member.profile && member.profile.accountId !== snapshot.ownerAccountId)?.profile || null); }
   function threadTitle(thread) { return thread.kind === 'group' ? thread.title || t('group') : peer(thread)?.username || thread.title || ''; }
   function threadProfile(thread) { return thread.kind === 'group' ? { username: thread.title, avatarUrl: thread.avatarUrl || (thread.avatarAttachmentId ? snapshot.mediaOrigin + 'attachments/' + encodeURIComponent(thread.avatarAttachmentId) : '') } : peer(thread); }
   function threadPresence(thread) { return thread.kind === 'group' ? (thread.members || []).filter(member => member.status === 'active').length + ' ' + t('members') : R.presenceText(peer(thread), t); }
   function threadMatches(thread) { return !search || [threadTitle(thread), ...(thread.members || []).map(member => (member.profile?.username || '') + ' ' + (member.profile?.characterName || ''))].some(value => value.toLocaleLowerCase().includes(search)); }
   function conversationPreview(thread) {
-    const message = thread.lastMessage;
+    const message = thread.lastMessage?.deletedAt
+      ? (snapshot.messages || []).filter(item => item.threadId === thread.id && !item.deletedAt && R.id(item.id)).sort((a, b) => R.compareIds(a.id, b.id)).at(-1)
+      : thread.lastMessage;
     const saved = localDrafts.get(thread.id);
     if (saved && (saved.body || saved.card)) return t('draftSaved') + ' · ' + saved.body;
     if (thread.isInvited) return t('invitation');
-    if (!message) return t('noMessages');
-    if (message.deletedAt) return t('deletedMessage');
+    if (!message) return thread.lastMessage?.deletedAt ? '' : t('noMessages');
     const prefix = message.sender?.accountId === snapshot.ownerAccountId ? t('self') + ' : ' : thread.kind === 'group' ? (message.sender?.username || '') + ' : ' : '';
     return prefix + (message.body || message.card?.title || message.attachments?.map(attachment => attachment.fileName).join(', ') || '');
   }
@@ -93,7 +106,7 @@
 
   function renderConversations() {
     for (const choice of document.querySelectorAll('[data-filter]')) { choice.classList.toggle('is-active', choice.dataset.filter === filter); choice.setAttribute('aria-pressed', String(choice.dataset.filter === filter)); }
-    let threads = (snapshot.state.threads || []).filter(thread => threadMatches(thread) && (filter === 'archived' ? thread.isArchived : !thread.isArchived) && (filter !== 'unread' || thread.unreadCount > 0));
+    let threads = (snapshot.state.threads || []).filter(thread => threadMatches(thread) && (filter !== 'unread' || thread.unreadCount > 0));
     threads.sort((a, b) => Number(!!b.isInvited) - Number(!!a.isInvited) || Number(!!b.isPinned) - Number(!!a.isPinned) || R.compareIds(b.lastMessage?.id || '0', a.lastMessage?.id || '0') || threadTitle(a).localeCompare(threadTitle(b), snapshot.locale));
     const rows = [];
     let section = '';
@@ -110,7 +123,7 @@
     R.reconcileKeyed($('conversation-list'), rows, row => row.key, row => {
       if (row.kind === 'section') { const label = e('div', 'conversation-section-label', t(row.label)); if (row.label === 'pinned') label.prepend(R.icon('pin')); return label; }
       const thread = row.thread;
-      const profile = row.contact || threadProfile(thread);
+      const profile = row.contact ? resolveProfile(row.contact) : threadProfile(thread);
       const title = row.contact ? row.contact.username : threadTitle(thread);
       const node = R.button('conversation-row' + (thread && thread.id === currentThreadId() ? ' is-selected' : '') + (thread?.unreadCount > 0 ? ' is-unread' : ''), title, null, () => row.contact ? openDirect(row.contact.accountId) : selectThread(thread.id));
       node.setAttribute('role', 'listitem');
@@ -124,14 +137,13 @@
       node.append(text, meta);
       if (thread) node.addEventListener('contextmenu', event => { event.preventDefault(); showThreadMenu(thread, event.clientX, event.clientY); });
       return node;
-    }, row => JSON.stringify([row, currentThreadId(), snapshot.locale, row.thread && localDrafts.get(row.thread.id)]));
+    }, row => JSON.stringify([row, currentThreadId(), snapshot.locale, row.thread && localDrafts.get(row.thread.id), row.contact ? resolveProfile(row.contact) : row.thread && threadProfile(row.thread), row.thread && conversationPreview(row.thread)]));
     const empty = $('conversation-empty'); empty.hidden = rows.length > 0;
-    empty.querySelector('p').textContent = search ? t('noResults') : filter === 'unread' ? t('noUnread') : filter === 'archived' ? t('noArchived') : t('noConversations');
+    empty.querySelector('p').textContent = search ? t('noResults') : filter === 'unread' ? t('noUnread') : t('noConversations');
     const totalUnread = (snapshot.state.threads || []).reduce((total, thread) => total + Math.max(0, Number(thread.unreadCount) || 0), 0);
     $('unread-filter-count').hidden = !totalUnread; $('unread-filter-count').textContent = totalUnread > 99 ? '99+' : totalUnread;
     $('sidebar-status').textContent = snapshot.isLegacyFallback ? t('legacyHint') : snapshot.isLoading && !snapshot.state.threads.length ? t('loading') : '';
     $('new-conversation-button').disabled = !hasIdentity(); $('empty-new-button').disabled = !hasIdentity();
-    document.querySelector('[data-filter=archived]').hidden = !capable('archive');
   }
 
   function captureAnchor() {
@@ -150,12 +162,16 @@
   function scrollBottom() { programmaticScroll = true; timeline.scrollTop = timeline.scrollHeight; followBottom = true; stableAnchor = null; requestAnimationFrame(() => { programmaticScroll = false; }); }
   function requestRead() {
     if (layoutPending || !active() || !isAtBottom(2) || timeline.clientHeight <= 0) return;
-    const last = (snapshot.messages || []).filter(message => R.id(message.id)).sort((a, b) => R.compareIds(a.id, b.id)).at(-1);
+    const messages = (snapshot.messages || []).filter(message => R.id(message.id)).sort((a, b) => R.compareIds(a.id, b.id));
+    const last = messages.at(-1);
     if (!last) return;
-    const node = Array.from(messageList.children).find(item => item.dataset.messageId === last.id);
-    if (!node) return;
-    const bounds = node.getBoundingClientRect(), viewport = timeline.getBoundingClientRect();
-    if (bounds.bottom > viewport.bottom + 2 || bounds.bottom < viewport.top) return;
+    const lastVisible = messages.filter(message => !message.deletedAt).at(-1);
+    if (lastVisible) {
+      const node = Array.from(messageList.children).find(item => item.dataset.messageId === lastVisible.id);
+      if (!node) return;
+      const bounds = node.getBoundingClientRect(), viewport = timeline.getBoundingClientRect();
+      if (bounds.bottom > viewport.bottom + 2 || bounds.bottom < viewport.top) return;
+    }
     const key = sessionKey(snapshot) + ':' + currentThreadId() + ':' + last.id;
     if (key === lastReadKey) return;
     lastReadKey = key;
@@ -178,11 +194,12 @@
   function renderTimeline(changedThread) {
     const oldAnchor = changedThread ? null : captureAnchor();
     const toBottom = changedThread || followBottom || isAtBottom(36);
-    const messages = (snapshot.messages || []).filter(message => R.id(message.id)).slice().sort((a, b) => R.compareIds(a.id, b.id));
+    const allMessages = (snapshot.messages || []).filter(message => R.id(message.id)).slice().sort((a, b) => R.compareIds(a.id, b.id));
+    const messages = allMessages.filter(message => !message.deletedAt);
     const existing = new Map(Array.from(messageList.children).map(node => [node.dataset.key, node]));
     let cursor = messageList.firstElementChild, previous = null, lastDay = '', unreadAdded = false;
     const keep = (key, node) => { node.dataset.key = key; if (node !== cursor) messageList.insertBefore(node, cursor); cursor = node.nextElementSibling; existing.delete(key); };
-    const context = { ownerAccountId: snapshot.ownerAccountId, locale: snapshot.locale, mediaOrigin: snapshot.mediaOrigin, t, action, isActive: active, capable, reply: beginReply, copy: copyText, react: showReactions, messageMenu: showMessageMenu, jumpTo, viewImage, dismissPreview };
+    const context = { ownerAccountId: snapshot.ownerAccountId, locale: snapshot.locale, mediaOrigin: snapshot.mediaOrigin, t, action, profile: resolveProfile, isActive: active, capable, reply: beginReply, copy: copyText, react: showReactions, messageMenu: showMessageMenu, jumpTo, viewImage, dismissPreview };
     for (const message of messages) {
       const day = R.dayKey(message.createdAt);
       if (day !== lastDay) {
@@ -197,7 +214,7 @@
       const node = R.reconcileMessage(existing.get(key), message, { ...context });
       keep(key, node); previous = message;
     }
-    const pending = (snapshot.pending || []).filter(item => item.threadId === currentThreadId() && !messages.some(message => message.clientMessageId === item.clientMessageId));
+    const pending = (snapshot.pending || []).filter(item => item.threadId === currentThreadId() && !allMessages.some(message => message.clientMessageId === item.clientMessageId));
     for (const queued of pending) {
       const key = 'pending:' + queued.clientMessageId;
       let node = existing.get(key);
@@ -220,7 +237,7 @@
 
   function renderPending(queued) {
     const node = e('article', 'message is-own is-group-start'); node.dataset.clientMessageId = queued.clientMessageId;
-    const avatar = e('div', 'message-avatar'); avatar.append(R.avatar(snapshot.state.self, { small: true, mediaOrigin: snapshot.mediaOrigin }));
+    const avatar = e('div', 'message-avatar'); avatar.append(R.avatar(snapshot.state.self, { small: true, presence: true, mediaOrigin: snapshot.mediaOrigin }));
     const main = e('div', 'message-main');
     const heading = e('div', 'message-heading'); heading.append(e('span', 'message-author', snapshot.state.self?.username || t('self')), e('span', 'message-time', R.time(queued.createdAt, snapshot.locale)));
     main.append(heading, R.renderMarkdown(queued.body, t));
@@ -248,6 +265,7 @@
     composer.value = draft?.body || ''; composerCard = draft?.card || null;
     const replyId = draft?.replyToMessageId;
     replyTarget = replyId ? snapshot.messages.find(message => message.id === replyId) || { messageId: replyId, body: '', sender: { username: '' } } : null;
+    if (replyTarget?.deletedAt) replyTarget = null;
     resizeComposer(); renderComposerContext();
   }
   function completeLocalSend(clientMessageId) {
@@ -288,7 +306,16 @@
   }
   function showComposerError(text) { $('composer-error').textContent = text; $('composer-error').hidden = !text; }
   function resizeComposer() { composer.style.height = 'auto'; composer.style.height = Math.min(148, Math.max(47, composer.scrollHeight)) + 'px'; }
+  function publishComposerState() {
+    const threadId = currentThreadId(), acceptsFiles = canReceiveFiles();
+    if (!acceptsFiles) { dragDepth = 0; nativeDropActive = false; renderDropOverlay(); }
+    if (!hasIdentity() || !threadId) { lastComposerStateKey = ''; return; }
+    const key = JSON.stringify([sessionKey(snapshot), threadId, acceptsFiles]);
+    if (lastComposerStateKey === key) return;
+    if (action('composerState', { threadId, acceptsFiles }, { silent: true })) lastComposerStateKey = key;
+  }
   function updateComposer() {
+    publishComposerState();
     const editable = !!selectedThread && selectedThread.canSend && hasIdentity();
     composer.disabled = !editable;
     const length = normalizedBody(composer.value).length;
@@ -301,8 +328,8 @@
     $('send-button').disabled = !editable || length > 1000 || empty || failedUpload || submitting || (editTarget && !snapshot.isAvailable);
     $('send-button').querySelector('span').textContent = t(editTarget ? 'save' : submitting ? 'sending' : 'send');
     $('attach-button').hidden = !capable('attachments'); $('attach-button').disabled = !editable || !!editTarget || uploads.length >= 10;
-    $('format-button').hidden = !capable('markdown'); $('format-button').disabled = !editable;
     $('share-game-button').hidden = !capable('cards'); $('share-game-button').disabled = !editable || !!editTarget;
+    if (!editable || editTarget || !capable('cards')) closeArmoryPicker();
     $('draft-status').textContent = !editTarget && (composer.value || composerCard) ? t('draftSaved') : '';
     renderComposerContext();
   }
@@ -364,10 +391,12 @@
     $('thread-avatar').replaceChildren(R.avatar(threadProfile(selectedThread), { group: selectedThread.kind === 'group', presence: true, mediaOrigin: snapshot.mediaOrigin }));
     $('thread-title').textContent = threadTitle(selectedThread);
     $('thread-presence').textContent = threadPresence(selectedThread);
-    $('thread-presence').classList.toggle('is-online', !!peer(selectedThread) && peer(selectedThread).presence !== 'offline');
+    const presence = selectedThread.kind === 'group' ? '' : R.presenceStatus(peer(selectedThread));
+    $('thread-presence').dataset.presence = presence;
+    $('thread-presence').classList.toggle('is-online', presence === 'online');
     $('thread-profile-button').title = selectedThread.kind === 'group' ? t('details') : t('openProfile');
     $('thread-details-button').hidden = selectedThread.kind !== 'group';
-    const pinned = selectedThread.pinnedMessages || [];
+    const pinned = (selectedThread.pinnedMessages || []).filter(message => !message.deletedAt);
     $('pinned-strip').hidden = !pinned.length || !capable('pins');
     $('pinned-excerpt').textContent = pinned[0]?.body || pinned[0]?.attachments?.[0]?.fileName || pinned[0]?.card?.title || '';
     $('pinned-count').textContent = pinned.length > 1 ? pinned.length : '';
@@ -392,11 +421,12 @@
       next.draft = { ...draft, attachments: (next.uploads || []).filter(item => item.threadId === next.selectedThreadId).map(upload => ({ ...upload, id: upload.id || upload.localId, isComplete: !!upload.attachment })) };
     }
     if (identityChanged) {
-      R.suspendMedia(document); localDrafts.clear(); inFlightSends.clear(); requests.clear(); messageList.replaceChildren();
-      clearTimeout(draftTimer); clearTimeout(typingTimer); draftDirty = false; typingActive = false; lastTypingAt = 0; lastReadKey = ''; unreadBoundary = null;
-      closeMenus(); closeDialog(); editTarget = null; editBackup = null; replyTarget = null; composerCard = null; composer.value = ''; filter = 'all';
+      R.suspendMedia(document); localDrafts.clear(); inFlightSends.clear(); requests.clear(); armorySelections.clear(); messageList.replaceChildren();
+      clearTimeout(draftTimer); clearTimeout(typingTimer); draftDirty = false; typingActive = false; lastTypingAt = 0; lastReadKey = ''; lastComposerStateKey = ''; unreadBoundary = null;
+      closeMenus(); closeDialog(); closeArmoryPicker(); armoryRequestPending = false; armorySelection = null; armoryError = ''; editTarget = null; editBackup = null; replyTarget = null; composerCard = null; composer.value = ''; filter = 'all';
+      $('armory-character-list').replaceChildren(); $('armory-picker-status').replaceChildren(); $('armory-picker-status')._signature = null;
     }
-    if (changedThread) { R.suspendMedia(messageList); messageList.replaceChildren(); editTarget = null; editBackup = null; replyTarget = null; composerCard = null; stableAnchor = null; lastReadKey = ''; closeMenus(); }
+    if (changedThread) { R.suspendMedia(messageList); messageList.replaceChildren(); editTarget = null; editBackup = null; replyTarget = null; composerCard = null; stableAnchor = null; lastReadKey = ''; closeMenus(); closeArmoryPicker(); armorySelection = null; dragDepth = 0; nativeDropActive = false; }
     const oldLocale = snapshot.locale;
     snapshot = next;
     selectedThread = (next.state.threads || []).find(thread => thread.id === next.selectedThreadId) || null;
@@ -410,11 +440,10 @@
       if (changedThread || !local) setComposerFromDraft(local || next.draft);
     }
     if (!selectedThread) { R.suspendMedia(messageList); messageList.replaceChildren(); if (next.selectedThreadId) localDrafts.delete(next.selectedThreadId); composer.value = ''; replyTarget = null; composerCard = null; }
-    $('dnd-button').setAttribute('aria-pressed', String(!!snapshot.state.preferences.doNotDisturb));
-    $('dnd-button').disabled = !capable('preferences'); $('settings-button').disabled = !capable('preferences');
+    if (replyTarget && next.messages.some(message => message.id === (replyTarget.id || replyTarget.messageId) && message.deletedAt)) { replyTarget = null; saveLocalDraft(); }
     renderConversations(); renderThreadHeader();
     if (selectedThread) renderTimeline(changedThread);
-    renderUploads(); updateComposer(); renderTyping();
+    renderUploads(); updateComposer(); renderTyping(); renderArmoryPicker(); renderDropOverlay();
     if (snapshot.error || snapshot.errorCode) showComposerError(errorText(snapshot.error || snapshot.errorCode));
     if (!active()) { lastReadKey = ''; R.suspendMedia(document); stopTyping(); }
     if (dialogRefresh) dialogRefresh();
@@ -447,7 +476,6 @@
   function showThreadMenu(thread, x, y) {
     const items = [];
     if (capable('pins')) items.push({ label: t(thread.isPinned ? 'unpinConversation' : 'pinConversation'), icon: 'pin', run: () => action('threadSelf', { threadId: thread.id, isPinned: !thread.isPinned }) });
-    if (capable('archive')) items.push({ label: t(thread.isArchived ? 'unarchive' : 'archive'), icon: 'archive', run: () => action('threadSelf', { threadId: thread.id, isArchived: !thread.isArchived }) });
     if (thread.kind === 'group') items.push({ label: t('details'), icon: 'group', run: () => showDetails(thread) });
     else if (peer(thread)) items.push({ label: t('openProfile'), icon: 'external', run: () => action('openProfile', { accountId: peer(thread).accountId }) });
     if (items.length) showMenu(items, x, y);
@@ -512,7 +540,7 @@
   function openDirect(accountId) {
     const existing = snapshot.state.threads.find(thread => thread.kind === 'direct' && peer(thread)?.accountId === accountId);
     closeDialog();
-    if (existing) { if (existing.isArchived) action('threadSelf', { threadId: existing.id, isArchived: false }); selectThread(existing.id); }
+    if (existing) selectThread(existing.id);
     else action('createThread', { requestId: uuid(), isGroup: false, title: '', participantAccountIds: [accountId] });
   }
   function showNewConversation(inviteThread) {
@@ -551,29 +579,9 @@
     search.input.addEventListener('input', renderList); title.input.addEventListener('input', renderList); renderList(); search.input.focus();
   }
 
-  function showSettings() {
-    const dialog = openDialog(t('settings'), '');
-    function setting(label, hint, key, disabled) {
-      const row = e('div', 'settings-row'), text = e('span'); text.append(e('strong', '', t(label)), e('small', '', t(hint)));
-      const toggle = R.button('toggle', t(label), null, () => action('preferences', { [key]: !snapshot.state.preferences[key] })); toggle.setAttribute('role', 'switch'); toggle.setAttribute('aria-checked', String(!!snapshot.state.preferences[key])); toggle.disabled = !!disabled;
-      row.append(text, toggle); dialog.content.append(row); return toggle;
-    }
-    const toggles = [];
-    toggles.push(['doNotDisturb', setting('dnd', 'dndHint', 'doNotDisturb')]); dialog.content.append(e('div', 'settings-divider'));
-    toggles.push(['shareReadReceipts', setting('readReceipts', 'readReceiptsHint', 'shareReadReceipts', !capable('read-receipts'))]);
-    toggles.push(['shareTyping', setting('shareTyping', 'shareTypingHint', 'shareTyping', !capable('typing'))]); dialog.content.append(e('div', 'settings-divider'));
-    const sound = setting('messageSound', 'messageSoundHint', 'messageSoundEnabled', true); sound.setAttribute('aria-checked', 'false');
-    dialogRefresh = () => { for (const [key, node] of toggles) node.setAttribute('aria-checked', String(!!snapshot.state.preferences[key])); };
-    footerButton(dialog.footer, t('close'), closeDialog);
-  }
-  function showFormatting() {
-    const dialog = openDialog(t('formatting'), '');
-    for (const [syntax, label] of [['**texte**', 'bold'], ['*texte*', 'italic'], ['~~texte~~', 'strike'], ['> texte', 'quote'], ['- texte', 'list'], ['`code`', 'code'], ['||texte||', 'spoiler']]) { const row = e('div', 'formatting-row'); row.append(e('code', '', syntax), e('span', '', t(label))); dialog.content.append(row); }
-    footerButton(dialog.footer, t('close'), closeDialog);
-  }
   function showPinned() {
     const dialog = openDialog(t('pinnedMessages'), '');
-    for (const message of selectedThread?.pinnedMessages || []) { const row = R.button('pinned-dialog-message', t('goToMessage'), null, () => jumpTo(message.id)); row.append(e('strong', '', message.sender?.username), e('span', '', message.body || message.card?.title || message.attachments?.map(item => item.fileName).join(', ')), e('small', '', R.fullDate(message.createdAt, snapshot.locale))); dialog.content.append(row); }
+    for (const message of (selectedThread?.pinnedMessages || []).filter(item => !item.deletedAt)) { const row = R.button('pinned-dialog-message', t('goToMessage'), null, () => jumpTo(message.id)); row.append(e('strong', '', resolveProfile(message.sender)?.username), e('span', '', message.body || message.card?.title || message.attachments?.map(item => item.fileName).join(', ')), e('small', '', R.fullDate(message.createdAt, snapshot.locale))); dialog.content.append(row); }
     if (!dialog.content.childElementCount) dialog.content.append(e('p', 'dialog-helper', t('noPinned')));
     footerButton(dialog.footer, t('close'), closeDialog);
   }
@@ -589,7 +597,7 @@
     }
     dialog.content.append(e('h3', 'dialog-helper', t('activeMembers')));
     for (const member of thread.members || []) {
-      const row = e('div', 'details-member'); row.append(R.avatar(member.profile, { small: true, presence: member.status === 'active', mediaOrigin: snapshot.mediaOrigin }));
+      const row = e('div', 'details-member'); row.append(R.avatar(resolveProfile(member.profile), { small: true, presence: member.status === 'active', mediaOrigin: snapshot.mediaOrigin }));
       row.append(e('span', '', member.profile.username + (member.profile.accountId === snapshot.ownerAccountId ? ' · ' + t('self') : '')));
       if (member.status === 'invited') row.append(e('small', '', t('invited'))); else if (member.role === 'owner' || member.role === 'admin') row.append(e('small', '', t(member.role)));
       if (thread.canManage && member.profile.accountId !== snapshot.ownerAccountId && member.role !== 'owner') {
@@ -619,37 +627,96 @@
     const image = e('img', 'image-viewer'); image.src = url; image.alt = attachment.fileName || t('image'); dialog.content.append(image);
     footerButton(dialog.footer, t('download'), () => action('downloadAttachment', { attachmentId: attachment.id, fileName: attachment.fileName })); footerButton(dialog.footer, t('close'), closeDialog);
   }
+  function closeArmoryPicker(restoreFocus) {
+    armoryPickerOpen = false; armoryPickerFocusPending = false;
+    $('armory-picker').hidden = true; $('share-game-button').setAttribute('aria-expanded', 'false');
+    if (restoreFocus) $('share-game-button').focus({ preventScroll: true });
+  }
+  function characterClass(character) {
+    const names = { 1: 'warrior', 2: 'paladin', 3: 'hunter', 4: 'rogue', 5: 'priest', 6: 'deathKnight', 7: 'shaman', 8: 'mage', 9: 'warlock', 11: 'druid' };
+    return names[character.classId] ? t(names[character.classId]) : t('character');
+  }
+  function requestOwnCharacters() {
+    if (armoryRequestPending || !hasIdentity()) return;
+    armoryRequestPending = true; armoryError = ''; renderArmoryPicker();
+    const requestId = action('requestOwnCharacters', {}, { result: (_, error) => {
+      armoryRequestPending = false; if (error) armoryError = errorText(error);
+      renderArmoryPicker();
+    } });
+    if (!requestId) { armoryRequestPending = false; armoryError = t('charactersUnavailable'); renderArmoryPicker(); }
+  }
   function showCardComposer() {
-    if (!capable('cards')) return;
-    const dialog = openDialog(t('shareGame'), t('cardHint'));
-    const kind = formField(t('gameCard'), '', 'select');
-    for (const value of ['item', 'character', 'quest', 'location', 'outing']) { const option = e('option', '', t(value)); option.value = value; kind.input.append(option); }
-    const title = formField(t('title')); title.input.maxLength = 120;
-    const description = formField(t('description') + ' · ' + t('optional'), '', 'textarea'); description.input.maxLength = 500;
-    const reference = formField(t('reference') + ' · ' + t('optional')); reference.input.maxLength = 80;
-    const date = formField(t('date'), '', 'input', 'datetime-local'); date.wrapper.hidden = true;
-    const profile = formField(t('character'), '', 'select'); profile.wrapper.hidden = true;
-    for (const contact of [snapshot.state.self, ...snapshot.state.contacts].filter(Boolean)) { const option = e('option', '', contact.username + (contact.characterName ? ' · ' + contact.characterName : '')); option.value = String(contact.accountId); profile.input.append(option); }
-    dialog.content.append(kind.wrapper, title.wrapper, description.wrapper, reference.wrapper, profile.wrapper, date.wrapper);
-    kind.input.addEventListener('change', () => { date.wrapper.hidden = kind.input.value !== 'outing'; profile.wrapper.hidden = kind.input.value !== 'character'; reference.wrapper.hidden = kind.input.value === 'character' || kind.input.value === 'outing'; });
-    footerButton(dialog.footer, t('cancel'), closeDialog);
-    const add = footerButton(dialog.footer, t('addCard'), () => {
-      if (!title.input.value.trim()) return;
-      const fields = {};
-      if (kind.input.value === 'outing' && date.input.value) fields.startsAt = new Date(date.input.value).toISOString();
-      if (kind.input.value === 'character') {
-        const chosen = [snapshot.state.self, ...snapshot.state.contacts].find(contact => String(contact.accountId) === profile.input.value);
-        if (chosen) { fields.accountId = String(chosen.accountId); if (chosen.characterGuid) fields.characterGuid = String(chosen.characterGuid); }
+    if (!capable('cards') || !selectedThread?.canSend || editTarget) return;
+    if (armoryPickerOpen) { closeArmoryPicker(); return; }
+    closeMenus(); armoryPickerOpen = true; armoryPickerFocusPending = true; armoryError = '';
+    renderArmoryPicker(); requestOwnCharacters();
+  }
+  function selectOwnCharacter(character) {
+    const characterGuid = R.id(character.guid);
+    if (!characterGuid || characterGuid === '0' || armorySelection || !selectedThread?.canSend || editTarget) return;
+    const threadId = currentThreadId();
+    const selection = { threadId, characterGuid };
+    flushDraft(); armoryError = ''; armorySelection = selection; armorySelections.set(threadId, selection); renderArmoryPicker();
+    const requestId = action('selectOwnCharacter', { threadId, characterGuid }, { result: (payload, error) => {
+      if (armorySelections.get(threadId) !== selection) return;
+      armorySelections.delete(threadId);
+      if (armorySelection === selection) armorySelection = null;
+      const card = payload?.card;
+      if (error || !card || card.kind !== 'character' || String(card.fields?.characterGuid || card.referenceId || '') !== characterGuid
+        || String(card.fields?.ownerAccountId || '') !== String(snapshot.ownerAccountId)) {
+        if (threadId === currentThreadId()) { armoryError = errorText(error) || t('charactersUnavailable'); renderArmoryPicker(); }
+        return;
       }
-      composerCard = { kind: kind.input.value, title: title.input.value.trim(), description: description.input.value.trim(), referenceId: reference.input.value.trim() || null, fields, responses: [] };
-      closeDialog(); saveLocalDraft(); updateComposer(); composer.focus();
-    }, true); add.disabled = true; title.input.addEventListener('input', () => { add.disabled = !title.input.value.trim(); });
+      const ownDraft = localDrafts.get(threadId);
+      if (ownDraft) localDrafts.set(threadId, { ...ownDraft, card });
+      if (threadId !== currentThreadId() || editTarget) return;
+      composerCard = card; closeArmoryPicker(); saveLocalDraft(); updateComposer(); composer.focus();
+    } });
+    if (!requestId) { armorySelections.delete(threadId); armorySelection = null; armoryError = t('charactersUnavailable'); renderArmoryPicker(); }
+  }
+  function renderArmoryPicker() {
+    const panel = $('armory-picker'); panel.hidden = !armoryPickerOpen;
+    $('share-game-button').setAttribute('aria-expanded', String(armoryPickerOpen));
+    if (!armoryPickerOpen) return;
+    const roster = snapshot.ownCharacters || { status: 'idle', characters: [] };
+    const loading = armoryRequestPending || roster.status === 'loading' || roster.status === 'idle';
+    const choosing = armorySelection?.threadId === currentThreadId();
+    const error = armoryError || (roster.status === 'error' ? t('charactersUnavailable') : '');
+    const status = $('armory-picker-status'), list = $('armory-character-list');
+    const characters = (roster.characters || []).filter(character => R.id(character.guid) && character.guid !== '0');
+    panel.setAttribute('aria-busy', String(loading || !!choosing));
+    const statusKey = JSON.stringify([loading, choosing && armorySelection.characterGuid, error, characters.length, snapshot.locale]);
+    if (status._signature !== statusKey) {
+      status._signature = statusKey; status.replaceChildren();
+      if (error) {
+        status.append(e('span', '', error));
+        const retry = R.button('armory-retry', t('retry'), null, requestOwnCharacters); retry.textContent = t('retry'); status.append(retry);
+      } else if (choosing) status.append(e('span', '', t('addingArmory')));
+      else if (loading) status.append(e('span', '', t('loadingCharacters')));
+      else if (!characters.length) status.append(e('span', '', t('noCharacters')));
+      status.hidden = !status.childElementCount;
+    }
+    R.reconcileKeyed(list, characters, character => character.guid, character => {
+      const row = e('div', 'armory-character-row'); row.setAttribute('role', 'listitem');
+      const name = String(character.name || t('character'));
+      const choice = R.button('armory-character', t('shareCharacter') + ' ' + name, null, () => selectOwnCharacter(character));
+      choice.dataset.characterGuid = character.guid; choice.dataset.classId = String(character.classId || '');
+      choice.disabled = loading || !!choosing || !!error;
+      const badge = e('span', 'armory-character-emblem', R.initials(name)); badge.setAttribute('aria-hidden', 'true');
+      const text = e('span', 'armory-character-text');
+      const details = [Number(character.level) > 0 ? t('level') + ' ' + character.level : '', characterClass(character), character.realmName || ''].filter(Boolean);
+      text.append(e('strong', '', name), e('small', '', details.join(' · ')));
+      choice.append(badge, text, R.icon('plus')); row.append(choice); return row;
+    }, character => JSON.stringify([character, loading, !!choosing, error, snapshot.locale]));
+    if (armoryPickerFocusPending && !loading && list.querySelector('button:not(:disabled)')
+      && (document.activeElement === $('share-game-button') || panel.contains(document.activeElement))) {
+      armoryPickerFocusPending = false; list.querySelector('button:not(:disabled)').focus({ preventScroll: true });
+    }
   }
 
   $('contact-search').addEventListener('input', event => { search = event.target.value.trim().toLocaleLowerCase(); renderConversations(); });
   for (const node of document.querySelectorAll('[data-filter]')) node.addEventListener('click', () => { filter = node.dataset.filter; for (const choice of document.querySelectorAll('[data-filter]')) { choice.classList.toggle('is-active', choice === node); choice.setAttribute('aria-pressed', String(choice === node)); } renderConversations(); });
   $('new-conversation-button').addEventListener('click', () => showNewConversation()); $('empty-new-button').addEventListener('click', () => showNewConversation());
-  $('settings-button').addEventListener('click', showSettings); $('dnd-button').addEventListener('click', () => action('preferences', { doNotDisturb: !snapshot.state.preferences.doNotDisturb }));
   $('thread-profile-button').addEventListener('click', () => { if (!selectedThread) return; if (selectedThread.kind === 'group') showDetails(selectedThread); else if (peer(selectedThread)) action('openProfile', { accountId: peer(selectedThread).accountId }); });
   $('thread-details-button').addEventListener('click', () => { if (selectedThread) showDetails(selectedThread); });
   $('thread-menu-button').addEventListener('click', event => { if (!selectedThread) return; const rect = event.currentTarget.getBoundingClientRect(); showThreadMenu(selectedThread, rect.right, rect.bottom); });
@@ -658,7 +725,7 @@
   $('jump-latest-button').addEventListener('click', () => { scrollBottom(); updateJumpButton(); requestAnimationFrame(requestRead); });
   $('send-button').addEventListener('click', sendMessage); $('cancel-context-button').addEventListener('click', cancelContext);
   $('attach-button').addEventListener('click', () => { if (currentThreadId()) action('pickFiles', { threadId: currentThreadId() }); });
-  $('format-button').addEventListener('click', showFormatting); $('share-game-button').addEventListener('click', showCardComposer);
+  $('share-game-button').addEventListener('click', showCardComposer); $('close-armory-picker').addEventListener('click', () => closeArmoryPicker(true));
   composer.addEventListener('input', () => { resizeComposer(); saveLocalDraft(); updateComposer(); showComposerError(''); sendTyping(); });
   composer.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !event.isComposing && event.keyCode !== 229) { event.preventDefault(); sendMessage(); } });
   composer.addEventListener('paste', event => {
@@ -666,17 +733,27 @@
     const items = Array.from(event.clipboardData?.items || []);
     if (items.some(item => item.kind === 'file')) { event.preventDefault(); action('pasteImage', { threadId: currentThreadId() }); }
   });
-  let dragDepth = 0;
+  let dragDepth = 0, nativeDropActive = false;
+  function canReceiveFiles() { return !!currentThreadId() && hasIdentity() && capable('attachments') && !!selectedThread?.canSend && !editTarget; }
+  function renderDropOverlay() { $('drop-overlay').hidden = !canReceiveFiles() || !(nativeDropActive || dragDepth > 0); }
+  function receiveMessage(message) {
+    if (message?.type === 'result') return handleResult(message);
+    if (message?.type === 'dropState') {
+      if (!hasIdentity() || message.sessionId !== snapshot.sessionId || message.ownerAccountId !== snapshot.ownerAccountId) return false;
+      nativeDropActive = !!message.active && canReceiveFiles(); renderDropOverlay(); return true;
+    }
+    return applySnapshot(message);
+  }
   document.addEventListener('dragenter', event => {
-    if (!currentThreadId() || !capable('attachments') || !Array.from(event.dataTransfer?.types || []).includes('Files')) return;
-    event.preventDefault(); dragDepth++; $('drop-overlay').hidden = false;
+    if (!canReceiveFiles() || !Array.from(event.dataTransfer?.types || []).includes('Files')) return;
+    event.preventDefault(); dragDepth++; renderDropOverlay();
   });
   document.addEventListener('dragover', event => { if (dragDepth) { event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'; } });
-  document.addEventListener('dragleave', event => { if (!dragDepth) return; event.preventDefault(); if (--dragDepth <= 0) { dragDepth = 0; $('drop-overlay').hidden = true; } });
+  document.addEventListener('dragleave', event => { if (!dragDepth) return; event.preventDefault(); dragDepth = Math.max(0, dragDepth - 1); renderDropOverlay(); });
   document.addEventListener('drop', event => {
-    dragDepth = 0; $('drop-overlay').hidden = true;
+    dragDepth = 0; nativeDropActive = false; renderDropOverlay();
     const files = Array.from(event.dataTransfer?.files || []); if (!files.length) return;
-    event.preventDefault(); if (!currentThreadId() || !capable('attachments') || !selectedThread.canSend || editTarget) return;
+    event.preventDefault(); if (!canReceiveFiles()) return;
     if (files.some(file => !fileExtensions.has(String(file.name).split('.').at(-1).toLocaleLowerCase()))) { toast(t('attachmentHint')); return; }
     if (files.some(file => file.size > 500000000)) { toast(t('attachmentHint')); return; }
     if (files.length + (snapshot.draft?.attachments || []).length > 10) { toast(t('attachmentLimit')); return; }
@@ -700,7 +777,7 @@
   });
   document.addEventListener('keydown', event => {
     const floating = !$('reaction-picker').hidden ? $('reaction-picker') : !$('context-menu').hidden ? $('context-menu') : null;
-    if (event.key === 'Escape') { if (floating) { event.preventDefault(); closeMenus(); menuReturnFocus?.focus({ preventScroll: true }); } else if (editTarget || replyTarget) { event.preventDefault(); cancelContext(); } }
+    if (event.key === 'Escape') { if (floating) { event.preventDefault(); closeMenus(); menuReturnFocus?.focus({ preventScroll: true }); } else if (armoryPickerOpen) { event.preventDefault(); closeArmoryPicker(true); } else if (editTarget || replyTarget) { event.preventDefault(); cancelContext(); } }
     if (floating && ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
       event.preventDefault(); const buttons = Array.from(floating.querySelectorAll('button')), index = buttons.indexOf(document.activeElement);
       const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1) + buttons.length) % buttons.length;
@@ -710,10 +787,10 @@
   });
   $('app-dialog').addEventListener('close', () => { dialogRefresh = null; closeMenus(); });
   $('app-dialog').addEventListener('click', event => { if (event.target === $('app-dialog')) { const rect = $('app-dialog').getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeDialog(); } });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { flushDraft(); stopTyping(); R.suspendMedia(document); } else requestAnimationFrame(requestRead); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { flushDraft(); stopTyping(); R.suspendMedia(document); dragDepth = 0; nativeDropActive = false; renderDropOverlay(); } else requestAnimationFrame(requestRead); });
   global.addEventListener('pagehide', () => { flushDraft(); stopTyping(); R.suspendMedia(document); });
   setInterval(renderTyping, 2000);
-  if (global.chrome?.webview) chrome.webview.addEventListener('message', event => { const message = event.data; if (message?.type === 'snapshot') applySnapshot(message); else if (message?.type === 'result') handleResult(message); });
-  global.AtlasChat = Object.freeze({ applySnapshot, receive: message => message?.type === 'result' ? handleResult(message) : applySnapshot(message), version: 1 });
+  if (global.chrome?.webview) chrome.webview.addEventListener('message', event => receiveMessage(event.data));
+  global.AtlasChat = Object.freeze({ applySnapshot, receive: receiveMessage, version: 2 });
   localize(); renderConversations(); updateComposer(); action('ready', {}, { silent: true });
 })(window);

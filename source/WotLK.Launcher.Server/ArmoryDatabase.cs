@@ -42,6 +42,8 @@ public sealed partial class LauncherDatabase
         if (!await HasAcceptedArmoryFriendAsync(connection, transaction, viewerAccountId, friendAccountId, cancellationToken))
             return null;
         ArmoryRoster roster = await ReadArmoryRosterAsync(connection, transaction, friendAccountId, null, cancellationToken);
+        if(PresenceAvailable && await V2ScalarAsync(connection,transaction,"SELECT COUNT(*) FROM atlas_launcher_presence WHERE account_id=@account AND manual_status='offline';",cancellationToken,("@account",friendAccountId))>0)
+            roster=roster with{Characters=roster.Characters.Select(row=>row with{Character=row.Character with{Online=0,ZoneId=0,LastLogout=0}}).ToArray()};
         await transaction.CommitAsync(cancellationToken);
         return roster;
     }

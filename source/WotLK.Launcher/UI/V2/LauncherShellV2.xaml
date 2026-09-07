@@ -425,6 +425,9 @@
                                 <Ellipse IsHitTestVisible="False"
                                          Stroke="{StaticResource AtlasV2.Brush.GoldBorder}"
                                          StrokeThickness="1.5"/>
+                                <Ellipse Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                         Fill="{Binding ProfileState.PresenceBrush}" Stroke="#151B24" StrokeThickness="2"
+                                         ToolTip="{Binding ProfileState.PresenceLabel}"/>
                             </Grid>
                         </Button>
 

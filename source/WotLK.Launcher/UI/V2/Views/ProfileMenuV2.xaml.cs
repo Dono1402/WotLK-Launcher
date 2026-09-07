@@ -54,6 +54,13 @@ public partial class ProfileMenuV2 : UserControl
     public event EventHandler? ManageAccountRequested;
 
     public event EventHandler? Closed;
+    public event EventHandler<string>? PresenceRequested;
+
+    private void PresenceButton_Click(object sender, RoutedEventArgs args)
+    {
+        if(sender is Button { Tag: string status } && State?.CanChangePresence==true)
+            PresenceRequested?.Invoke(this,status);
+    }
 
     public ProfileUiState? State
     {

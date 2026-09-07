@@ -59,6 +59,7 @@ public sealed partial class LauncherDatabase
                     ChatTypingDto? typing=row.Payload is null?null:ChatDeserialize<ChatTypingDto>(row.Payload);
                     if(access.Status!=1||typing is null)continue;
                     if(!(await V2PreferencesAsync(c,t,typing.AccountId,token)).ShareTyping)typing=typing with{ExpiresAt=DateTimeOffset.UtcNow};
+                    if(PresenceAvailable && (await V2ProfileAsync(c,t,typing.AccountId,token)).Presence=="offline")typing=typing with{ExpiresAt=DateTimeOffset.UtcNow};
                     item=item with{Typing=typing};
                 }
                 else
@@ -93,6 +94,7 @@ public sealed partial class LauncherDatabase
     {
         await RequireV2AccessAsync(c,t,account,thread,token);
         ChatPreferencesDto preferences=await V2PreferencesAsync(c,t,account,token);
+        if(PresenceAvailable && (await V2ProfileAsync(c,t,account,token)).Presence=="offline")isTyping=false;
         DateTimeOffset now=DateTimeOffset.UtcNow;
         if(isTyping&&!preferences.ShareTyping)return true;
         if(isTyping&&V2TypingSent.TryGetValue((account,thread),out DateTimeOffset previous)&&previous>now.AddSeconds(-2))return true;

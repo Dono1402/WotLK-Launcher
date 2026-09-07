@@ -140,6 +140,22 @@ internal sealed partial class LauncherChatWorkspace
         }));
     }
 
+    internal Task SetDraftCardAsync(string threadId, ChatCardDto? card)
+    {
+        Guard guard = RequireGuard();
+        lock (_sync) RequireThreadUnsafe(guard, threadId, selected: true, canSend: true);
+        return Track(MutateLocalAsync(guard, state =>
+        {
+            // Read the latest draft after acquiring the persistence gate. A
+            // renderer text save may still be in progress when a card is chosen.
+            RequireThreadUnsafe(guard, threadId, selected: true, canSend: true);
+            ChatWorkspaceDraft draft = state.Drafts.FirstOrDefault(item => item.ThreadId == threadId)
+                ?? new ChatWorkspaceDraft { ThreadId = threadId };
+            ChatWorkspaceDraft next = draft with { Card = card, UpdatedAt = _time.GetUtcNow() };
+            return state with { Drafts = state.Drafts.Where(item => item.ThreadId != threadId).Append(next).ToArray() };
+        }));
+    }
+
     internal Task<ChatOutboxEntry> QueueSendAsync(string threadId, ChatSendMessageRequest request)
     {
         Guard guard = RequireGuard();

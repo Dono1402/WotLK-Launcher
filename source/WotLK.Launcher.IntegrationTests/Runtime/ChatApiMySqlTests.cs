@@ -94,11 +94,13 @@ internal static class ChatApiMySqlTests
     private static async Task ValidateMigrationAsync(LauncherServerOptions options, MySqlConnection connection)
     {
         IReadOnlyList<LauncherSchemaMigrationOutcome> outcomes = await new LauncherSchemaMigrator(options).MigrateAsync();
-        Require(outcomes.Count == 7 && outcomes.Take(5).All(x => x.State == LauncherSchemaMigrationState.Applied)
-            && outcomes.Skip(5).All(x => x.State == LauncherSchemaMigrationState.BlockedByCeiling), "Ceiling 5 must block chat migrations 6 and 7.");
+        Require(outcomes.Count == 8 && outcomes.Take(5).All(x => x.State == LauncherSchemaMigrationState.Applied)
+            && outcomes.Skip(5).All(x => x.State == LauncherSchemaMigrationState.BlockedByCeiling)
+            && outcomes.Skip(5).Select(x => x.Version).SequenceEqual([6U, 7U, 8U]),
+            "Ceiling 5 must block chat migrations 6 and 7 and global presence migration 8.");
         Require(Convert.ToInt64(await ScalarAsync(connection,
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name LIKE 'atlas_launcher_chat_%';")) == 0,
-            "Ceiling 5 must create no chat table.");
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND (table_name LIKE 'atlas_launcher_chat_%' OR table_name='atlas_launcher_presence');")) == 0,
+            "Ceiling 5 must create no chat or global presence table.");
         await ExpectChatAsync(() => CreateDatabase(options).ListChatConversationsAsync(1, null, 50, None), "chat-unavailable");
     }
 

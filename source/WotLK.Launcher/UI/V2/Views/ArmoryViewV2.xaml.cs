@@ -65,6 +65,16 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
     private bool _bannerBusy;
     private CancellationTokenSource? _bannerChoiceLifetime;
     private bool _disposed;
+    private string _presence = "offline";
+    private ProfileUiState? _profilePresence;
+
+    internal void UpdatePresence(ProfileUiState profile)
+    {
+        _presence = profile.PresenceSnapshot is { IsAvailable: true, OwnerAccountId: not null } snapshot
+            ? snapshot.Status : "offline";
+        _profilePresence = profile;
+        PublishProfile();
+    }
 
     public ArmoryViewV2()
     {
@@ -612,6 +622,8 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
                 core.PostWebMessageAsJson(JsonSerializer.Serialize(new { type = "profile", readOnly = true,
                     requestedCharacterGuid = RequestedCharacterGuid, requestedCharacterNonce = _requestedCharacterNonce,
                     username = publicProfile.Username, statusMessage = publicProfile.StatusMessage, bio = publicProfile.Bio,
+                    presence = publicProfile.Presence ?? (publicProfile.IsOnline ? "online" : "offline"),
+                    presenceLabel = publicProfile.ProfilePresenceText,
                     avatar = _avatarData, canUpdateSocialProfile = false, canModifyAvatar = false, canRemoveAvatar = false,
                     canModifyBanner = false, canSendMessage = state.IsRuntimeConnected && !state.IsPreview,
                     locale = LauncherLocalization.IsEnglish ? "en" : "fr" }));
@@ -620,6 +632,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
             core.PostWebMessageAsJson(JsonSerializer.Serialize(new { type = "profile", username = state.Username,
                 requestedCharacterGuid = RequestedCharacterGuid, requestedCharacterNonce = _requestedCharacterNonce,
                 statusMessage = state.StatusMessage, bio = state.Bio, avatar = _avatarData,
+                presence = _presence, presenceLabel = _profilePresence?.PresenceLabel ?? LauncherLocalization.Text("Hors ligne"),
                 canUpdateSocialProfile = state.IsRuntimeConnected && !state.IsPreview && state.CanUpdateSocialProfile,
                 canModifyAvatar = state.IsRuntimeConnected && !state.IsPreview && !_avatarSelectionPending && state.CanModifyAvatar,
                 canRemoveAvatar = state.IsRuntimeConnected && !state.IsPreview && !_avatarSelectionPending && state.CanRemoveAvatar,

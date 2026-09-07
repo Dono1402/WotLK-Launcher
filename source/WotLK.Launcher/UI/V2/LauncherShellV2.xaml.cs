@@ -47,6 +47,7 @@ public partial class LauncherShellV2 : Window
         Func<uint, uint, LauncherArmoryDataRequest, CancellationToken, Task<JsonElement>>? readFriendData = null)
     {
         ArmoryView.Configure(getAccount, AccountState, readData: readData, getGameDirectory: getGameDirectory, readFriendData: readFriendData);
+        ArmoryView.UpdatePresence(ProfileState);
     }
 
     public LauncherShellV2(GamePreviewScenario scenario = GamePreviewScenario.Ready)
@@ -830,6 +831,8 @@ public partial class LauncherShellV2 : Window
 
     private void ProfileTitleBarOverlay_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (ReferenceEquals(sender, ProfileState) && string.IsNullOrEmpty(e.PropertyName))
+            ArmoryView.UpdatePresence(ProfileState);
         if ((!string.IsNullOrEmpty(e.PropertyName) && e.PropertyName != nameof(ProfileUiState.IsOpen))
             || CurrentPage != LauncherShellPage.Armory) return;
         if (ProfileState.IsOpen || FriendsState.IsOpen || ActivityState.IsOpen)

@@ -6,9 +6,12 @@ Depuis la racine du dépôt :
 
 ```powershell
 node source/WotLK.Launcher.IntegrationTests/Frontend/chat-dom-tests.cjs
+node source/WotLK.Launcher.IntegrationTests/Frontend/chat-media-tests.cjs
 ```
 
 Le script résout la racine du dépôt depuis son propre emplacement ; il peut donc aussi être lancé depuis un autre répertoire. Node.js, Playwright et Microsoft Edge doivent être disponibles. Aucune installation ou modification du poste n’est effectuée par la suite.
+
+La suite `chat-media-tests.cjs` vérifie le décodage de la première image avant lecture, le préchargement limité aux vidéos proches de l’écran, les commandes et le temps en surimpression, leur disparition après inactivité et leur accès au clavier. Elle utilise de vrais médias synthétiques, vérifie lecture/pause, recherche, volume, plein écran et libération des lecteurs retirés, puis enregistre ses captures et résultats dans `ATLAS_CHAT_TEST_OUTPUT`.
 
 ## Configuration facultative
 

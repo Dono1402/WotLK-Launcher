@@ -4,6 +4,26 @@
   const controllers = new WeakMap(), shells = new WeakMap(), liveControllers = new Set();
   let nextVolumeId = 0;
   const motionPreference = global.matchMedia('(prefers-reduced-motion: reduce)');
+  const pendingPreviews = new Set();
+  function stopPreview(player) { previewObserver?.unobserve(player); pendingPreviews.delete(player); }
+  // Let Chromium request metadata/first-frame byte ranges as a video approaches
+  // the viewport. Older messages keep preload=none; no background playback.
+  const previewObserver = typeof global.IntersectionObserver === 'function' ? new global.IntersectionObserver(entries => {
+    for (const entry of entries) if (!entry.target.isConnected) stopPreview(entry.target);
+    else if (entry.isIntersecting && !document.hidden) {
+      entry.target.preload = 'metadata'; stopPreview(entry.target);
+    }
+  }, { rootMargin: '240px 0px' }) : null;
+  // IntersectionObserver retains its targets. Release distant videos when their
+  // messages are removed, including callers that simply replace DOM children.
+  if (previewObserver) new MutationObserver(records => {
+    if (!pendingPreviews.size) return;
+    for (const record of records) for (const node of record.removedNodes) {
+      if (node.nodeType !== 1 || node.isConnected) continue;
+      if (node.tagName === 'VIDEO') stopPreview(node);
+      else for (const video of node.querySelectorAll('video')) if (!video.isConnected) stopPreview(video);
+    }
+  }).observe(document, { childList: true, subtree: true });
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const words = {
     mediaPlay: ['Lire', 'Play'], mediaPause: ['Mettre en pause', 'Pause'],
@@ -82,11 +102,16 @@
     const status = element('div', 'media-status');
     const state = { shell, player, kind, options: { mode: 'inline', locale: 'fr', ...initialOptions }, listeners: [],
       disposed: false, pendingPlay: false, waiting: false, playError: false, playToken: 0, scrubbing: false, volumeOpen: false, previousVolume: player.volume || 1,
-      progressFrame: 0, range: null };
+      progressFrame: 0, range: null, hideControlsTimer: 0 };
 
     shell.setAttribute('role', 'group'); shell.tabIndex = 0;
     player.controls = false; player.classList.add('media-element'); player.setAttribute('controlsList', 'nodownload');
-    if (kind === 'video') { player.playsInline = true; player.disablePictureInPicture = true; }
+    if (kind === 'video') {
+      player.playsInline = true; player.disablePictureInPicture = true;
+      if (player.preload === 'none') {
+        if (previewObserver) { pendingPreviews.add(player); previewObserver.observe(player); } else player.preload = 'metadata';
+      }
+    }
     stage.append(player);
     seek.type = 'range'; seek.min = '0'; seek.max = '0'; seek.step = 'any'; seek.value = '0'; seek.disabled = true;
     seek.setAttribute('aria-valuetext', '0:00 / --:--');
@@ -107,12 +132,23 @@
         : words[key]?.[String(state.options.locale).startsWith('en') ? 1 : 0] || key;
     };
     function listen(node, type, handler, options) { node.addEventListener(type, handler, options); state.listeners.push(() => node.removeEventListener(type, handler, options)); }
+    function stopHideControls() { global.clearTimeout(state.hideControlsTimer); state.hideControlsTimer = 0; }
+    function revealControls() {
+      if (kind !== 'video' || state.disposed) return;
+      stopHideControls(); shell.classList.remove('controls-hidden');
+      if (!player.paused && !player.ended && !player.error) state.hideControlsTimer = global.setTimeout(() => {
+        state.hideControlsTimer = 0;
+        if (!state.disposed && !player.paused && !player.ended && !state.volumeOpen && !state.scrubbing
+          && !(controls.contains(document.activeElement) && document.activeElement.matches(':focus-visible'))) shell.classList.add('controls-hidden');
+      }, 2200);
+    }
     function closeVolume(restoreFocus = false) {
       if (!state.volumeOpen) return;
       state.volumeOpen = false;
       if (volumePanel.hasAttribute('popover') && volumePanel.matches(':popover-open')) volumePanel.hidePopover();
       volumePanel.hidden = true; volumeButton.setAttribute('aria-expanded', 'false');
       if (restoreFocus && volumeButton.isConnected) volumeButton.focus({ preventScroll: true });
+      revealControls();
     }
     function positionVolume() {
       if (!state.volumeOpen || !volumePanel.hasAttribute('popover') || !volumePanel.matches(':popover-open')) return;
@@ -228,13 +264,14 @@
       save.hidden = kind === 'video' || typeof state.options.onSave !== 'function'; setIcon(save, 'save'); label(save, text('mediaSave'));
       fullscreen.hidden = kind !== 'video' || !document.fullscreenEnabled;
       setIcon(fullscreen, full ? 'restore' : 'fullscreen'); label(fullscreen, text(full ? 'mediaExitFullscreen' : 'mediaFullscreen'));
-      const message = player.error ? text('mediaUnavailable') : state.playError ? text('mediaPlayFailed') : loading ? text('mediaLoading') : '';
+      const message = player.error ? text('mediaUnavailable') : state.playError ? text('mediaPlayFailed') : '';
       if (status.textContent !== message) status.textContent = message;
       status.hidden = !message;
       const name = state.options.fileName || text(kind); shell.setAttribute('aria-label', name); player.setAttribute('aria-label', name);
       shell.dataset.mode = ['inline', 'draft', 'viewer', 'dock'].includes(state.options.mode) ? state.options.mode : 'inline';
       if (kind === 'video' && player.videoWidth > 0 && player.videoHeight > 0) shell.style.setProperty('--media-aspect', player.videoWidth + ' / ' + player.videoHeight);
       updateProgressLoop();
+      if (!playing || error) { stopHideControls(); shell.classList.remove('controls-hidden'); }
     }
     const activate = (node, handler) => listen(node, 'click', event => { event.stopPropagation(); handler(event); });
     activate(play, togglePlay);
@@ -248,7 +285,10 @@
     activate(expand, () => { closeVolume(); state.options.onExpand?.(player, expand, shell); });
     activate(save, () => { closeVolume(); if (kind !== 'video') state.options.onSave?.(player, save, shell); });
     activate(fullscreen, toggleFullscreen);
-    if (kind === 'video') activate(stage, togglePlay);
+    if (kind === 'video') {
+      activate(stage, togglePlay);
+      for (const event of ['pointermove', 'pointerdown', 'focusin', 'focusout', 'keydown']) listen(shell, event, revealControls);
+    }
     listen(seek, 'pointerdown', () => { state.scrubbing = true; });
     listen(seek, 'input', () => seekTo(Number(seek.value)));
     listen(seek, 'change', () => { seekTo(Number(seek.value)); state.scrubbing = false; sync(); });
@@ -274,14 +314,14 @@
     });
     for (const name of ['loadedmetadata', 'durationchange', 'volumechange', 'canplay']) listen(player, name, sync);
     for (const name of ['timeupdate', 'seeked', 'progress']) listen(player, name, () => syncProgress(true));
-    listen(player, 'play', () => { sync(); state.options.onPlay?.(player, shell); });
+    listen(player, 'play', () => { sync(); revealControls(); state.options.onPlay?.(player, shell); });
     listen(player, 'playing', () => { state.waiting = false; state.pendingPlay = false; state.playError = false; sync(); });
     listen(player, 'waiting', () => { state.waiting = true; sync(); });
     listen(player, 'pause', () => { state.waiting = false; state.pendingPlay = false; sync(); });
     listen(player, 'ended', () => { state.waiting = false; state.pendingPlay = false; sync(); });
     listen(player, 'emptied', () => { state.waiting = false; state.playError = false; sync(); });
     listen(player, 'error', () => { state.waiting = false; state.pendingPlay = false; sync(); });
-    state.sync = sync; state.closeVolume = closeVolume; state.positionVolume = positionVolume; state.updateProgressLoop = updateProgressLoop; state.stopProgress = stopProgress;
+    state.sync = sync; state.closeVolume = closeVolume; state.positionVolume = positionVolume; state.updateProgressLoop = updateProgressLoop; state.stopProgress = stopProgress; state.stopHideControls = stopHideControls;
     state.dismissVolume = target => { if (state.volumeOpen && !volumeGroup.contains(target)) closeVolume(); };
     state.weakReference = new WeakRef(state); liveControllers.add(state.weakReference);
     controllers.set(shell, state); shells.set(player, shell); sync(); return shell;
@@ -301,6 +341,8 @@
     if (options.pause !== false) pause(state.shell);
     state.closeVolume(); state.disposed = true; ++state.playToken;
     state.stopProgress();
+    state.stopHideControls();
+    stopPreview(state.player);
     for (const remove of state.listeners) remove(); state.listeners.length = 0;
     liveControllers.delete(state.weakReference);
     controllers.delete(state.shell); shells.delete(state.player);

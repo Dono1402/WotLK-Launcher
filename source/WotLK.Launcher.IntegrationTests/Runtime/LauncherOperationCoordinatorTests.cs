@@ -22,6 +22,7 @@ internal static class LauncherOperationCoordinatorTests
         await LetVerificationUseTheGlobalLeaseAsync();
         RejectClientAddonAndAutoUpdateConcurrency();
         ValidatePlaySingleFlightAndCompatibility();
+        AllowAccountAndAddonsWhilePlaying();
         await IgnoreObsoleteSnapshotsAndDetachAsync();
         await LetRuntimeOwnShutdownAsync();
         KeepPreviewFreeOfRuntimeOperations();
@@ -300,6 +301,36 @@ internal static class LauncherOperationCoordinatorTests
             "Une opération mutante doit rester refusée pendant Verify.");
         playDuringVerify.Lease!.Complete();
         verify.Complete();
+    }
+
+    private static void AllowAccountAndAddonsWhilePlaying()
+    {
+        LauncherOperationKind[] allowed = [LauncherOperationKind.Addons, LauncherOperationKind.AvatarUpload,
+            LauncherOperationKind.AvatarDelete, LauncherOperationKind.AccountEmailChange,
+            LauncherOperationKind.AccountEmailVerification, LauncherOperationKind.AccountPasswordChange,
+            LauncherOperationKind.AccountSessionRevoke, LauncherOperationKind.AccountProfileUpdate];
+        foreach (LauncherOperationKind kind in allowed)
+        {
+            using LauncherOperationCoordinator coordinator = new();
+            using (LauncherOperationLease play = coordinator.TryBeginPlay(true).Lease!)
+            {
+                using LauncherOperationLease? operation = coordinator.TryBegin(kind, true).Lease;
+                True(operation is not null, $"{kind} doit fonctionner jeu ouvert.");
+                Equal(LauncherOperationStartStatus.Busy, coordinator.TryBegin(kind, true).Status,
+                    "Deux mutations restent exclusives.");
+            }
+            using LauncherOperationLease maintenance = coordinator.TryBegin(kind, true).Lease!;
+            using LauncherOperationLease? concurrentPlay = coordinator.TryBeginPlay(true).Lease;
+            True(concurrentPlay is not null, $"La compatibilité avec {kind} doit être symétrique.");
+        }
+        foreach (LauncherOperationKind kind in new[] { LauncherOperationKind.GameInstall, LauncherOperationKind.GameUpdate,
+            LauncherOperationKind.GameRepair, LauncherOperationKind.LauncherAutoUpdate, LauncherOperationKind.Logout })
+        {
+            using LauncherOperationCoordinator coordinator = new();
+            using LauncherOperationLease play = coordinator.TryBeginPlay(true).Lease!;
+            Equal(LauncherOperationStartStatus.RejectedByCompatibility, coordinator.TryBegin(kind, true).Status,
+                $"{kind} doit conserver sa protection pendant Play.");
+        }
     }
 
     private static Task IgnoreObsoleteSnapshotsAndDetachAsync()

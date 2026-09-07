@@ -346,6 +346,8 @@ function applyProfile() {
   $('character-panel').ariaLabel = label('armory');
   $('search').placeholder = $('search').ariaLabel = label('search');
   $('profile-name').textContent = profile.username || '';
+  $('profile-presence').dataset.presence = ['online','away','dnd','offline'].includes(profile.presence) ? profile.presence : 'offline';
+  $('profile-presence-label').textContent = profile.presenceLabel || (profile.locale === 'en' ? 'Offline' : 'Hors ligne');
   $('profile-initial').textContent = (profile.username || '').slice(0,1).toUpperCase();
   for (const [id,key] of [['profile-status','statusMessage'],['profile-bio','bio']]) {
     $(id).textContent = profile[key] || ''; $(id).hidden = !profile[key];

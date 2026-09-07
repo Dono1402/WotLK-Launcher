@@ -68,6 +68,11 @@ internal static partial class ArmoryLauncherTests
             object? openedBrowser = armory.Browser;
             OpenFriend(91, "AmiAtlas");
             True(ReferenceEquals(openedBrowser, armory.Browser), "Rouvrir le même ami doit conserver le modèle et le helper en cours.");
+            friend = friend with { Presence = "dnd", PresenceText = "Ne pas déranger" };
+            window.FriendsState.ApplyRuntimeView(window.FriendsState.Current with { Friends = [friend] });
+            await WaitForScriptAsync(armory, "document.getElementById('profile-presence').dataset.presence==='dnd' && document.getElementById('profile-presence-label').textContent==='Ne pas déranger'",
+                "La présence doit se mettre à jour dans le profil ami ouvert.");
+            True(ReferenceEquals(openedBrowser, armory.Browser), "Une mise à jour de présence ne doit pas recréer l'armurerie.");
             True(calls.Any(call => call.Viewer == 42 && call.Target == 91 && call.Operation == "roster")
                 && calls.All(call => call.Viewer == 42), "Le helper RPC doit transmettre le compte cible en gardant le compte viewer pour l'authentification.");
             await WaitForScriptAsync(armory, "document.getElementById('edit-profile').hidden && document.querySelector('.banner-controls').hidden && document.getElementById('change-avatar').disabled && !document.getElementById('friend-actions').hidden",
@@ -98,6 +103,14 @@ internal static partial class ArmoryLauncherTests
 
             await OpenProfileAsync(window);
             await WaitForScriptAsync(armory, "document.getElementById('profile-name').textContent==='ViewerAtlas' && document.querySelector('.character strong')?.textContent==='Mage42' && document.getElementById('friend-actions').hidden", "Mon profil doit revenir au compte connecté après un profil ami.");
+            long presenceSequence = 100;
+            foreach (string presence in new[] { "online", "away", "dnd", "offline" })
+            {
+                window.ProfileState.ApplyPresence(new LauncherPresenceSnapshot(++presenceSequence, 42, presence, presence, false, true, false, null));
+                await WaitForScriptAsync(armory, $"document.getElementById('profile-presence').dataset.presence==='{presence}' && document.getElementById('profile-presence-label').textContent.length>0",
+                    "Le profil personnel doit afficher immédiatement chaque état de présence.");
+            }
+            await SaveCaptureAsync(armory, captures, "own-profile-presence.png");
             OpenFriend(91, "AmiAtlas");
             await WaitForScriptAsync(armory, "document.getElementById('profile-name').textContent==='AmiAtlas'", "Le premier ami doit pouvoir être rouvert.");
             state.ApplyRuntimeView(AccountUiState.Empty.Current);

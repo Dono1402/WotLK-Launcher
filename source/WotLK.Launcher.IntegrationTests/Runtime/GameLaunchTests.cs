@@ -354,8 +354,9 @@ internal static class GameLaunchTests
                 LauncherOperationKind.Addons,
                 canUserCancel: true,
                 clientIsPlayable: true);
-            True(!addons.IsStarted,
-                "Une opération mutante ne doit pas coexister avec le jeu suivi.");
+            True(addons.IsStarted,
+                "Les addons doivent rester accessibles pendant le jeu suivi.");
+            addons.Lease!.Complete();
 
             environment.ProcessMonitor.MarkExited();
             await environment.Coordinator.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(2));
@@ -459,7 +460,6 @@ internal static class GameLaunchTests
             LauncherOperationKind.GameRepair,
             LauncherOperationKind.GameInstall,
             LauncherOperationKind.GameUpdate,
-            LauncherOperationKind.Addons,
             LauncherOperationKind.LauncherAutoUpdate
         ];
         foreach (LauncherOperationKind kind in incompatibleKinds)
@@ -660,7 +660,8 @@ internal static class GameLaunchTests
             GameViewV2 gameView = FindVisualChildren<GameViewV2>(window).Single();
             Button play = (Button)gameView.PrimaryActionFocusTarget;
             Button friends = Required<Button>(window, "FriendsButton");
-            True(play.IsEnabled, "Jouer doit être actif dans WPF pour un client jouable déconnecté.");
+            True(!play.IsEnabled && play.Command.CanExecute(play.CommandParameter),
+                "La connexion obligatoire désactive la surface, tout en conservant la commande de lancement après authentification.");
             True(window.AuthState.IsOpen, "Le Launcher déconnecté doit afficher immédiatement la connexion.");
             True(!window.AuthenticationOverlay.CanClose, "La connexion doit bloquer l'accès au Launcher sans session.");
 

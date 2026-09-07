@@ -115,7 +115,8 @@ internal static class ChatRichHostWpfTests
         view.ApplyRichSnapshot(Snapshot());
         view.SetRichMode(true);
         view.SetRichActive(true);
-        Window window = new() { Content = view, Width = 1470, Height = 900, Left = -20000, Top = -20000,
+        Window window = new() { Content = view, Width = 1597.6, Height = 872.8, Left = -20000, Top = -20000,
+            WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanMinimize,
             ShowInTaskbar = false, ShowActivated = false, WindowStartupLocation = WindowStartupLocation.Manual };
         window.PreviewGotKeyboardFocus += (_, args) => args.Handled = true;
         window.SourceInitialized += (_, _) =>
@@ -173,11 +174,7 @@ internal static class ChatRichHostWpfTests
             await UntilScript(core, "window.__blockedFetch===true", "CSP blocks direct fetch from top page.");
             True(mediaRequests.Count == 1, "Blocked JS fetch never reaches authenticated native client.");
             await core.ExecuteScriptAsync("document.body.lastElementChild.tagName==='IMG'&&document.body.lastElementChild.remove()");
-            await using (FileStream capture = File.Create(Path.Combine(directory, "native-chat-large.png")))
-                await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, capture);
-            window.Width = 1080; window.Height = 680;
-            await Task.Delay(200);
-            await using (FileStream capture = File.Create(Path.Combine(directory, "native-chat-compact.png")))
+            await using (FileStream capture = File.Create(Path.Combine(directory, "native-chat-fixed.png")))
                 await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, capture);
             Guid replacement = Guid.NewGuid();
             view.ApplyRichSnapshot(Snapshot(replacement, sequence: 11));

@@ -151,7 +151,9 @@ public partial class ChatViewV2
         {
             WebView2CompositionControl browser = _richBrowser = new()
             {
-                DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 13, 20, 28),
+                // The native Citadel backdrop spans the shell and the message page.
+                // Let transparent document pixels reveal that same artwork.
+                DefaultBackgroundColor = System.Drawing.Color.Transparent,
                 AllowDrop = true,
                 AllowExternalDrop = false
             };

@@ -75,6 +75,13 @@ if (args.Length >= 1 && string.Equals(args[0], "--presence-profile-wpf", StringC
     return await PresenceProfileWpfTests.RunAsync(directory);
 }
 
+if (args.Length >= 1 && string.Equals(args[0], "--chat-full-shell-wpf", StringComparison.OrdinalIgnoreCase))
+{
+    int captureIndex = Array.IndexOf(args, "--capture-directory");
+    string? directory = captureIndex >= 0 && captureIndex + 1 < args.Length ? args[captureIndex + 1] : null;
+    return await ChatFullShellWpfTests.RunAsync(directory);
+}
+
 if (args.Length >= 1 && string.Equals(args[0], "--chat-rich-host-wpf", StringComparison.OrdinalIgnoreCase))
 {
     int captureIndex = Array.IndexOf(args, "--capture-directory");

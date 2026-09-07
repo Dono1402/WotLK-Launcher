@@ -3,7 +3,6 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>Messages · Atlas</title>
   <link rel="stylesheet" href="chat.css">
@@ -46,8 +45,6 @@
     <div class="chat-layout">
       <aside class="conversation-sidebar" aria-label="Conversations">
         <div class="sidebar-heading"><h2 data-i18n="conversations">Conversations</h2><button id="new-conversation-button" class="icon-button accent-icon" type="button" data-title="newConversation"><svg class="icon"><use href="#i-plus"/></svg></button></div>
-        <label class="search-field"><svg class="icon"><use href="#i-search"/></svg><input id="contact-search" type="search" autocomplete="off" spellcheck="false" data-placeholder="searchContacts" data-label="searchContacts"></label>
-        <div class="conversation-filters" role="group" aria-label="Filtrer les conversations"><button type="button" class="filter-button is-active" data-filter="all" data-i18n="all">Toutes</button><button type="button" class="filter-button" data-filter="unread"><span data-i18n="unread">Non lus</span><span id="unread-filter-count" class="filter-count" hidden></span></button></div>
         <div id="conversation-list" class="conversation-list" role="list" aria-label="Conversations"></div>
         <div id="conversation-empty" class="sidebar-empty" hidden><svg class="icon"><use href="#i-chat"/></svg><p></p></div>
         <div id="sidebar-status" class="sidebar-status" aria-live="polite"></div>
@@ -68,7 +65,19 @@
             </section>
             <div id="composer-context" class="composer-context" hidden><svg class="icon"><use href="#i-reply"/></svg><span><strong id="composer-context-title"></strong><span id="composer-context-body"></span></span><button id="cancel-context-button" class="icon-button" type="button" data-title="cancel"><svg class="icon"><use href="#i-close"/></svg></button></div>
             <div id="attachment-queue" class="attachment-queue" aria-label="Pièces jointes à envoyer" hidden></div>
-            <div id="composer-box" class="composer-box"><textarea id="composer-input" rows="1" maxlength="1000" data-placeholder="composerPlaceholder" data-label="composerName" spellcheck="true"></textarea><div class="composer-toolbar"><div class="composer-tools"><button id="attach-button" class="icon-button" type="button" data-title="attachFiles"><svg class="icon"><use href="#i-plus"/></svg></button><button id="share-game-button" class="icon-button" type="button" data-title="shareGame" aria-controls="armory-picker" aria-expanded="false"><svg class="icon"><use href="#i-game"/></svg></button></div><span id="composer-counter" class="composer-counter"></span><button id="send-button" class="send-button" type="button" disabled><svg class="icon"><use href="#i-send"/></svg><span data-i18n="send">Envoyer</span></button></div></div>
+            <div id="composer-box" class="composer-box">
+              <textarea id="composer-input" rows="1" maxlength="1000" data-placeholder="composerPlaceholder" data-label="composerName" spellcheck="true"></textarea>
+              <div class="composer-toolbar">
+                <span id="composer-counter" class="composer-counter"></span>
+                <div class="composer-actions">
+                  <div class="composer-tools">
+                    <button id="attach-button" class="icon-button" type="button" data-title="attachFiles"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button>
+                    <button id="share-game-button" class="icon-button" type="button" data-title="shareGame" aria-controls="armory-picker" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-game"/></svg></button>
+                  </div>
+                  <button id="send-button" class="send-button" type="button" aria-label="Envoyer" title="Envoyer" disabled><svg class="icon" aria-hidden="true"><use href="#i-send"/></svg></button>
+                </div>
+              </div>
+            </div>
             <div class="composer-footnote"><span data-i18n="composerHint">Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne</span><span id="draft-status"></span></div><div id="composer-error" class="composer-error" role="alert" hidden></div>
           </div>
         </div>

@@ -2,11 +2,14 @@ const fs = require('node:fs/promises');
 const { existsSync } = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const { createHash } = require('node:crypto');
 const assert = require('node:assert/strict');
 const fixtures = require('./chat-fixtures.cjs');
 const repo = path.resolve(process.env.ATLAS_CHAT_REPO_ROOT || path.join(__dirname, '../../..'));
 const assets = path.join(repo, 'source/WotLK.Launcher/Assets/Chat');
-const output = path.resolve(repo, process.env.ATLAS_CHAT_TEST_OUTPUT || 'artifacts/atlas-chat-polish-20260907/dom');
+const output = path.resolve(repo, process.env.ATLAS_CHAT_TEST_OUTPUT || 'artifacts/atlas-chat-premium-20260907/dom');
+// Measured innerWidth/innerHeight beneath the 124-DIP header in the fixed V2 shell.
+const fixedViewport = { width: 1597, height: 872 };
 const bundledPlaywright = path.join(os.homedir(), '.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
 function loadPlaywright() {
   if (process.env.ATLAS_CHAT_PLAYWRIGHT) return require(process.env.ATLAS_CHAT_PLAYWRIGHT);
@@ -38,7 +41,22 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   if (!edgePath || !existsSync(edgePath)) throw new Error('Microsoft Edge was not found. Set ATLAS_CHAT_EDGE_PATH to its executable.');
   const browser = await chromium.launch({executablePath:edgePath,headless:true,args:['--disable-gpu','--no-first-run','--disable-background-networking']});
   fixtureBrowser = browser;
-  const page = await browser.newPage({viewport:{width:1470,height:900},deviceScaleFactor:1});
+  const page = await browser.newPage({viewport:fixedViewport,deviceScaleFactor:1});
+  const capture = name => page.screenshot({path:path.join(output,name),omitBackground:true});
+  const iconOnlySend = expected => page.locator('#send-button').evaluate((node,label)=>{
+    const box=node.getBoundingClientRect();
+    return node.getAttribute('aria-label')===label&&node.title===label&&node.innerText.trim()===''
+      &&node.querySelectorAll('svg').length===1&&Math.abs(box.width-box.height)<1;
+  },expected);
+  const composerOrder = () => page.evaluate(()=>{
+    const composer=document.querySelector('#composer-box').getBoundingClientRect();
+    const ids=['attach-button','share-game-button','send-button'];
+    const nodes=ids.map(id=>document.getElementById(id)),boxes=nodes.map(node=>node.getBoundingClientRect());
+    return Array.from(document.querySelectorAll('.composer-toolbar button')).map(node=>node.id).join(',')===ids.join(',')
+      &&boxes[0].left>composer.left+composer.width/2&&boxes[0].right<=boxes[1].left&&boxes[1].right<=boxes[2].left
+      &&boxes[1].left-boxes[0].right<=16&&boxes[2].left-boxes[1].right<=20&&composer.right-boxes[2].right<=20
+      &&boxes.every(box=>Math.abs(box.top+box.height/2-boxes[2].top-boxes[2].height/2)<=1);
+  });
   const errors = [];
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/*', async route => {
@@ -70,15 +88,16 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   const apply = async value => { value.sequence=String(++sequence); await page.evaluate(value=>AtlasChat.applySnapshot(value),value); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))); };
   let state=clone(fixtures.snapshot); await apply(state); await page.waitForTimeout(80);
   check('The native composer handshake enables files only for its current session and thread',await page.evaluate(()=>__actions.some(a=>a.action==='composerState'&&a.payload.threadId==='d:42:91'&&a.payload.acceptsFiles===true&&a.ownerAccountId===42&&a.sessionId==='43e20968-4137-4f23-9174-4a097cc6a873')));
-  check('Two columns at large width with native Atlas typography',await page.evaluate(()=>getComputedStyle(document.querySelector('.chat-layout')).gridTemplateColumns.split(' ').length===2&&getComputedStyle(document.querySelector('h1')).fontFamily.includes('Inter')));
+  check('The fixed launcher content keeps both columns and native Atlas typography',await page.evaluate(()=>getComputedStyle(document.querySelector('.chat-layout')).gridTemplateColumns.split(' ').length===2&&getComputedStyle(document.querySelector('h1')).fontFamily.includes('Inter')));
+  check('The document and Messages heading remain transparent for the native Citadel backdrop',await page.evaluate(()=>[document.documentElement,document.body,document.querySelector('#chat-app'),document.querySelector('.page-heading')].every(node=>{const style=getComputedStyle(node);return style.backgroundColor==='rgba(0, 0, 0, 0)'&&style.backgroundImage==='none';})));
+  check('The idle French send control is icon-only with an accessible label and tooltip',await iconOnlySend('Envoyer'));
+  check('Attach, Armory and send form one aligned group at the right of the composer',await composerOrder());
   check('Int64 identifiers above 2^53 remain exact and ordered',JSON.stringify(await page.locator('.message[data-message-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.messageId)))===JSON.stringify(state.messages.map(m=>m.id)));
   check('Same author and origin group consecutive messages',await page.locator('[data-message-id="9007199254740994"]').evaluate(node=>node.classList.contains('is-continuation')));
   check('Unread and date separators are visible',await page.locator('.unread-divider').count()===1&&await page.locator('.date-divider').count()===1);
   check('Actual bottom after rendering emits last rendered cursor as string',await page.evaluate(()=>__actions.some(a=>a.action==='read'&&a.payload.throughMessageId==='9007199254740999')));
-  await page.screenshot({path:path.join(output,'chat-fr-large.png')});
-  await page.setViewportSize({width:1032,height:720}); await page.waitForTimeout(80); await page.screenshot({path:path.join(output,'chat-fr-compact.png')});
-  check('Compact layout has no horizontal overflow and retains both columns',await page.evaluate(()=>document.documentElement.scrollWidth===innerWidth&&document.querySelector('.conversation-sidebar').getBoundingClientRect().width>=248));
-  await page.setViewportSize({width:1470,height:900});
+  await capture('chat-fr-fixed.png');
+  check('The fixed launcher content has no horizontal overflow or clipped composer',await page.evaluate(()=>document.documentElement.scrollWidth===innerWidth&&document.querySelector('#composer-box').getBoundingClientRect().bottom<=innerHeight&&document.querySelector('.conversation-sidebar').getBoundingClientRect().width>=248));
 
   const safety=await page.evaluate(()=>{
     const R=AtlasChatRender,node=R.renderMarkdown('**gras** *italique* ~~barré~~ ||secret||\n\n<img src=x onerror="window.__xss=1">\n\n![photo](https://outside.test/a.png) [piège](javascript:alert(1)) [ok](https://example.test)',key=>key);
@@ -89,9 +108,12 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   check('Spoiler requires an explicit reveal action',safety.spoilerHidden&&safety.spoilerRevealed);
   check('URL policy blocks credentials, script schemes and untrusted media hosts',await page.evaluate(()=>!AtlasChatRender.safeUrl('javascript:alert(1)')&&!AtlasChatRender.safeUrl('https://user:pass@example.test')&&!AtlasChatRender.mediaUrl('https://example.test/a.png')&&!AtlasChatRender.embedUrl('https://evil.test/embed/123')));
 
-  await page.locator('#contact-search').fill('lyra'); check('Contact search filters conversations and participant names',await page.locator('.conversation-row').count()===2); await page.locator('#contact-search').fill('');
-  await page.locator('[data-filter="unread"]').click();check('Unread filter uses genuine server unread counts',await page.locator('.conversation-row').count()===2);await page.locator('[data-filter="all"]').click();
-  await page.locator('#new-conversation-button').click(); await page.getByRole('button',{name:'Groupe',exact:true}).click(); await page.getByRole('textbox',{name:'Nom du groupe',exact:true}).fill('La compagnie'); await page.getByRole('button',{name:'Kael',exact:true}).click(); await page.getByRole('button',{name:'Mira',exact:true}).click(); await page.getByRole('button',{name:'Créer le groupe',exact:true}).click();
+  check('The sidebar has no contact search, All/Unread filters or global unread count',await page.locator('.conversation-sidebar input,.conversation-sidebar .search-field,.conversation-filters,[data-filter],#unread-filter-count').count()===0);
+  check('Unread badges remain attached to their actual conversations',await page.locator('.conversation-unread').count()===2&&await page.locator('.conversation-row[data-key="d:42:91"] .conversation-unread').innerText()==='2'&&await page.locator('.conversation-row[data-key="group:raid"] .conversation-unread').innerText()==='5');
+  check('The conversation list follows its heading without reserved search/filter space',await page.evaluate(()=>document.querySelector('#conversation-list').getBoundingClientRect().top-document.querySelector('.sidebar-heading').getBoundingClientRect().bottom<=24));
+  await page.locator('#new-conversation-button').click();await page.locator('#app-dialog input[type=search]').fill('kael');
+  check('Contact search still works inside the new-conversation dialog',await page.locator('.contact-picker-row').count()===1&&await page.locator('.contact-picker-row').getAttribute('aria-label')==='Kael');await page.locator('#app-dialog input[type=search]').fill('');
+  await page.getByRole('button',{name:'Groupe',exact:true}).click(); await page.getByRole('textbox',{name:'Nom du groupe',exact:true}).fill('La compagnie'); await page.getByRole('button',{name:'Kael',exact:true}).click(); await page.getByRole('button',{name:'Mira',exact:true}).click(); await page.getByRole('button',{name:'Créer le groupe',exact:true}).click();
   check('Group creation sends selected account IDs and an idempotency UUID',await page.evaluate(()=>__actions.some(a=>a.action==='createThread'&&a.payload.isGroup&&a.payload.title==='La compagnie'&&a.payload.participantAccountIds.join(',')==='92,93'&&/^[a-f0-9-]{36}$/.test(a.payload.requestId))));
   check('Messages has no local status, settings, Markdown-help or archive controls',await page.locator('#dnd-button,#settings-button,#format-button,[data-filter=archived]').count()===0);
   check('New conversation uses a plus icon and all existing conversations remain accessible',await page.locator('#new-conversation-button use').getAttribute('href')==='#i-plus'&&await page.locator('.conversation-row').count()===state.state.threads.length);
@@ -100,11 +122,17 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
 
 
   await page.locator('#composer-input').fill('Brouillon conservé'); await page.waitForTimeout(310);
+  const tabOrder=[];await page.locator('#composer-input').focus();for(let index=0;index<3;index++){await page.keyboard.press('Tab');tabOrder.push(await page.evaluate(()=>document.activeElement.id));}
+  check('Keyboard focus follows the right-hand attach, Armory and send order',tabOrder.join(',')==='attach-button,share-game-button,send-button');
   check('Draft text persists through native bridge with thread/session identity',await page.evaluate(()=>__actions.some(a=>a.action==='draft'&&a.payload.body==='Brouillon conservé'&&a.payload.threadId==='d:42:91'&&a.sessionId&&a.ownerAccountId===42)));
+  await page.locator('#composer-input').fill(Array.from({length:12},(_,index)=>'Ligne '+index+' '+'.'.repeat(62)).join('\n'));
+  check('Long multiline input grows within its height limit without displacing the right action group',await page.locator('#composer-input').evaluate(node=>node.getBoundingClientRect().height<=148&&node.getBoundingClientRect().height>47&&document.documentElement.scrollWidth===innerWidth)&&await page.locator('#composer-counter').innerText().then(text=>text.includes('/ 1000'))&&await composerOrder());
+  await page.locator('#composer-input').fill('Brouillon conservé');
   await apply(state);check('Stale model draft does not overwrite fresh local input',await page.locator('#composer-input').inputValue()==='Brouillon conservé');
   await page.locator('#composer-input').press('Shift+Enter');check('Shift+Enter remains text input',await page.locator('#composer-input').inputValue().then(value=>value.includes('\n')));
   await page.locator('#composer-input').fill('Un seul envoi');await page.locator('#composer-input').press('Enter');await page.locator('#composer-input').press('Enter');
   check('Double Enter does not create duplicate in-flight logical sends',await page.evaluate(()=>__actions.filter(a=>a.action==='send'&&a.payload.body==='Un seul envoi').length===1));
+  check('An in-flight French send keeps its icon and exposes its sending label',await iconOnlySend('Envoi…'));
   const send=await page.evaluate(()=>__actions.find(a=>a.action==='send'&&a.payload.body==='Un seul envoi'));
   await page.locator('#composer-input').fill('Un texte plus récent');await page.evaluate(send=>AtlasChat.receive({type:'result',requestId:send.requestId,payload:{accepted:true}}),send);
   check('Send acknowledgement preserves text typed after submitting',await page.locator('#composer-input').inputValue()==='Un texte plus récent');
@@ -130,6 +158,8 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   const replySend=await page.evaluate(()=>__actions.find(a=>a.action==='send'&&a.payload.body==='Une réponse liée'));await page.evaluate(send=>AtlasChat.receive({type:'result',requestId:send.requestId,payload:{accepted:true}}),replySend);
   const own=page.locator('[data-message-id="9007199254740995"]');await own.scrollIntoViewIfNeeded();await own.hover();await own.getByRole('button',{name:'Actions du message',exact:true}).click();await page.getByRole('menuitem',{name:'Modifier',exact:true}).click();
   check('Entering message editing immediately disables native file intake',await page.evaluate(()=>__actions.filter(a=>a.action==='composerState').at(-1)?.payload.acceptsFiles===false)&&await page.locator('#attach-button').isDisabled());
+  check('French editing keeps an icon-only Save control with an accessible name',await iconOnlySend('Enregistrer'));
+  await capture('chat-fr-edit-fixed.png');
   const blockedEditFiles=await page.evaluate(value=>{
     AtlasChat.receive({type:'dropState',active:true,sessionId:value.sessionId,ownerAccountId:value.ownerAccountId});
     const data=new DataTransfer();data.items.add(new File(['image'],'blocked.png',{type:'image/png'}));const before=__actions.length;
@@ -142,6 +172,7 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   check('Editing sends the message ID and optimistic version as strings',edit?.payload.messageId==='9007199254740995'&&edit.payload.expectedVersion==='1');
   await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,payload:{accepted:true}}),edit);
   check('Successful editing restores native file intake for the draft',await page.evaluate(()=>__actions.filter(a=>a.action==='composerState').at(-1)?.payload.acceptsFiles===true));
+  check('Leaving French edit mode restores the icon-only Send label',await iconOnlySend('Envoyer'));
   await own.hover();await own.getByRole('button',{name:'Actions du message',exact:true}).click();await page.getByRole('menuitem',{name:'Modifier',exact:true}).click();await page.locator('#cancel-context-button').click();
   check('Cancelling an edit sends a fresh enable signal and restores the attachment button',await page.evaluate(()=>__actions.filter(a=>a.action==='composerState').slice(-2).map(a=>a.payload.acceptsFiles).join(',')==='false,true')&&await page.locator('#attach-button').isEnabled());
   await own.hover();await own.getByRole('button',{name:'Actions du message',exact:true}).click();await page.getByRole('menuitem',{name:'Supprimer',exact:true}).click();await page.getByRole('button',{name:'Supprimer',exact:true}).click();
@@ -199,7 +230,7 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   const imageMetrics=await page.locator('.attachment-image').evaluateAll(nodes=>nodes.map(node=>{const box=node.getBoundingClientRect(),img=node.querySelector('img'),imageBox=img.getBoundingClientRect(),css=getComputedStyle(node);return{width:box.width,height:box.height,imgWidth:imageBox.width,imgHeight:imageBox.height,naturalWidth:img.naturalWidth,naturalHeight:img.naturalHeight,border:css.borderTopWidth,background:css.backgroundColor,footer:!!node.querySelector('.attachment-footer'),text:node.innerText};}));
   check('Portrait image occupies exactly its 87.5 by 350 preview without a frame or footer',Math.abs(imageMetrics[0].width-87.5)<1&&imageMetrics[0].height===350&&imageMetrics[0].width===imageMetrics[0].imgWidth&&imageMetrics[0].height===imageMetrics[0].imgHeight&&imageMetrics[0].border==='0px'&&imageMetrics[0].background==='rgba(0, 0, 0, 0)'&&!imageMetrics[0].footer&&!imageMetrics[0].text);
   check('Small images keep their natural dimensions and document download stays available',imageMetrics[1].width===96&&imageMetrics[1].height===64&&await page.locator('[data-attachment-id="document"]').getByRole('button',{name:'Télécharger',exact:true}).count()===1);
-  await page.locator('#timeline').evaluate(node=>node.scrollTop=0);await page.screenshot({path:path.join(output,'chat-fr-portrait.png')});
+  await page.locator('#timeline').evaluate(node=>node.scrollTop=0);await capture('chat-fr-portrait-fixed.png');
   await page.locator('.attachment-image').first().click();await page.locator('dialog').getByRole('button',{name:'Télécharger',exact:true}).click();
   check('Image viewer retains the native attachment download action',await page.evaluate(()=>__actions.some(a=>a.action==='downloadAttachment'&&a.payload.attachmentId==='portrait')));await page.getByRole('button',{name:'Fermer',exact:true}).last().click();
 
@@ -219,8 +250,9 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   state.ownCharacters={status:'loading',characters:[],error:null};await apply(state);check('Owned-character loading is visible within the composer',await page.locator('#armory-picker-status').innerText().then(text=>text.includes('Chargement')));
   state.ownCharacters={status:'ready',characters:[{guid:'4294967295',name:'Asterion',level:80,classId:6,raceId:1,gender:0,realmName:'Arthas'},{guid:'942',name:'Feuillebrume',level:72,classId:11,raceId:4,gender:1,realmName:'Arthas'}],error:null};await apply(state);await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,payload:{status:'ready'}}),rosterRequest);
   check('The Armory chooser contains only the supplied own roster with exact string GUIDs',await page.locator('.armory-character').count()===2&&JSON.stringify(await page.locator('.armory-character').evaluateAll(nodes=>nodes.map(node=>node.dataset.characterGuid)))==='["4294967295","942"]'&&await page.locator('#armory-character-list').innerText().then(text=>text.includes('Niveau 80')&&text.includes('Chevalier de la mort')&&!text.includes('Lyra')));
-  await page.screenshot({path:path.join(output,'chat-fr-armory-inline.png')});await page.setViewportSize({width:1032,height:720});await page.screenshot({path:path.join(output,'chat-fr-armory-compact.png')});
-  check('The compact inline Armory picker keeps the composer visible without horizontal overflow',await page.evaluate(()=>document.documentElement.scrollWidth===innerWidth&&document.querySelector('#composer-input').getBoundingClientRect().bottom<=innerHeight&&document.querySelector('#armory-picker').getBoundingClientRect().top>0));await page.setViewportSize({width:1470,height:900});
+  await capture('chat-fr-armory-fixed.png');
+  check('The inline Armory picker keeps the composer visible at the fixed launcher size',await page.evaluate(()=>document.documentElement.scrollWidth===innerWidth&&document.querySelector('#composer-input').getBoundingClientRect().bottom<=innerHeight&&document.querySelector('#armory-picker').getBoundingClientRect().top>0));
+  check('Opening Armory preserves the right-aligned composer action group',await composerOrder());
   await page.locator('.armory-character[data-character-guid="4294967295"]').click();const characterSelection=await page.evaluate(()=>__actions.filter(a=>a.action==='selectOwnCharacter').at(-1));
   check('Character selection sends only the current thread and exact GUID to native validation',characterSelection.payload.threadId==='d:42:91'&&characterSelection.payload.characterGuid==='4294967295'&&Object.keys(characterSelection.payload).length===2);
   await page.locator('#composer-input').fill('Texte complété pendant la sélection.');
@@ -262,11 +294,18 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   check('Prepending history preserves the visible message anchor',Math.abs(anchorAfter-anchorBefore.offset)<2);
   await page.locator('#jump-latest-button').click();await page.waitForTimeout(60);check('Jump to latest confirms only the actual current last ID',await page.evaluate(()=>__actions.some(a=>a.action==='read'&&a.payload.throughMessageId==='1081')));
   const beforeInactive=await page.evaluate(()=>__actions.filter(a=>a.action==='read').length);state.isActive=false;state.messages.push(fixtures.message('1082',fixtures.lyra,'Caché',86));await apply(state);check('Inactive window cannot confirm newly arrived messages',await page.evaluate(()=>__actions.filter(a=>a.action==='read').length)===beforeInactive);
-  state.isActive=true;state.locale='en';await apply(state);check('English translation covers composer and thread controls',await page.locator('#composer-input').getAttribute('placeholder')==='Write a message…');await page.screenshot({path:path.join(output,'chat-en-history.png')});
+  state.isActive=true;state.locale='en';await apply(state);check('English translation covers composer and thread controls',await page.locator('#composer-input').getAttribute('placeholder')==='Write a message…');await page.locator('#toast').waitFor({state:'hidden'});await capture('chat-en-history-fixed.png');
+  check('The English send control remains icon-only with its accessible name and tooltip',await iconOnlySend('Send'));
+  const englishOwn=page.locator('.message[data-message-id="1078"]');await englishOwn.scrollIntoViewIfNeeded();await englishOwn.hover();await englishOwn.getByRole('button',{name:'Message actions',exact:true}).click();await page.getByRole('menuitem',{name:'Edit',exact:true}).click();
+  check('English editing exposes Save while keeping the send control icon-only',await iconOnlySend('Save'));await page.locator('#cancel-context-button').click();
+  await page.locator('#composer-input').fill('A single English send');await page.locator('#send-button').click();
+  check('English submission exposes Sending without restoring a visible text label',await iconOnlySend('Sending…'));
+  const englishSend=await page.evaluate(()=>__actions.filter(a=>a.action==='send'&&a.payload.body==='A single English send').at(-1));await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,payload:{accepted:true}}),englishSend);
   const rejected=await page.evaluate(value=>AtlasChat.applySnapshot({...value,sequence:'0'}),state);check('Older snapshot sequence is rejected',rejected===false);
   await apply({...state,sessionId:'new-session',ownerAccountId:84,selectedThreadId:null,state:{...state.state,self:{accountId:84,username:'Second'},threads:[],contacts:[]},messages:[],draft:{}});
   check('Account change clears private messages, drafts and selection',await page.locator('.message').count()===0&&await page.locator('#composer-input').inputValue()==='');
   check('No uncaught browser script errors',errors.length===0);
-  await fs.writeFile(path.join(output,'results.json'),JSON.stringify({passed:checks.length,checks,errors},null,2));
+  const assetHashes={};for(const name of ['index.html','chat.css','chat.js','chat-render.js'])assetHashes[name]=createHash('sha256').update(await fs.readFile(path.join(assets,name))).digest('hex');
+  await fs.writeFile(path.join(output,'results.json'),JSON.stringify({passed:checks.length,viewport:fixedViewport,background:'Transparent DOM capture; native Citadel composition is verified separately.',assetHashes,checks,errors},null,2));
   await browser.close();console.log('Chat DOM: '+checks.length+' checks passed. Headless isolated Edge, synthetic accounts, no user session.');
 })().catch(async error=>{console.error(error);if(fixtureBrowser)await fixtureBrowser.close();process.exitCode=1;});

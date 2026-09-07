@@ -34,6 +34,30 @@ public sealed class ProfileUiState : BindableUiState
     private ProfileViewState _current = ProfileViewState.SignedOut;
     private bool _isOpen;
     private BitmapSource? _avatarImage;
+    private Runtime.LauncherPresenceSnapshot? _presence;
+
+    internal Runtime.LauncherPresenceSnapshot? PresenceSnapshot => _presence;
+
+    public string PresenceLabel => Localization.LauncherLocalization.Text(_presence?.OwnerAccountId is null ? "Hors ligne" : !_presence.IsAvailable
+        ? "Statut indisponible" : _presence.IsAutomaticAway ? "Absent · inactivité" : _presence.Status switch
+        { "online" => "En ligne", "away" => "Absent", "dnd" => "Ne pas déranger", _ => "Hors ligne" });
+    public string PresenceBrush => _presence?.Status switch
+        { "online" when _presence.IsAvailable => "#48C78E", "away" when _presence.IsAvailable => "#E9B44C", "dnd" when _presence.IsAvailable => "#EE6873", _ => "#8995A8" };
+    public string PresenceError => Localization.LauncherLocalization.Text(_presence?.ErrorCode switch
+        { "presence-unavailable" => "Le serveur ne permet pas encore de modifier votre statut.",
+          not null => "Impossible de confirmer le statut. Réessayez.", _ => "" });
+    public bool CanChangePresence => Current.IsAuthenticated && _presence?.OwnerAccountId is not null && _presence.IsAvailable && !_presence.IsUpdating;
+    public string PresenceProgress => _presence?.IsUpdating == true ? Localization.LauncherLocalization.Text("Enregistrement…") : "";
+    public bool IsPresenceOnline => _presence?.ManualStatus == "online" && _presence.IsAvailable;
+    public bool IsPresenceAway => _presence?.ManualStatus == "away" && _presence.IsAvailable;
+    public bool IsPresenceDnd => _presence?.ManualStatus == "dnd" && _presence.IsAvailable;
+    public bool IsPresenceOffline => _presence?.ManualStatus == "offline" && _presence.IsAvailable;
+
+    internal void ApplyPresence(Runtime.LauncherPresenceSnapshot snapshot)
+    {
+        if(_presence is not null && snapshot.Sequence < _presence.Sequence)return;
+        _presence=snapshot;RaisePropertyChanged(string.Empty);
+    }
 
     public ProfileViewState Current => _current;
 
@@ -56,6 +80,7 @@ public sealed class ProfileUiState : BindableUiState
         {
             _isOpen = false;
             _avatarImage = null;
+            _presence = null;
         }
 
         RaisePropertyChanged(string.Empty);

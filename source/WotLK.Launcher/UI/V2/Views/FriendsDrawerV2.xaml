@@ -269,12 +269,14 @@
                     Background="{StaticResource AtlasV2.Overlay.Card}"
                     BorderBrush="{StaticResource AtlasV2.Overlay.Divider}"
                     BorderThickness="1"
-                    CornerRadius="10">
+                    CornerRadius="10"
+                    Tag="{Binding ElementName=FriendActionsPopup}"
+                    PreviewMouseRightButtonUp="FriendCard_PreviewMouseRightButtonUp"
+                    PreviewKeyDown="FriendCard_PreviewKeyDown">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="38"/>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="30"/>
                     </Grid.ColumnDefinitions>
                     <Button x:Name="OpenFriendProfileButton" Grid.ColumnSpan="2" Panel.ZIndex="1"
                             Margin="-5" Style="{StaticResource AtlasV2.Overlay.FriendHitTarget}"
@@ -289,18 +291,8 @@
                                  HorizontalAlignment="Right"
                                  VerticalAlignment="Bottom"
                                  Stroke="{StaticResource AtlasV2.Overlay.Card}"
-                                 StrokeThickness="2">
-                            <Ellipse.Style>
-                                <Style TargetType="{x:Type Ellipse}">
-                                    <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsOnline}" Value="True">
-                                            <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.Success}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Ellipse.Style>
-                        </Ellipse>
+                                 StrokeThickness="2"
+                                 Fill="{Binding PresenceColor}"/>
                     </Grid>
                     <StackPanel Grid.Column="1" Margin="10,0,6,0" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Username}"
@@ -316,91 +308,66 @@
                                    Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
                         <TextBlock Margin="0,2,0,0"
                                    Text="{Binding PresenceText}"
-                                   TextTrimming="CharacterEllipsis">
-                            <TextBlock.Style>
-                                <Style TargetType="{x:Type TextBlock}"
-                                       BasedOn="{StaticResource AtlasV2.Text.Caption}">
-                                    <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsOnline}" Value="True">
-                                            <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Success}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
+                                   Foreground="{Binding PresenceColor}"
+                                   Style="{StaticResource AtlasV2.Text.Caption}"
+                                   TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
-                    <Grid Grid.Column="2" VerticalAlignment="Center" Panel.ZIndex="2">
-                        <Button x:Name="FriendActionsButton"
-                                Width="32"
-                                Height="32"
-                                Padding="6"
-                                IsEnabled="{Binding CanRemove}"
-                                Tag="{Binding ElementName=FriendActionsPopup}"
-                                Click="FriendActionsButton_Click"
-                                ToolTip="Actions"
-                                AutomationProperties.Name="Actions pour cet ami">
-                            <Button.Style>
-                                <Style TargetType="{x:Type Button}"
-                                       BasedOn="{StaticResource AtlasV2.Overlay.IconButton}">
-                                    <Setter Property="Opacity" Value="0.92"/>
-                                    <Style.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Opacity" Value="1"/>
-                                        </Trigger>
-                                        <Trigger Property="IsKeyboardFocused" Value="True">
-                                            <Setter Property="Opacity" Value="1"/>
-                                        </Trigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                            <Path Width="20"
-                                  Height="8"
-                                  Data="{StaticResource AtlasV2.Icon.MoreHorizontal}"
-                                  Style="{StaticResource AtlasV2.Icon.Stroke}"
-                                  Fill="{StaticResource AtlasV2.Brush.Text}"
-                                  StrokeThickness="0"/>
-                        </Button>
-                        <Popup x:Name="FriendActionsPopup"
+                        <Popup x:Name="FriendActionsPopup" Grid.ColumnSpan="2"
                                DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
-                               PlacementTarget="{Binding ElementName=FriendActionsButton}"
+                               PlacementTarget="{Binding ElementName=OpenFriendProfileButton}"
                                Placement="Bottom"
-                               HorizontalOffset="-128"
                                AllowsTransparency="True"
                                PopupAnimation="Fade"
-                               StaysOpen="False">
-                            <Button Width="174"
-                                    TextOptions.TextFormattingMode="Ideal"
-                                    TextOptions.TextRenderingMode="ClearType"
-                                    Height="40"
-                                    Margin="0,4,0,0"
-                                    Padding="12,0"
-                                    HorizontalContentAlignment="Left"
-                                    PreviewKeyDown="Root_PreviewKeyDown"
-                                    KeyboardNavigation.TabNavigation="Cycle"
-                                    Click="RemoveFriendMenuItem_Click"
-                                    AutomationProperties.Name="Retirer de mes amis">
-                                <Button.Style>
-                                    <Style TargetType="{x:Type Button}"
-                                           BasedOn="{StaticResource AtlasV2.Overlay.CompactButton}">
-                                        <Setter Property="Background" Value="{StaticResource AtlasV2.Overlay.Panel}"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Overlay.CardEdge}"/>
-                                    </Style>
-                                </Button.Style>
-                                <StackPanel Orientation="Horizontal">
-                                    <Path Width="15"
-                                          Height="15"
-                                          Margin="0,0,8,0"
-                                          Data="{StaticResource AtlasV2.Icon.Trash}"
-                                          Style="{StaticResource AtlasV2.Icon.Stroke}"
-                                          Stroke="{StaticResource AtlasV2.Brush.Danger}"/>
-                                    <TextBlock VerticalAlignment="Center"
-                                               Text="Retirer de mes amis"
-                                               Foreground="{StaticResource AtlasV2.Brush.Text}"/>
+                               StaysOpen="False"
+                               Closed="FriendActionsPopup_Closed">
+                            <Border Width="238" Margin="0,4,0,0" Padding="5" CornerRadius="10"
+                                    Background="{StaticResource AtlasV2.Overlay.Panel}"
+                                    BorderBrush="{StaticResource AtlasV2.Overlay.CardEdge}" BorderThickness="1"
+                                    TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="ClearType"
+                                    PreviewKeyDown="FriendActionsMenu_PreviewKeyDown"
+                                    KeyboardNavigation.TabNavigation="Cycle">
+                                <StackPanel>
+                                    <StackPanel.Resources>
+                                        <Style x:Key="FriendActionMenuButton" TargetType="{x:Type Button}"
+                                               BasedOn="{StaticResource AtlasV2.Overlay.CompactButton}">
+                                            <Setter Property="Height" Value="40"/>
+                                            <Setter Property="Padding" Value="10,0"/>
+                                            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Setter Property="BorderThickness" Value="0"/>
+                                        </Style>
+                                    </StackPanel.Resources>
+                                    <Button x:Name="ViewPublicProfileMenuItem"
+                                            Style="{StaticResource FriendActionMenuButton}"
+                                            Click="ViewPublicProfileMenuItem_Click" AutomationProperties.Name="Voir le profil">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Width="15" Height="15" Margin="0,0,10,0"
+                                                  Data="{StaticResource AtlasV2.Icon.User}" Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                            <TextBlock Text="Voir le profil" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button x:Name="SendMessageMenuItem"
+                                            Style="{StaticResource FriendActionMenuButton}"
+                                            Click="SendMessageMenuItem_Click" AutomationProperties.Name="Envoyer un message">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Width="15" Height="15" Margin="0,0,10,0"
+                                                  Data="{StaticResource AtlasV2.Icon.Mail}" Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                            <TextBlock Text="Envoyer un message" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button x:Name="RemoveFriendMenuItem" IsEnabled="{Binding CanRemove}"
+                                            Style="{StaticResource FriendActionMenuButton}"
+                                            Click="RemoveFriendMenuItem_Click" AutomationProperties.Name="Supprimer des amis">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Width="15" Height="15" Margin="0,0,10,0"
+                                                  Data="{StaticResource AtlasV2.Icon.Trash}" Style="{StaticResource AtlasV2.Icon.Stroke}"
+                                                  Stroke="{StaticResource AtlasV2.Brush.Danger}"/>
+                                            <TextBlock Text="Supprimer des amis" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
                                 </StackPanel>
-                            </Button>
+                            </Border>
                         </Popup>
-                    </Grid>
                 </Grid>
             </Border>
             <DataTemplate.Triggers>
@@ -720,19 +687,9 @@
                             <TextBlock Margin="0,2,0,0"
                                        HorizontalAlignment="Center"
                                        Text="{Binding ProfilePresenceText}"
+                                       Foreground="{Binding PresenceColor}"
                                        FontSize="13"
-                                       >
-                                <TextBlock.Style>
-                                    <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource AtlasV2.Text.Caption}">
-                                        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsOnline}" Value="True">
-                                                <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.Success}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
+                                       Style="{StaticResource AtlasV2.Text.Caption}"/>
 
                             <Border Height="1" Margin="0,18" Background="{StaticResource AtlasV2.Overlay.Divider}"/>
                             <TextBlock Text="BIO" Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>

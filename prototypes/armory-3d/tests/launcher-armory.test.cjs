@@ -393,7 +393,192 @@ test('automatic model failures back off and logout discards a late completed mod
   };
   now+=120000;
   const pending = armory.refresh(); await started;
-  await armory.stop(); release();
-  await assert.rejects(pending,{name:'AbortError'});
+  const rejected = assert.rejects(pending,{name:'AbortError'});
+  const stopped = armory.stop(); release();
+  await stopped; await rejected;
   assert.equal(armory.entry('1'),undefined); assert.deepEqual(armory.list().characters,[]);
+});
+
+test('all roster icons and tooltips are available before model export and a selected character gets the next build',async t => {
+  const f = await fixture(t);
+  const rows = [character(1,'Apremier'),character(2,'Bdeuxième'),character(3,'Csélectionné'),character(4,'Ddernier')];
+  const assets = path.join(f.root,'icons'); await fs.mkdir(assets);
+  const icon = path.join(assets,'icon-100.png');
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64');
+  await fs.writeFile(icon,png);
+  let entered,release;
+  const started = new Promise(resolve => { entered=resolve; });
+  const built = [];
+  const armory = f.create(1918,{
+    loadRoster:async () => roster(...rows),loadCatalog:async () => structuredClone(catalog),
+    icons:async () => ({'icon-100.png':icon}),
+    prepareModel:async row => {
+      built.push(row.id);
+      if (built.length===1) { entered(); await new Promise(resolve => { release=resolve; }); }
+      return null;
+    }
+  });
+  armory.config.clientRoot = path.join(f.root,'client');
+  armory.config.modelConcurrency = 1;
+  const polling = armory.poll(); await started;
+  const key = 'e'.repeat(64); const server = createLauncherServer({key,armory});
+  await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
+  t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
+  const get = route => fetch(`http://127.0.0.1:${server.address().port}${route}`,{headers:{'x-atlas-armory-key':key}});
+  try {
+    assert.deepEqual(built,['1']);
+    for (const id of ['1','2','3','4']) {
+      const manifest = await (await get(`/characters/${id}/armory.json`)).json();
+      assert.equal(manifest.modelStatus,'building',`${id}: queued geometry must not appear unavailable`);
+      const data = await (await get(manifest.assetBase+'character.json')).json();
+      const details = await (await get(manifest.assetBase+'item-details.json')).json();
+      assert.equal(data.equipment[0].icon,'icon-100.png');
+      assert.deepEqual(Buffer.from(await (await get(manifest.assetBase+'icon-100.png')).arrayBuffer()),png);
+      assert.equal(details.items[0].name.fr,'Capuche de test');
+      const persisted = JSON.parse(await fs.readFile(path.join(armory.root,id+'.json'),'utf8'));
+      assert.equal(persisted.character.equipment[0].icon,'icon-100.png');
+    }
+    assert.equal(armory.prioritize('999'),false);
+    assert.equal((await get('/characters/3/view')).status,200);
+  } finally { release(); await polling; }
+  assert.deepEqual(built,['1','3','2','4'],'the running export completes before the newly selected character');
+  for (const id of ['1','2','3','4']) {
+    assert.equal(armory.entry(id).modelStatus,'unavailable');
+    assert.equal(armory.entry(id).character.equipment[0].icon,'icon-100.png','model failures preserve hydrated icons');
+  }
+});
+
+test('two model exports overlap and the selected character takes the next free worker',async t => {
+  const f = await fixture(t);
+  const deferred = () => {
+    let resolve; const promise = new Promise(done => { resolve=done; });
+    return {promise,resolve};
+  };
+  const gates = new Map(['1','2','3','4'].map(id => [id,deferred()]));
+  const entered = new Map(['1','2','3','4'].map(id => [id,deferred()]));
+  const started = [],active = new Set(); let maximumActive = 0;
+  const armory = f.create(1918,{
+    loadRoster:async () => roster(character(1,'A'),character(2,'B'),character(3,'C'),character(4,'D')),
+    loadCatalog:async () => structuredClone(catalog),
+    prepareModel:async (row,details) => {
+      started.push(row.id); active.add(row.id); maximumActive=Math.max(maximumActive,active.size);
+      const prepared = {character:armory.entry(row.id).character,details,assetDir:f.root};
+      entered.get(row.id).resolve(); await gates.get(row.id).promise;
+      active.delete(row.id); return prepared;
+    }
+  });
+  armory.config.clientRoot = path.join(f.root,'client');
+  const polling = armory.poll();
+  try {
+    await Promise.all([entered.get('1').promise,entered.get('2').promise]);
+    assert.deepEqual(started,['1','2']); assert.equal(active.size,2);
+    assert.equal(armory.prioritize('4'),true);
+    gates.get('1').resolve(); await entered.get('4').promise;
+    assert.deepEqual(started,['1','2','4']);
+    assert.deepEqual([...active].sort(),['2','4'],'the selected model starts before the other running model finishes');
+    assert.equal(armory.entry('1').modelReady,true);
+    assert.equal(armory.entry('3').modelStatus,'building');
+    gates.get('4').resolve(); await entered.get('3').promise;
+    assert.deepEqual(started,['1','2','4','3']);
+    assert.equal(maximumActive,2,'the default pool never launches a third export');
+  } finally {
+    for (const gate of gates.values()) gate.resolve();
+    await polling;
+  }
+  assert.equal(active.size,0); assert.equal(armory.modelWorkers.size,0);
+  for (const id of gates.keys()) assert.equal(armory.entry(id).modelReady,true);
+});
+
+test('failed and missing parallel models do not stop other workers or drop equipment data',async t => {
+  const f = await fixture(t); const started = [];
+  const armory = f.create(1918,{
+    loadRoster:async () => roster(character(1,'A'),character(2,'B'),character(3,'C'),character(4,'D')),
+    loadCatalog:async () => structuredClone(catalog),
+    prepareModel:async (row,details) => {
+      started.push(row.id);
+      if (row.id==='1') throw new Error('Corrupt local model');
+      if (row.id==='2') return null;
+      return {character:armory.entry(row.id).character,details,assetDir:f.root};
+    }
+  });
+  armory.config.clientRoot = path.join(f.root,'client');
+  await armory.poll();
+  assert.deepEqual(started.sort(),['1','2','3','4']);
+  assert.equal(armory.list().status,'ready'); assert.equal(armory.modelWorkers.size,0);
+  for (const id of ['1','2']) {
+    assert.equal(armory.entry(id).modelStatus,'unavailable');
+    assert.equal(armory.entry(id).character.equipment[0].itemId,100);
+    assert.equal(armory.entry(id).details.items[0].name.fr,'Capuche de test');
+    assert.equal(armory.modelFailures.get(id).attempts,1);
+  }
+  for (const id of ['3','4']) assert.equal(armory.entry(id).modelReady,true);
+});
+
+test('stop aborts both workers and waits for every cleanup without starting queued models',async t => {
+  const f = await fixture(t);
+  const deferred = () => {
+    let resolve; const promise = new Promise(done => { resolve=done; });
+    return {promise,resolve};
+  };
+  const entered = deferred(),bothAborted = deferred();
+  const cleanup = new Map(['1','2'].map(id => [id,deferred()]));
+  const started = [],aborted = [],cleaned = [];
+  const armory = f.create(1918,{
+    loadRoster:async () => roster(character(1,'A'),character(2,'B'),character(3,'C'),character(4,'D')),
+    loadCatalog:async () => structuredClone(catalog),
+    prepareModel:async (row,details,signal) => {
+      started.push(row.id);
+      if (started.length===2) entered.resolve();
+      await new Promise(resolve => signal.addEventListener('abort',resolve,{once:true}));
+      aborted.push(row.id); if (aborted.length===2) bothAborted.resolve();
+      await cleanup.get(row.id).promise; cleaned.push(row.id);
+      signal.throwIfAborted();
+    }
+  });
+  armory.config.clientRoot = path.join(f.root,'client');
+  const refreshing = armory.refresh();
+  const rejected = assert.rejects(refreshing,{name:'AbortError'});
+  await entered.promise;
+  let stopped = false;
+  const stopping = armory.stop().then(() => { stopped=true; });
+  try {
+    await bothAborted.promise;
+    assert.deepEqual(aborted.sort(),['1','2']); assert.equal(stopped,false);
+    cleanup.get('1').resolve(); await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(cleaned,['1']); assert.equal(stopped,false,'the second subprocess cleanup still owns a worker');
+    assert.equal(armory.entry('1'),undefined); assert.deepEqual(armory.list().characters,[]);
+  } finally {
+    for (const gate of cleanup.values()) gate.resolve();
+    await stopping; await rejected;
+  }
+  assert.deepEqual(started,['1','2']); assert.equal(stopped,true);
+  assert.equal(armory.modelWorkers.size,0); assert.deepEqual(cleaned.sort(),['1','2']);
+  for (const id of ['1','2','3','4']) {
+    const cached = JSON.parse(await fs.readFile(path.join(armory.root,id+'.json'),'utf8'));
+    assert.equal(cached.modelReady,false,'cancelled exports cannot publish late completed assets');
+  }
+});
+
+test('friend cache reuse waits for a fresh authorized roster and never exposes cached data after rejection',async t => {
+  const f = await fixture(t);
+  const original = f.create(1918); await original.refresh();
+  const previous = structuredClone(original.entry('1')); await original.stop();
+  let release,references=0;
+  const response = new Promise(resolve => { release=resolve; });
+  const reopened = f.create(1918,{loadRoster:async () => response,reference:async () => {
+    references++; return {character:previous.character,details:previous.details,assetDir:f.root};
+  },prepareModel:async () => { throw new Error('Authorized unchanged equipment should reuse the existing model'); }});
+  reopened.config.requireFreshRoster = true;
+  await reopened.start();
+  assert.deepEqual(reopened.list().characters,[]); assert.equal(reopened.entry('1'),undefined);
+  assert.equal(references,0,'model cache lookup must wait for current authorization');
+  release(roster(character())); await reopened.pending;
+  assert.equal(reopened.entry('1').modelReady,true); assert.equal(references,1);
+  await reopened.stop();
+  const rejected = f.create(1918,{loadRoster:async () => { throw new Error('Friendship removed'); },
+    reference:async () => { throw new Error('A rejected roster must never inspect model assets'); }});
+  rejected.config.requireFreshRoster = true;
+  await rejected.start(); await rejected.pending?.catch(() => {});
+  assert.equal(rejected.list().status,'unavailable');
+  assert.deepEqual(rejected.list().characters,[]); assert.equal(rejected.entry('1'),undefined);
 });

@@ -139,26 +139,19 @@ internal static class LauncherDashboardTests
         True(localClient.PatchNotes[0].Sections.SelectMany(section => section.Items).All(item => !item.Contains(".cs", StringComparison.OrdinalIgnoreCase)),
             "Le brouillon utilisateur ne doit pas contenir de détail de code.");
         PatchNoteEntryViewState draft = localClient.PatchNotes[0];
-        Equal("1.4.0", draft.Version, "Le brouillon doit conserver la version cible demandée.");
-        Equal("Atlas Launcher 1.4.0", draft.Title,
-            "Le brouillon doit présenter le bilan complet de la version cible.");
+        Equal("1.5.0", draft.Version, "Le brouillon doit conserver la version cible demandée.");
+        Equal("Atlas Launcher 1.5.0", draft.Title, "Le titre doit afficher la version cible.");
         True(draft.Sections.Select(section => section.Title).SequenceEqual(
-            new[] { "Launcher", "Jeu", "Profil et compte", "Amis et présence", "Addons",
-                "Paramètres et Windows", "Notes de version et mises à jour", "Corrections d’interaction",
-                "Profil et armurerie 3D", "Installation et distribution" }),
-            "Le brouillon complet doit conserver chaque rubrique et couvrir la distribution du profil public.");
+            new[] { "Messages et conversations", "Images et pièces jointes", "Audio et vidéo", "Présence et notifications", "Profils, armurerie et avatars", "Chuchotements avec le jeu", "Compte, paramètres et addons en jeu", "Fluidité et finitions" }),
+            "Le brouillon doit couvrir les nouveautés depuis la version 1.4.0.");
         string[] draftItems = draft.Sections.SelectMany(section => section.Items).ToArray();
-        Equal(53, draftItems.Length, "Le brouillon doit conserver les 50 points précédents et ajouter les trois points de distribution.");
-        True(draft.Sections[^2].Items[0].Contains("intégrés au client public", StringComparison.Ordinal)
-            && draft.Sections[^1].Items.Length == 3
-            && draft.Sections[^1].Items[1].Contains("compte connecté", StringComparison.Ordinal)
-            && draft.Sections[^1].Items[2].Contains("Microsoft WebView2", StringComparison.Ordinal),
-            "Le brouillon 1.4.0 doit décrire le profil public, le périmètre du compte et le composant d’affichage automatique.");
-        True(draft.Sections[^2].Items[3].Contains("dernier relevé serveur disponible", StringComparison.Ordinal)
-            && draft.Sections[^2].Items[3].Contains("valeurs manquantes", StringComparison.Ordinal),
-            "Les statistiques doivent rester conditionnées aux relevés disponibles.");
+        Equal(37, draftItems.Length, "Le bilan 1.5.0 doit conserver tous ses points.");
+        True(draftItems.Any(item => item.Contains("codec", StringComparison.Ordinal)),
+            "La lecture intégrée doit conserver sa limite de compatibilité des codecs.");
+        True(draftItems.Any(item => item.Contains("Pseudo#Launcher", StringComparison.Ordinal)),
+            "Le patchnote doit expliquer l'identité des chuchotements depuis le launcher.");
         True(LauncherLocalization.TranslateFromFrench(draft.Intro) != draft.Intro,
-            "L’introduction du brouillon 1.4.0 doit être traduite en anglais.");
+            "L’introduction du brouillon 1.5.0 doit être traduite en anglais.");
         True(draftItems.All(item => LauncherLocalization.TranslateFromFrench(item) != item),
             "Chaque changement du brouillon doit être traduit en anglais.");
         True(projected.PatchNotes.All(note => !note.IsDraft),
@@ -296,6 +289,11 @@ internal static class LauncherDashboardTests
         authentication.StatusHandler = _ => status.Task;
         authentication.NewsHandler = _ => notes.Task;
         time.Timer.Fire();
+        Equal(DashboardRealmState.Online, coordinator.CurrentSnapshot.RealmState,
+            "Le sondage automatique doit conserver l'état confirmé pendant son actualisation.");
+        Equal("Serveur de jeu en ligne", DashboardStateAdapter.Project(coordinator.CurrentSnapshot).RealmStatusWideLabel,
+            "Le libellé visible ne doit pas clignoter à chaque minute.");
+        True(coordinator.CurrentSnapshot.IsLoading, "Le sondage doit rester identifié comme en cours.");
         time.Timer.Fire();
         Equal(2, authentication.GetStatusCalls,
             "Un second tick pendant une requête active doit être ignoré.");

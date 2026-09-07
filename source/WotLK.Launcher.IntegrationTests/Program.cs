@@ -7,6 +7,105 @@ using System.Text.RegularExpressions;
 using WotLK.Launcher;
 using WotLK.Launcher.Server;
 
+if (args.Length == 1 && string.Equals(args[0], "--friend-cache", StringComparison.OrdinalIgnoreCase))
+    return ArmoryFriendCacheTests.Run();
+
+if (args.Length >= 1 && string.Equals(args[0], "--friend-profile-wpf", StringComparison.OrdinalIgnoreCase))
+{
+    int captureIndex = Array.IndexOf(args, "--capture-directory");
+    string? directory = captureIndex >= 0 && captureIndex + 1 < args.Length ? args[captureIndex + 1] : null;
+    return await ArmoryLauncherTests.RunFriendProfileAsync(directory);
+}
+
+if (args.Length >= 1 && string.Equals(args[0], "--auth-shell-wpf", StringComparison.OrdinalIgnoreCase))
+{
+    int captureIndex = Array.IndexOf(args, "--capture-directory");
+    string? directory = captureIndex >= 0 && captureIndex + 1 < args.Length ? args[captureIndex + 1] : null;
+    return await AuthShellWpfTests.RunAsync(directory);
+}
+
+if (args.Length == 1 && string.Equals(args[0], "--game-gateway-metrics", StringComparison.OrdinalIgnoreCase))
+{
+    return await GameGatewayMetricsTests.RunAsync();
+}
+
+if (args.Length == 1 && string.Equals(args[0], "--server-status-mysql", StringComparison.OrdinalIgnoreCase))
+{
+    return await ServerStatusMySqlTests.RunAsync();
+}
+
+if (args.Length >= 1 && string.Equals(args[0], "--friends-right-click", StringComparison.OrdinalIgnoreCase))
+{
+    int captureIndex = Array.IndexOf(args, "--capture-directory");
+    string? directory = captureIndex >= 0 && captureIndex + 1 < args.Length ? args[captureIndex + 1] : null;
+    return await FriendsRightClickMemoryTests.RunAsync(directory);
+}
+
+if (args.Length == 1 && string.Equals(args[0], "--chat-v2-api-mysql", StringComparison.OrdinalIgnoreCase))
+    return await ChatV2ApiMySqlTests.RunAsync();
+
+if (args.Length == 1 && string.Equals(args[0], "--chat-media", StringComparison.OrdinalIgnoreCase))
+    return await ChatRichMediaTests.RunAsync();
+
+if (args.Length == 1 && string.Equals(args[0], "--chat-notifications", StringComparison.OrdinalIgnoreCase))
+    return ChatNotificationTests.Run();
+
+if (args.Length == 1 && string.Equals(args[0], "--chat-workspace", StringComparison.OrdinalIgnoreCase))
+    return await ChatWorkspaceTests.RunAsync();
+
+if (args.Length == 1 && string.Equals(args[0], "--presence-api-mysql", StringComparison.OrdinalIgnoreCase))
+{
+    return await PresenceApiMySqlTests.RunAsync();
+}
+
+if (args.Length == 1 && string.Equals(args[0], "--presence-runtime", StringComparison.OrdinalIgnoreCase))
+    return await PresenceRuntimeTests.RunAsync();
+
+if (args.Length >= 1 && string.Equals(args[0], "--armory-shared-character-wpf", StringComparison.OrdinalIgnoreCase))
+{
+    int captureIndex = Array.IndexOf(args, "--capture-directory");
+    string? directory = captureIndex >= 0 && captureIndex + 1 < args.Length ? args[captureIndex + 1] : null;
+    return await ArmoryLauncherTests.RunSharedCharacterAsync(directory);
+}
+
+if (args.Length >= 1 && string.Equals(args[0], "--presence-profile-wpf", StringComparison.OrdinalIgnoreCase))
+{
+    int captureIndex = Array.IndexOf(args, "--capture-directory");
+    string? directory = captureIndex >= 0 && captureIndex + 1 < args.Length ? args[captureIndex + 1] : null;
+    return await PresenceProfileWpfTests.RunAsync(directory);
+}
+
+if (args.Length >= 1 && string.Equals(args[0], "--chat-full-shell-wpf", StringComparison.OrdinalIgnoreCase))
+{
+    int captureIndex = Array.IndexOf(args, "--capture-directory");
+    string? directory = captureIndex >= 0 && captureIndex + 1 < args.Length ? args[captureIndex + 1] : null;
+    return await ChatFullShellWpfTests.RunAsync(directory);
+}
+
+if (args.Length >= 1 && string.Equals(args[0], "--chat-rich-host-wpf", StringComparison.OrdinalIgnoreCase))
+{
+    int captureIndex = Array.IndexOf(args, "--capture-directory");
+    string? directory = captureIndex >= 0 && captureIndex + 1 < args.Length ? args[captureIndex + 1] : null;
+    return await ChatRichHostWpfTests.RunAsync(directory);
+}
+
+if (args.Length == 1 && string.Equals(args[0], "--chat-api-mysql", StringComparison.OrdinalIgnoreCase))
+{
+    return await ChatApiMySqlTests.RunAsync();
+}
+
+if (args.Length == 1 && string.Equals(args[0], "--chat-runtime", StringComparison.OrdinalIgnoreCase))
+{
+    return await LauncherChatTests.RunAsync();
+}
+
+if (args.Length >= 1 && string.Equals(args[0], "--chat-view-wpf", StringComparison.OrdinalIgnoreCase))
+{
+    int captureIndex = Array.IndexOf(args, "--capture-directory");
+    string? directory = captureIndex >= 0 && captureIndex + 1 < args.Length ? args[captureIndex + 1] : null;
+    return await ChatViewWpfTests.RunAsync(directory);
+}
+
 if (args.Length == 1
     && string.Equals(args[0], "--armory-session", StringComparison.OrdinalIgnoreCase))
 {
@@ -29,7 +128,7 @@ if (args.Length == 1
     && string.Equals(args[0], "--patch-notes", StringComparison.OrdinalIgnoreCase))
 {
     LauncherDashboardTests.ProjectCategorizedPatchNotesWithLegacyFallback();
-    Console.WriteLine("Patch notes OK (version 1.4.0, complete local draft, English translations, published notes preserved).");
+    Console.WriteLine("Patch notes OK (version 1.5.0, complete local draft, English translations, published notes preserved).");
     return 0;
 }
 
@@ -205,6 +304,12 @@ if (args.Length >= 1
             ? args[2]
             : null;
     return await AccountPreviewTests.RunAsync(captureDirectory);
+}
+
+if (args.Length >= 1
+    && string.Equals(args[0], "--avatar-crop-rendering", StringComparison.OrdinalIgnoreCase))
+{
+    return await AccountAvatarCropRenderingTests.RunAsync(args.Skip(1).ToArray());
 }
 
 if (args.Length >= 1

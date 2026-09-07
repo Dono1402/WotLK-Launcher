@@ -15,6 +15,7 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
     private readonly CancellationToken _lifetimeToken;
     private readonly Action<string> _writeLog;
     private readonly TimeProvider _timeProvider;
+    private readonly ILauncherGameGatewayProbe? _gatewayProbe;
     private readonly ITimer _automaticRefreshTimer;
     private DashboardSnapshot _currentSnapshot = DashboardSnapshot.Initial;
     private Task? _activeRefreshTask;
@@ -30,12 +31,14 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
         ILauncherAuthService authentication,
         CancellationToken lifetimeToken,
         Action<string> writeLog,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ILauncherGameGatewayProbe? gatewayProbe = null)
     {
         _authentication = authentication ?? throw new ArgumentNullException(nameof(authentication));
         _lifetimeToken = lifetimeToken;
         _writeLog = writeLog ?? throw new ArgumentNullException(nameof(writeLog));
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _gatewayProbe = gatewayProbe;
         _authenticatedRequestsEnabled = authentication.Session is not null;
         _automaticRefreshTimer = _timeProvider.CreateTimer(
             static state => ((LauncherDashboardCoordinator)state!).AutomaticRefreshTimer_Tick(),
@@ -386,8 +389,25 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
         Task<DashboardFetchResult<IReadOnlyList<LauncherNews>>> notesTask = FetchAsync(
             _authentication.GetNewsAsync,
             "notes de mise à jour");
-        await Task.WhenAll(statusTask, notesTask).ConfigureAwait(false);
-        PublishRefreshResult(await statusTask, await notesTask, requestGeneration);
+        Task<int?> latencyTask = MeasureGatewayAsync();
+        await Task.WhenAll(statusTask, notesTask, latencyTask).ConfigureAwait(false);
+        PublishRefreshResult(await statusTask, await notesTask, requestGeneration, await latencyTask);
+    }
+
+    private async Task<int?> MeasureGatewayAsync()
+    {
+        if (_gatewayProbe is null) return null;
+        try
+        {
+            int? milliseconds = await _gatewayProbe.MeasureAsync(_lifetimeToken).ConfigureAwait(false);
+            return milliseconds is >= 0 and <= 10000 ? milliseconds : null;
+        }
+        catch (OperationCanceledException) when (_lifetimeToken.IsCancellationRequested) { throw; }
+        catch (Exception error)
+        {
+            WriteFailureSafely(ClassifyFailure(error), error, "latence de la passerelle");
+            return null;
+        }
     }
 
     private async Task<DashboardFetchResult<T>> FetchAsync<T>(
@@ -417,11 +437,12 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
         {
             Sequence = NextSequence(),
             IsLoading = true,
-            RealmState = DashboardRealmState.Loading,
-            RealmStatusLabel = "Actualisation…",
-            FailureCategory = DashboardFailureCategory.None,
-            IsStale = false,
-            HasRetainedDataAfterFailure = false
+            // A new probe is not a new observation. Keep the displayed status,
+            // metrics and any previous failure until this refresh completes.
+            RealmState = previous.RealmState == DashboardRealmState.Unknown
+                ? DashboardRealmState.Loading : previous.RealmState,
+            RealmStatusLabel = previous.RealmState == DashboardRealmState.Unknown
+                ? "Actualisation…" : previous.RealmStatusLabel
         });
     }
 
@@ -435,6 +456,9 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
             IsLoading = false,
             RealmState = DashboardRealmState.Unavailable,
             RealmStatusLabel = "Statut indisponible",
+            OnlinePlayers = null,
+            OnlinePlayerCountKind = null,
+            GatewayLatencyMilliseconds = null,
             FailureCategory = category,
             IsStale = previous.HasPatchNote || previous.LastKnownRealmState is not null,
             HasRetainedDataAfterFailure = previous.HasPatchNote
@@ -445,7 +469,8 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
     private void PublishRefreshResult(
         DashboardFetchResult<LauncherServerStatus> statusResult,
         DashboardFetchResult<IReadOnlyList<LauncherNews>> notesResult,
-        long requestGeneration)
+        long requestGeneration,
+        int? gatewayLatencyMilliseconds = null)
     {
         if (IsStopping())
         {
@@ -490,6 +515,11 @@ internal sealed class LauncherDashboardCoordinator : ILauncherDashboardRuntime, 
                 IsLoading = false,
                 RealmState = realmState,
                 RealmStatusLabel = realmLabel,
+                OnlinePlayers = statusSucceeded && statusResult.Value!.WorldServer && statusResult.Value.OnlinePlayers is >= 0
+                    ? statusResult.Value.OnlinePlayers : null,
+                OnlinePlayerCountKind = statusSucceeded && statusResult.Value!.WorldServer && statusResult.Value.OnlinePlayers is >= 0
+                    ? statusResult.Value.OnlinePlayerCountKind : null,
+                GatewayLatencyMilliseconds = statusSucceeded ? gatewayLatencyMilliseconds : null,
                 LastSuccessfulRefreshAt = completeSuccess
                     ? _timeProvider.GetUtcNow()
                     : previous.LastSuccessfulRefreshAt,

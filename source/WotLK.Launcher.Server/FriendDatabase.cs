@@ -1,5 +1,6 @@
 using System.Data;
 using MySqlConnector;
+using WotLK.Launcher.Chat;
 
 namespace WotLK.Launcher.Server;
 
@@ -119,6 +120,9 @@ public sealed partial class LauncherDatabase
             command.CommandText = SocialProfilesAvailable
                 ? FriendAccountsQuery
                 : LegacyFriendAccountsQuery;
+            if(PresenceAvailable)
+                command.CommandText=("SELECT COALESCE(pr.manual_status,'online') presence_manual, COALESCE(pr.last_active_at<=UTC_TIMESTAMP(6)-INTERVAL 20 MINUTE,FALSE) presence_idle,"+command.CommandText[6..])
+                    .Replace("WHERE f.account_low_id", "LEFT JOIN atlas_launcher_presence pr ON pr.account_id=p.account_id\nWHERE f.account_low_id",StringComparison.Ordinal);
             command.Parameters.AddWithValue("@accountId", accountId);
             command.Parameters.AddWithValue("@presenceLifetime", LauncherPresenceLifetimeSeconds);
             await using MySqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -139,7 +143,9 @@ public sealed partial class LauncherDatabase
                     reader.GetBoolean("launcher_online"),
                     reader.IsDBNull("launcher_last_seen_at")
                         ? null
-                        : new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime("launcher_last_seen_at"), DateTimeKind.Utc))));
+                        : new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime("launcher_last_seen_at"), DateTimeKind.Utc)),
+                    PresenceAvailable?reader.GetString("presence_manual"):"online",
+                    PresenceAvailable&&reader.GetBoolean("presence_idle")));
             }
         }
 
@@ -157,6 +163,13 @@ public sealed partial class LauncherDatabase
                     ? loaded
                     : [];
             FriendCharacterRow? character = accountCharacters.FirstOrDefault();
+            bool invisible=account.ManualStatus=="offline";
+            string presence=LauncherPresenceStatus.Resolve(account.ManualStatus,account.LauncherOnline||accountCharacters.Any(item=>item.Online),account.IsIdle);
+            if(invisible)
+            {
+                accountCharacters=accountCharacters.Select(item=>item with{Online=false,ZoneId=0,LastSeenAt=null}).OrderBy(item=>item.Name,StringComparer.Ordinal).ToArray();
+                character=accountCharacters.FirstOrDefault();
+            }
             friends.Add(new LauncherFriend(
                 account.AccountId,
                 account.Username,
@@ -172,8 +185,9 @@ public sealed partial class LauncherDatabase
                 account.Relationship == "accepted" ? account.StatusMessage : string.Empty,
                 account.Relationship == "accepted" ? account.Bio : string.Empty,
                 accountCharacters.Select(ToContract).ToArray(),
-                account.LauncherOnline,
-                account.LauncherLastSeenAt));
+                account.LauncherOnline&&!invisible,
+                invisible?null:account.LauncherLastSeenAt,
+                PresenceAvailable?presence:null));
         }
 
         return friends;
@@ -188,6 +202,7 @@ public sealed partial class LauncherDatabase
         await using MySqlConnection connection = await OpenAsync(cancellationToken);
         await using MySqlTransaction transaction =
             await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+        if (ChatV2Available) await LockV2SequenceAsync(connection, transaction, cancellationToken);
 
         FriendTarget? target = await FindFriendTargetAsync(
             connection,
@@ -236,7 +251,9 @@ public sealed partial class LauncherDatabase
                 accept.Parameters.AddWithValue("@low", low);
                 accept.Parameters.AddWithValue("@high", high);
                 await accept.ExecuteNonQueryAsync(cancellationToken);
+                if (ChatV2Available) await NotifyV2FriendshipAsync(connection, transaction, low, high, true, cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
+                if (ChatV2Available) ChatV2EventSignal.Pulse();
                 return new FriendRequestResult(FriendRequestOutcome.Accepted, target.AccountId, target.Username);
             }
         }
@@ -265,6 +282,7 @@ public sealed partial class LauncherDatabase
         uint friendAccountId,
         CancellationToken cancellationToken)
     {
+        if (ChatV2Available) return await ChangeV2FriendshipAsync(accountId, friendAccountId, true, cancellationToken);
         uint low = Math.Min(accountId, friendAccountId);
         uint high = Math.Max(accountId, friendAccountId);
         await using MySqlConnection connection = await OpenAsync(cancellationToken);
@@ -288,6 +306,7 @@ public sealed partial class LauncherDatabase
         uint friendAccountId,
         CancellationToken cancellationToken)
     {
+        if (ChatV2Available) return await ChangeV2FriendshipAsync(accountId, friendAccountId, false, cancellationToken);
         uint low = Math.Min(accountId, friendAccountId);
         uint high = Math.Max(accountId, friendAccountId);
         await using MySqlConnection connection = await OpenAsync(cancellationToken);
@@ -392,7 +411,9 @@ public sealed partial class LauncherDatabase
         string Relationship,
         Avatars.AvatarDescriptor? Avatar,
         bool LauncherOnline,
-        DateTimeOffset? LauncherLastSeenAt);
+        DateTimeOffset? LauncherLastSeenAt,
+        string ManualStatus,
+        bool IsIdle);
 
     private sealed record FriendTarget(uint AccountId, string Username);
 

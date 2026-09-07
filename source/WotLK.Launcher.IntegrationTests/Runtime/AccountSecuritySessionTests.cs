@@ -46,6 +46,7 @@ internal static class AccountSecuritySessionTests
             return Task.FromResult(profile);
         };
 
+        using LauncherOperationLease play = context.Operations.TryBeginPlay(clientIsPlayable: true).Lease!;
         AccountActionCompletion updated = await CompleteAsync(
             context.Account.TryUpdateSocialProfile(
                 "  Disponible pour un raid  ",
@@ -359,9 +360,9 @@ internal static class AccountSecuritySessionTests
         {
             LauncherOperationStartResult play = context.Operations.TryBeginPlay(clientIsPlayable: true);
             True(play.IsStarted, "Le verrou Play de référence doit démarrer.");
-            Equal(AccountActionStartStatus.RejectedByCompatibility,
-                context.Account.TryChangeEmail("next@example.test").Status,
-                "Une mutation sensible doit être refusée immédiatement pendant Play.");
+            Equal(AccountActionCompletionStatus.Succeeded,
+                (await CompleteAsync(context.Account.TryChangeEmail("next@example.test"))).Status,
+                "La modification du compte doit aboutir pendant Play.");
             play.Lease!.Dispose();
 
             TaskCompletionSource entered = Signal();

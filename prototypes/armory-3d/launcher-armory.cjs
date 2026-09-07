@@ -74,6 +74,7 @@ class LauncherArmory {
     this.reference = reference || (async row => await this.models.reference(row) || (publicMode || config.source==='rpc' ? null : await referenceFor(row)));
     this.prepareModel = prepareModel || ((row,details,signal) => this.models.prepare(row,details,signal));
     this.modelFailures = new Map();
+    this.modelWorkers = new Set();
     this.icons = icons;
     this.now = now;
     this.failures = 0;
@@ -85,6 +86,9 @@ class LauncherArmory {
 
   async start() {
     this.controller.signal.throwIfAborted();
+    // Friend assets may be reused after navigation or application restarts, but
+    // cached character data is never authorization to expose a friend roster.
+    if (this.config.requireFreshRoster) { void this.poll(); return; }
     try {
       const cached = JSON.parse(await fs.readFile(path.join(this.root,'roster.json'),'utf8'));
       if (cached.schemaVersion===1 && cached.account===this.account && Array.isArray(cached.characters)) {
@@ -184,10 +188,14 @@ class LauncherArmory {
       if (this.entries.get(row.id)?.fingerprint===row.fingerprint) continue;
       const state = dataState(row,this.account);
       state.character.statistics = row.statistics;
+      if (this.config.clientRoot) state.modelStatus = 'building';
       state.revision = revisionFor(state);
       this.entries.set(row.id,state);
     }
     await this.persist('roster.json',{schemaVersion:1,account:this.account,characters:this.roster});
+    const modelQueue = [];
+    // Hydrate every character before starting expensive geometry exports. A
+    // model for an earlier roster entry must not delay another entry's icons.
     for (const row of rows) {
       config.signal.throwIfAborted();
       try {
@@ -230,46 +238,81 @@ class LauncherArmory {
         }
         config.signal.throwIfAborted();
         state.character = {...state.character,statistics:row.statistics ? {...row.statistics,characterCapturedAt:state.character.capturedAt} : null};
+        const failure = this.modelFailures.get(row.id);
+        const prepare = !state.modelReady && this.config.clientRoot
+          && (!failure || failure.fingerprint!==row.fingerprint || this.now()>=failure.retryAt);
+        if (prepare) state.modelStatus = 'building';
+        else if (!state.modelReady && failure) state.modelStatus = 'unavailable';
         await this.attachIcons(state,row);
         state.revision = revisionFor(state);
         this.entries.set(row.id,state);
         await this.persist(row.id+'.json',state);
-        const failure = this.modelFailures.get(row.id);
-        if (!state.modelReady && this.config.clientRoot
-            && (!failure || failure.fingerprint!==row.fingerprint || this.now()>=failure.retryAt)) {
-          state.modelStatus = 'building';
-          try {
-            const prepared = await this.prepareModel(row,state.details,config.signal);
-            config.signal.throwIfAborted();
-            if (!prepared) throw new Error('Model unavailable');
-            state = {owner:this.account,fingerprint:row.fingerprint,
-              character:{...prepared.character,characterId:row.id,classId:row.classId,raceId:row.race,
-                statistics:row.statistics ? {...row.statistics,characterCapturedAt:prepared.character.capturedAt} : null},
-              details:prepared.details,assetDir:prepared.assetDir,modelReady:true,detailsComplete:true,modelStatus:'ready'};
-            state.revision = revisionFor(state);
-            this.modelFailures.delete(row.id);
-          } catch {
-            config.signal.throwIfAborted();
-            state.modelStatus = 'unavailable';
-            const attempts = failure?.fingerprint===row.fingerprint ? failure.attempts+1 : 1;
-            this.modelFailures.set(row.id,{fingerprint:row.fingerprint,attempts,
-              retryAt:this.now()+Math.min(300000,60000*2**Math.min(attempts-1,3))});
-          }
-          this.entries.set(row.id,state);
-          await this.persist(row.id+'.json',state);
-        }
+        if (prepare) modelQueue.push(row);
       } catch {
         config.signal.throwIfAborted();
         const old = this.entries.get(row.id);
         if (old) old.stale = true;
       }
     }
+    await this.prepareQueuedModels(modelQueue,config.signal);
     config.signal.throwIfAborted();
     this.status = 'ready';
   }
 
+  async prepareQueuedModels(modelQueue,signal) {
+    // Each worker owns a complete export, keeping child-process and memory use
+    // bounded. Selection is checked again whenever a worker becomes available.
+    const concurrency = Number.isInteger(this.config.modelConcurrency)
+      ? Math.max(1,Math.min(4,this.config.modelConcurrency)) : 2;
+    const work = async () => {
+      while (modelQueue.length) {
+        signal.throwIfAborted();
+        const preferred = modelQueue.findIndex(row => row.id===this.preferredCharacterId);
+        const [row] = modelQueue.splice(preferred<0 ? 0 : preferred,1);
+        let state = this.entries.get(row.id);
+        const failure = this.modelFailures.get(row.id);
+        try {
+          const prepared = await this.prepareModel(row,state.details,signal);
+          signal.throwIfAborted();
+          if (!prepared) throw new Error('Model unavailable');
+          state = {owner:this.account,fingerprint:row.fingerprint,
+            character:{...prepared.character,characterId:row.id,classId:row.classId,raceId:row.race,
+              statistics:row.statistics ? {...row.statistics,characterCapturedAt:prepared.character.capturedAt} : null},
+            details:prepared.details,assetDir:prepared.assetDir,modelReady:true,detailsComplete:true,modelStatus:'ready'};
+          state.revision = revisionFor(state);
+          this.modelFailures.delete(row.id);
+        } catch {
+          signal.throwIfAborted();
+          state.modelStatus = 'unavailable';
+          const attempts = failure?.fingerprint===row.fingerprint ? failure.attempts+1 : 1;
+          this.modelFailures.set(row.id,{fingerprint:row.fingerprint,attempts,
+            retryAt:this.now()+Math.min(300000,60000*2**Math.min(attempts-1,3))});
+        }
+        this.entries.set(row.id,state);
+        await this.persist(row.id+'.json',state);
+      }
+    };
+    const workers = Array.from({length:Math.min(concurrency,modelQueue.length)},() => work());
+    for (const worker of workers) this.modelWorkers.add(worker);
+    try {
+      // An aborted worker must not let refresh/stop finish before the other
+      // subprocesses have actually exited and their staging files are cleaned.
+      const results = await Promise.allSettled(workers);
+      const failure = results.find(result => result.status==='rejected');
+      if (failure) throw failure.reason;
+    } finally {
+      for (const worker of workers) this.modelWorkers.delete(worker);
+    }
+  }
+
   list() {
     return {status:this.status,refreshing:Boolean(this.pending),characters:this.roster.map(row => ({...row,available:this.entries.has(row.id)}))};
+  }
+
+  prioritize(id) {
+    if (this.controller.signal.aborted || !this.roster.some(row => row.id===id)) return false;
+    this.preferredCharacterId = id;
+    return true;
   }
 
   entry(id) {
@@ -282,7 +325,7 @@ class LauncherArmory {
     clearTimeout(this.timer);
     this.controller.abort();
     this.entries.clear(); this.roster = []; this.status = 'unavailable';
-    await this.pending?.catch(() => {});
+    await Promise.allSettled([this.pending,...this.modelWorkers].filter(Boolean));
   }
 }
 

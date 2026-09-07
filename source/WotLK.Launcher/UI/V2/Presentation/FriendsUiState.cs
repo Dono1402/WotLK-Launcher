@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Windows.Input;
 using System.Windows.Media;
+using WotLK.Launcher.Account;
 using WotLK.Launcher.UI.V2.Commands;
 
 namespace WotLK.Launcher.UI.V2.Presentation;
@@ -82,6 +83,18 @@ public sealed record FriendUiItem(
     ImmutableArray<FriendCharacterUiItem> Characters = default,
     bool IsLauncherOnline = false)
 {
+    internal AvatarDescriptor? AvatarDescriptor { get; init; }
+
+    public string? Presence { get; init; }
+
+    public string PresenceColor => Presence switch
+    {
+        "away" => "#E9B44C",
+        "dnd" => "#EE6873",
+        "offline" => "#8995A8",
+        _ => IsOnline ? "#48C78E" : "#8995A8"
+    };
+
     public string CharacterSummary => !HasCharacter
         ? string.Empty
         : string.IsNullOrWhiteSpace(CharacterDetails)
@@ -92,7 +105,8 @@ public sealed record FriendUiItem(
 
     public bool IsInGame => AllCharacters.Any(character => character.IsOnline) || IsOnline && !IsLauncherOnline;
 
-    public string ProfilePresenceText => IsInGame ? "En jeu" : PresenceText;
+    public string ProfilePresenceText => Presence is "away" or "dnd" or "offline" ? PresenceText
+        : IsInGame ? (Localization.LauncherLocalization.IsEnglish ? "In game" : "En jeu") : PresenceText;
 
     public bool HasBio => !string.IsNullOrWhiteSpace(Bio);
 

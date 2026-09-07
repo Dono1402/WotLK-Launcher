@@ -46,7 +46,9 @@ public sealed record LauncherStatusResponse(
     bool RealmGateway,
     bool WorldGateway,
     bool WorldServer,
-    DateTimeOffset CheckedAt);
+    DateTimeOffset CheckedAt,
+    int? OnlinePlayers = null,
+    string? OnlinePlayerCountKind = null);
 
 public sealed record LauncherNewsSection(
     string Title,

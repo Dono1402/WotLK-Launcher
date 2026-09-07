@@ -426,7 +426,7 @@ internal sealed class LauncherOperationCoordinator : IDisposable
         }
 
         if (_playLease is not null
-            && (kind != LauncherOperationKind.Verify || !clientIsPlayable))
+            && (!CanCoexistWithPlay(kind) || (kind == LauncherOperationKind.Verify && !clientIsPlayable)))
         {
             return LauncherOperationStartStatus.RejectedByCompatibility;
         }
@@ -452,10 +452,19 @@ internal sealed class LauncherOperationCoordinator : IDisposable
         }
 
         return _maintenanceLease is not null
-               && _maintenanceLease.Kind != LauncherOperationKind.Verify
+               && !CanCoexistWithPlay(_maintenanceLease.Kind)
             ? LauncherOperationStartStatus.RejectedByCompatibility
             : LauncherOperationStartStatus.Started;
     }
+
+    // Account requests and Interface/AddOns changes do not replace the running
+    // client. Keep game installation/repair, self-update and logout exclusive.
+    private static bool CanCoexistWithPlay(LauncherOperationKind kind) => kind is
+        LauncherOperationKind.Verify or LauncherOperationKind.Addons or
+        LauncherOperationKind.AvatarUpload or LauncherOperationKind.AvatarDelete or
+        LauncherOperationKind.AccountEmailChange or LauncherOperationKind.AccountEmailVerification or
+        LauncherOperationKind.AccountPasswordChange or LauncherOperationKind.AccountSessionRevoke or
+        LauncherOperationKind.AccountProfileUpdate;
 
     private LauncherOperationLease CreateLeaseUnsafe(
         LauncherOperationKind kind,

@@ -6,8 +6,8 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:presentation="clr-namespace:WotLK.Launcher.UI.V2.Presentation"
              mc:Ignorable="d"
-             d:DesignWidth="1440"
-             d:DesignHeight="796"
+             d:DesignWidth="1597.6"
+             d:DesignHeight="996.8"
              Background="Transparent"
              Visibility="Collapsed"
              IsHitTestVisible="False"
@@ -37,7 +37,7 @@
                     <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.AuthScrim}"/>
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding CanClose, ElementName=Root}" Value="False">
-                            <Setter Property="Background" Value="#FF05101A"/>
+                            <Setter Property="Background" Value="Transparent"/>
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>

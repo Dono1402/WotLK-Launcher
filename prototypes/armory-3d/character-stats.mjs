@@ -73,8 +73,10 @@ function fieldsFor(character,mode) {
 
 export function characterStatsRows(character,locale,requestedMode,school=0) {
   const mode = statisticsModes(character,locale).some(item => item.key===requestedMode) ? requestedMode : defaultStatisticsMode(character);
-  const fields = fieldsFor(character,mode);
   const record = matchingRecord(character);
+  const saved = record?.source==='arthas-character-stats';
+  const savedPowerFields = {attackPower:['baseAttackPower','summaryBaseAttackPower'],rangedAttackPower:['baseRangedAttackPower','summaryBaseRangedAttackPower'],spellPower:['baseSpellPower','summaryBaseSpellPower']};
+  const fields = fieldsFor(character,mode).map(field => saved && savedPowerFields[field[0]] ? savedPowerFields[field[0]] : field);
   const values = {...record?.values};
   if (record?.source==='arthas-combat-stats') {
     const selected = school===0 ? record.schools : record.schools?.filter(entry => entry.id===school);
@@ -90,6 +92,7 @@ export function characterStatsRows(character,locale,requestedMode,school=0) {
       ? {style:'percent',minimumFractionDigits:1,maximumFractionDigits:1}
       : {maximumFractionDigits:0}).format(percent ? raw/100 : raw) : '—';
     const hint = key.endsWith('HitPct') ? t(locale,'hitBonusHint') : key.endsWith('HastePct') ? t(locale,'hasteHint') : ['spellPower','spellCritPct'].includes(key) && school===0 ? t(locale,'schoolMinimumHint') : '';
-    return {key,label:t(locale,label),value,known,hint,negative:known && raw<0};
+    const savedHint = key.startsWith('base') ? t(locale,'savedBasePowerHint') : key==='spellCritPct' && saved ? t(locale,'savedSpellCritUnavailableHint') : hint;
+    return {key,label:t(locale,label),value,known,hint:savedHint,negative:known && raw<0};
   });
 }

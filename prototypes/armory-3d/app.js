@@ -5,6 +5,7 @@ import { chooseLocale, t as translate, slotNames, itemName, itemType, itemLines 
 import { averageEquippedItemLevel, characterStatsRows, statisticsModes, defaultStatisticsMode, statisticsSchools } from './character-stats.mjs';
 import {className,raceName,classColor} from './character-labels.mjs';
 
+document.documentElement.dataset.armoryStarted = 'true';
 const $ = id => document.getElementById(id);
 const characterScope = location.pathname.match(/^\/characters\/([1-9][0-9]{0,9})\/view$/);
 const apiPrefix = characterScope ? `/characters/${characterScope[1]}` : '';
@@ -46,6 +47,7 @@ fill.position.set(-4, 3, -3);
 scene.add(fill);
 let mixer, body, data, bounds, activeModel, weaponMode, modelStatus = 'loading', renderCount = 0, statisticsLoaded = false, statisticsRequest;
 let revision = 'legacy', assetBase = '/assets/', bundleRequest, failedRevision, retryModelAfter = 0;
+let lastViewReady, terminalReadyFrame, initialLoadFailed = false;
 let animate = !matchMedia('(prefers-reduced-motion: reduce)').matches;
 const clock = new THREE.Clock();
 const root = new THREE.Group();
@@ -340,11 +342,33 @@ document.addEventListener('fullscreenchange', () => {
 
 renderer?.setAnimationLoop(() => {
   const delta = Math.min(clock.getDelta(), .05);
+  if (document.hidden || statisticsPaused) return;
   if (mixer && animate && !document.hidden) mixer.update(delta);
   controls.update(delta);
   renderer.render(scene, camera);
   renderCount++;
+  if (body) notifyViewReady('model');
 });
+
+function notifyViewReady(state) {
+  if (!characterScope || window.parent===window || statisticsPaused || document.hidden) return;
+  const key = `${revision}:${state}`;
+  if (lastViewReady===key) return;
+  lastViewReady = key;
+  window.parent.postMessage({type:'atlas-armory-view-ready',characterId:characterScope[1],state},location.origin);
+}
+
+function scheduleTerminalViewReady() {
+  cancelAnimationFrame(terminalReadyFrame);
+  terminalReadyFrame = undefined;
+  const terminal = () => initialLoadFailed || (data && !body
+    && ['unavailable','client-missing','graphics-unavailable'].includes(modelStatus));
+  if (statisticsPaused || document.hidden || !terminal()) return;
+  terminalReadyFrame = requestAnimationFrame(() => {
+    terminalReadyFrame = undefined;
+    if (terminal()) notifyViewReady('terminal');
+  });
+}
 
 let statisticsMode, statisticsSchool = 0;
 $('stats-school').addEventListener('change',() => { statisticsSchool = Number($('stats-school').value); renderCharacterSummary(); });
@@ -373,7 +397,8 @@ function renderCharacterSummary() {
   icons();
   if (focusedMode) $('stats-modes').querySelector(`[data-mode="${focusedMode}"]`)?.focus();
   const rows = characterStatsRows(character,locale,mode,statisticsSchool);
-  $('stats-title').title = data?.statistics?.source==='arthas-combat-stats' ? t('combatSnapshotHint',{date:new Date(data.statistics.savedAt).toLocaleString(locale==='fr'?'fr-FR':'en-US')}) : '';
+  const hint = data?.statistics?.source==='arthas-combat-stats' ? 'combatSnapshotHint' : data?.statistics?.source==='arthas-character-stats' ? 'savedStatisticsHint' : null;
+  $('stats-title').title = hint ? t(hint,{date:new Date(data.statistics.savedAt).toLocaleString(locale==='fr'?'fr-FR':'en-US')}) : '';
   $('character-stats').replaceChildren(...rows.map(row => {
     const group = document.createElement('div');
     group.className = 'character-stat';
@@ -427,7 +452,7 @@ function applyLocale() {
   if (itemAnchor && !popover.hidden) showItem(data.equipment.find(item => item.slot===Number(itemAnchor.dataset.slot)),itemAnchor,pinnedItem);
 }
 let localeRequest;
-let statisticsTimer, statisticsAbort, statisticsPaused = false;
+let statisticsTimer, statisticsAbort, statisticsPaused = false, armoryTimer;
 async function fetchJson(url) {
   const response = await fetch(url,{signal:AbortSignal.timeout(10000)});
   if (!response.ok) throw new Error(`Armory resource unavailable (${response.status})`);
@@ -594,9 +619,10 @@ async function refreshArmory() {
   if (!window.armory?.ready || statisticsPaused || document.hidden) return;
   if (bundleRequest) return bundleRequest;
   bundleRequest = (async () => {
-    let model, manifest;
+    let model, manifest, loadingModel = false;
     try {
       manifest = await readManifest();
+      if (statisticsPaused || document.hidden) return;
       if (manifest.revision===revision) {
         modelStatus = renderer ? manifest.modelStatus || (body?'ready':manifest.modelReady===false?'unavailable':'loading') : 'graphics-unavailable';
         showModelState();
@@ -604,18 +630,41 @@ async function refreshArmory() {
       }
       if (manifest.revision===failedRevision && Date.now()<retryModelAfter) return;
       const next = await loadCharacter(manifest);
-      model = !renderer || manifest.modelReady===false ? null : await loadModel(next,manifest.assetBase);
-      if (statisticsPaused || (await readManifest()).revision!==manifest.revision) return;
+      if (statisticsPaused || document.hidden) return;
+      if (renderer && manifest.modelReady!==false) {
+        loadingModel = true;
+        model = await loadModel(next,manifest.assetBase);
+        loadingModel = false;
+      } else model = null;
+      if (statisticsPaused || document.hidden) return;
+      const currentManifest = await readManifest();
+      if (statisticsPaused || document.hidden || currentManifest.revision!==manifest.revision) return;
       commitBundle(next,manifest,model);
       failedRevision = undefined;
       model = null;
     } catch (error) {
       failedRevision = manifest?.revision; retryModelAfter = Date.now()+30000;
+      // A completed export can still fail to download or compile. Reveal that
+      // terminal state instead of keeping the previous iframe forever. Manifest
+      // read failures remain transient, with the same retry backoff as before.
+      if (loadingModel && !body && data) { modelStatus = 'unavailable'; showModelState(); }
       console.warn('Keeping the previous armory snapshot',error);
     }
     finally { if (model) { model.mixer.stopAllAction(); disposeModel(model.body); } }
   })();
   try { await bundleRequest; } finally { bundleRequest = undefined; }
+}
+
+// This reads the helper's in-memory manifest, never the remote character source.
+// Poll quickly only while an export is pending, then return to the normal cadence.
+function scheduleArmory() {
+  clearTimeout(armoryTimer);
+  if (!window.armory?.ready || statisticsPaused || document.hidden) return;
+  const waiting = renderer && ['loading','building'].includes(modelStatus) && Date.now()>=retryModelAfter;
+  armoryTimer = setTimeout(async () => {
+    await refreshArmory();
+    scheduleArmory();
+  },waiting ? 250 : 5000);
 }
 
 async function refreshStatistics() {
@@ -649,7 +698,6 @@ function scheduleStatistics() {
   clearTimeout(statisticsTimer);
   if (statisticsPaused || document.hidden) return;
   statisticsTimer = setTimeout(async () => {
-    void refreshArmory();
     await refreshStatistics();
     scheduleStatistics();
   },5000);
@@ -667,19 +715,22 @@ async function syncLocale() {
 }
 function resumeStatistics() {
   if (statisticsPaused || document.hidden) return;
+  scheduleTerminalViewReady();
   void syncLocale();
-  void refreshArmory();
+  void refreshArmory().finally(scheduleArmory);
   void refreshStatistics();
   scheduleStatistics();
 }
 window.addEventListener('focus',resumeStatistics);
 document.addEventListener('visibilitychange',() => {
   if (!document.hidden) resumeStatistics();
-  else clearTimeout(statisticsTimer);
+  else { clearTimeout(statisticsTimer); clearTimeout(armoryTimer); cancelAnimationFrame(terminalReadyFrame); }
 });
 window.addEventListener('pagehide',() => {
   statisticsPaused = true;
   clearTimeout(statisticsTimer);
+  clearTimeout(armoryTimer);
+  cancelAnimationFrame(terminalReadyFrame);
   statisticsAbort?.abort();
 });
 window.addEventListener('pageshow',() => { statisticsPaused = false; resumeStatistics(); });
@@ -714,20 +765,28 @@ try {
     get statisticsLoaded() { return statisticsLoaded; },
     get animatedTime() { return mixer?.time ?? 0; }
   };
+  scheduleArmory();
 } catch (error) {
   console.error(error);
+  initialLoadFailed = true;
+  loading.hidden = false;
   loading.removeAttribute('data-i18n');
   loading.textContent = t('loadFailed');
   window.armory = { ready: false, error: error.message };
+  scheduleTerminalViewReady();
 }
 icons();
 
 function showModelState() {
-  loading.hidden = Boolean(body);
-  if (!body) {
+  // A ready disk export still needs a few frames to download/compile. Keep that
+  // short transition empty; only actual preparation or unavailability has a label.
+  loading.hidden = !initialLoadFailed && (Boolean(body) || ['loading','ready'].includes(modelStatus));
+  if (!loading.hidden) {
     loading.removeAttribute('data-i18n');
-    loading.textContent = t(modelStatus==='building'?'modelBuilding':modelStatus==='loading'?'loading':modelStatus==='client-missing'?'modelClientMissing':modelStatus==='graphics-unavailable'?'modelGraphicsUnavailable':'modelUnavailable');
+    loading.textContent = t(initialLoadFailed?'loadFailed':modelStatus==='building'?'modelBuilding':modelStatus==='client-missing'?'modelClientMissing':modelStatus==='graphics-unavailable'?'modelGraphicsUnavailable':'modelUnavailable');
   }
+  else loading.textContent = '';
   document.querySelector('.scene-toolbar').hidden = !body;
   renderWeaponMode();
+  scheduleTerminalViewReady();
 }

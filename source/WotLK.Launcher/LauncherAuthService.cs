@@ -629,7 +629,8 @@ internal sealed record LauncherFriend(
     string Bio = "",
     IReadOnlyList<LauncherFriendCharacter>? Characters = null,
     bool LauncherOnline = false,
-    DateTimeOffset? LauncherLastSeenAt = null)
+    DateTimeOffset? LauncherLastSeenAt = null,
+    string? Presence = null)
 {
     public string Initial => string.IsNullOrWhiteSpace(Username)
         ? "?"
@@ -677,7 +678,9 @@ internal sealed record LauncherServerStatus(
     bool RealmGateway,
     bool WorldGateway,
     bool WorldServer,
-    DateTimeOffset CheckedAt);
+    DateTimeOffset CheckedAt,
+    int? OnlinePlayers = null,
+    string? OnlinePlayerCountKind = null);
 
 internal sealed record LauncherNews(
     string Id,

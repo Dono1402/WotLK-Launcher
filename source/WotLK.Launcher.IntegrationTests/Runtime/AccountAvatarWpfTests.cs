@@ -278,17 +278,17 @@ internal static class AccountAvatarWpfTests
                 AccountAvatarClientTests.True(
                     cropState.Current.AvatarImage is { IsFrozen: true },
                     "La preview locale doit être chargée et figée.");
-                AccountAvatarClientTests.True(
-                    cropState.Current.Layout.MaximumOffsetX > 0
-                        && cropState.Current.Layout.MaximumOffsetY > 0,
-                    "Une nouvelle photo doit être déplaçable horizontalement et verticalement dès son ouverture.");
-                cropState.SetTransform(
+                AccountAvatarClientTests.Equal(
+                    1d,
                     cropState.Current.Zoom,
+                    "Une nouvelle photo doit commencer au cadrage maximal.");
+                cropState.SetTransform(
+                    1.12,
                     cropState.Current.OffsetX,
                     18);
                 AccountAvatarClientTests.True(
                     cropState.Current.OffsetY > 0,
-                    "Le déplacement vertical initial doit être accepté par l'état de cadrage réel.");
+                    "Le déplacement vertical après zoom doit être accepté par l'état de cadrage réel.");
                 cropState.SetTransform(cropState.Current.Zoom, 0, 0);
                 await DelayAndPumpAsync(180);
                 server.ResetProfileGate();
@@ -323,10 +323,10 @@ internal static class AccountAvatarWpfTests
                 AvatarNormalizedCrop sentCrop = visibleLayout.Crop;
                 AccountAvatarClientTests.True(sentCrop.IsValid, "Le crop WPF réel doit rester normalisé.");
                 Rect expectedViewbox = new(
-                    visibleLayout.PixelCrop.X,
-                    visibleLayout.PixelCrop.Y,
-                    visibleLayout.PixelCrop.Size,
-                    visibleLayout.PixelCrop.Size);
+                    visibleLayout.PixelCrop.X / (double)cropState.Current.OrientedPixelWidth,
+                    visibleLayout.PixelCrop.Y / (double)cropState.Current.OrientedPixelHeight,
+                    visibleLayout.PixelCrop.Size / (double)cropState.Current.OrientedPixelWidth,
+                    visibleLayout.PixelCrop.Size / (double)cropState.Current.OrientedPixelHeight);
                 foreach (string brushName in new[]
                          {
                              "CropEditorBrush",
@@ -337,9 +337,9 @@ internal static class AccountAvatarWpfTests
                 {
                     ImageBrush brush = Required<ImageBrush>(cropOverlay, brushName);
                     AccountAvatarClientTests.Equal(
-                        BrushMappingMode.Absolute,
+                        BrushMappingMode.RelativeToBoundingBox,
                         brush.ViewboxUnits,
-                        $"{brushName} doit utiliser les pixels source comme le serveur.");
+                        $"{brushName} doit être indépendant du DPI de l'image source.");
                     AccountAvatarClientTests.Equal(
                         Stretch.Fill,
                         brush.Stretch,

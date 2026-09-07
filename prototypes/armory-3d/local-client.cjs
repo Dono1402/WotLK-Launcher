@@ -3,12 +3,32 @@ const fsp = fs.promises;
 const path = require('node:path');
 const Module = require('node:module');
 const { EventEmitter } = require('node:events');
+const { randomUUID } = require('node:crypto');
+const {setTimeout:delay} = require('node:timers/promises');
 
 const {dataRoot:sharedOutput,outputRoot:output,vendorRoot:vendor,metadataRoot,publicMode} = require('./runtime-paths.cjs');
 
 function inject(relative, exports) {
   const filename = path.join(vendor, relative);
   require.cache[filename] = { id: filename, filename, loaded: true, exports };
+}
+
+async function withIndexedTableRows(table, read) {
+  const rows = await table.getAllRows();
+  if (!(rows instanceof Map)) throw new Error('Invalid local client table index');
+  const descriptor = Object.getOwnPropertyDescriptor(table,'getRow');
+  // The upstream reader rescans binary records even after preload(). During
+  // this initialization use the same decoded rows, including inflated copies.
+  // Return a fresh row as the binary reader does; callers may mutate arrays.
+  table.getRow = recordID => {
+    const row = rows.get(parseInt(recordID));
+    return row===undefined ? null : structuredClone(row);
+  };
+  try { return await read(); }
+  finally {
+    if (descriptor) Object.defineProperty(table,'getRow',descriptor);
+    else delete table.getRow;
+  }
 }
 
 async function cachedDownload(url, filename) {
@@ -25,8 +45,33 @@ async function cachedDownload(url, filename) {
   if (!response.ok) throw new Error(`${response.status}: ${url}`);
   const data = Buffer.from(await response.arrayBuffer());
   await fsp.mkdir(path.dirname(target), { recursive: true });
-  await fsp.writeFile(target, data);
+  await writeClientCacheAtomic(target,data);
   return data;
+}
+
+async function writeClientCacheAtomic(target,data) {
+  const temporary = target+`.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await fsp.writeFile(temporary,data,{flag:'wx'});
+    // Export workers share content-addressed CASC files. A reader must see the
+    // previous complete bytes or the new complete bytes, never an open write.
+    for (let attempt=0;;attempt++) {
+      try { await fsp.rename(temporary,target); break; }
+      catch (error) {
+        // Windows can briefly hold a destination open while another worker
+        // reads it. Retry the atomic rename without deleting that destination.
+        if (!['EPERM','EBUSY','EACCES'].includes(error.code) || attempt>=9) throw error;
+        const existing = await fsp.readFile(target).catch(readError => {
+          if (readError.code==='ENOENT') return null;
+          throw readError;
+        });
+        if (existing?.equals(data)) break;
+        await delay(10*(attempt+1));
+      }
+    }
+  } finally {
+    await fsp.unlink(temporary).catch(error => { if (error.code!=='ENOENT') throw error; });
+  }
 }
 
 async function openClient(clientRoot, { locale = 'fr' } = {}) {
@@ -83,7 +128,7 @@ async function openClient(clientRoot, { locale = 'fr' } = {}) {
       if (publicMode && file.endsWith('.dbd')) throw new Error('Packaged metadata is read-only');
       const target = path.join(publicMode ? path.join(sharedOutput,'casc-cache') : metadataRoot,path.basename(file));
       await fsp.mkdir(path.dirname(target), { recursive: true });
-      await fsp.writeFile(target, data.raw);
+      await writeClientCacheAtomic(target,data.raw);
     }
   };
   // No asset download fallback: fail explicitly if the installed client is incomplete.
@@ -108,4 +153,4 @@ async function openClient(clientRoot, { locale = 'fr' } = {}) {
   return { client, core, tableIds, vendor, output };
 }
 
-module.exports = { openClient, cachedDownload, output, vendor };
+module.exports = { openClient, cachedDownload, writeClientCacheAtomic, withIndexedTableRows, output, vendor };

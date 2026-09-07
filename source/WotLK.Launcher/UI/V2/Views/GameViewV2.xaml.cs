@@ -101,18 +101,6 @@ public partial class GameViewV2 : UserControl
         HeroTitleSecond.Margin = new Thickness(1 * scale, 93.4 * scale, 0, 0);
         HeroSubtitle.FontSize = 38 * scale;
         HeroSubtitle.Margin = new Thickness(13 * scale, 0, 0, 0);
-        HeroChips.Margin = new Thickness(12 * scale, 35 * scale, 0, 0);
-        int chipIndex = 0;
-        foreach (Border chip in HeroChips.Children)
-        {
-            chip.Width = scale >= 0.9 ? new[] { 157, 202, 256 }[chipIndex] * scale : double.NaN;
-            chipIndex++;
-            chip.Height = Math.Max(34, 43 * scale);
-            chip.Padding = new Thickness(13 * scale, 0, 13 * scale, 0);
-            chip.Margin = new Thickness(0, 0, 16 * scale, 0);
-            if (chip.Child is StackPanel content && content.Children[1] is TextBlock label)
-                label.FontSize = Math.Max(11, 15 * scale);
-        }
         HeroMotto.Margin = new Thickness(0, 469 * scale, 81 * scale, 0);
         HeroMotto.Visibility = width >= 1400 ? Visibility.Visible : Visibility.Collapsed;
         HeroBottomBar.Margin = new Thickness(59 * scale, 0, 59 * scale, 59 * scale);

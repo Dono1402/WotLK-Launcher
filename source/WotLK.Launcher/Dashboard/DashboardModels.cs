@@ -52,6 +52,10 @@ internal sealed record DashboardSnapshot(
     DashboardRealmState? LastKnownRealmState,
     string? LastKnownRealmStatusLabel)
 {
+    internal int? OnlinePlayers { get; init; }
+    internal string? OnlinePlayerCountKind { get; init; }
+    internal int? GatewayLatencyMilliseconds { get; init; }
+
     internal static DashboardSnapshot Initial { get; } = new(
         Sequence: 0,
         IsLoading: false,

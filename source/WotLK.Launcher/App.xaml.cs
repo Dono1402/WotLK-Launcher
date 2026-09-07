@@ -475,6 +475,9 @@ public partial class App : Application
             friendsState,
             window.Dispatcher);
         window.AttachFriends(friendsCommands);
+        window.AttachPresence(runtime.Presence);
+        window.AttachChat(runtime.Chat);
+        window.AttachChatWorkspace(runtime.ChatWorkspace);
         FriendsStateAdapter friendsStateAdapter = new(
             friendsState,
             runtime.Friends,
@@ -487,7 +490,16 @@ public partial class App : Application
                     runtime.Friends,
                     runtime.SettingsRuntime,
                     trayController,
-                    runtime.WriteRuntimeDiagnostic);
+                    runtime.WriteRuntimeDiagnostic,
+                    () => runtime.ChatWorkspace.CurrentSnapshot.State.Preferences.DoNotDisturb
+                        || (runtime.Presence.CurrentSnapshot.OwnerAccountId == runtime.Friends.CurrentSnapshot.CurrentUserId
+                            && runtime.Presence.CurrentSnapshot.DoNotDisturb));
+        LauncherChatNotificationCoordinator? chatNotificationCoordinator = trayController is null ? null : new(
+            runtime.ChatWorkspace, trayController, window.IsChatThreadVisible,
+            action => { if (!window.Dispatcher.HasShutdownStarted) _ = window.Dispatcher.BeginInvoke(action); },
+            runtime.WriteRuntimeDiagnostic,
+            () => runtime.Presence.CurrentSnapshot.OwnerAccountId == runtime.ChatWorkspace.CurrentSnapshot.OwnerAccountId
+                && runtime.Presence.CurrentSnapshot.DoNotDisturb);
         AccountStateAdapter accountStateAdapter = new(
             accountState,
             avatarCropState,
@@ -504,7 +516,7 @@ public partial class App : Application
             window.Dispatcher);
         window.AttachAccount(accountCommands);
         window.AttachArmory(runtime.GetArmoryAccountAsync, runtime.GetArmoryDataAsync,
-            () => runtime.Settings.InstallPath);
+            () => runtime.Settings.InstallPath, runtime.GetFriendArmoryDataAsync, runtime.AvatarImages);
         AuthStateAdapter authStateAdapter = new(
             window.AuthState,
             shellState,
@@ -575,6 +587,7 @@ public partial class App : Application
             profileStateAdapter.Dispose();
             friendsStateAdapter.Dispose();
             friendsNotificationCoordinator?.Dispose();
+            chatNotificationCoordinator?.Dispose();
             addonsStateAdapter.Dispose();
             activityStateAdapter.Dispose();
             accountStateAdapter.Dispose();

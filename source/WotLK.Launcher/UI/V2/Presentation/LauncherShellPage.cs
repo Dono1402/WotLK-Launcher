@@ -7,5 +7,6 @@ internal enum LauncherShellPage
     PatchNotes,
     Settings,
     Account,
-    Armory
+    Armory,
+    Chat
 }

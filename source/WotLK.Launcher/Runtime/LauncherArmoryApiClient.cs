@@ -16,12 +16,23 @@ internal sealed class LauncherArmoryApiClient(HttpClient client, Uri apiBaseUri)
 {
     internal const int MaximumResponseBytes = 4 * 1024 * 1024;
 
-    internal async Task<JsonElement> ReadAsync(LauncherArmoryDataRequest request, CancellationToken cancellationToken)
+    internal Task<JsonElement> ReadAsync(LauncherArmoryDataRequest request, CancellationToken cancellationToken)
+        => ReadCoreAsync(request, null, cancellationToken);
+
+    internal Task<JsonElement> ReadFriendAsync(uint friendAccountId, LauncherArmoryDataRequest request, CancellationToken cancellationToken)
+    {
+        if (friendAccountId == 0) throw new ArgumentOutOfRangeException(nameof(friendAccountId));
+        return ReadCoreAsync(request, friendAccountId, cancellationToken);
+    }
+
+    private async Task<JsonElement> ReadCoreAsync(LauncherArmoryDataRequest request, uint? friendAccountId, CancellationToken cancellationToken)
     {
         if (!request.IsValid) throw new ArgumentException("Invalid armory request.", nameof(request));
         string relative = request.Operation == "roster"
             ? "armory/characters"
             : $"armory/characters/{request.CharacterId!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}/catalog";
+        if (friendAccountId is uint friendId)
+            relative = $"friends/{friendId.ToString(System.Globalization.CultureInfo.InvariantCulture)}/{relative}";
         using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(25));
         using HttpRequestMessage message = new(HttpMethod.Get, new Uri(apiBaseUri, relative));

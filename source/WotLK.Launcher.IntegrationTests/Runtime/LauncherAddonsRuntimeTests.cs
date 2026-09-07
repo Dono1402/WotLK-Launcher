@@ -376,6 +376,7 @@ internal static class LauncherAddonsRuntimeTests
         service.SetInspection("repair", Managed(AddonLocalStatus.MissingFiles, "1.0.0"));
         service.SetInspection("remove", Managed(AddonLocalStatus.Installed, "1.0.0"));
         await using AddonsEnvironment environment = new(service, isGameRunning: true);
+        using LauncherOperationLease play = environment.Operations.TryBeginPlay(clientIsPlayable: true).Lease!;
         await LoadCatalogAsync(environment.Coordinator);
 
         AddonsActionCompletion install = await CompleteAsync(
@@ -728,9 +729,8 @@ internal static class LauncherAddonsRuntimeTests
         using (LauncherOperationCoordinator operations = new())
         {
             LauncherOperationLease play = operations.TryBeginPlay(clientIsPlayable: true).Lease!;
-            Equal(LauncherOperationStartStatus.RejectedByCompatibility,
-                operations.TryBegin(LauncherOperationKind.Addons, canUserCancel: true).Status,
-                "Addons ne peut pas commencer pendant le single-flight Play.");
+            using LauncherOperationLease? addons = operations.TryBegin(LauncherOperationKind.Addons, canUserCancel: true).Lease;
+            True(addons is not null, "Les addons doivent rester installables pendant Play.");
             play.Complete();
         }
         using (LauncherOperationCoordinator operations = new())
@@ -738,9 +738,8 @@ internal static class LauncherAddonsRuntimeTests
             LauncherOperationLease addons = operations.TryBegin(
                 LauncherOperationKind.Addons,
                 canUserCancel: true).Lease!;
-            Equal(LauncherOperationStartStatus.RejectedByCompatibility,
-                operations.TryBeginPlay(clientIsPlayable: true).Status,
-                "Play ne peut pas commencer pendant une mutation Addons.");
+            using LauncherOperationLease? play = operations.TryBeginPlay(clientIsPlayable: true).Lease;
+            True(play is not null, "Play doit rester compatible avec une installation d'addons.");
             addons.Complete();
         }
         using (LauncherOperationCoordinator operations = new())
@@ -1649,6 +1648,7 @@ internal static class LauncherAddonsRuntimeTests
     private sealed class AddonsEnvironment : IAsyncDisposable
     {
         private readonly LauncherOperationCoordinator _operations;
+        internal LauncherOperationCoordinator Operations => _operations;
 
         internal AddonsEnvironment(
             FakeAddonManagementService service,

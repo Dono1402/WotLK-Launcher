@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace WotLK.Launcher.Server;
 
@@ -17,7 +18,29 @@ public sealed record ArmoryCharacter(
 
 public sealed record ArmoryBaseStatistics(
     uint Strength, uint Agility, uint Stamina, uint Intellect, uint Spirit,
-    uint Armor, uint MaxHealth, uint MaxMana);
+    uint Armor, uint MaxHealth, uint MaxMana)
+{
+    // Native character saves expose base power fields, unlike the collector's
+    // effective totals. Keep that distinction in the wire contract.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? BaseAttackPower { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? BaseRangedAttackPower { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? BaseSpellPower { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? MeleeCritPct { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? RangedCritPct { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? BlockPct { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? DodgePct { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? ParryPct { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? Resilience { get; init; }
+}
 
 public sealed record ArmoryEquipment(
     int Slot, uint ItemId, uint DisplayId, string Name, string? NameFr,

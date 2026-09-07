@@ -2,32 +2,35 @@ import {className,classColor} from './character-labels.mjs';
 
 const $ = id => document.getElementById(id);
 const text = {
-  fr:{characters:'Mes personnages',retry:'Réessayer',search:'Rechercher un personnage',empty:'Aucun personnage sur ce compte',
+  fr:{characters:'Mes personnages',friendCharacters:'Personnages',sendMessage:'Envoyer un message',backToFriends:'Retour aux amis',retry:'Réessayer',search:'Rechercher un personnage',empty:'Aucun personnage sur ce compte',
     loading:'Chargement des personnages…',refreshing:'Actualisation…',unavailable:'Personnages indisponibles',cached:'Dernières données enregistrées',select:'Sélectionne un personnage',pending:'Données du personnage en cours de récupération',noMatch:'Aucun résultat',level:'Niveau',armory:'Armurerie',profile:'Profil',
     statusLabel:'Statut',bioLabel:'Bio',statusPlaceholder:'Ton statut du moment',bioPlaceholder:'Quelques mots pour te présenter',profilePicture:'Photo de profil',
     changeAvatar:'Changer la photo',
     save:'Enregistrer',cancel:'Annuler',saving:'Enregistrement…',saved:'✓ Enregistré',dismissNotice:'Fermer la notification',apply:'Appliquer',applying:'Application…',back:'Retour',
     editingUnavailable:'La modification du profil est actuellement indisponible.',saveRejected:'Le profil n’a pas pu être enregistré. Réessaie.',bridgeUnavailable:'La personnalisation est momentanément indisponible.',
     profileTooLong:'Le statut est limité à 80 caractères et la bio à 280 caractères.',
-    editText:'Modifier le statut et la bio',bannerMenu:'Modifier la bannière',cropBanner:'Recadrer la bannière',cropArea:'Zone de recadrage',chooseBanner:'Changer l’image',resetBanner:'Restaurer la bannière par défaut',
-    resetBannerQuestion:'Rétablir la bannière par défaut ?',confirmResetBanner:'Oui, rétablir',dragBanner:'Glisse l’image ou utilise les flèches pour la déplacer. Utilise la molette pour zoomer ou dézoomer. La touche Début ou un double-clic recentre l’image et rétablit le zoom.',zoom:'Zoom',zoomOut:'Réduire le zoom',zoomIn:'Augmenter le zoom',loadingImage:'Chargement de l’image…',
-    bannerFailed:'La bannière n’a pas pu être enregistrée. Réessaie.'},
-  en:{characters:'My characters',retry:'Retry',search:'Search characters',empty:'No characters on this account',
+    editText:'Modifier le statut et la bio',bannerMenu:'Modifier la bannière',cropBanner:'Recadrer la bannière',cropArea:'Zone de recadrage',chooseBanner:'Changer l’image',resetBanner:'Supprimer la bannière',
+    resetBannerQuestion:'Supprimer la bannière ?',confirmResetBanner:'Oui, supprimer',dragBanner:'Glisse l’image ou utilise les flèches pour la déplacer. Utilise la molette pour zoomer ou dézoomer. La touche Début ou un double-clic recentre l’image et rétablit le zoom.',zoom:'Zoom',zoomOut:'Réduire le zoom',zoomIn:'Augmenter le zoom',loadingImage:'Chargement de l’image…',
+    bannerFailed:'La bannière n’a pas pu être enregistrée. Réessaie.',characterLoadFailed:'Impossible de charger le personnage. Réessaie.'},
+  en:{characters:'My characters',friendCharacters:'Characters',sendMessage:'Send a message',backToFriends:'Back to friends',retry:'Retry',search:'Search characters',empty:'No characters on this account',
     loading:'Loading characters…',refreshing:'Refreshing…',unavailable:'Characters unavailable',cached:'Last saved data',select:'Select a character',pending:'Retrieving character data',noMatch:'No results',level:'Level',armory:'Armory',profile:'Profile',
     statusLabel:'Status',bioLabel:'Bio',statusPlaceholder:'Your current status',bioPlaceholder:'A few words about yourself',profilePicture:'Profile picture',
     changeAvatar:'Change picture',
     save:'Save',cancel:'Cancel',saving:'Saving…',saved:'✓ Saved',dismissNotice:'Dismiss notification',apply:'Apply',applying:'Applying…',back:'Back',
     editingUnavailable:'Profile editing is currently unavailable.',saveRejected:'Your profile could not be saved. Please try again.',bridgeUnavailable:'Customization is temporarily unavailable.',
     profileTooLong:'Your status is limited to 80 characters and your bio to 280 characters.',
-    editText:'Edit status and bio',bannerMenu:'Edit banner',cropBanner:'Crop banner',cropArea:'Crop area',chooseBanner:'Change image',resetBanner:'Restore the default banner',
-    resetBannerQuestion:'Restore the default banner?',confirmResetBanner:'Yes, restore',dragBanner:'Drag the image or use the arrow keys to move it. Use the mouse wheel to zoom in or out. Press Home or double-click to center the image and reset the zoom.',zoom:'Zoom',zoomOut:'Zoom out',zoomIn:'Zoom in',loadingImage:'Loading image…',
-    bannerFailed:'Your banner could not be saved. Please try again.'}
+    editText:'Edit status and bio',bannerMenu:'Edit banner',cropBanner:'Crop banner',cropArea:'Crop area',chooseBanner:'Change image',resetBanner:'Remove the banner',
+    resetBannerQuestion:'Remove the banner?',confirmResetBanner:'Yes, remove',dragBanner:'Drag the image or use the arrow keys to move it. Use the mouse wheel to zoom in or out. Press Home or double-click to center the image and reset the zoom.',zoom:'Zoom',zoomOut:'Zoom out',zoomIn:'Zoom in',loadingImage:'Loading image…',
+    bannerFailed:'Your banner could not be saved. Please try again.',characterLoadFailed:'Unable to load the character. Please try again.'}
 };
 let locale = new URLSearchParams(location.search).get('lang')==='en' ? 'en' : 'fr';
-let roster = [], selected, status = 'loading', timer, pending, syncing = false, profile = {};
+let roster = [], selected, status = 'loading', timer, pending, syncing = false, profile = {}, rosterPaused = false;
+let sharedCharacterRequest, sharedCharacterNonce;
+let characterFrame = $('character-view'), pendingCharacterFrame, previousCharacterFrame, characterFade;
+const reducedCharacterMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let editing = false, draft, profileSave, profileFeedback, profileNotice, avatarPending, avatarFeedback, avatarRestoreFocus = false;
 let bannerEditing = false, bannerDraft, bannerPicking = false, bannerRequest, bannerFeedback, bannerRestoreFocus = false, bannerDrag;
-let profileTrigger, notificationSource, notificationTimer;
+let profileTrigger, notificationSource, notificationTimer, characterFeedback;
 const announcedFeedback = new WeakSet();
 const label = key => text[locale][key];
 const icons = () => window.lucide.createIcons();
@@ -46,6 +49,7 @@ const fitValue = value => value==='cover'?'cover':'contain';
 const savedBanner = () => ({image:bannerImage(profile.banner),positionX:Number.isFinite(profile.bannerPositionX)?clamp(profile.bannerPositionX):.5,positionY:Number.isFinite(profile.bannerPositionY)?clamp(profile.bannerPositionY):.3,zoom:zoomValue(profile.bannerZoom),fit:fitValue(profile.bannerFit)});
 
 function postProfileAction(message) {
+  if (profile.readOnly===true && !['ready','drag-window','profile-header-hover','send-message','back-to-friends'].includes(message.action)) return false;
   try {
     if (!window.chrome?.webview?.postMessage) return false;
     window.chrome.webview.postMessage(message); return true;
@@ -55,7 +59,7 @@ function dismissNotification() {
   clearTimeout(notificationTimer); notificationSource = undefined; renderNotification();
 }
 function renderNotification() {
-  const sources = [profileFeedback,avatarFeedback,bannerFeedback,profileNotice].filter(Boolean);
+  const sources = [profileFeedback,avatarFeedback,bannerFeedback,profileNotice,characterFeedback].filter(Boolean);
   if (notificationSource && !sources.includes(notificationSource)) {
     clearTimeout(notificationTimer); notificationSource = undefined;
   }
@@ -89,7 +93,7 @@ function toggleBannerMenu() {
   if (editorIsBusy() || profile.canModifyBanner!==true) return;
   if (!$('banner-menu').hidden) { closeBannerMenu(true); return; }
   $('banner-menu').hidden = false; $('edit-banner').setAttribute('aria-expanded','true');
-  $('reposition-banner').focus({preventScroll:true});
+  ($('reposition-banner').disabled ? $('choose-banner') : $('reposition-banner')).focus({preventScroll:true});
 }
 function coverGeometry(image,width,height,zoom=1) {
   const scale = image.naturalWidth && image.naturalHeight ? Math.max(width/image.naturalWidth,height/image.naturalHeight)*zoomValue(zoom) : 1;
@@ -114,21 +118,26 @@ function paintImage(image,frame,value) {
   return geometry;
 }
 function renderBanner() {
-  const value = bannerDraft || savedBanner(), source = value.image || '/banner.png';
+  const value = bannerDraft || savedBanner(), source = value.image;
   const image = document.querySelector('.banner-image'), hero = $('profile-hero'), dialog = $('banner-editor');
   hero.dataset.fit = value.fit;
   for (const backdrop of document.querySelectorAll('.banner-backdrop')) {
-    if (backdrop.getAttribute('src')!==source) backdrop.src = source;
-    backdrop.hidden = value.fit==='cover';
+    if (!source) backdrop.removeAttribute('src');
+    else if (backdrop.getAttribute('src')!==source) backdrop.src = source;
+    backdrop.hidden = !source || value.fit==='cover';
   }
-  if (image.getAttribute('src')!==source) image.src = source;
-  paintImage(image,{x:0,y:0,width:hero.clientWidth,height:hero.clientHeight},value);
+  if (!source) image.removeAttribute('src');
+  else if (image.getAttribute('src')!==source) image.src = source;
+  image.hidden = !source;
+  if (source) paintImage(image,{x:0,y:0,width:hero.clientWidth,height:hero.clientHeight},value);
   if (bannerEditing && !dialog.open) dialog.showModal();
   else if (!bannerEditing && dialog.open) dialog.close();
   document.body.classList.toggle('banner-modal-open',dialog.open);
   const preview = $('banner-crop-image');
-  if (preview.getAttribute('src')!==source) preview.src = source;
-  const ready = preview.complete && preview.naturalWidth>0;
+  if (!source) preview.removeAttribute('src');
+  else if (preview.getAttribute('src')!==source) preview.src = source;
+  preview.hidden = !source;
+  const ready = Boolean(source) && preview.complete && preview.naturalWidth>0;
   if (dialog.open) {
     const frame = cropFrame();
     for (const id of ['banner-crop-frame','banner-crop-backdrop']) Object.assign($(id).style,{left:frame.x+'px',top:frame.y+'px',width:frame.width+'px',height:frame.height+'px'});
@@ -142,6 +151,7 @@ function renderBanner() {
   $('banner-crop-stage').title = $('banner-hint').textContent = label('dragBanner');
   $('banner-crop-stage').setAttribute('aria-busy',String(busy || !ready));
   for (const id of ['edit-banner','reposition-banner','choose-banner','reset-banner','confirm-reset-banner']) $(id).disabled = busy || !permitted;
+  $('reposition-banner').disabled ||= !source;
   $('reset-banner').hidden = !profile.hasBannerCustomization && !bannerImage(profile.banner);
   $('cancel-reset-banner').disabled = busy;
   $('save-banner').disabled = busy || !permitted || !ready;
@@ -167,7 +177,7 @@ function renderEditor() {
   $('profile-editor').setAttribute('aria-busy',String(busy));
   document.body.classList.toggle('editing-profile',editing && !bannerEditing);
   $('edit-profile').setAttribute('aria-expanded',String(editing));
-  $('edit-profile').disabled = busy;
+  $('edit-profile').disabled = busy || profile.readOnly===true;
   $('edit-status').placeholder = label('statusPlaceholder'); $('edit-bio').placeholder = label('bioPlaceholder');
   $('status-count').textContent = (draft?.statusMessage.length ?? 0)+' / 80';
   $('bio-count').textContent = (draft?.bio.length ?? 0)+' / 280';
@@ -187,7 +197,7 @@ function renderEditor() {
   renderBanner(); renderNotification();
 }
 function openProfileEditor(trigger=$('edit-profile')) {
-  if (bannerEditing) return;
+  if (bannerEditing || profile.readOnly===true) return;
   closeBannerMenu();
   if (!editing) {
     editing = true; draft = profileValues(profile); profileTrigger = trigger;
@@ -229,6 +239,7 @@ function changeAvatar() {
 }
 function openBannerEditor() {
   if (editorIsBusy() || profile.canModifyBanner!==true) return;
+  if (!(bannerDraft || savedBanner()).image) { chooseBanner(); return; }
   closeBannerMenu();
   // Keep legacy display choices until Apply; the crop editor now always fills its frame.
   bannerDraft = {...(bannerDraft || savedBanner()),fit:'cover'};
@@ -294,6 +305,12 @@ function receiveBannerResult(message) {
 }
 function receiveProfile(next) {
   const previous = profile; profile = next;
+  if (next.readOnly===true) {
+    editing = false; draft = undefined; profileSave = undefined; profileFeedback = undefined;
+    avatarPending = false; avatarFeedback = undefined; profileNotice = undefined;
+    bannerEditing = false; bannerDraft = undefined; bannerRequest = undefined; bannerFeedback = undefined;
+    closeBannerMenu();
+  }
   if (profileSave) {
     if (next.profileBusy) profileSave.seenBusy = true;
     else {
@@ -317,10 +334,20 @@ function applyProfile() {
   document.documentElement.lang = locale;
   document.title = `Atlas | ${label('profile')}`;
   document.querySelectorAll('[data-label]').forEach(el => el.textContent=label(el.dataset.label));
-  $('characters').ariaLabel = label('characters');
+  const readOnly = profile.readOnly===true;
+  document.body.classList.toggle('friend-profile',readOnly);
+  const charactersLabel = label(readOnly?'friendCharacters':'characters');
+  document.querySelector('[data-label="characters"]').textContent = charactersLabel;
+  $('characters').ariaLabel = charactersLabel;
+  $('edit-profile').hidden = readOnly;
+  document.querySelector('.banner-controls').hidden = readOnly;
+  $('friend-actions').hidden = !readOnly;
+  $('send-message').disabled = profile.canSendMessage!==true;
   $('character-panel').ariaLabel = label('armory');
   $('search').placeholder = $('search').ariaLabel = label('search');
   $('profile-name').textContent = profile.username || '';
+  $('profile-presence').dataset.presence = ['online','away','dnd','offline'].includes(profile.presence) ? profile.presence : 'offline';
+  $('profile-presence-label').textContent = profile.presenceLabel || (profile.locale === 'en' ? 'Offline' : 'Hors ligne');
   $('profile-initial').textContent = (profile.username || '').slice(0,1).toUpperCase();
   for (const [id,key] of [['profile-status','statusMessage'],['profile-bio','bio']]) {
     $(id).textContent = profile[key] || ''; $(id).hidden = !profile[key];
@@ -337,21 +364,147 @@ function applyProfile() {
   renderEditor(); render();
 }
 
+function finishCharacterTransition() {
+  if (characterFade) {
+    characterFade.onfinish = null;
+    characterFade.cancel();
+    characterFade = undefined;
+  }
+  previousCharacterFrame?.remove();
+  previousCharacterFrame = undefined;
+}
+
+function cancelPendingCharacter() {
+  const discarded = pendingCharacterFrame;
+  pendingCharacterFrame = undefined;
+  discarded?.remove();
+  characterFrame.inert = false;
+  characterFrame.removeAttribute('aria-hidden');
+}
+
+function clearCharacterView() {
+  cancelPendingCharacter();
+  finishCharacterTransition();
+  characterFrame.hidden = true;
+  characterFrame.removeAttribute('src');
+  delete characterFrame.dataset.characterId;
+}
+
+function failCharacterNavigation(frame) {
+  if (frame!==pendingCharacterFrame || rosterPaused || document.hidden) return;
+  cancelPendingCharacter();
+  selected = characterFrame.dataset.characterId || null;
+  characterFeedback = {kind:'error',key:'characterLoadFailed'};
+  renderNotification();
+  render();
+}
+
+function revealCharacter(frame) {
+  if (frame!==pendingCharacterFrame || rosterPaused || document.hidden
+      || frame.dataset.characterId!==selected || !roster.some(row => row.id===selected && row.available)) return;
+  pendingCharacterFrame = undefined;
+  previousCharacterFrame = characterFrame;
+  previousCharacterFrame.removeAttribute('id');
+  previousCharacterFrame.inert = true;
+  previousCharacterFrame.setAttribute('aria-hidden','true');
+  characterFrame = frame;
+  characterFrame.id = 'character-view';
+  characterFrame.inert = false;
+  characterFrame.removeAttribute('aria-hidden');
+  characterFrame.classList.remove('character-frame--pending');
+  // Keep the old view fully opaque underneath: only fade in the new complete
+  // frame, so the panel never fades through its empty background.
+  if (reducedCharacterMotion.matches) finishCharacterTransition();
+  else {
+    characterFade = characterFrame.animate([{opacity:0},{opacity:1}],{duration:180,easing:'ease-out'});
+    characterFade.onfinish = finishCharacterTransition;
+  }
+}
+
+window.addEventListener('message',event => {
+  const frame = pendingCharacterFrame;
+  if (!frame || event.origin!==location.origin || event.source!==frame.contentWindow
+      || event.data?.type!=='atlas-armory-view-ready' || event.data.characterId!==frame.dataset.characterId
+      || !['model','terminal'].includes(event.data.state)) return;
+  revealCharacter(frame);
+});
+reducedCharacterMotion.addEventListener('change',() => {
+  if (reducedCharacterMotion.matches) finishCharacterTransition();
+});
+
 function select(id,force=false) {
   const character = roster.find(row => row.id===id);
   if (!character) return;
-  const changed = selected!==id;
   selected = id;
   if (character.available) {
     const src = `/characters/${encodeURIComponent(id)}/view?lang=${locale}`;
-    if (force || changed || $('character-view').getAttribute('src')!==src) $('character-view').src=src;
-    $('character-view').hidden = false; $('empty-state').hidden = true;
-    $('character-view').title = character.name;
+    $('empty-state').hidden = true;
+    if (!force && pendingCharacterFrame?.getAttribute('src')===src) { render(); return; }
+    if (!force && characterFrame.getAttribute('src')===src) {
+      cancelPendingCharacter();
+      characterFrame.title = character.name;
+    } else {
+      finishCharacterTransition();
+      cancelPendingCharacter();
+      if (!characterFrame.hasAttribute('src')) {
+        // The first visit has no previous view to preserve; keep its equipment
+        // consultable even if the local model still needs to be generated.
+        characterFrame.dataset.characterId = id;
+        characterFrame.src = src;
+        characterFrame.title = character.name;
+        characterFrame.hidden = false;
+      } else {
+        characterFeedback = undefined;
+        renderNotification();
+        const frame = document.createElement('iframe');
+        frame.id = 'character-pending';
+        frame.className = 'character-frame character-frame--pending';
+        frame.dataset.characterId = id;
+        frame.title = character.name;
+        frame.setAttribute('allow','fullscreen');
+        frame.setAttribute('aria-hidden','true');
+        frame.inert = true;
+        frame.addEventListener('error',() => failCharacterNavigation(frame));
+        frame.addEventListener('load',() => {
+          if (frame!==pendingCharacterFrame) return;
+          // HTTP errors and failed module imports cannot send a ready message.
+          // A started viewer may legitimately still be awaiting a cold export.
+          let started = false;
+          try {
+            started = Boolean(frame.contentDocument?.getElementById('scene')
+              && frame.contentDocument.documentElement.dataset.armoryStarted==='true');
+          } catch { }
+          if (!started) failCharacterNavigation(frame);
+        });
+        frame.src = src;
+        pendingCharacterFrame = frame;
+        characterFrame.inert = true;
+        characterFrame.setAttribute('aria-hidden','true');
+        $('character-panel').append(frame);
+      }
+    }
   } else {
-    $('character-view').hidden = true; $('character-view').removeAttribute('src');
+    clearCharacterView();
     $('empty-state').hidden = false; $('empty-state').textContent=label('pending');
   }
   render();
+}
+
+function applySharedCharacterRequest() {
+  if (!sharedCharacterRequest) return false;
+  const row = roster.find(character => character.id===sharedCharacterRequest);
+  if (row) {
+    sharedCharacterRequest = undefined;
+    characterFeedback = undefined;
+    select(row.id);
+  } else if (status==='ready') {
+    selected = null;
+    clearCharacterView();
+    characterFeedback = {kind:'error',message:locale==='en'?'The shared character is unavailable.':'Le personnage partagé est indisponible.'};
+    renderNotification();
+  }
+  // Do not silently display a different character if the shared GUID is gone.
+  return true;
 }
 
 function render() {
@@ -371,7 +524,7 @@ function render() {
     const copy = document.createElement('span'); copy.className='character-copy';
     const name = document.createElement('strong'); name.textContent=row.name; name.style.color=classColor(row.classId);
     const subtitle = document.createElement('small'); subtitle.textContent=`${className(row.classId,locale)} · ${label('level')} ${row.level}`;
-    copy.append(name,subtitle); button.append(icon,copy); button.addEventListener('click',() => select(row.id)); return button;
+    copy.append(name,subtitle); button.append(icon,copy); button.addEventListener('click',() => { sharedCharacterRequest=undefined; select(row.id); }); return button;
   }));
   if (focused) $('characters').querySelector(`[data-id="${focused}"]`)?.focus({preventScroll:true});
   const message = syncing ? 'refreshing' : status==='unavailable' ? 'unavailable' : status==='loading' ? 'loading' : status==='cached' ? 'cached' : !roster.length ? 'empty' : !visible.length ? 'noMatch' : null;
@@ -384,27 +537,38 @@ function render() {
 }
 
 async function refresh(force=false) {
-  if (pending || document.hidden || (force && syncing)) return;
+  if (pending || rosterPaused || document.hidden || (force && syncing)) return;
   pending = true;
   render();
   try {
     const response = await fetch(force ? '/characters.json?refresh=1' : '/characters.json',{signal:AbortSignal.timeout(10000)});
     if (!response.ok) throw new Error('Roster unavailable');
     const result = await response.json();
+    if (rosterPaused || document.hidden) return;
     if (!Array.isArray(result.characters) || result.characters.some(row => !row || typeof row.id!=='string'
       || !/^[1-9][0-9]{0,9}$/.test(row.id) || typeof row.name!=='string' || !row.name.length
       || ![1,2,3,4,5,6,7,8,9,11].includes(row.classId) || !Number.isInteger(row.level)
       || row.level<1 || row.level>80 || typeof row.available!=='boolean')
       || new Set(result.characters.map(row => row.id)).size!==result.characters.length) throw new Error('Invalid roster');
     roster=result.characters; status=['loading','ready','cached','unavailable'].includes(result.status)?result.status:'unavailable'; syncing=result.refreshing===true;
-    if (selected && !roster.some(row => row.id===selected)) { selected=null; $('character-view').hidden=true; $('character-view').removeAttribute('src'); }
-    if (!selected && roster.length) select(roster[0].id);
+    if (characterFrame.dataset.characterId && !roster.some(row => row.id===characterFrame.dataset.characterId)) clearCharacterView();
+    if (selected && !roster.some(row => row.id===selected)) { selected=null; clearCharacterView(); }
+    if (applySharedCharacterRequest()) { }
+    else if (!selected && roster.length) select(roster[0].id);
     else if (selected) select(selected);
   } catch { status=roster.length?'cached':'unavailable'; syncing=false; }
-  finally { pending=false; render(); clearTimeout(timer); if (!document.hidden) timer=setTimeout(refresh,5000); }
+  finally {
+    pending=false; render(); clearTimeout(timer);
+    // Normal GETs read only the local helper state. Only the explicit retry action
+    // requests an upstream refresh; a pending first roster should appear promptly.
+    const waiting = status==='loading' || syncing || (status==='ready' && roster.some(row => !row.available));
+    if (!rosterPaused && !document.hidden) timer=setTimeout(refresh,waiting ? 250 : 5000);
+  }
 }
 
 $('search').addEventListener('input',render);
+$('send-message').addEventListener('click',() => { if (profile.readOnly===true && profile.canSendMessage===true) postProfileAction({action:'send-message'}); });
+$('back-to-friends').addEventListener('click',() => { if (profile.readOnly===true) postProfileAction({action:'back-to-friends'}); });
 $('retry').addEventListener('click',() => void refresh(true));
 $('edit-profile').addEventListener('click',() => openProfileEditor($('edit-profile')));
 $('cancel-profile').addEventListener('click',() => closeProfileEditor());
@@ -539,12 +703,25 @@ window.chrome?.webview?.addEventListener('message',event => {
   }
   if (message?.type==='banner-save-result') { receiveBannerResult(message); return; }
   if (message?.type!=='profile') return;
+  if (typeof message.requestedCharacterNonce==='string' && message.requestedCharacterNonce!==sharedCharacterNonce
+    && typeof message.requestedCharacterGuid==='string' && /^[1-9][0-9]{0,9}$/.test(message.requestedCharacterGuid)) {
+    sharedCharacterNonce = message.requestedCharacterNonce;
+    sharedCharacterRequest = message.requestedCharacterGuid;
+  }
   const nextLocale = message.locale==='en'?'en':'fr', languageChanged = locale!==nextLocale;
   locale = nextLocale; receiveProfile(message);
-  applyProfile(); if (selected && languageChanged) select(selected,true);
+  applyProfile(); if (!applySharedCharacterRequest() && selected && languageChanged) select(selected,true);
 });
-document.addEventListener('visibilitychange',() => { clearTimeout(timer); if (!document.hidden) void refresh(); });
-window.addEventListener('pagehide',() => { clearTimeout(timer); clearTimeout(notificationTimer); });
-window.addEventListener('pageshow',event => { if (event.persisted) void refresh(); });
+document.addEventListener('visibilitychange',() => {
+  clearTimeout(timer);
+  if (!document.hidden) void refresh();
+  else { cancelPendingCharacter(); finishCharacterTransition(); }
+});
+window.addEventListener('pagehide',() => {
+  rosterPaused = true;
+  clearTimeout(timer); clearTimeout(notificationTimer);
+  cancelPendingCharacter(); finishCharacterTransition();
+});
+window.addEventListener('pageshow',event => { rosterPaused = false; if (event.persisted) void refresh(); });
 window.chrome?.webview?.postMessage({action:'ready'});
 applyProfile(); icons(); void refresh();

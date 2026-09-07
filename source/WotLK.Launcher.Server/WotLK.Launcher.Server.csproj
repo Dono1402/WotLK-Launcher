@@ -7,7 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\WotLK.Launcher.Chat.Contracts\WotLK.Launcher.Chat.Contracts.csproj" />
     <PackageReference Include="MySqlConnector" Version="2.4.0" />
+    <PackageReference Include="AngleSharp" Version="1.7.3" />
+    <PackageReference Include="Markdig" Version="1.3.2" />
     <PackageReference Include="SkiaSharp" Version="4.151.1" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.151.1" />
   </ItemGroup>

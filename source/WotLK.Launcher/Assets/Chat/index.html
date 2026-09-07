@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>Messages · Atlas</title>
+  <link rel="stylesheet" href="chat.css">
+  <link rel="stylesheet" href="chat-media.css">
+  <script defer src="vendor/markdown-it-14.1.0.min.js"></script>
+  <script defer src="chat-media.js"></script>
+  <script defer src="chat-render.js"></script>
+  <script defer src="chat.js"></script>
+</head>
+<body>
+  <svg class="icon-definitions" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 11.5a8 8 0 0 1-8 8H6l-4 3 1.7-6A8 8 0 1 1 20 11.5Z"/><path d="M7 10h8M7 14h5"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14Z"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v15m-6-6 6 6 6-6"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="i-attach" viewBox="0 0 24 24"><path d="m8 13 7-7a3 3 0 0 1 4 4L9 20a5 5 0 0 1-7-7L13 2a6 6 0 0 1 9 8L11 21"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="m3 3 19 9-19 9 4-9Zm4 9h15"/></symbol>
+    <symbol id="i-reply" viewBox="0 0 24 24"><path d="m9 4-7 7 7 7M2 11h12a7 7 0 0 1 7 7v2"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="m8 3 13 13m-9-9-7 5 7 7 5-7M5 19l-3 3m10-3-7-7M12 3l9 9"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7"/></symbol>
+    <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 14c1 4 7 4 8 0M8 8v2m8-2v2"/></symbol>
+    <symbol id="i-group" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M2 21v-3a7 7 0 0 1 14 0v3M17 5a3 3 0 0 1 0 6m2 4a6 6 0 0 1 3 6"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="m10 14 4-4m-6 6-2 2a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0m2 10a4 4 0 0 0 6 0l5-5a4 4 0 0 0-6-6l-2 2"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 3h7v7m0-7L10 14M10 3H3v18h18v-7"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H4v20h16V8Zm0 0v6h6M8 13h8m-8 4h5"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 4 13 8-13 8Z"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></symbol>
+    <symbol id="i-game" viewBox="0 0 24 24"><path d="M7 7h10c4 0 5 12 2 12l-4-4H9l-4 4C2 19 3 7 7 7Zm0 3v4m-2-2h4m7-1h.1m2 2h.1"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="m12 3 10 18H2Zm0 6v5m0 3v1"/></symbol>
+  </svg>
+  <main id="chat-app" class="chat-app" aria-label="Messages">
+    <div class="chat-layout">
+      <aside class="conversation-sidebar" aria-label="Conversations">
+        <div class="sidebar-heading"><h2 data-i18n="conversations">Conversations</h2><button id="new-conversation-button" class="icon-button accent-icon" type="button" data-title="newConversation"><svg class="icon"><use href="#i-plus"/></svg></button></div>
+        <div id="conversation-list" class="conversation-list" role="list" aria-label="Conversations"></div>
+        <div id="conversation-empty" class="sidebar-empty" hidden><svg class="icon"><use href="#i-chat"/></svg><p></p></div>
+        <div id="sidebar-status" class="sidebar-status" aria-live="polite"></div>
+      </aside>
+      <section class="thread-shell" aria-label="Discussion">
+        <div id="thread-empty" class="empty-thread"><div class="empty-emblem"><svg class="icon"><use href="#i-chat"/></svg></div><h2 data-i18n="chooseConversation">Une conversation commence ici</h2><p data-i18n="chooseConversationHint">Retrouvez vos amis ou créez un groupe pour votre prochaine aventure.</p><button id="empty-new-button" class="primary-button" type="button"><svg class="icon"><use href="#i-plus"/></svg><span data-i18n="newConversation">Nouvelle conversation</span></button></div>
+        <div id="active-thread" class="active-thread" hidden>
+          <header class="thread-header"><button id="thread-profile-button" class="thread-profile" type="button"><span id="thread-avatar"></span><span class="thread-heading-text"><strong id="thread-title"></strong><span id="thread-presence"></span></span></button><div class="thread-header-actions"><button id="thread-details-button" class="icon-button" type="button" data-title="details"><svg class="icon"><use href="#i-group"/></svg></button><button id="thread-menu-button" class="icon-button" type="button" data-title="conversationActions"><svg class="icon"><use href="#i-more"/></svg></button></div></header>
+          <button id="pinned-strip" class="pinned-strip" type="button" hidden><svg class="icon"><use href="#i-pin"/></svg><span><strong data-i18n="pinnedMessages">Messages épinglés</strong><span id="pinned-excerpt"></span></span><span id="pinned-count"></span><svg class="icon"><use href="#i-chevron"/></svg></button>
+          <div id="connection-banner" class="connection-banner" role="status" hidden></div>
+          <div class="timeline-shell"><div id="timeline" class="timeline" tabindex="0" aria-label="Historique des messages"><button id="load-earlier-button" class="load-earlier" type="button" data-i18n="loadEarlier" hidden>Afficher les messages précédents</button><div id="message-list" class="message-list" role="log" aria-live="off" aria-relevant="additions text"></div><div id="no-messages" class="no-messages" data-i18n="noMessages" hidden>Écrivez le premier message.</div><div id="timeline-end" class="timeline-end" aria-hidden="true"></div></div><button id="jump-latest-button" class="jump-latest" type="button" hidden><svg class="icon"><use href="#i-down"/></svg><span data-i18n="newMessages">Nouveaux messages</span></button><div id="drop-overlay" class="drop-overlay" hidden><svg class="icon"><use href="#i-attach"/></svg><strong data-i18n="dropFiles">Déposez vos fichiers ici</strong><span data-i18n="attachmentHint">Images, GIF, documents, audio et vidéo · 500 Mo par fichier</span></div></div>
+          <div class="composer-area">
+            <div id="typing-indicator" class="typing-indicator" aria-live="polite"></div>
+            <section id="armory-picker" class="armory-picker" data-label="shareGame" hidden>
+              <header class="armory-picker-heading"><div><h3 data-i18n="shareGame">Partager l’Armory d’un personnage</h3><p data-i18n="chooseOwnCharacter">Choisissez l’un de vos personnages.</p></div><button id="close-armory-picker" class="icon-button" type="button" data-title="close"><svg class="icon"><use href="#i-close"/></svg></button></header>
+              <div id="armory-picker-status" class="armory-picker-status" role="status" aria-live="polite"></div>
+              <div id="armory-character-list" class="armory-character-list" role="list" data-label="yourCharacters"></div>
+            </section>
+            <div id="composer-context" class="composer-context" hidden><svg class="icon"><use href="#i-reply"/></svg><span><strong id="composer-context-title"></strong><span id="composer-context-body"></span></span><button id="cancel-context-button" class="icon-button" type="button" data-title="cancel"><svg class="icon"><use href="#i-close"/></svg></button></div>
+            <div id="attachment-queue" class="attachment-queue" aria-label="Pièces jointes à envoyer" hidden></div>
+            <div id="composer-box" class="composer-box">
+              <textarea id="composer-input" rows="1" maxlength="1000" data-placeholder="composerPlaceholder" data-label="composerName" spellcheck="true"></textarea>
+              <div class="composer-toolbar">
+                <span id="composer-counter" class="composer-counter"></span>
+                <div class="composer-actions">
+                  <div class="composer-tools">
+                    <button id="attach-button" class="icon-button" type="button" data-title="attachFiles"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button>
+                    <button id="share-game-button" class="icon-button" type="button" data-title="shareGame" aria-controls="armory-picker" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-game"/></svg></button>
+                  </div>
+                  <button id="send-button" class="send-button" type="button" aria-label="Envoyer" title="Envoyer" disabled><svg class="icon" aria-hidden="true"><use href="#i-send"/></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="composer-footnote"><span data-i18n="composerHint">Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne</span><span id="draft-status"></span></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+  <div id="context-menu" class="context-menu" role="menu" hidden></div>
+  <div id="reaction-picker" class="reaction-picker" role="dialog" aria-label="Choisir une réaction" hidden></div>
+  <dialog id="app-dialog" class="app-dialog"><form method="dialog" class="dialog-shell"><header class="dialog-heading"><div><h2 id="dialog-title"></h2><p id="dialog-subtitle"></p></div><button class="icon-button" value="cancel" data-title="close"><svg class="icon"><use href="#i-close"/></svg></button></header><div id="dialog-content" class="dialog-content"></div><footer id="dialog-footer" class="dialog-footer"></footer></form></dialog>
+  <dialog id="image-dialog" class="image-dialog" aria-label="Image"><img id="image-dialog-image" alt="" draggable="false"><div id="media-dialog-player-host" hidden></div></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

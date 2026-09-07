@@ -200,6 +200,11 @@ internal static class LauncherSettingsRuntimeTests
             "Le comportement reste enregistrable comme dans le legacy.");
 
         start.Lease!.Complete();
+        using LauncherOperationLease play = operations.TryBeginPlay(clientIsPlayable: true).Lease!;
+        Equal(LauncherSettingsChangeStatus.Saved, coordinator.TrySetGameLocale("frFR").Status,
+            "La langue doit rester enregistrable pendant Play.");
+        Equal(LauncherSettingsChangeStatus.Saved, coordinator.TrySetCloseLauncherOnGameStart(false).Status,
+            "Le comportement doit rester enregistrable pendant Play.");
         Equal(
             LauncherSettingsChangeStatus.Saved,
             coordinator.TrySetInstallPath(Path.Combine(root.Root, "other")).Status,
@@ -653,8 +658,8 @@ internal static class LauncherSettingsRuntimeTests
             True(patchNotes.TranslatePoint(new Point(patchNotes.ActualWidth, 0), window).X
                  <= updateButton.TranslatePoint(new Point(0, 0), window).X,
                 "Le bouton vert ne doit pas chevaucher la navigation à 1080 px.");
-            Equal(40d, updateButton.ActualWidth,
-                "Le bouton doit conserver sa largeur compacte à 1080 px.");
+            True(updateButton.ActualWidth is >= 28 and <= 40,
+                "Le bouton compact doit suivre la mise à l'échelle de la shell sans perdre sa cible cliquable.");
             if (!string.IsNullOrWhiteSpace(captureDirectory))
             {
                 SavePng(window, Path.Combine(captureDirectory, "04-settings-runtime-updates-1080x680.png"));

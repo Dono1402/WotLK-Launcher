@@ -64,6 +64,7 @@ internal static class ArmoryApiMySqlTests
             await ValidateCharacterLimitAsync(CreateDatabase(options), connection, characterDatabase);
             await ValidateRemovedOptionalTablesAsync(options, connection, characterDatabase);
             await ValidateHttpAsync(options, connection);
+            await ArmoryFriendApiMySqlTests.RunAsync(options, connection);
             Console.WriteLine($"Armory API MySQL {version} OK: account and GUID isolation, empty/naked characters, duplicate equipped templates, instance ownership, bag/bank exclusion, optional tables, native snapshot validation, bounded roster and current/native catalog union. Real loopback HTTP: authentication, invalid queries, JSON no-store, 4 MiB response bound and per-account rate limit. Disposable local databases only; no production access.");
             return 0;
         }
@@ -215,6 +216,54 @@ internal static class ArmoryApiMySqlTests
             "A missing optional statistics row must stay null.");
         Require(CharacterRow(roster, 101).GetProperty("snapshot").ValueKind == JsonValueKind.Null,
             "Saved statistics must work while the native snapshot table is absent.");
+
+        // The old eight-column fixture remains supported. Native schemas also
+        // persist base power and defense/physical critical chance independently.
+        await ExecuteAsync(connection, $"""
+            ALTER TABLE `{characters}`.character_stats
+                ADD attackPower DOUBLE NULL, ADD rangedAttackPower DOUBLE NULL, ADD spellPower DOUBLE NULL,
+                ADD critPct DOUBLE NULL, ADD rangedCritPct DOUBLE NULL, ADD spellCritPct DOUBLE NULL,
+                ADD blockPct DOUBLE NULL, ADD dodgePct DOUBLE NULL, ADD parryPct DOUBLE NULL, ADD resilience DOUBLE NULL;
+            UPDATE `{characters}`.character_stats SET attackPower=60, rangedAttackPower=47, spellPower=0,
+                critPct=5.608800411224365, rangedCritPct=5.808800220489502, spellCritPct=99,
+                blockPct=0, dodgePct=20.958168, parryPct=4.96, resilience=0 WHERE guid=101;
+            UPDATE `{characters}`.character_stats SET attackPower=705, rangedAttackPower=99, spellPower=17,
+                critPct=12.371388, rangedCritPct=1.571388, blockPct=1, dodgePct=7.96703, parryPct=10.492, resilience=5 WHERE guid=201;
+            """);
+        roster = await RosterAsync(CreateDatabase(options), 1);
+        values = CharacterRow(roster, 101).GetProperty("values");
+        Require(values.EnumerateObject().Count() == 17
+            && values.GetProperty("baseAttackPower").GetDouble() == 60
+            && values.GetProperty("baseRangedAttackPower").GetDouble() == 47
+            && values.GetProperty("baseSpellPower").GetDouble() == 0
+            && values.GetProperty("meleeCritPct").GetDouble() == 5.608800411224365
+            && values.GetProperty("rangedCritPct").GetDouble() == 5.808800220489502
+            && values.GetProperty("dodgePct").GetDouble() == 20.958168
+            && values.GetProperty("parryPct").GetDouble() == 4.96
+            && values.GetProperty("blockPct").GetDouble() == 0
+            && values.GetProperty("resilience").GetDouble() == 0,
+            "Saved optional combat fields must retain exact values including zero and remain scoped to the character.");
+        Require(!values.TryGetProperty("attackPower", out _) && !values.TryGetProperty("spellCritPct", out _)
+            && !values.TryGetProperty("spellPower", out _) && !values.TryGetProperty("rangedHitPct", out _)
+            && !values.TryGetProperty("rangedHastePct", out _) && CharacterRow(roster, 101).GetProperty("snapshot").ValueKind == JsonValueKind.Null,
+            "Saved base powers and the physical-school spellCritPct must never impersonate effective totals or magic-school captures.");
+        JsonElement otherValues = CharacterRow(await RosterAsync(CreateDatabase(options), 2), 201).GetProperty("values");
+        Require(otherValues.GetProperty("baseAttackPower").GetDouble() == 705
+            && otherValues.GetProperty("baseSpellPower").GetDouble() == 17,
+            "Another account's saved powers must not be mixed into the selected account.");
+        Require(CharacterRow(roster, 102).GetProperty("values").ValueKind == JsonValueKind.Null,
+            "Optional combat columns must not fabricate a statistics row for a character without one.");
+
+        await ExecuteAsync(connection, $"""
+            UPDATE `{characters}`.character_stats SET attackPower=-1, rangedAttackPower=47.5,
+                spellPower=NULL, critPct=1000000001, rangedCritPct=NULL WHERE guid=101;
+            ALTER TABLE `{characters}`.character_stats DROP COLUMN parryPct;
+            """);
+        values = CharacterRow(await RosterAsync(CreateDatabase(options), 1), 101).GetProperty("values");
+        Require(values.GetProperty("strength").GetInt32() == 11 && values.GetProperty("dodgePct").GetDouble() == 20.958168
+            && new[] { "baseAttackPower", "baseRangedAttackPower", "baseSpellPower", "meleeCritPct", "rangedCritPct", "parryPct" }
+                .All(field => !values.TryGetProperty(field, out _)),
+            "Invalid, null and missing optional fields must be omitted independently without suppressing valid saved statistics.");
     }
 
     private static async Task ValidateNativeSnapshotsAsync(LauncherServerOptions options, MySqlConnection connection, string characters)

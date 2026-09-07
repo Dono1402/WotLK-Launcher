@@ -8,97 +8,75 @@ internal static class LocalPatchNotesDraft
 
     internal static PatchNoteEntryViewState Create() => new(
         Id,
-        Version: "1.4.0",
-        Title: "Atlas Launcher 1.4.0",
+        Version: "1.5.0",
+        Title: "Atlas Launcher 1.5.0",
         PublishedText: "Non publiée",
-        Intro: "Interface repensée, lancement du jeu mieux encadré, présence des amis enrichie, compte et addons améliorés. Le profil et l’armurerie 3D rejoignent le client public préparé pour la version 1.4.0.",
+        Intro: "La messagerie Atlas arrive avec les conversations privées et de groupe, le partage de fichiers et les lecteurs intégrés. Cette version enrichit aussi la présence, les profils des amis et les échanges avec les joueurs en jeu, et corrige le recadrage des avatars.",
         HasIntro: true,
         IsLatest: true,
         IsDraft: true,
         Sections:
         [
-            new("Launcher",
+            new("Messages et conversations",
             [
-                "Refonte de la page Jeu et des pages Addons, Notes de version et Paramètres autour d’un décor de la Citadelle, d’un visuel panoramique du Roi-liche et de nouvelles surfaces bleues.",
-                "Nouvelle typographie commune, textes secondaires plus contrastés et rendu du texte amélioré dans les pages, menus et fenêtres du launcher.",
-                "Barre de navigation allégée, accès aux amis par une icône et version du launcher regroupée dans les paramètres.",
-                "La fenêtre adopte un format fixe et peut être déplacée depuis la barre de navigation ou la marge supérieure vide.",
-                "Les fenêtres de connexion, le menu du profil, les amis, le recadrage et le centre d’activité adoptent la même présentation. Les panneaux superposés masquent correctement le contenu placé derrière.",
-                "Suppression des sous-titres, cadres de focus et infobulles d’action redondants. Les détails des textes tronqués et les raisons d’indisponibilité restent accessibles."
+                "Nouvelle page Messages avec liste de conversations, recherche de contacts, filtre Non lus et création de conversation depuis le bouton +.",
+                "Conversations privées et groupes avec nom, image, invitations et gestion des membres. Les nouveaux membres accèdent à l’historique à partir de leur entrée dans le groupe.",
+                "Réponses à un message, réactions par emoji, modification et suppression de ses propres messages, épinglage des conversations et des messages.",
+                "Messages regroupés par auteur et par jour, repère des nouveaux messages, indicateurs de saisie et de lecture selon la présence choisie.",
+                "Mise en forme du texte avec gras, italique, listes, citations, code et spoilers. Le texte reste sélectionnable et copiable.",
+                "Les brouillons sont conservés par compte et par conversation. Les envois en attente peuvent être repris ou annulés après une interruption.",
+                "Un envoi en échec peut être supprimé sans réapparaître après reconnexion. Les messages supprimés disparaissent aussi des extraits, réponses et épingles.",
+                "Les conversations auparavant archivées restent accessibles dans Toutes."
             ]),
-            new("Jeu",
+            new("Images et pièces jointes",
             [
-                "L’état du serveur est affiché au-dessus du bouton Jouer et actualisé automatiquement.",
-                "Le bouton Jouer indique le lancement puis l’utilisation du jeu, et redevient disponible à sa fermeture.",
-                "Lorsque le serveur est confirmé hors ligne, le bouton affiche Serveur indisponible et empêche le lancement. Le retour en ligne permet de jouer à nouveau ; les outils de maintenance restent accessibles.",
-                "Les textes de progression du téléchargement et de la vérification disposent d’espaces séparés pour éviter leur superposition.",
-                "Amélioration de la prise en charge des autorisations Windows lorsque le dossier du jeu n’est pas accessible en écriture."
+                "Ajout de fichiers par sélection ou glisser-déposer, et collage de captures, avec aperçu avant l’envoi.",
+                "Envoi d’images, GIF personnels, documents, fichiers audio et vidéos, jusqu’à 500 Mo par fichier et dix pièces jointes par message.",
+                "Les images et GIF conservent leurs proportions, y compris les formats portrait, sans cadre de fichier autour de l’image.",
+                "Suivi de progression, annulation et reprise des transferts. Les aperçus du brouillon restent stables pendant la saisie.",
+                "Visionneuse agrandie et menu contextuel Enregistrer sous… pour les images, fichiers audio et documents autorisés.",
+                "Les liens affichent des aperçus. Un aperçu de page non vidéo peut être retiré sans effacer le lien ni le message."
             ]),
-            new("Profil et compte",
+            new("Audio et vidéo",
             [
-                "Les accès Gérer mon profil et Gérer mon compte sont séparés pour distinguer le profil public des réglages du compte.",
-                "Ajout d’une bio et d’un statut personnel visibles sur le profil consulté par les amis.",
-                "Les photos de profil jusqu’à 25 Mo sont acceptées. Un clic sur l’avatar permet de choisir une photo, puis de la recadrer avec déplacement et zoom à la molette.",
-                "Correction de la cohérence entre le cadrage et l’aperçu, de la mise à jour de l’avatar après validation et de sa synchronisation après reconnexion.",
-                "Les pages Sécurité et Sessions, les champs de saisie et les états d’enregistrement ont été réorganisés pour rendre les actions plus lisibles.",
-                "L’état de vérification est indiqué à côté de l’adresse e-mail. L’avertissement apparaît uniquement lorsqu’une confirmation est nécessaire, et le champ de nouvelle adresse reste vide à l’ouverture.",
-                "Une reconnexion depuis le même appareil ne crée plus de doublons dans les sessions. La déconnexion ramène à la connexion sans laisser le compte ni le jeu visibles derrière."
+                "Lecteurs intégrés avec lecture/pause, progression, durée, volume, agrandissement et plein écran vidéo, dans le fil comme dans le brouillon.",
+                "Les commandes vidéo apparaissent en transparence sur l’image et se masquent automatiquement pendant la lecture.",
+                "L’agrandissement et le retour au fil conservent la position de lecture et le volume. L’arrivée de nouveaux messages ne recrée plus le lecteur.",
+                "La lecture continue lorsque le launcher perd le focus ou est réduit. Elle s’arrête en quittant Messages ou en changeant de conversation.",
+                "Les aperçus YouTube et Vimeo démarrent depuis leur vignette. Les vidéos proches de la zone visible préparent leur aperçu plus tôt.",
+                "Prise en charge élargie des pièces jointes audio et vidéo, notamment M4A, FLAC, MOV et MKV. La lecture intégrée dépend du codec contenu dans le fichier."
             ]),
-            new("Amis et présence",
+            new("Présence et notifications",
             [
-                "Liste d’amis réorganisée avec recherche, demandes d’amitié et informations de présence plus lisibles.",
-                "La présence distingue désormais Connecté au launcher et En jeu. Un ami peut apparaître en ligne même si aucun de ses personnages n’est connecté au jeu.",
-                "Le compteur, l’ordre des amis en ligne et la dernière présence prennent en compte la connexion au launcher.",
-                "Un clic sur un ami ouvre sa photo, son pseudo, son statut, sa bio et ses personnages, avec leur classe, niveau, zone et dernière présence.",
-                "Le personnage mis en avant n’est plus répété dans les autres personnages. Hors ligne, il est présenté comme Dernier personnage joué ; les icônes et couleurs de classe facilitent la lecture.",
-                "Les nouvelles demandes d’ami sont notifiées. Une notification sonore, désactivable dans les paramètres, signale les connexions d’amis ; le passage du launcher au jeu ne déclenche pas une seconde notification.",
-                "Ajout d’une confirmation avant de retirer un ami, avec menus, sélection, retour à la liste et fermeture par Échap améliorés."
+                "Les statuts En ligne, Absent, Ne pas déranger et Apparaître hors ligne se choisissent dans le menu du profil et sont indiqués sur l’avatar.",
+                "Passage automatique à Absent après vingt minutes d’inactivité Windows, puis retour à En ligne à la reprise. Les statuts choisis manuellement sont conservés.",
+                "Le statut est partagé entre Messages, la liste d’amis et les profils. Une autre session active évite de vous rendre absent à tort.",
+                "Ne pas déranger suspend les notifications de messages et d’amis. Les sons de la messagerie restent désactivés.",
+                "Apparaître hors ligne masque l’activité du launcher et du jeu, ainsi que les indicateurs de saisie et de lecture partagés."
             ]),
-            new("Addons",
+            new("Profils, armurerie et avatars",
             [
-                "Catalogue plus compact, descriptions sur une ligne et versions abrégées. Les informations complètes restent accessibles dans les détails et les infobulles.",
-                "La recherche conserve les espaces pendant la saisie, notamment pour les noms composés comme Deadly Boss.",
-                "L’actualisation d’une fiche ne déplace plus le focus vers sa croix de fermeture.",
-                "La confirmation de suppression conserve le clavier dans sa fenêtre. Les libellés de filtre et de mise à jour du catalogue ont également été complétés en anglais."
+                "Les profils des amis s’ouvrent dans la vue complète, avec leurs personnages, leur équipement et l’armurerie 3D en consultation.",
+                "Partager l’Armory d’un personnage permet de choisir son personnage directement dans Messages. La carte ouvre précisément le personnage partagé.",
+                "Correction du recadrage des avatars sur les écrans avec mise à l’échelle Windows : le résultat correspond désormais à la zone sélectionnée.",
+                "Photos de profil plus nettes dans les grands profils et chargement des avatars fiabilisé dans Messages et la liste d’amis."
             ]),
-            new("Paramètres et Windows",
+            new("Chuchotements avec le jeu",
             [
-                "Interface disponible en français et en anglais, avec changement de langue sans redémarrage.",
-                "Paramètres réorganisés, descriptions répétitives retirées et interrupteurs arrondis avec animation et curseur adaptés.",
-                "L’option Démarrer avec Windows lance désormais le launcher réduit dans la barre des tâches, sans prendre le focus. L’ancien réglage de démarrage est repris automatiquement.",
-                "Une seule instance du launcher est ouverte à la fois. Un second démarrage automatique ne remet pas la fenêtre existante au premier plan.",
-                "Le launcher reste accessible dans la zone de notification Windows. Selon le réglage choisi, fermer la fenêtre peut l’y ranger et retirer son bouton de la barre des tâches."
+                "Les conversations privées relient le launcher aux personnages connectés en jeu.",
+                "Un message envoyé depuis le launcher apparaît sous le nom Pseudo#Launcher pour identifier son auteur.",
+                "Les réponses adressées à cette identité rejoignent la conversation du compte dans Messages."
             ]),
-            new("Notes de version et mises à jour",
+            new("Compte, paramètres et addons en jeu",
             [
-                "L’onglet Notes de version dispose d’une page dédiée, avec les nouveautés regroupées par catégorie et les versions précédentes conservées.",
-                "Lecture des notes améliorée : texte plus grand, lignes moins longues et interligne plus aéré.",
-                "Un bouton vert apparaît dans la barre du haut lorsqu’une mise à jour du launcher est disponible. Il lance son installation et ouvre le suivi du téléchargement.",
-                "La version et l’état de mise à jour sont réunis sur une ligne dans les paramètres. Les états non vérifié, recherche en cours, à jour, mise à jour disponible et erreur sont distingués."
+                "Le profil, la gestion du compte, les réglages de sécurité et les sessions restent accessibles pendant que le jeu est ouvert.",
+                "Les paramètres et la gestion des addons restent disponibles en jeu, y compris l’installation, la mise à jour et la suppression des addons."
             ]),
-            new("Corrections d’interaction",
+            new("Fluidité et finitions",
             [
-                "Sur l’écran d’authentification, Entrée respecte le champ ou le bouton utilisé et ne soumet plus la connexion depuis l’onglet Inscription.",
-                "Un clic en dehors du menu du profil conserve le focus sur le contrôle choisi. Dans l’interface principale, Tab parcourt les champs de saisie sans passer par les boutons, interrupteurs et lignes d’addons.",
-                "Les formulaires du compte et le recadrage protègent les modifications en cours. Les erreurs, la progression et les boutons de validation restent visibles pendant l’enregistrement."
-            ]),
-            new("Profil et armurerie 3D",
-            [
-                "Le profil immersif et l’armurerie 3D sont intégrés au client public, accessibles depuis Gérer mon profil.",
-                "Consultation des personnages du compte avec recherche et sélection du personnage à afficher.",
-                "Aperçu 3D animé reprenant l’apparence et l’équipement du personnage, avec rotation, zoom, recentrage, pause de l’animation et affichage des armes.",
-                "Équipement présenté par emplacement, avec infobulles d’objets en français et en anglais. Les statistiques utilisent le dernier relevé serveur disponible et signalent les valeurs manquantes.",
-                "Édition de l’avatar, de la bio et du statut regroupée dans le profil. La photo, le nom et les textes de présentation sont agrandis.",
-                "Bannière personnalisée enregistrée localement pour chaque compte, avec import, remplacement, réinitialisation et aperçu avant validation.",
-                "Recadrage de la bannière par déplacement de l’image, curseur et zoom à la molette de 100 à 300 %. Annuler conserve la bannière enregistrée.",
-                "La barre de navigation apparaît au survol de toute la bannière, avatar compris, et commence à se masquer dès que le pointeur en sort. Elle reste accessible pendant l’utilisation de ses menus.",
-                "L’ouverture et la fermeture de l’édition du profil conservent le zoom et l’orientation de la caméra 3D. Un refus du sélecteur d’image ne laisse plus les boutons bloqués."
-            ]),
-            new("Installation et distribution",
-            [
-                "Le launcher inclut les composants nécessaires au profil et à l’armurerie, sans installation manuelle d’outils supplémentaires.",
-                "Les personnages et leur équipement sont chargés à partir du compte connecté. L’armurerie donne accès uniquement aux personnages de ce compte.",
-                "Si le composant Microsoft WebView2 est absent ou trop ancien, le launcher installe automatiquement la version nécessaire à l’ouverture du profil."
+                "Menus, transitions et aperçus de Messages plus fluides, avec respect du réglage Windows de réduction des animations.",
+                "Amélioration de la cadence d’affichage de Messages sur les écrans à fréquence élevée, lorsque la version de Windows le permet.",
+                "Libellés, commandes de lecture et nouveaux états disponibles en français et en anglais."
             ])
         ]);
 

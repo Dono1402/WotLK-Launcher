@@ -10,6 +10,7 @@ function rosterQuery(account) { return require('./legacy-armory-source.cjs').ros
 
 const identity = ['guid','name','race','classId','gender'];
 const appearance = ['level','skin','face','hairStyle','hairColor','facialStyle'];
+const savedCombatFields = ['baseAttackPower','baseRangedAttackPower','baseSpellPower','meleeCritPct','rangedCritPct','dodgePct','parryPct','blockPct','resilience'];
 function validateAppearance(character) {
   for (const key of ['race','classId','gender',...appearance]) if (!Number.isInteger(character[key]) || character[key]<0 || character[key]>255) throw new Error('Invalid character attributes');
   if (character.level<1 || character.level>80 || ![0,1].includes(character.gender)) throw new Error('Invalid character attributes');
@@ -58,11 +59,21 @@ function normalizeRoster(raw,{verifiedAfter='1970-01-01T00:00:00Z'}={}) {
     const capturedAtUtc = new Date(captured).toISOString().replace('T',' ').replace('Z','');
     if (!statistics && c.online===0 && c.lastLogout>0 && c.lastLogout*1000<=observed && c.lastLogout*1000>=Date.parse(verifiedAfter) && row.values) {
       const keys = ['strength','agility','stamina','intellect','spirit','armor','maxHealth','maxMana'];
-      if (keys.every(key => Number.isSafeInteger(row.values[key]) && row.values[key]>=0)) statistics = {
-        schemaVersion:1,source:'arthas-character-stats',characterName:c.name,characterCapturedAt:capturedAtUtc,
-        savedAt:new Date(captured).toISOString(),observedAt:new Date(observed).toISOString(),
-        values:Object.fromEntries(keys.map(key => [key,row.values[key]]))
-      };
+      if (keys.every(key => Number.isSafeInteger(row.values[key]) && row.values[key]>=0)) {
+        const values = Object.fromEntries(keys.map(key => [key,row.values[key]]));
+        for (const key of savedCombatFields) {
+          const value = row.values[key];
+          if (typeof value==='number' && Number.isFinite(value) && value>=0 && value<=1e9
+              && (key.endsWith('Pct') || Number.isSafeInteger(value))) values[key] = value;
+        }
+        statistics = {
+          schemaVersion:1,source:'arthas-character-stats',characterName:c.name,characterCapturedAt:capturedAtUtc,
+          // character_stats has no capture timestamp. This is the last logout
+          // context of the offline save, not a claimed engine capture time.
+          savedAt:new Date(captured).toISOString(),savedAtSource:'character-last-logout',observedAt:new Date(observed).toISOString(),
+          values
+        };
+      }
     }
     const snapshot = {schemaVersion:1,source:'arthas-readonly',capturedAtUtc,character,equipment};
     const fingerprint = createHash('sha256').update(JSON.stringify([character,equipmentKey(equipment)])).digest('hex').slice(0,32);

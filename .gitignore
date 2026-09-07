@@ -14,3 +14,9 @@ artifacts/
 
 source/**/bin/
 source/**/obj/
+
+# Local design reference pack; the runtime assets are tracked under source/.
+Atlas_Reproduction_Codex/
+
+# Generated public runtime payload, recreated by scripts/build-armory-runtime.ps1.
+source/WotLK.Launcher/Assets/Armory/armory-runtime.zip

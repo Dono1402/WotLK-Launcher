@@ -15,6 +15,7 @@ internal sealed class LauncherFriendsNotificationCoordinator : IDisposable
     private readonly ILauncherSettingsRuntime _settings;
     private readonly ILauncherDesktopNotificationSink _notifications;
     private readonly Action<string> _writeLog;
+    private readonly Func<bool> _suppressNotifications;
     private Dictionary<uint, bool> _friendPresence = [];
     private HashSet<uint> _incomingRequestIds = [];
     private uint? _currentUserId;
@@ -25,8 +26,9 @@ internal sealed class LauncherFriendsNotificationCoordinator : IDisposable
         LauncherFriendsCoordinator friends,
         ILauncherSettingsRuntime settings,
         ILauncherDesktopNotificationSink notifications,
-        Action<string> writeLog)
-        : this(settings, notifications, writeLog)
+        Action<string> writeLog,
+        Func<bool>? suppressNotifications = null)
+        : this(settings, notifications, writeLog, suppressNotifications)
     {
         _friends = friends ?? throw new ArgumentNullException(nameof(friends));
         _friends.SnapshotChanged += Friends_SnapshotChanged;
@@ -36,11 +38,13 @@ internal sealed class LauncherFriendsNotificationCoordinator : IDisposable
     internal LauncherFriendsNotificationCoordinator(
         ILauncherSettingsRuntime settings,
         ILauncherDesktopNotificationSink notifications,
-        Action<string> writeLog)
+        Action<string> writeLog,
+        Func<bool>? suppressNotifications = null)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
         _writeLog = writeLog ?? throw new ArgumentNullException(nameof(writeLog));
+        _suppressNotifications = suppressNotifications ?? (() => false);
     }
 
     internal void Observe(FriendsRuntimeSnapshot snapshot)
@@ -185,6 +189,7 @@ internal sealed class LauncherFriendsNotificationCoordinator : IDisposable
 
         try
         {
+            if (_suppressNotifications()) return;
             _notifications.ShowNotification(
                 notification.Title,
                 notification.Message,

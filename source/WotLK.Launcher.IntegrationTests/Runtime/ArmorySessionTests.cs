@@ -17,6 +17,7 @@ internal static class ArmorySessionTests
         await LateResponsesCannotExpireReconnectedSessionAsync();
         await CancellationDoesNotExpireSessionAsync();
         await InvalidAccountAndUnavailableServiceKeepSessionAsync();
+        await FriendReadsGuardViewerSessionAsync();
         Console.WriteLine("Armory session OK: rejected refresh, profile/API 401, same-account and different-account reconnect races, cancellation, successful token renewal and non-authentication failures. Fake authentication and HTTP only.");
         return 0;
     }
@@ -182,6 +183,43 @@ internal static class ArmorySessionTests
     private static Task ReadAsync(Fixture fixture, bool lookup, CancellationToken cancellationToken = default)
         => lookup ? fixture.Runtime.GetArmoryAccountAsync(cancellationToken)
             : fixture.Runtime.GetArmoryDataAsync(42, new(1, "roster"), cancellationToken);
+
+    private static async Task FriendReadsGuardViewerSessionAsync()
+    {
+        await using (Fixture fixture = await Fixture.CreateAsync())
+        {
+            AuthSessionSnapshot before = fixture.Runtime.Session.CurrentSnapshot;
+            await fixture.Runtime.GetFriendArmoryDataAsync(42, 91, new(1, "roster"), CancellationToken.None);
+            await fixture.Runtime.GetFriendArmoryDataAsync(42, 91, new(2, "catalog", 501), CancellationToken.None);
+            Require(fixture.Http.Requests.SequenceEqual(new[] { "/api/v1/friends/91/armory/characters", "/api/v1/friends/91/armory/characters/501/catalog" }),
+                "A friend read must use the trusted friend route and preserve the viewer's session.");
+            foreach (uint target in new uint[] { 0, 42 })
+                await ThrowsAsync<ArgumentOutOfRangeException>(() => fixture.Runtime.GetFriendArmoryDataAsync(42, target, new(1, "roster"), CancellationToken.None));
+            await ThrowsAsync<UnauthorizedAccessException>(() => fixture.Runtime.GetFriendArmoryDataAsync(84, 91, new(1, "roster"), CancellationToken.None));
+            Require(fixture.Http.Requests.Count == 2, "Invalid viewer and target ids must fail before HTTP.");
+            fixture.Http.OnSend = (_, _) => Task.FromResult(Response(HttpStatusCode.NotFound));
+            await ThrowsAsync<HttpRequestException>(() => fixture.Runtime.GetFriendArmoryDataAsync(42, 91, new(1, "roster"), CancellationToken.None));
+            AssertSessionUnchanged(fixture, before);
+            fixture.Http.OnSend = (_, _) => Task.FromResult(Response(HttpStatusCode.Unauthorized));
+            await ThrowsAsync<UnauthorizedAccessException>(() => fixture.Runtime.GetFriendArmoryDataAsync(42, 91, new(1, "roster"), CancellationToken.None));
+            AssertExpired(fixture);
+        }
+        foreach (uint nextAccount in new uint[] { 42, 84 })
+        foreach (HttpStatusCode status in new[] { HttpStatusCode.OK, HttpStatusCode.Unauthorized })
+        {
+            await using Fixture fixture = await Fixture.CreateAsync();
+            TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource<HttpResponseMessage> reply = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            fixture.Http.OnSend = (_, _) => { entered.TrySetResult(); return reply.Task; };
+            Task pending = fixture.Runtime.GetFriendArmoryDataAsync(42, 91, new(1, "roster"), CancellationToken.None);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            AuthSessionSnapshot connected = await fixture.ReconnectAsync(nextAccount);
+            reply.SetResult(Response(status));
+            await ThrowsAsync<UnauthorizedAccessException>(() => pending);
+            AssertSessionUnchanged(fixture, connected, nextAccount);
+        }
+        Console.WriteLine("Friend armory session OK: viewer identity, trusted target routes, 404 vs 401, late replies across same and different-account login.");
+    }
 
     private static void AssertExpired(Fixture fixture)
     {

@@ -21,7 +21,7 @@ using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Preview;
 using WotLK.Launcher.UI.V2.Views;
 
-internal static class ArmoryLauncherTests
+internal static partial class ArmoryLauncherTests
 {
     internal static async Task<int> RunAsync(string? captureDirectory)
     {
@@ -100,7 +100,22 @@ internal static class ArmoryLauncherTests
         }
     }
 
-    private static async Task RunWpfAsync(ArmoryFixture fixture, string? captureDirectory)
+    internal static async Task<int> RunFriendProfileAsync(string? captureDirectory)
+    {
+        using ArmoryFixture fixture = new();
+        await RunWpfAsync(fixture, captureDirectory, friendsOnly: true);
+        return 0;
+    }
+
+    internal static async Task<int> RunSharedCharacterAsync(string? captureDirectory)
+    {
+        using ArmoryFixture fixture = new();
+        await RunWpfAsync(fixture, captureDirectory, sharedCharacterOnly: true);
+        Console.WriteLine("Armory shared character WPF OK: requested GUID before roster, transient opening failure/retry retains the exact non-first character, missing GUID without fallback, FR/EN, manual selection retained and fresh native request. Inactive offscreen fixture, no real authentication or remote requests.");
+        return 0;
+    }
+
+    private static async Task RunWpfAsync(ArmoryFixture fixture, string? captureDirectory, bool friendsOnly = false, bool sharedCharacterOnly = false)
     {
         TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         Thread thread = new(() =>
@@ -132,8 +147,19 @@ internal static class ArmoryLauncherTests
                         "/WotLK.Launcher;component/UI/V2/Resources/AtlasV2.Controls.xaml"
                     }) application.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri(path, UriKind.Relative) });
                     LauncherLocalization.SetLocale(LauncherLocalization.FrenchLocale);
+                    if (sharedCharacterOnly)
+                    {
+                        await ValidateSharedCharacterAsync(fixture, captureDirectory);
+                        return;
+                    }
+                    if (friendsOnly)
+                    {
+                        await ValidateFriendProfileAsync(fixture, captureDirectory);
+                        return;
+                    }
                     await ValidateAvatarPublishingAndCustomizationAsync(fixture, captureDirectory);
                     await ValidateEmbeddedShellAsync(fixture, captureDirectory);
+                    await ValidateFriendProfileAsync(fixture, captureDirectory);
                     await ValidateBannerBridgeAsync(fixture);
                     await ValidateCancelledAccountLookupAsync(fixture);
                     await ValidateUnavailableArmoryRecoveryAsync(fixture);
@@ -240,6 +266,51 @@ internal static class ArmoryLauncherTests
         Console.WriteLine("Public packaged WPF OK: real SHA-verified ZIP, embedded Node and relocated assets, C# RPC roster, real Three.js model, 19 equipment slots, Inter fonts, profile editor, FR/EN and logout. No system installer or user-window activation.");
     }
 
+    private static async Task ValidateSharedCharacterAsync(ArmoryFixture fixture, string? captureDirectory)
+    {
+        AccountUiState state = ConnectedAccount("SharedCharacterFixture");
+        LauncherShellV2 window = CreateShell(state);
+        ArmoryViewV2 armory = Required<ArmoryViewV2>(window, "ArmoryView");
+        bool configurationAvailable = false;
+        armory.Configure(_ => Task.FromResult<uint?>(42), state,
+            () => configurationAvailable ? fixture.Configuration : throw new IOException("Synthetic transient configuration failure."),
+            fixture.WebViewDataDirectory, bannerStore: new ArmoryBannerStore(fixture.BannerStoreDirectory));
+        // The request arrives while the armory is still closed and has no roster.
+        armory.SelectSharedCharacter(42, 12);
+        ShowOffscreen(window);
+        Uri? origin = null;
+        try
+        {
+            await OpenProfileAsync(window);
+            await WaitUntilAsync(() => Required<Button>(armory, "RetryButton").IsVisible,
+                "L'échec transitoire doit proposer Réessayer sans perdre le personnage partagé.");
+            True(armory.Browser is null, "L'échec initial doit précéder la lecture du roster et la création du navigateur.");
+            configurationAvailable = true;
+            Required<Button>(armory, "RetryButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitForScriptAsync(armory, "document.querySelector('.character[data-id=\"12\"]')?.getAttribute('aria-pressed')==='true' && document.getElementById('character-view').contentWindow.armory?.data?.name==='Alt42'",
+                "Après échec puis Réessayer, le GUID partagé demandé avant le roster doit ouvrir le personnage exact, et non le premier personnage.");
+            origin = new Uri(armory.Browser!.CoreWebView2.Source);
+            AssertOffscreen(window);
+            armory.SelectSharedCharacter(42, 999999);
+            await WaitForScriptAsync(armory, "!document.querySelector('.character[aria-pressed=\"true\"]') && document.body.textContent.includes('Le personnage partagé est indisponible.')",
+                "Un personnage partagé absent doit rester indisponible sans afficher le premier personnage.");
+            LauncherLocalization.SetLocale(LauncherLocalization.EnglishLocale);
+            await WaitForScriptAsync(armory, "!document.querySelector('.character[aria-pressed=\"true\"]') && document.body.textContent.includes('The shared character is unavailable.')",
+                "L'absence du personnage partagé doit être traduite en anglais.");
+            await ScriptAsync(armory, "document.querySelector('.character[data-id=\"11\"]').click(); true");
+            await WaitForScriptAsync(armory, "document.querySelector('.character[data-id=\"11\"]')?.getAttribute('aria-pressed')==='true'", "Une sélection manuelle peut quitter une carte indisponible.");
+            state.ApplyRuntimeView(state.Current with { StatusMessage = "Synthetic profile refresh" });
+            await WaitForScriptAsync(armory, "document.getElementById('profile-status').textContent==='Synthetic profile refresh' && document.querySelector('.character[data-id=\"11\"]')?.getAttribute('aria-pressed')==='true'",
+                "Une actualisation ordinaire du profil ne rejoue pas l'ancienne carte partagée.");
+            armory.SelectSharedCharacter(42, 12);
+            await WaitForScriptAsync(armory, "document.querySelector('.character[data-id=\"12\"]')?.getAttribute('aria-pressed')==='true' && document.getElementById('character-view').contentWindow.armory?.data?.name==='Alt42'",
+                "Un nouveau clic natif peut rouvrir le même GUID après une sélection manuelle.");
+            await SaveCaptureAsync(armory, captureDirectory, "shared-character-exact-guid.png");
+        }
+        finally { window.Close(); await PumpAsync(); }
+        if (origin is not null) await AssertStoppedAsync(origin);
+    }
+
     private static async Task ValidateEmbeddedShellAsync(ArmoryFixture fixture, string? captureDirectory)
     {
         AccountUiState state = ConnectedAccount("FirstAccount");
@@ -274,9 +345,12 @@ internal static class ArmoryLauncherTests
             await SaveCaptureAsync(armory, captureDirectory, "armory-webview-fr.png");
             CancellationToken profileSession = await ValidateProfileBridgeAsync(window, armory, state);
 
-            await ScriptAsync(armory, "document.querySelector('.character[data-id=\"12\"]').click(); true");
+            armory.SelectSharedCharacter(accountId, 12);
             await WaitForScriptAsync(armory, "document.getElementById('character-view').contentWindow.armory?.data?.name === 'Alt42' && document.getElementById('character-view').contentWindow.armory?.ready === true", "Un autre personnage doit garder son équipement même sans modèle 3D.");
+            await WaitForScriptAsync(armory, "document.querySelector('.character[data-id=\"12\"]')?.getAttribute('aria-pressed')==='true'", "Une carte partagée sélectionne le GUID exact via le pont natif.");
             await WaitForScriptAsync(armory, "document.getElementById('character-view').contentDocument.body.textContent.includes('Modèle 3D indisponible')", "L'absence de modèle doit être expliquée explicitement.");
+            armory.SelectSharedCharacter(accountId, 999999);
+            await WaitForScriptAsync(armory, "!document.querySelector('.character[aria-pressed=\"true\"]') && document.body.textContent.includes('Le personnage partagé est indisponible.')", "Un GUID partagé absent n'affiche pas un autre personnage par défaut.");
             await ScriptAsync(armory, "document.querySelector('.character[data-id=\"13\"]').click(); true");
             await WaitForScriptAsync(armory, "document.getElementById('character-view').hidden && !document.getElementById('empty-state').hidden", "Le personnage en attente doit rester sélectionnable avec un état clair.");
 
@@ -1340,6 +1414,7 @@ internal static class ArmoryLauncherTests
     {
         private readonly string _root = Path.Combine(Path.GetTempPath(), "AtlasArmoryIntegration", Guid.NewGuid().ToString("N"));
         internal LauncherArmoryLocalConfiguration Configuration { get; }
+        internal LauncherArmoryLocalConfiguration AuthenticatedConfiguration { get; }
         internal string WebViewDataDirectory => Path.Combine(_root, "webview-data");
         internal string BannerStoreDirectory => Path.Combine(_root, "banner-store");
         internal string PublicRoot => Path.Combine(_root, "public");
@@ -1399,6 +1474,12 @@ internal static class ArmoryLauncherTests
                 server.listen(0,'127.0.0.1',()=>console.log('ATLAS_ARMORY_READY '+JSON.stringify({port:server.address().port})));
                 """);
             Configuration = new LauncherArmoryLocalConfiguration(node, server);
+            AuthenticatedConfiguration = new LauncherArmoryLocalConfiguration(node,
+                Path.Combine(repo, "prototypes", "armory-3d", "launcher-server.cjs"), UseRpc: true,
+                DataRoot: Path.Combine(_root, "rpc-data"),
+                VendorRoot: Path.Combine(artifacts, "tools", "wow-export", "src", "js"),
+                MetadataRoot: Path.Combine(artifacts, "metadata"),
+                AssetRoot: Path.Combine(repo, "source", "WotLK.Launcher", "Assets"));
         }
 
         private static string FindRepository()

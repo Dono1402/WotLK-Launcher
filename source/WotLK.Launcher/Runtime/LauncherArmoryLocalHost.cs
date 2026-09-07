@@ -8,7 +8,7 @@ namespace WotLK.Launcher.Runtime;
 internal sealed record LauncherArmoryLocalConfiguration(
     string NodePath, string ServerPath, bool IsPackaged = false, string? ClientRoot = null,
     string? DataRoot = null, string? VendorRoot = null, string? AssetRoot = null, string? MetadataRoot = null,
-    string? WebViewInstallerPath = null);
+    string? WebViewInstallerPath = null, bool UseRpc = false, bool RequireFreshRoster = false);
 
 internal sealed class LauncherArmoryLocalHost : IDisposable
 {
@@ -24,6 +24,23 @@ internal sealed class LauncherArmoryLocalHost : IDisposable
 
     internal static LauncherArmoryLocalConfiguration LoadConfiguration() => LoadConfiguration(null);
 
+    // Cache maintenance must not extract/hash the packaged runtime on the UI thread.
+    internal static string LoadFriendDataRoot()
+    {
+#if ATLAS_LOCAL_CLIENT
+        string file = Path.Combine(AppContext.BaseDirectory, "armory-local.json");
+        if (File.Exists(file))
+        {
+            LauncherArmoryLocalConfiguration configuration = JsonSerializer.Deserialize<LauncherArmoryLocalConfiguration>(File.ReadAllText(file))
+                ?? throw new InvalidOperationException("Missing local armory configuration.");
+            if (configuration.IsPackaged || configuration.UseRpc)
+                return configuration.DataRoot ?? throw new InvalidOperationException("Missing friend armory cache directory.");
+            return Path.Combine(LauncherSettings.SettingsDirectory, "armory", "friend-data");
+        }
+#endif
+        return Path.Combine(LauncherSettings.SettingsDirectory, "armory", "data");
+    }
+
     internal static LauncherArmoryLocalConfiguration LoadConfiguration(string? clientRoot)
     {
 #if ATLAS_LOCAL_CLIENT
@@ -36,17 +53,34 @@ internal sealed class LauncherArmoryLocalHost : IDisposable
             || !string.Equals(Path.GetFileName(config.NodePath), "node.exe", StringComparison.OrdinalIgnoreCase)
             || !string.Equals(Path.GetFileName(config.ServerPath), "launcher-server.cjs", StringComparison.Ordinal))
             throw new InvalidOperationException("Invalid local armory configuration.");
-        return config;
+        return config with { ClientRoot = clientRoot ?? config.ClientRoot };
 #else
         return LauncherArmoryPackage.LoadConfiguration(clientRoot);
 #endif
+    }
+
+    internal static LauncherArmoryLocalConfiguration RequireAuthenticatedSource(LauncherArmoryLocalConfiguration configuration)
+    {
+        if (configuration.IsPackaged || configuration.UseRpc) return configuration;
+        // The local development checkout uses the same authenticated RPC transport for friend profiles.
+        // Its legacy own-account helper must never receive an arbitrary friend account id.
+        string projectRoot = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(configuration.ServerPath)!, "..", ".."));
+        string prototypeRoot = Path.Combine(projectRoot, "artifacts", "armory-prototype");
+        string vendor = Path.Combine(prototypeRoot, "tools", "wow-export", "src", "js");
+        string metadata = Path.Combine(prototypeRoot, "metadata");
+        string assets = Path.Combine(projectRoot, "source", "WotLK.Launcher", "Assets");
+        if (!Directory.Exists(vendor) || !Directory.Exists(metadata) || !Directory.Exists(assets))
+            throw new InvalidOperationException("Authenticated friend armory resources are unavailable.");
+        return configuration with { UseRpc = true, VendorRoot = vendor, MetadataRoot = metadata, AssetRoot = assets,
+            DataRoot = Path.Combine(LauncherSettings.SettingsDirectory, "armory", "friend-data") };
     }
 
     internal async Task StartAsync(uint accountId, LauncherArmoryLocalConfiguration configuration, CancellationToken cancellationToken,
         Func<LauncherArmoryDataRequest, CancellationToken, Task<JsonElement>>? readData = null)
     {
         if (accountId == 0 || _process is not null) throw new InvalidOperationException("Invalid armory startup.");
-        if (configuration.IsPackaged && readData is null) throw new InvalidOperationException("The public armory requires an authenticated data source.");
+        bool useRpc = configuration.IsPackaged || configuration.UseRpc;
+        if (useRpc && readData is null) throw new InvalidOperationException("The armory requires an authenticated data source.");
         _requestsLifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         CancellationToken sessionToken = _requestsLifetime.Token;
         ProcessStartInfo start = new(configuration.NodePath)
@@ -64,7 +98,7 @@ internal sealed class LauncherArmoryLocalHost : IDisposable
         start.ArgumentList.Add(configuration.ServerPath);
         start.Environment["ATLAS_ARMORY_ACCOUNT_ID"] = accountId.ToString(System.Globalization.CultureInfo.InvariantCulture);
         start.Environment["ATLAS_ARMORY_BRIDGE_KEY"] = Key;
-        if (configuration.IsPackaged)
+        if (useRpc)
         {
             foreach (string key in new[] { "NODE_OPTIONS", "NODE_PATH", "PLAYWRIGHT_MODULE", "ARMORY_EXPORT_DIR", "ATLAS_ARMORY_CONFIG" })
                 start.Environment.Remove(key);
@@ -74,12 +108,13 @@ internal sealed class LauncherArmoryLocalHost : IDisposable
             start.Environment["ATLAS_ARMORY_VENDOR_ROOT"] = configuration.VendorRoot!;
             start.Environment["ATLAS_ARMORY_ASSET_ROOT"] = configuration.AssetRoot!;
             start.Environment["ATLAS_ARMORY_METADATA_ROOT"] = configuration.MetadataRoot!;
+            start.Environment["ATLAS_ARMORY_REQUIRE_FRESH_ROSTER"] = configuration.RequireFreshRoster ? "1" : "0";
         }
         _process = new Process { StartInfo = start, EnableRaisingEvents = true };
         _process.OutputDataReceived += (_, args) =>
         {
             const string requestPrefix = "ATLAS_ARMORY_REQUEST ";
-            if (configuration.IsPackaged && args.Data?.StartsWith(requestPrefix, StringComparison.Ordinal) == true)
+            if (useRpc && args.Data?.StartsWith(requestPrefix, StringComparison.Ordinal) == true)
             {
                 if (args.Data.Length <= 4096) _ = HandleRequestAsync(args.Data[requestPrefix.Length..], readData!, sessionToken);
                 return;

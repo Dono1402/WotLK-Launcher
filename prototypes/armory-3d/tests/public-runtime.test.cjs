@@ -38,6 +38,9 @@ test('public runtime paths require explicit absolute roots and never inherit dev
     ATLAS_ARMORY_ASSET_ROOT:path.join(root,'assets'),ATLAS_ARMORY_METADATA_ROOT:path.join(root,'metadata')};
   const paths = readRuntimePaths(environment);
   assert.equal(paths.publicMode,true); assert.equal(paths.outputRoot,environment.ATLAS_ARMORY_DATA_ROOT); assert.equal(paths.clientRoot,undefined);
+  assert.equal(paths.requireFreshRoster,false);
+  assert.equal(readRuntimePaths({...environment,ATLAS_ARMORY_REQUIRE_FRESH_ROSTER:'1'}).requireFreshRoster,true);
+  assert.throws(() => readRuntimePaths({...environment,ATLAS_ARMORY_REQUIRE_FRESH_ROSTER:'yes'}),/Invalid fresh armory roster/);
   assert.doesNotMatch(JSON.stringify(paths),/armory-prototype|Documents/);
   for (const key of ['ATLAS_ARMORY_DATA_ROOT','ATLAS_ARMORY_VENDOR_ROOT','ATLAS_ARMORY_ASSET_ROOT','ATLAS_ARMORY_METADATA_ROOT']) {
     assert.throws(() => readRuntimePaths({...environment,[key]:undefined}),/Missing/);

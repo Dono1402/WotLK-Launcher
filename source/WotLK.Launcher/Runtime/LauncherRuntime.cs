@@ -105,9 +105,35 @@ internal sealed class LauncherRuntimeDependencies
 
     internal TimeProvider DashboardTimeProvider { get; init; } = TimeProvider.System;
 
+    internal ILauncherGameGatewayProbe? GameGatewayProbe { get; init; }
+
     internal TimeProvider AccountTimeProvider { get; init; } = TimeProvider.System;
 
     internal TimeProvider FriendsTimeProvider { get; init; } = TimeProvider.System;
+
+    internal TimeProvider ChatTimeProvider { get; init; } = TimeProvider.System;
+
+    internal TimeProvider PresenceTimeProvider { get; init; } = TimeProvider.System;
+
+    internal ILauncherIdleTimeSource? PresenceIdleTimeSource { get; init; }
+
+    internal Func<HttpClient, Uri, ILauncherPresenceApiClient> CreatePresenceApiClient { get; init; } =
+        static (client, apiBaseUri) => new LauncherPresenceApiClient(client, apiBaseUri);
+
+    internal Func<HttpClient, Uri, ILauncherChatApiClient> CreateChatApiClient { get; init; } =
+        static (client, apiBaseUri) => new LauncherChatApiClient(client, apiBaseUri);
+
+    internal Func<HttpClient, Uri, ILauncherChatV2ApiClient> CreateChatV2ApiClient { get; init; } =
+        static (client, apiBaseUri) => new LauncherChatV2ApiClient(client, apiBaseUri);
+
+    internal Func<string> GetChatWorkspaceRoot { get; init; } =
+        static () => Path.Combine(LauncherSettings.SettingsDirectory, "messages-v2");
+
+    internal Func<string, Uri, IChatWorkspaceStore> CreateChatWorkspaceStore { get; init; } =
+        static (root, apiBaseUri) => new ChatWorkspaceStore(root, apiBaseUri);
+
+    internal Func<string, Uri, IChatAttachmentFileSource> CreateChatAttachmentFileSource { get; init; } =
+        static (root, apiBaseUri) => new ChatAttachmentFileSource(root, apiBaseUri);
 
     internal Uri AvatarApiBaseUri { get; init; } = AtlasNetwork.LauncherApiBaseUri;
 
@@ -136,6 +162,7 @@ internal sealed class LauncherRuntimeDependencies
             WriteRuntimeLog = WriteProductionLog,
             WriteLocalActionLog = WriteProductionLog,
             LocalShellService = LauncherShellService.CreateProduction(),
+            GameGatewayProbe = new TcpLauncherGameGatewayProbe(),
             EnableSelfUpdate = LauncherBuildFlavor.IsSelfUpdateEnabled,
             SelfUpdateRecoveryOccurred = selfUpdateRecoveryOccurred,
             CreateAuthorizedHttpClient = static accessTokenProvider => new HttpClient(
@@ -181,7 +208,7 @@ internal sealed class LauncherRuntimeDependencies
     }
 }
 
-internal sealed class LauncherRuntime : IDisposable
+internal sealed partial class LauncherRuntime : IDisposable
 {
     internal async Task<uint?> GetArmoryAccountAsync(CancellationToken cancellationToken)
     {
@@ -357,7 +384,8 @@ internal sealed class LauncherRuntime : IDisposable
             _authentication,
             Operations.ShutdownToken,
             dependencies.WriteRuntimeLog,
-            dependencies.DashboardTimeProvider);
+            dependencies.DashboardTimeProvider,
+            dependencies.GameGatewayProbe);
         Game.AttachDashboard(Dashboard);
         Profile = new LauncherProfileCoordinator(
             _sessionCoordinator,
@@ -380,6 +408,19 @@ internal sealed class LauncherRuntime : IDisposable
             () => _authentication.Session?.Profile,
             dependencies.WriteRuntimeLog,
             dependencies.FriendsTimeProvider);
+        Presence = new LauncherPresenceCoordinator(_sessionCoordinator, _authentication,
+            dependencies.CreatePresenceApiClient(_clientHttpClient, dependencies.AvatarApiBaseUri),
+            Operations.ShutdownToken, dependencies.WriteRuntimeLog, dependencies.PresenceTimeProvider,
+            dependencies.PresenceIdleTimeSource);
+        Chat = new LauncherChatCoordinator(_sessionCoordinator, _authentication, Friends,
+            dependencies.CreateChatApiClient(_clientHttpClient, dependencies.AvatarApiBaseUri),
+            Operations.ShutdownToken, dependencies.WriteRuntimeLog, dependencies.ChatTimeProvider);
+        string chatWorkspaceRoot = dependencies.GetChatWorkspaceRoot();
+        ChatWorkspace = new LauncherChatWorkspace(_sessionCoordinator, _authentication,
+            dependencies.CreateChatV2ApiClient(_clientHttpClient, dependencies.AvatarApiBaseUri),
+            dependencies.CreateChatWorkspaceStore(chatWorkspaceRoot, dependencies.AvatarApiBaseUri),
+            Operations.ShutdownToken, dependencies.WriteRuntimeLog, dependencies.ChatTimeProvider,
+            dependencies.CreateChatAttachmentFileSource(chatWorkspaceRoot, dependencies.AvatarApiBaseUri));
         if (SelfUpdateEnabled)
         {
             SelfUpdate.ScheduleInitialCheck();
@@ -420,6 +461,12 @@ internal sealed class LauncherRuntime : IDisposable
     internal LauncherAccountCoordinator Account { get; }
 
     internal LauncherFriendsCoordinator Friends { get; }
+
+    internal LauncherPresenceCoordinator Presence { get; }
+
+    internal LauncherChatCoordinator Chat { get; }
+
+    internal LauncherChatWorkspace ChatWorkspace { get; }
 
     internal LauncherSessionCoordinator Session => _sessionCoordinator;
 
@@ -512,6 +559,9 @@ internal sealed class LauncherRuntime : IDisposable
             SelfUpdate.BeginShutdown();
             SettingsRuntime.BeginShutdown();
             Dashboard.BeginShutdown();
+            Chat.BeginShutdown();
+            ChatWorkspace.BeginShutdown();
+            Presence.BeginShutdown();
             _sessionCoordinator.BeginShutdown();
             Addons.BeginShutdown();
             Game.BeginShutdown();
@@ -532,6 +582,9 @@ internal sealed class LauncherRuntime : IDisposable
         Task<bool> profile = Profile.WaitForIdleAsync(timeout);
         Task<bool> account = Account.WaitForIdleAsync(timeout);
         Task<bool> friends = Friends.WaitForIdleAsync(timeout);
+        Task<bool> chat = Chat.WaitForIdleAsync(timeout);
+        Task<bool> chatWorkspace = ChatWorkspace.WaitForIdleAsync(timeout);
+        Task<bool> presence = Presence.WaitForIdleAsync(timeout);
         bool[] results = await Task.WhenAll(
             operations,
             selfUpdate,
@@ -541,7 +594,10 @@ internal sealed class LauncherRuntime : IDisposable
             addons,
             profile,
             account,
-            friends).ConfigureAwait(false);
+            friends,
+            chat,
+            chatWorkspace,
+            presence).ConfigureAwait(false);
         return results.All(result => result);
     }
 
@@ -572,11 +628,17 @@ internal sealed class LauncherRuntime : IDisposable
             SelfUpdate.BeginShutdown();
             SettingsRuntime.BeginShutdown();
             Dashboard.BeginShutdown();
+            Chat.BeginShutdown();
+            ChatWorkspace.BeginShutdown();
+            Presence.BeginShutdown();
             _sessionCoordinator.BeginShutdown();
             Addons.BeginShutdown();
             Game.BeginShutdown();
             Account.BeginShutdown();
             Friends.BeginShutdown();
+            Chat.Dispose();
+            ChatWorkspace.Dispose();
+            Presence.Dispose();
             Friends.Dispose();
             Account.Dispose();
             Profile.Dispose();

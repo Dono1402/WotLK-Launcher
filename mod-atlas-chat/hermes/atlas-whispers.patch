@@ -1,0 +1,308 @@
+diff --git a/HermesProxy.Tests/TestModuleInitializer.cs b/HermesProxy.Tests/TestModuleInitializer.cs
+index ae3eff0..0e8de8d 100644
+--- a/HermesProxy.Tests/TestModuleInitializer.cs
++++ b/HermesProxy.Tests/TestModuleInitializer.cs
+@@ -13,7 +13,8 @@ internal static class TestModuleInitializer
+         // its static field initializers against this build. The actual opcode-dictionary load
+         // is deferred to the first test that touches ModernVersion (keeps the xUnit v3
+         // stdin/stdout handshake clean — static init doesn't log under ModuleInitializer).
+-        VersionBootstrap.ModernBuild = ClientVersionBuild.V1_14_2_42597;
++        VersionBootstrap.ModernBuild = System.Environment.GetEnvironmentVariable("HERMES_TEST_MODERN_BUILD") == "3.4.3"
++            ? ClientVersionBuild.V3_4_3_54261 : ClientVersionBuild.V1_14_2_42597;
+ 
+         // LegacyVersion.Build is a static readonly initialised on first touch; if that
+         // happens while LegacyBuild is Zero the type initializer throws and the type stays
+diff --git a/HermesProxy.Tests/World/Chat/AtlasLauncherWhisperTests.cs b/HermesProxy.Tests/World/Chat/AtlasLauncherWhisperTests.cs
+new file mode 100644
+index 0000000..66c87fe
+--- /dev/null
++++ b/HermesProxy.Tests/World/Chat/AtlasLauncherWhisperTests.cs
+@@ -0,0 +1,141 @@
++using System;
++using System.Buffers.Binary;
++using System.Runtime.CompilerServices;
++using System.Text;
++using Framework.IO;
++using HermesProxy.Enums;
++using HermesProxy.World;
++using HermesProxy.World.Chat;
++using HermesProxy.World.Enums;
++using Xunit;
++
++namespace HermesProxy.Tests.World.Chat;
++
++public class AtlasLauncherWhisperTests
++{
++    [Theory]
++    [InlineData("Dono1402#Launcher", "Dono1402")]
++    [InlineData("Dono_42#launcher", "Dono_42")]
++    [InlineData("Dono_42#Launcher-Arthas", "Dono_42")]
++    [InlineData("123#Launcher", "123")]
++    public void ReplyUsesAtlasAccountAndPreservesFullMessage(string target, string account)
++    {
++        string text = "Bonjour 😀 |Hitem:123|h[Objet]|h .atlasmsg Autre " + new string('x', 600);
++        using var request = AtlasLauncherWhisper.CreateLegacyRequest(target, text, 7);
++        Assert.NotNull(request);
++        using var reader = new ByteBuffer(request.GetData());
++        Assert.Equal((uint)ChatMessageTypeWotLK.Whisper, reader.ReadUInt32());
++        Assert.Equal(7u, reader.ReadUInt32());
++        Assert.Equal(account + "#Launcher", reader.ReadCString());
++        Assert.Equal(".atlasmsg " + account + " " + text, reader.ReadCString());
++        Assert.False(reader.CanRead());
++    }
++
++    [Theory]
++    [InlineData("Character")]
++    [InlineData("Character-Arthas")]
++    [InlineData("ab#Launcher")]
++    [InlineData("Ami#LauncherOther")]
++    [InlineData("Ami#Launcher\0")]
++    [InlineData("Admin|Hplayer:gm|h#Launcher")]
++    [InlineData("Jean Paul#Launcher")]
++    [InlineData("Admin;command#Launcher")]
++    public void NormalTargetsAndInvalidAliasesAreNotRoutedToAtlas(string target)
++        => Assert.False(AtlasLauncherWhisper.TryGetUsername(target, out _));
++
++    [Fact]
++    public void AliasAndBodyLimitsCannotSplitOrInjectLegacyRequests()
++    {
++        Assert.True(AtlasLauncherWhisper.TryGetUsername(new string('x', 32) + "#Launcher", out _));
++        Assert.False(AtlasLauncherWhisper.TryGetUsername(new string('x', 33) + "#Launcher", out _));
++        using var maximum = AtlasLauncherWhisper.CreateLegacyRequest("Dono#Launcher", new string('x', 1000), 7);
++        Assert.NotNull(maximum);
++        Assert.Null(AtlasLauncherWhisper.CreateLegacyRequest("Dono#Launcher", new string('x', 1001), 7));
++        Assert.Null(AtlasLauncherWhisper.CreateLegacyRequest("Dono#Launcher", "a\0b", 7));
++        Assert.Null(AtlasLauncherWhisper.CreateLegacyRequest("Dono#Launcher", "\ud800", 7));
++        Assert.Null(AtlasLauncherWhisper.CreateLegacyRequest("Dono#Launcher", "  ", 7));
++        Assert.Null(AtlasLauncherWhisper.CreateLegacyRequest("Dono#Launcher", "Addon message", (uint)Language.Addon));
++    }
++
++    [Theory]
++    [InlineData(false)]
++    [InlineData(true)]
++    public void CoreNamedEnvelopeProducesReplyableModernWhisperWithoutFakePlayer(bool sent)
++    {
++        byte[] body = CoreBody(sent, "Dono_42#Launcher", "Bonjour 日本語 😀 ||Hplayer:texte");
++        Assert.True(AtlasLauncherWhisper.TryReadLegacyBody(body, out var envelope));
++        Assert.Equal(sent, envelope.Sent);
++        Assert.Equal("Dono_42#Launcher", envelope.Alias);
++        Assert.Equal("Bonjour 日本語 😀 ||Hplayer:texte", envelope.Text);
++        Assert.Equal(42ul, envelope.Receiver.Low);
++        var session = (GlobalSessionData)RuntimeHelpers.GetUninitializedObject(typeof(GlobalSessionData));
++        var player = new WowGuid128(42, 0x0800000000000000);
++        var modern = AtlasLauncherWhisper.CreateModernPacket(session, envelope, player, 1);
++        Assert.Equal(sent ? ChatMessageTypeModern.WhisperInform : ChatMessageTypeModern.Whisper, modern.SlashCmd);
++        Assert.Equal(sent ? "" : envelope.Alias, modern.SenderName);
++        Assert.Equal(sent ? envelope.Alias : "", modern.TargetName);
++        Assert.Equal(sent ? player : WowGuid128.Empty, modern.SenderGUID);
++        Assert.Equal(sent ? WowGuid128.Empty : player, modern.TargetGUID);
++        Assert.True(modern.SenderAccountGUID.IsEmpty());
++        Assert.False(modern.FakeSenderName);
++        byte[] wire = new byte[2048];
++        int length = modern.WriteToSpan(wire);
++        Assert.True(length > 0);
++        if (ModernVersion.Build == ClientVersionBuild.V3_4_3_54261)
++        {
++            using var reader = new WorldPacket(1, wire[..length]);
++            Assert.Equal((byte)modern.SlashCmd, reader.ReadUInt8());
++            Assert.Equal((uint)Language.Universal, reader.ReadUInt32());
++            Assert.Equal(modern.SenderGUID, reader.ReadPackedGuid128());
++            Assert.True(reader.ReadPackedGuid128().IsEmpty()); // guild
++            Assert.True(reader.ReadPackedGuid128().IsEmpty()); // account
++            Assert.Equal(modern.TargetGUID, reader.ReadPackedGuid128());
++            Assert.Equal(modern.TargetVirtualAddress, reader.ReadUInt32());
++            Assert.Equal(modern.SenderVirtualAddress, reader.ReadUInt32());
++            reader.Skip(12); // achievement, display time, spell
++            uint senderBytes = reader.ReadBits<uint>(11), targetBytes = reader.ReadBits<uint>(11);
++            Assert.Equal(0u, reader.ReadBits<uint>(5)); Assert.Equal(0u, reader.ReadBits<uint>(7));
++            uint textBytes = reader.ReadBits<uint>(12);
++            Assert.Equal(0u, reader.ReadBits<uint>(15)); // no GM flag
++            Assert.False(reader.ReadBit()); Assert.False(reader.ReadBit());
++            Assert.False(reader.ReadBit()); Assert.False(reader.ReadBit());
++            Assert.Equal(modern.SenderName, reader.ReadString(senderBytes));
++            Assert.Equal(modern.TargetName, reader.ReadString(targetBytes));
++            Assert.Equal(envelope.Text, reader.ReadString(textBytes));
++            Assert.Equal(0, reader.Remaining());
++        }
++    }
++
++    [Fact]
++    public void OnlyTheBoundedAtlasEnvelopeIsRecognized()
++    {
++        byte[] good = CoreBody(false, "Dono#Launcher", "Bonjour");
++        for (int length = 0; length < good.Length; length++)
++            Assert.False(AtlasLauncherWhisper.TryReadLegacyBody(good.AsSpan(0, length), out _));
++        foreach (int offset in new[] { 0, 1, 5, 13, 17, good.Length - 2, good.Length - 1 })
++        {
++            byte[] bad = (byte[])good.Clone(); bad[offset] = 255;
++            Assert.False(AtlasLauncherWhisper.TryReadLegacyBody(bad, out _));
++        }
++        Assert.False(AtlasLauncherWhisper.TryReadLegacyBody(CoreBody(false, "RealGameMaster", "Bonjour"), out _));
++        Assert.False(AtlasLauncherWhisper.TryReadLegacyBody(CoreBody(false, "Dono#Launcher", "a\0b"), out _));
++        Assert.False(AtlasLauncherWhisper.TryReadLegacyBody(CoreBody(false, "Dono#Launcher", new string('x', 231)), out _));
++        Assert.True(AtlasLauncherWhisper.TryReadLegacyBody(CoreBody(false, new string('x', 32) + "#Launcher", new string('x', 230)), out _));
++        byte[] npc = (byte[])good.Clone();
++        int receiverOffset = 21 + (int)BinaryPrimitives.ReadUInt32LittleEndian(npc.AsSpan(17));
++        BinaryPrimitives.WriteUInt64LittleEndian(npc.AsSpan(receiverOffset), 0xF13000000000002A);
++        Assert.False(AtlasLauncherWhisper.TryReadLegacyBody(npc, out _));
++    }
++
++    private static byte[] CoreBody(bool sent, string alias, string text)
++    {
++        using var bytes = new ByteBuffer();
++        bytes.WriteUInt8((byte)(sent ? ChatMessageTypeWotLK.WhisperInform : ChatMessageTypeWotLK.Whisper));
++        bytes.WriteUInt32((uint)Language.Universal); bytes.WriteUInt64(0); bytes.WriteUInt32(0);
++        bytes.WriteUInt32((uint)Encoding.UTF8.GetByteCount(alias) + 1); bytes.WriteCString(alias);
++        bytes.WriteUInt64(42);
++        bytes.WriteUInt32((uint)Encoding.UTF8.GetByteCount(text) + 1); bytes.WriteCString(text);
++        bytes.WriteUInt8(0);
++        return bytes.GetData();
++    }
++}
+diff --git a/HermesProxy/World/Chat/AtlasLauncherWhisper.cs b/HermesProxy/World/Chat/AtlasLauncherWhisper.cs
+new file mode 100644
+index 0000000..7ff62d6
+--- /dev/null
++++ b/HermesProxy/World/Chat/AtlasLauncherWhisper.cs
+@@ -0,0 +1,93 @@
++using System;
++using System.Buffers.Binary;
++using System.Text;
++using HermesProxy.Enums;
++using HermesProxy.World.Enums;
++using HermesProxy.World.Server.Packets;
++
++namespace HermesProxy.World.Chat;
++
++internal readonly record struct AtlasWhisperEnvelope(bool Sent, string Alias, string Text, WowGuid64 Receiver);
++
++internal static class AtlasLauncherWhisper
++{
++    private const string Suffix = "#Launcher";
++    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
++
++    internal static bool TryGetUsername(string target, out string username)
++    {
++        username = "";
++        // Modern player links may append the local realm; it is not part of an
++        // Atlas account's name. The core still checks the accepted friendship.
++        string alias = LegacyChatTarget.Normalize(target);
++        if (!alias.EndsWith(Suffix, StringComparison.OrdinalIgnoreCase)) return false;
++        string name = alias[..^Suffix.Length];
++        if (name.Length is < 3 or > 32) return false;
++        foreach (char c in name)
++            if (!(c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9' or '_')) return false;
++        username = name;
++        return true;
++    }
++
++    internal static WorldPacket? CreateLegacyRequest(string target, string body, uint language)
++    {
++        if (!TryGetUsername(target, out string username) || language == (uint)Language.Addon
++            || body.Length is < 1 or > 1000 || body.Contains('\0') || string.IsNullOrWhiteSpace(body)) return null;
++        try { _ = StrictUtf8.GetByteCount(body); }
++        catch (EncoderFallbackException) { return null; }
++        var packet = new WorldPacket(Opcode.CMSG_MESSAGECHAT);
++        packet.WriteUInt32((uint)ChatMessageTypeWotLK.Whisper);
++        packet.WriteUInt32(language); // Preserve the player's learned language.
++        packet.WriteCString(username + Suffix);
++        // AzerothCore processes commands before resolving a character target.
++        // The module derives the sender from WorldSession; no account id is supplied.
++        packet.WriteCString(".atlasmsg " + username + " " + body);
++        return packet;
++    }
++
++    internal static bool TryReadLegacyBody(ReadOnlySpan<byte> data, out AtlasWhisperEnvelope envelope)
++    {
++        envelope = default;
++        // Only the explicit-name SMSG_GM_MESSAGECHAT body emitted by mod-atlas-chat:
++        // whisper type, Universal, zero sender GUID/flags, name+NUL, real receiver,
++        // text+NUL, CHAT_TAG_NONE. No character, GM identity or chat cache is invented.
++        if (data.Length is < 48 or > 307) return false;
++        var type = (ChatMessageTypeWotLK)data[0];
++        if (type is not (ChatMessageTypeWotLK.Whisper or ChatMessageTypeWotLK.WhisperInform)
++            || BinaryPrimitives.ReadUInt32LittleEndian(data[1..]) != (uint)Language.Universal
++            || BinaryPrimitives.ReadUInt64LittleEndian(data[5..]) != 0
++            || BinaryPrimitives.ReadUInt32LittleEndian(data[13..]) != 0) return false;
++        uint nameBytes = BinaryPrimitives.ReadUInt32LittleEndian(data[17..]);
++        if (nameBytes is < 13 or > 42 || data.Length < 21 + nameBytes + 14) return false;
++        int endName = 21 + (int)nameBytes;
++        if (data[endName - 1] != 0) return false;
++        try
++        {
++            string alias = StrictUtf8.GetString(data.Slice(21, (int)nameBytes - 1));
++            if (alias.Contains('-') || !TryGetUsername(alias, out _)) return false;
++            ulong receiver = BinaryPrimitives.ReadUInt64LittleEndian(data[endName..]);
++            if (receiver is 0 or > uint.MaxValue) return false;
++            uint textBytes = BinaryPrimitives.ReadUInt32LittleEndian(data[(endName + 8)..]);
++            if (textBytes is < 2 or > 231 || data.Length != endName + 12 + textBytes + 1
++                || data[^2] != 0 || data[^1] != 0) return false;
++            string text = StrictUtf8.GetString(data.Slice(endName + 12, (int)textBytes - 1));
++            if (text.Contains('\0')) return false;
++            envelope = new(type == ChatMessageTypeWotLK.WhisperInform, alias, text, new WowGuid64(receiver));
++            return true;
++        }
++        catch (DecoderFallbackException) { return false; }
++    }
++
++    internal static ChatPkt CreateModernPacket(GlobalSessionData session, AtlasWhisperEnvelope envelope,
++        WowGuid128 player, uint realmAddress)
++    {
++        var packet = new ChatPkt(session,
++            envelope.Sent ? ChatMessageTypeModern.WhisperInform : ChatMessageTypeModern.Whisper,
++            envelope.Text, (uint)Language.Universal,
++            senderName: envelope.Sent ? "" : envelope.Alias,
++            receiverName: envelope.Sent ? envelope.Alias : "");
++        if (envelope.Sent) { packet.SenderGUID = player; packet.SenderVirtualAddress = realmAddress; }
++        else { packet.TargetGUID = player; packet.TargetVirtualAddress = realmAddress; }
++        return packet;
++    }
++}
+diff --git a/HermesProxy/World/Client/PacketHandlers/ChatHandler.cs b/HermesProxy/World/Client/PacketHandlers/ChatHandler.cs
+index f9de122..417a837 100644
+--- a/HermesProxy/World/Client/PacketHandlers/ChatHandler.cs
++++ b/HermesProxy/World/Client/PacketHandlers/ChatHandler.cs
+@@ -249,6 +249,15 @@ public partial class WorldClient
+     [PacketHandler(Opcode.SMSG_GM_MESSAGECHAT, ClientVersionBuild.V2_0_1_6180)]
+     void HandleServerChatMessageWotLK(WorldPacket packet)
+     {
++        if (LegacyVersion.AddedInVersion(ClientVersionBuild.V3_0_2_9056)
++            && packet.GetUniversalOpcode(false) == Opcode.SMSG_GM_MESSAGECHAT
++            && AtlasLauncherWhisper.TryReadLegacyBody(packet.GetData().AsSpan(
++                (int)packet.GetSize() - packet.Remaining(), packet.Remaining()), out var atlasWhisper))
++        {
++            SendPacketToClient(AtlasLauncherWhisper.CreateModernPacket(GetSession(), atlasWhisper,
++                atlasWhisper.Receiver.To128(GetSession().GameState), GetSession().RealmId.GetAddress()));
++            return;
++        }
+         ChatMessageTypeWotLK chatType = (ChatMessageTypeWotLK)packet.ReadUInt8();
+         uint language = packet.ReadUInt32();
+         WowGuid128 sender = packet.ReadGuid().To128(GetSession().GameState);
+diff --git a/HermesProxy/World/Server/PacketHandlers/ChatHandler.cs b/HermesProxy/World/Server/PacketHandlers/ChatHandler.cs
+index bbe71c8..1b33437 100644
+--- a/HermesProxy/World/Server/PacketHandlers/ChatHandler.cs
++++ b/HermesProxy/World/Server/PacketHandlers/ChatHandler.cs
+@@ -1,6 +1,7 @@
+ ﻿using Framework.Logging;
+ using HermesProxy.Enums;
+ using HermesProxy.World.Enums;
++using HermesProxy.World.Chat;
+ using HermesProxy.World.Server.Packets;
+ using System;
+ using System.Collections.Generic;
+@@ -120,6 +121,15 @@ public partial class WorldSocket
+     [PacketHandler(Opcode.CMSG_CHAT_MESSAGE_WHISPER)]
+     void HandleChatMessageWhisper(ChatMessageWhisper whisper)
+     {
++        if (LegacyVersion.AddedInVersion(ClientVersionBuild.V3_0_2_9056)
++            && whisper.Language != (uint)Language.Addon
++            && AtlasLauncherWhisper.TryGetUsername(whisper.Target, out _))
++        {
++            WorldPacket? request = AtlasLauncherWhisper.CreateLegacyRequest(whisper.Target, whisper.Text, whisper.Language);
++            if (request is not null) SendPacketToServer(request);
++            else GetSession().SendHermesTextMessage("[Atlas] Message invalide (1000 caracteres maximum).");
++            return;
++        }
+         var toBeSentTextParts = ConvertTextMessageIntoMaxLengthParts(whisper.Text);
+         foreach (string text in toBeSentTextParts)
+         {

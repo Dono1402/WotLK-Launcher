@@ -35,7 +35,18 @@
             BorderBrush="#3A444F"
             BorderThickness="0"
             TextElement.FontFamily="{StaticResource AtlasV2.Font.Inter}">
-        <Grid ClipToBounds="True">
+        <Grid x:Name="ShellRoot" ClipToBounds="True"
+              KeyboardNavigation.TabNavigation="Cycle"
+              KeyboardNavigation.ControlTabNavigation="Cycle">
+            <Border x:Name="LoginBackdrop" Visibility="Collapsed" IsHitTestVisible="False"
+                    RenderOptions.BitmapScalingMode="HighQuality">
+                <Border.Background>
+                    <ImageBrush ImageSource="/WotLK.Launcher;component/Assets/Launcher/visuals/icecrown-citadel.png"
+                                Stretch="UniformToFill" AlignmentX="Center" AlignmentY="Top"/>
+                </Border.Background>
+            </Border>
+
+            <Grid x:Name="LauncherSurface" ClipToBounds="True">
             <Grid.RowDefinitions>
                 <RowDefinition x:Name="ContentTopRow" Height="124"/>
                 <RowDefinition Height="*"/>
@@ -57,7 +68,9 @@
                                 CustomizeRequested="ArmoryView_CustomizeRequested"
                                 ProfileSaveRequested="ArmoryView_ProfileSaveRequested"
                                 AvatarChangeRequested="ArmoryView_AvatarChangeRequested"
-                                AvatarRemoveRequested="ArmoryView_AvatarRemoveRequested"/>
+                                AvatarRemoveRequested="ArmoryView_AvatarRemoveRequested"
+                                FriendMessageRequested="ArmoryView_FriendMessageRequested"
+                                FriendsBackRequested="ArmoryView_FriendsBackRequested"/>
 
             <Border x:Name="TopChromeDragZone" Grid.RowSpan="2" Panel.ZIndex="18"
                     Height="124" VerticalAlignment="Top" Background="Transparent" Focusable="False"
@@ -235,11 +248,19 @@
                                 <Style TargetType="{x:Type Button}"
                                        BasedOn="{StaticResource AtlasV2.Pilot.Shell.Icon}">
                                     <Setter Property="Width" Value="44"/>
+                                    <Setter Property="Visibility" Value="Collapsed"/>
                                     <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ActivityState.Current.HasActiveOperation}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ActivityState.Current.HasPendingOperations}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
                                         <DataTrigger Binding="{Binding ActivityState.Current.TopBarShowsPercent}" Value="True">
                                             <Setter Property="Width" Value="72"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding ActivityState.IsOpen}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
                                             <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.SurfacePressed}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -299,6 +320,27 @@
                                          VerticalAlignment="Top"
                                          Fill="{StaticResource AtlasV2.Brush.Danger}"
                                          Visibility="{Binding ActivityState.Current.HasRecentFailure, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+                            </Grid>
+                        </Button>
+
+                        <Button x:Name="MessagesNavigationButton"
+                                Width="40" Height="40" Margin="0,0,5,0" Padding="10"
+                                Style="{StaticResource AtlasV2.Pilot.Shell.Icon}"
+                                ToolTip="Messages" AutomationProperties.Name="Messages"
+                                IsEnabled="{Binding ShellState.IsNavigationEnabled}" Focusable="True"
+                                Click="MessagesNavigationButton_Click">
+                            <Grid Width="18" Height="18">
+                                <Path Width="18" Height="18"
+                                      Data="M21,11.5 C21,16.2 17,20 12,20 C10.5,20 9.1,19.7 7.9,19.1 L3,21 L4.7,16.3 C3.6,15 3,13.3 3,11.5 C3,6.8 7,3 12,3 C17,3 21,6.8 21,11.5 Z"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                      Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                <Border x:Name="MessagesUnreadBadge" MinWidth="17" Height="17" Padding="4,0"
+                                        Margin="0,-9,-10,0" CornerRadius="8.5" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                        Background="{StaticResource AtlasV2.Brush.Cyan}"
+                                        Visibility="{Binding UiState.HasUnread, ElementName=ChatView, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                                    <TextBlock Text="{Binding UiState.UnreadText, ElementName=ChatView}" FontSize="10" FontWeight="Bold"
+                                               Foreground="#07151F" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
                             </Grid>
                         </Button>
 
@@ -383,6 +425,9 @@
                                 <Ellipse IsHitTestVisible="False"
                                          Stroke="{StaticResource AtlasV2.Brush.GoldBorder}"
                                          StrokeThickness="1.5"/>
+                                <Ellipse Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                         Fill="{Binding ProfileState.PresenceBrush}" Stroke="#151B24" StrokeThickness="2"
+                                         ToolTip="{Binding ProfileState.PresenceLabel}"/>
                             </Grid>
                         </Button>
 
@@ -443,6 +488,9 @@
                                      ModifyAvatarRequested="AccountView_ModifyAvatarRequested"
                                      RemoveAvatarRequested="AccountView_RemoveAvatarRequested"
                                      ConfirmAvatarDeleteRequested="AccountView_ConfirmAvatarDeleteRequested"/>
+                <views:ChatViewV2 x:Name="ChatView" Visibility="Collapsed"
+                                  ConversationRequested="ChatView_ConversationRequested" SendRequested="ChatView_SendRequested"
+                                  LoadEarlierRequested="ChatView_LoadEarlierRequested"/>
                 <views:ActivityCenterPanelV2 x:Name="ActivityCenter"
                                              Panel.ZIndex="50"
                                              State="{Binding ActivityState}"
@@ -456,6 +504,8 @@
                                        State="{Binding FriendsState}"
                                        IsOpen="{Binding FriendsState.IsOpen, Mode=TwoWay}"
                                        CloseRequested="FriendsDrawer_CloseRequested"
+                                       PublicProfileRequested="FriendsDrawer_PublicProfileRequested"
+                                       MessageRequested="FriendsDrawer_MessageRequested"
                                        Closed="FriendsDrawer_Closed"/>
                 <views:PatchNoteOverlayV2 x:Name="PatchNoteOverlay"
                                           Panel.ZIndex="90"
@@ -463,12 +513,6 @@
                                           IsOpen="{Binding PatchNoteState.IsOpen, Mode=TwoWay}"
                                           CloseRequested="PatchNoteOverlay_CloseRequested"
                                           Closed="PatchNoteOverlay_Closed"/>
-                <views:AuthOverlayViewV2 x:Name="AuthOverlay"
-                                         Panel.ZIndex="100"
-                                         State="{Binding AuthState}"
-                                         IsOpen="{Binding AuthState.IsOpen, Mode=TwoWay}"
-                                          CloseRequested="AuthOverlay_CloseRequested"
-                                          Closed="AuthOverlay_Closed"/>
                 <views:AvatarCropOverlayV2 x:Name="AvatarCropOverlay"
                                            Panel.ZIndex="120"
                                            State="{Binding AvatarCropState}"
@@ -493,6 +537,33 @@
                                   ManageProfileRequested="ProfileMenu_ManageProfileRequested"
                                   ManageAccountRequested="ProfileMenu_ManageAccountRequested"
                                   Closed="ProfileMenu_Closed"/>
+            </Grid>
+
+            <views:AuthOverlayViewV2 x:Name="AuthOverlay" Panel.ZIndex="200"
+                                     State="{Binding AuthState}"
+                                     IsOpen="{Binding AuthState.IsOpen, Mode=TwoWay}"
+                                     CloseRequested="AuthOverlay_CloseRequested"
+                                     Closed="AuthOverlay_Closed"/>
+
+            <Grid x:Name="LoginWindowChrome" Panel.ZIndex="210" Height="72" Margin="22,10,22,0"
+                  VerticalAlignment="Top" Visibility="Collapsed" Background="Transparent"
+                  MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button x:Name="LoginMinimizeWindowButton" Width="44" Height="40"
+                            Style="{StaticResource AtlasV2.Pilot.Shell.Window}"
+                            ToolTip="Réduire" AutomationProperties.Name="Réduire"
+                            Click="MinimizeButton_Click">
+                        <Path Data="{StaticResource AtlasV2.Icon.Minus}" Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                    </Button>
+                    <Button x:Name="LoginCloseWindowButton" Width="44" Height="40"
+                            Style="{StaticResource AtlasV2.Pilot.Shell.Close}"
+                            ToolTip="Réduire dans la zone de notification"
+                            AutomationProperties.Name="Réduire dans la zone de notification"
+                            Click="CloseWindowButton_Click">
+                        <Path Data="{StaticResource AtlasV2.Icon.Close}" Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                    </Button>
+                </StackPanel>
+            </Grid>
         </Grid>
     </Border>
 </Window>

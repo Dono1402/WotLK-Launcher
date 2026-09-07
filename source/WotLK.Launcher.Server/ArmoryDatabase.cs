@@ -12,6 +12,8 @@ public sealed partial class LauncherDatabase
     internal const int ArmoryMaximumEquipmentSlots = 19;
     internal const int ArmoryMaximumCatalogItems = ArmoryMaximumEquipmentSlots * 2;
     internal const int ArmoryCommandTimeoutSeconds = 10;
+    private static readonly string[] ArmorySavedCombatColumns =
+        ["attackPower", "rangedAttackPower", "spellPower", "critPct", "rangedCritPct", "blockPct", "dodgePct", "parryPct", "resilience"];
 
     public async Task<ArmoryRoster> ListArmoryCharactersAsync(uint accountId, CancellationToken cancellationToken)
     {
@@ -27,6 +29,64 @@ public sealed partial class LauncherDatabase
         await using MySqlConnection connection = await OpenAsync(cancellationToken);
         await using MySqlTransaction transaction = await connection.BeginTransactionAsync(
             IsolationLevel.RepeatableRead, isReadOnly: true, cancellationToken);
+        return await ReadArmoryCatalogAsync(connection, transaction, accountId, characterGuid, cancellationToken);
+    }
+
+    public async Task<ArmoryRoster?> ListFriendArmoryCharactersAsync(
+        uint viewerAccountId, uint friendAccountId, CancellationToken cancellationToken)
+    {
+        if (viewerAccountId == 0 || friendAccountId == 0 || viewerAccountId == friendAccountId) return null;
+        await using MySqlConnection connection = await OpenAsync(cancellationToken);
+        await using MySqlTransaction transaction = await connection.BeginTransactionAsync(
+            IsolationLevel.RepeatableRead, cancellationToken);
+        if (!await HasAcceptedArmoryFriendAsync(connection, transaction, viewerAccountId, friendAccountId, cancellationToken))
+            return null;
+        ArmoryRoster roster = await ReadArmoryRosterAsync(connection, transaction, friendAccountId, null, cancellationToken);
+        if(PresenceAvailable && await V2ScalarAsync(connection,transaction,"SELECT COUNT(*) FROM atlas_launcher_presence WHERE account_id=@account AND manual_status='offline';",cancellationToken,("@account",friendAccountId))>0)
+            roster=roster with{Characters=roster.Characters.Select(row=>row with{Character=row.Character with{Online=0,ZoneId=0,LastLogout=0}}).ToArray()};
+        await transaction.CommitAsync(cancellationToken);
+        return roster;
+    }
+
+    public async Task<ArmoryCatalog?> GetFriendArmoryCatalogAsync(
+        uint viewerAccountId, uint friendAccountId, uint characterGuid, CancellationToken cancellationToken)
+    {
+        if (viewerAccountId == 0 || friendAccountId == 0 || viewerAccountId == friendAccountId || characterGuid == 0) return null;
+        await using MySqlConnection connection = await OpenAsync(cancellationToken);
+        await using MySqlTransaction transaction = await connection.BeginTransactionAsync(
+            IsolationLevel.RepeatableRead, cancellationToken);
+        if (!await HasAcceptedArmoryFriendAsync(connection, transaction, viewerAccountId, friendAccountId, cancellationToken))
+            return null;
+        ArmoryCatalog? catalog = await ReadArmoryCatalogAsync(connection, transaction, friendAccountId, characterGuid, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return catalog;
+    }
+
+    private static async Task<bool> HasAcceptedArmoryFriendAsync(
+        MySqlConnection connection, MySqlTransaction transaction, uint viewerAccountId, uint friendAccountId,
+        CancellationToken cancellationToken)
+    {
+        await using MySqlCommand command = CreateArmoryCommand(connection, transaction);
+        // Keep the accepted friendship (and both Atlas identities) locked until
+        // the character/catalog snapshot is complete. Removal cannot overtake it.
+        command.CommandText = """
+            SELECT 1 FROM atlas_launcher_friendship f
+            INNER JOIN atlas_launcher_profile viewer ON viewer.account_id=@viewer
+            INNER JOIN atlas_launcher_profile friend ON friend.account_id=@friend
+            WHERE f.account_low_id=@low AND f.account_high_id=@high AND f.accepted_at IS NOT NULL
+            FOR SHARE;
+            """;
+        command.Parameters.AddWithValue("@viewer", viewerAccountId);
+        command.Parameters.AddWithValue("@friend", friendAccountId);
+        command.Parameters.AddWithValue("@low", Math.Min(viewerAccountId, friendAccountId));
+        command.Parameters.AddWithValue("@high", Math.Max(viewerAccountId, friendAccountId));
+        return await command.ExecuteScalarAsync(cancellationToken) is not null;
+    }
+
+    private async Task<ArmoryCatalog?> ReadArmoryCatalogAsync(
+        MySqlConnection connection, MySqlTransaction transaction, uint accountId, uint characterGuid,
+        CancellationToken cancellationToken)
+    {
         ArmoryRoster roster = await ReadArmoryRosterAsync(connection, transaction, accountId, characterGuid, cancellationToken);
         ArmoryRosterCharacter? character = roster.Characters.SingleOrDefault();
         if (character is null) return null;
@@ -46,7 +106,7 @@ public sealed partial class LauncherDatabase
             command.Parameters.AddWithValue(parameter, id);
             return parameter;
         }).ToArray();
-        // IDs originate only from the owned character's equipped instances and validated server capture.
+        // IDs originate only from the authorized account's equipped instances and validated server capture.
         command.CommandText = $"""
             SELECT it.entry AS item_id, it.displayid AS display_id, it.Quality AS quality,
                    it.ItemLevel AS item_level, it.name AS name_en, loc.Name AS name_fr,
@@ -109,10 +169,13 @@ public sealed partial class LauncherDatabase
     {
         string characters = QuoteArmoryDatabase(_options.CharacterDatabaseName);
         string world = QuoteArmoryDatabase(_options.WorldDatabaseName);
-        (bool hasStatistics, bool hasSnapshot) = await ReadArmoryCapabilitiesAsync(connection, transaction, cancellationToken);
+        (bool hasStatistics, bool hasSnapshot, HashSet<string> statisticFields) = await ReadArmoryCapabilitiesAsync(connection, transaction, cancellationToken);
         string statisticsColumns = hasStatistics
             ? "s.guid AS statistics_guid, s.strength, s.agility, s.stamina, s.intellect, s.spirit, s.armor, s.maxhealth AS max_health, s.maxpower1 AS max_mana"
             : "NULL AS statistics_guid";
+        if (hasStatistics)
+            statisticsColumns += ", " + string.Join(", ", ArmorySavedCombatColumns.Select(column =>
+                statisticFields.Contains("character_stats." + column) ? $"s.`{column}`" : $"NULL AS `{column}`"));
         string snapshotColumn = hasSnapshot
             ? "CASE WHEN OCTET_LENGTH(a.snapshot) <= @maximumSnapshotBytes THEN CAST(a.snapshot AS CHAR CHARACTER SET utf8mb4) ELSE NULL END AS combat_snapshot"
             : "NULL AS combat_snapshot";
@@ -158,7 +221,18 @@ public sealed partial class LauncherDatabase
                     {
                         statistics = new ArmoryBaseStatistics(reader.GetUInt32("strength"), reader.GetUInt32("agility"),
                             reader.GetUInt32("stamina"), reader.GetUInt32("intellect"), reader.GetUInt32("spirit"),
-                            reader.GetUInt32("armor"), reader.GetUInt32("max_health"), reader.GetUInt32("max_mana"));
+                            reader.GetUInt32("armor"), reader.GetUInt32("max_health"), reader.GetUInt32("max_mana"))
+                        {
+                            BaseAttackPower = ReadArmorySavedStatistic(reader, "attackPower", integer: true),
+                            BaseRangedAttackPower = ReadArmorySavedStatistic(reader, "rangedAttackPower", integer: true),
+                            BaseSpellPower = ReadArmorySavedStatistic(reader, "spellPower", integer: true),
+                            MeleeCritPct = ReadArmorySavedStatistic(reader, "critPct"),
+                            RangedCritPct = ReadArmorySavedStatistic(reader, "rangedCritPct"),
+                            BlockPct = ReadArmorySavedStatistic(reader, "blockPct"),
+                            DodgePct = ReadArmorySavedStatistic(reader, "dodgePct"),
+                            ParryPct = ReadArmorySavedStatistic(reader, "parryPct"),
+                            Resilience = ReadArmorySavedStatistic(reader, "resilience", integer: true)
+                        };
                     }
                     catch (Exception exception) when (exception is InvalidCastException or OverflowException) { }
                 }
@@ -215,7 +289,7 @@ public sealed partial class LauncherDatabase
         return new ArmoryRoster(ArmoryDate(observed), rows.Select(row => row with { Equipment = equipment[row.Character.Guid] }).ToArray());
     }
 
-    private async Task<(bool Statistics, bool Snapshot)> ReadArmoryCapabilitiesAsync(
+    private async Task<(bool Statistics, bool Snapshot, HashSet<string> Fields)> ReadArmoryCapabilitiesAsync(
         MySqlConnection connection, MySqlTransaction transaction, CancellationToken cancellationToken)
     {
         await using MySqlCommand command = CreateArmoryCommand(connection, transaction);
@@ -232,7 +306,24 @@ public sealed partial class LauncherDatabase
         bool statistics = new[] { "guid", "strength", "agility", "stamina", "intellect", "spirit", "armor", "maxhealth", "maxpower1" }
             .All(column => fields.Contains("character_stats." + column));
         bool snapshot = fields.Contains("atlas_armory_combat_snapshot.guid") && fields.Contains("atlas_armory_combat_snapshot.snapshot");
-        return (statistics, snapshot);
+        return (statistics, snapshot, fields);
+    }
+
+    private static double? ReadArmorySavedStatistic(MySqlDataReader reader, string field, bool integer = false)
+    {
+        if (reader.IsDBNull(field)) return null;
+        try
+        {
+            object raw = reader.GetValue(reader.GetOrdinal(field));
+            if (raw is not (byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal)) return null;
+            double value = Convert.ToDouble(raw, CultureInfo.InvariantCulture);
+            return double.IsFinite(value) && value is >= 0 and <= 1_000_000_000
+                && (!integer || value == Math.Truncate(value)) ? value : null;
+        }
+        catch (Exception exception) when (exception is InvalidCastException or OverflowException or FormatException)
+        {
+            return null;
+        }
     }
 
     private static MySqlCommand CreateArmoryCommand(MySqlConnection connection, MySqlTransaction transaction)

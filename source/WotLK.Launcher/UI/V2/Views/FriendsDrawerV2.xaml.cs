@@ -17,6 +17,7 @@ public partial class FriendsDrawerV2 : UserControl
     private bool _hasOpened;
     private bool _isAddFriendExpanded;
     private Popup? _openFriendActionsPopup;
+    private FriendsUiState? _openFriendActionsState;
     private FriendUiItem? _pendingRemoval;
     private FriendsUiState? _pendingRemovalState;
     private UIElement? _removeFriendReturnFocus;
@@ -44,6 +45,10 @@ public partial class FriendsDrawerV2 : UserControl
     public event EventHandler? CloseRequested;
 
     public event EventHandler? Closed;
+
+    public event EventHandler<FriendPublicProfileRequestedEventArgs>? PublicProfileRequested;
+
+    public event EventHandler<FriendPublicProfileRequestedEventArgs>? MessageRequested;
 
     public FriendsUiState? State
     {
@@ -405,27 +410,120 @@ public partial class FriendsDrawerV2 : UserControl
         e.Handled = true;
     }
 
-    private void FriendActionsButton_Click(object sender, RoutedEventArgs e)
+    private void FriendCard_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (sender is not Button { Tag: Popup popup } button)
+        if (sender is FrameworkElement { Tag: Popup popup, DataContext: FriendUiItem friend })
+        {
+            // Open after the gesture is complete. Opening on button-down lets the
+            // auto-closing Popup capture that same button-up outside its content.
+            OpenFriendActionsPopup(popup, friend, atPointer: true);
+            e.Handled = true;
+        }
+    }
+
+    private void FriendCard_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        Key key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if ((key == Key.Apps || (key == Key.F10 && Keyboard.Modifiers == ModifierKeys.Shift))
+            && sender is FrameworkElement { Tag: Popup popup, DataContext: FriendUiItem friend })
+        {
+            OpenFriendActionsPopup(popup, friend, atPointer: false);
+            e.Handled = true;
+        }
+    }
+
+    private void OpenFriendActionsPopup(Popup popup, FriendUiItem friend, bool atPointer)
+    {
+        if (!IsOpen || IsRemoveFriendConfirmationOpen || State is null
+            || !State.Current.Friends.Any(item => item.AccountId == friend.AccountId))
         {
             return;
         }
 
-        if (!ReferenceEquals(_openFriendActionsPopup, popup))
-        {
-            CloseFriendActionsPopup();
-        }
-        popup.DataContext = button.DataContext;
+        CloseFriendActionsPopup();
+        popup.DataContext = friend;
+        popup.Placement = atPointer ? PlacementMode.MousePoint : PlacementMode.Bottom;
+        popup.HorizontalOffset = 0;
         _openFriendActionsPopup = popup;
+        _openFriendActionsState = State;
         popup.IsOpen = true;
         Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
         {
-            if (popup.IsOpen && popup.Child is UIElement child)
+            if (popup.IsOpen && FriendActionButtons(popup).FirstOrDefault() is Button first)
             {
-                Keyboard.Focus(child);
+                Keyboard.Focus(first);
             }
         });
+    }
+
+    private static IEnumerable<Button> FriendActionButtons(Popup popup) =>
+        popup.Child is Border { Child: StackPanel panel }
+            ? panel.Children.OfType<Button>().Where(button => button.IsVisible && button.IsEnabled)
+            : [];
+
+    private void FriendActionsMenu_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        Root_PreviewKeyDown(sender, e);
+        if (e.Handled || _openFriendActionsPopup is not { IsOpen: true } popup
+            || e.Key is not (Key.Up or Key.Down or Key.Home or Key.End))
+        {
+            return;
+        }
+
+        Button[] buttons = FriendActionButtons(popup).ToArray();
+        if (buttons.Length > 0)
+        {
+            int current = Array.FindIndex(buttons, button => button.IsKeyboardFocusWithin);
+            int next = e.Key switch
+            {
+                Key.Home => 0,
+                Key.End => buttons.Length - 1,
+                Key.Up => (current < 0 ? buttons.Length : current + buttons.Length) - 1,
+                _ => current + 1
+            };
+            Keyboard.Focus(buttons[next % buttons.Length]);
+        }
+        e.Handled = true;
+    }
+
+    private void FriendActionsPopup_Closed(object? sender, EventArgs e)
+    {
+        if (ReferenceEquals(sender, _openFriendActionsPopup))
+        {
+            _openFriendActionsPopup = null;
+            _openFriendActionsState = null;
+        }
+    }
+
+    private FriendUiItem? CurrentMenuFriend(object sender)
+    {
+        if (!IsOpen || IsRemoveFriendConfirmationOpen
+            || _openFriendActionsPopup is not { IsOpen: true }
+            || State is null || !ReferenceEquals(State, _openFriendActionsState)
+            || sender is not Button { DataContext: FriendUiItem friend })
+        {
+            return null;
+        }
+        return State.Current.Friends.FirstOrDefault(item => item.AccountId == friend.AccountId);
+    }
+
+    private void ViewPublicProfileMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (CurrentMenuFriend(sender) is FriendUiItem friend)
+        {
+            CloseFriendActionsPopup();
+            PublicProfileRequested?.Invoke(this, new(friend.AccountId, friend.Username));
+        }
+        e.Handled = true;
+    }
+
+    private void SendMessageMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (CurrentMenuFriend(sender) is FriendUiItem friend)
+        {
+            CloseFriendActionsPopup();
+            MessageRequested?.Invoke(this, new(friend.AccountId, friend.Username));
+        }
         e.Handled = true;
     }
 
@@ -457,8 +555,7 @@ public partial class FriendsDrawerV2 : UserControl
 
     private void RemoveFriendMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        if (State is null
-            || sender is not Button { DataContext: FriendUiItem friend })
+        if (CurrentMenuFriend(sender) is not { CanRemove: true } friend)
         {
             return;
         }
@@ -533,11 +630,20 @@ public partial class FriendsDrawerV2 : UserControl
 
     private void CloseFriendActionsPopup()
     {
-        if (_openFriendActionsPopup is not null)
+        Popup? popup = _openFriendActionsPopup;
+        _openFriendActionsPopup = null;
+        _openFriendActionsState = null;
+        if (popup is not null)
         {
-            _openFriendActionsPopup.IsOpen = false;
-            _openFriendActionsPopup = null;
+            popup.IsOpen = false;
         }
     }
 
+}
+
+public sealed class FriendPublicProfileRequestedEventArgs(uint accountId, string username) : EventArgs
+{
+    public uint AccountId { get; } = accountId;
+
+    public string Username { get; } = username;
 }

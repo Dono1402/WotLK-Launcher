@@ -1,0 +1,70 @@
+{
+  "version": "1.5.0",
+  "status": "published",
+  "publishedAtUtc": "2026-09-07T19:34:09Z",
+  "completedAtUtc": "2026-09-07T19:35:33.215987+00:00",
+  "artifacts": [
+    {
+      "name": "WotLK-Launcher.exe",
+      "bytes": 401195333,
+      "sha256": "b7e8ba706da2f9e4f1356f387472289f8573b1e2b473ff757cbe1f06e0f4a783"
+    },
+    {
+      "name": "WotLK-Launcher-Installer.exe",
+      "bytes": 506566745,
+      "sha256": "4cd42ae8b700028682adc4126be9848e9fa2cc72cfae2e61c3a93b7f53a754fb"
+    },
+    {
+      "name": "armory-runtime.zip",
+      "bytes": 298277802,
+      "sha256": "9ac80ae302565f7b9bc8cc6606bc3acc0be86bd1987589b0f968a936dfcca3d6"
+    },
+    {
+      "name": "launcher-update.json",
+      "bytes": 424,
+      "sha256": "7bf49e19d55e1e2d3cdfbb67140987c027262fd54b5eaf9ee0a468e15cb47e65"
+    },
+    {
+      "name": "PATCH-NOTES.md",
+      "bytes": 5480,
+      "sha256": "c8a48b2e40e48edbb39fad9f5566b3bc6a126ffb101aacf663ac393930801d45"
+    },
+    {
+      "name": "PATCH-NOTES.en.md",
+      "bytes": 4712,
+      "sha256": "806772fbc69d2ea690b142138b054f410645b909bab89fb48376318d2368b7e2"
+    }
+  ],
+  "patchNotes": {
+    "sections": 8,
+    "items": 37,
+    "languages": [
+      "fr-FR",
+      "en-US"
+    ],
+    "historicalNotesPreserved": 4
+  },
+  "validation": {
+    "publicManifestSignature": true,
+    "completePublicDownloads": true,
+    "packageContents": true,
+    "installerIsolated": true,
+    "installerArtifact": true,
+    "chatWorkspaceAssertions": 210,
+    "chatRichMediaAssertions": 786,
+    "publicationHelperAssertions": 29,
+    "servicesUnchanged": true,
+    "inGameManualRoundTripThisRelease": false,
+    "authenticatedPatchNotesObserved": false
+  },
+  "github": {
+    "tag": "v1.5.0",
+    "url": "https://github.com/Dono1402/WotLK-Launcher/releases/tag/v1.5.0",
+    "status": "published",
+    "publishedAt": "2026-09-07T19:41:50Z",
+    "commit": "9f06acc96a163634e0b54cdf38b40581339f0522",
+    "assets": 7,
+    "digestsVerified": true,
+    "isLatest": true
+  }
+}

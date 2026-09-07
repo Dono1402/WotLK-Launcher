@@ -22,6 +22,22 @@ internal static class ArmoryEndpoints
                 accountId => guid is > 0 and <= uint.MaxValue
                     ? database.GetArmoryCatalogAsync(accountId, (uint)guid, cancellationToken)
                     : Task.FromResult<ArmoryCatalog?>(null), cancellationToken));
+
+        app.MapGet("/api/v1/friends/{friendAccountId:long}/armory/characters", (
+            long friendAccountId, HttpContext context, LauncherDatabase database, ArmoryReadLimiter limiter,
+            CancellationToken cancellationToken) =>
+            ExecuteAsync(context, database, limiter,
+                viewerAccountId => friendAccountId is > 0 and <= uint.MaxValue
+                    ? database.ListFriendArmoryCharactersAsync(viewerAccountId, (uint)friendAccountId, cancellationToken)
+                    : Task.FromResult<ArmoryRoster?>(null), cancellationToken));
+
+        app.MapGet("/api/v1/friends/{friendAccountId:long}/armory/characters/{guid:long}/catalog", (
+            long friendAccountId, long guid, HttpContext context, LauncherDatabase database, ArmoryReadLimiter limiter,
+            CancellationToken cancellationToken) =>
+            ExecuteAsync(context, database, limiter,
+                viewerAccountId => friendAccountId is > 0 and <= uint.MaxValue && guid is > 0 and <= uint.MaxValue
+                    ? database.GetFriendArmoryCatalogAsync(viewerAccountId, (uint)friendAccountId, (uint)guid, cancellationToken)
+                    : Task.FromResult<ArmoryCatalog?>(null), cancellationToken));
     }
 
     private static async Task<IResult> ExecuteAsync<T>(
@@ -31,7 +47,7 @@ internal static class ArmoryEndpoints
         context.Response.Headers.CacheControl = "no-store";
         AuthenticatedAccount? account = await AtlasRequestAuthentication.AuthenticateAsync(context, database, cancellationToken);
         if (account is null) return Results.Unauthorized();
-        // Neither account IDs, object IDs nor SQL are accepted from the caller.
+        // Only explicit route IDs are accepted; no account override, item list or SQL query.
         if (context.Request.Query.Count != 0) return Results.BadRequest(new { error = "armory-invalid-query" });
         using RateLimitLease lease = limiter.Acquire(account.AccountId);
         if (!lease.IsAcquired)

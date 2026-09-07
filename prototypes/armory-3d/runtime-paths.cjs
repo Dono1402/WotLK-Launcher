@@ -20,8 +20,10 @@ function readRuntimePaths(environment=process.env) {
   const assetRoot = absoluteEnvironmentPath(environment,'ATLAS_ARMORY_ASSET_ROOT',path.resolve(__dirname,'../../source/WotLK.Launcher/Assets'),{required:publicMode});
   const metadataRoot = absoluteEnvironmentPath(environment,'ATLAS_ARMORY_METADATA_ROOT',path.join(dataRoot,'metadata'),{required:publicMode});
   const clientRoot = absoluteEnvironmentPath(environment,'ATLAS_ARMORY_CLIENT_ROOT',undefined);
+  const freshRoster = environment.ATLAS_ARMORY_REQUIRE_FRESH_ROSTER || '0';
+  if (!['0','1'].includes(freshRoster)) throw new Error('Invalid fresh armory roster flag');
   const outputRoot = absoluteEnvironmentPath(environment,'ARMORY_EXPORT_DIR',dataRoot);
-  return {source,publicMode,dataRoot,vendorRoot,assetRoot,metadataRoot,clientRoot,outputRoot};
+  return {source,publicMode,dataRoot,vendorRoot,assetRoot,metadataRoot,clientRoot,outputRoot,requireFreshRoster:freshRoster==='1'};
 }
 
 const paths = readRuntimePaths();

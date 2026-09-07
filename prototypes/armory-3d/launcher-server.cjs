@@ -52,7 +52,10 @@ function createLauncherServer({key,armory}) {
         if (route==='armory.json') return send({revision:state.revision,assetBase:base,modelReady:state.modelReady,
           modelStatus:state.modelStatus || (state.modelReady ? 'ready' : 'unavailable'),characterId:character[1]});
         if (route==='statistics.json') return send({status:state.character.statistics?'ready':'unavailable',record:state.character.statistics});
-        if (route==='view') file = path.join(__dirname,'index.html');
+        if (route==='view') {
+          armory.prioritize?.(character[1]);
+          file = path.join(__dirname,'index.html');
+        }
         else {
           if (revision!==state.revision) { res.writeHead(404); return res.end(); }
           if (name==='character.json') return send(state.character);
@@ -78,7 +81,7 @@ function createLauncherServer({key,armory}) {
 
 async function main() {
   const config = runtimePaths.publicMode
-    ? {source:'rpc',clientRoot:runtimePaths.clientRoot,intervalMs:60000}
+    ? {source:'rpc',clientRoot:runtimePaths.clientRoot,requireFreshRoster:runtimePaths.requireFreshRoster,intervalMs:60000}
     : await require('./statistics-sync.cjs').readSyncConfig();
   if (!config) throw new Error('Local armory configuration unavailable');
   const rpc = createLauncherRpc({onShutdown:() => { void stop(); }});

@@ -3,6 +3,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -41,7 +42,12 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
     private WebView2CompositionControl? _browser;
     private CancellationTokenSource? _lifetime;
     private Func<LauncherArmoryLocalConfiguration> _loadConfiguration = LauncherArmoryLocalHost.LoadConfiguration;
+    private Func<string> _loadFriendCacheRoot = LauncherArmoryLocalHost.LoadFriendDataRoot;
     private Func<uint, LauncherArmoryDataRequest, CancellationToken, Task<JsonElement>>? _readData;
+    private Func<uint, uint, LauncherArmoryDataRequest, CancellationToken, Task<JsonElement>>? _readFriendData;
+    private FriendUiItem? _friendProfile;
+    private readonly LauncherArmoryFriendCache _friendCaches = new();
+    private string? _friendCacheUsername;
     private string? _userDataFolder;
     private string? _sessionUsername;
     private BitmapSource? _avatarSource;
@@ -59,6 +65,16 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
     private bool _bannerBusy;
     private CancellationTokenSource? _bannerChoiceLifetime;
     private bool _disposed;
+    private string _presence = "offline";
+    private ProfileUiState? _profilePresence;
+
+    internal void UpdatePresence(ProfileUiState profile)
+    {
+        _presence = profile.PresenceSnapshot is { IsAvailable: true, OwnerAccountId: not null } snapshot
+            ? snapshot.Status : "offline";
+        _profilePresence = profile;
+        PublishProfile();
+    }
 
     public ArmoryViewV2()
     {
@@ -80,6 +96,10 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
     public event EventHandler<ArmoryProfileSaveRequestedEventArgs>? ProfileSaveRequested;
     public event EventHandler<ArmoryAvatarRequestedEventArgs>? AvatarChangeRequested;
     public event EventHandler<ArmoryAvatarRequestedEventArgs>? AvatarRemoveRequested;
+    public event EventHandler<ChatConversationRequestedEventArgs>? FriendMessageRequested;
+    public event EventHandler? FriendsBackRequested;
+    internal uint? FriendAccountId => _friendProfile?.AccountId;
+    internal bool IsReadOnlyProfile => _friendProfile is not null;
     internal bool IsConfigured => _getAccount is not null;
     internal WebView2CompositionControl? Browser => _browser;
 
@@ -87,22 +107,103 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
         Func<LauncherArmoryLocalConfiguration>? loadConfiguration = null, string? userDataFolder = null,
         ArmoryBannerStore? bannerStore = null, IAvatarFilePicker? bannerPicker = null,
         Func<uint, LauncherArmoryDataRequest, CancellationToken, Task<JsonElement>>? readData = null,
-        Func<string?>? getGameDirectory = null)
+        Func<string?>? getGameDirectory = null,
+        Func<uint, uint, LauncherArmoryDataRequest, CancellationToken, Task<JsonElement>>? readFriendData = null,
+        AvatarImageCache? avatarImages = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ResetSession();
+        // A first configuration is normal startup; a replacement is an explicit
+        // session/source change and must invalidate the previously bound cache.
+        StopFriendCacheSession(purge: _getAccount is not null);
+        _friendProfile = null;
         if (_state is not null) _state.PropertyChanged -= StateChanged;
         LauncherLocalization.LocaleChanged -= LocaleChanged;
         _getAccount = getAccount;
         _state = state;
         _loadConfiguration = loadConfiguration ?? (() => LauncherArmoryLocalHost.LoadConfiguration(getGameDirectory?.Invoke()));
+        _loadFriendCacheRoot = loadConfiguration is null ? LauncherArmoryLocalHost.LoadFriendDataRoot
+            : () => LauncherArmoryLocalHost.RequireAuthenticatedSource(loadConfiguration()).DataRoot
+                ?? throw new InvalidOperationException("Missing friend armory cache directory.");
         _readData = readData;
+        _readFriendData = readFriendData;
+        _friendAvatarImages = avatarImages;
         _userDataFolder = userDataFolder;
         _bannerStore = bannerStore ?? new ArmoryBannerStore();
         _bannerSelection = new AvatarFileSelectionService(bannerPicker ?? new BannerFilePicker());
         state.PropertyChanged += StateChanged;
         LauncherLocalization.LocaleChanged += LocaleChanged;
+        StartFriendCacheSession();
         if (IsVisible) _ = OpenAsync();
+    }
+
+    internal void ShowFriendProfile(FriendUiItem friend)
+    {
+        if (friend.AccountId == 0 || _state?.IsNavigationEnabled != true) return;
+        if (_friendProfile?.AccountId == friend.AccountId && _lifetime is not null
+            && _sessionUsername == _state.Current.Username)
+        {
+            _friendProfile = friend;
+            PublishProfile();
+            return;
+        }
+        ResetSession();
+        _friendProfile = friend;
+        CustomizeButton.Visibility = Visibility.Collapsed;
+        if (IsVisible) _ = OpenAsync();
+    }
+
+    internal void UpdateFriendProfile(FriendUiItem friend)
+    {
+        if (_friendProfile?.AccountId != friend.AccountId) return;
+        _friendProfile = friend;
+        PublishProfile();
+    }
+
+    internal void ShowOwnProfile()
+    {
+        if (_friendProfile is null) return;
+        ResetSession();
+        _friendProfile = null;
+        CustomizeButton.Visibility = Visibility.Collapsed;
+        if (IsVisible) _ = OpenAsync();
+    }
+
+    internal void ForgetFriendCache(uint accountId)
+    {
+        if (_friendProfile?.AccountId == accountId) ResetSession();
+        StartFriendCacheSession();
+        _friendCaches.Remove(accountId);
+    }
+
+    internal void RetainFriendCaches(IReadOnlySet<uint> friends)
+    {
+        if (_friendProfile is FriendUiItem current && !friends.Contains(current.AccountId)) ResetSession();
+        if (_state?.IsNavigationEnabled != true) return;
+        StartFriendCacheSession();
+        _friendCaches.Retain(friends);
+    }
+
+    private void StartFriendCacheSession()
+    {
+        if (_disposed || _friendCacheUsername is not null || _getAccount is null
+            || _readFriendData is null || _state?.IsNavigationEnabled != true) return;
+        try
+        {
+            // Discover the disk scope without an additional API request. The viewer
+            // is bound later by OpenAsync after its normal authenticated account read.
+            // Logout/removal can already purge old files not reopened this run.
+            _friendCaches.ConfigureRoot(_loadFriendCacheRoot());
+            _friendCacheUsername = _state.Current.Username;
+        }
+        catch (Exception) { } // The profile's normal retry path reports unavailable resources.
+    }
+
+    private void StopFriendCacheSession(bool purge)
+    {
+        _friendCacheUsername = null;
+        if (purge) _friendCaches.Clear();
+        else _friendCaches.Dispose();
     }
 
     private async Task OpenAsync()
@@ -110,11 +211,16 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
         if (_disposed || _lifetime is not null || _getAccount is null || _state?.IsNavigationEnabled != true || !IsVisible) return;
         CancellationTokenSource lifetime = _lifetime = new CancellationTokenSource();
         CancellationToken token = lifetime.Token;
+        FriendUiItem? friend = _friendProfile;
         _sessionUsername = _state.Current.Username;
         StatusPanel.Visibility = Visibility.Visible;
+        ProfileLoadingIndicator.Visibility = Visibility.Visible;
+        AutomationProperties.SetName(ProfileLoadingIndicator, LocalText("Chargement du profil", "Loading profile"));
+        StatusText.Visibility = Visibility.Collapsed;
+        StatusText.Text = string.Empty;
         RetryButton.Visibility = Visibility.Collapsed;
         CustomizeButton.Content = LauncherLocalization.IsEnglish ? "Customize profile" : "Personnaliser le profil";
-        StatusText.Text = LauncherLocalization.IsEnglish ? "Loading profile…" : "Chargement du profil…";
+        CustomizeButton.Visibility = Visibility.Collapsed;
         try
         {
             uint? account = await _getAccount(token);
@@ -123,7 +229,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
             _sessionAccountId = account;
             try
             {
-                ArmoryBannerData? banner = await _bannerStore.LoadAsync(account.Value, token);
+                ArmoryBannerData? banner = friend is null ? await _bannerStore.LoadAsync(account.Value, token) : null;
                 token.ThrowIfCancellationRequested();
                 _banner = banner;
                 _bannerData = banner?.DataUrl;
@@ -137,11 +243,27 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
             LauncherArmoryLocalHost host = _host = new LauncherArmoryLocalHost();
             LauncherArmoryLocalConfiguration configuration = await Task.Run(_loadConfiguration, token);
             token.ThrowIfCancellationRequested();
+            if (friend is not null)
+            {
+                if (_readFriendData is null) throw new InvalidOperationException("Friend profiles are unavailable.");
+                StartFriendCacheSession();
+                configuration = LauncherArmoryLocalHost.RequireAuthenticatedSource(configuration);
+                // Cached geometry survives navigation and restarts, but cached friend data must
+                // never appear before a new API authorization and current roster read.
+                string friendDirectory = _friendCaches.GetDirectory(configuration.DataRoot!, account.Value, friend.AccountId);
+                configuration = configuration with { DataRoot = friendDirectory, RequireFreshRoster = true };
+            }
             await LauncherWebViewRuntime.EnsureAvailableAsync(configuration, token,
-                () => StatusText.Text = LocalText("Installation du composant Microsoft WebView2…", "Installing the Microsoft WebView2 component…"));
+                () =>
+                {
+                    StatusText.Text = LocalText("Installation du composant Microsoft WebView2…", "Installing the Microsoft WebView2 component…");
+                    StatusText.Visibility = Visibility.Visible;
+                });
             token.ThrowIfCancellationRequested();
-            await host.StartAsync(account.Value, configuration, token,
-                _readData is null ? null : (request, requestToken) => _readData(account.Value, request, requestToken));
+            await host.StartAsync(friend?.AccountId ?? account.Value, configuration, token,
+                friend is not null
+                    ? (request, requestToken) => _readFriendData!(account.Value, friend.AccountId, request, requestToken)
+                    : _readData is null ? null : (request, requestToken) => _readData(account.Value, request, requestToken));
             token.ThrowIfCancellationRequested();
             WebView2CompositionControl browser = _browser = new WebView2CompositionControl
             {
@@ -180,6 +302,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
             core.NavigationCompleted += (_, args) =>
             {
                 if (token.IsCancellationRequested) return;
+                ProfileLoadingIndicator.Visibility = Visibility.Collapsed;
                 StatusPanel.Visibility = args.IsSuccess ? Visibility.Collapsed : Visibility.Visible;
                 if (args.IsSuccess) PublishProfile();
                 else ShowFailure();
@@ -189,7 +312,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
         catch (OperationCanceledException) { }
         catch (Exception)
         {
-            if (ReferenceEquals(_lifetime, lifetime)) { ResetSession(); ShowFailure(); }
+            if (ReferenceEquals(_lifetime, lifetime)) { ResetSession(preserveSharedCharacter: true); ShowFailure(); }
         }
     }
 
@@ -220,6 +343,13 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
             if (action == "drag-window")
             {
                 if (connected) WindowDragRequested?.Invoke(this, EventArgs.Empty);
+                return;
+            }
+            if (_friendProfile is FriendUiItem friend)
+            {
+                if (connected && action == "send-message") FriendMessageRequested?.Invoke(this, new(friend.AccountId, friend.Username));
+                else if (connected && action == "back-to-friends") FriendsBackRequested?.Invoke(this, EventArgs.Empty);
+                // Every editor action is blocked at the native bridge, regardless of the web UI.
                 return;
             }
             if (action is "choose-banner" or "save-banner" or "cancel-banner" or "reset-banner")
@@ -453,6 +583,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
 
     internal void OpenProfileEditor()
     {
+        if (IsReadOnlyProfile) return;
         if (_browser?.CoreWebView2 is { } core && _state?.IsNavigationEnabled == true)
             core.PostWebMessageAsJson("{\"type\":\"profile-editor-open\"}");
     }
@@ -468,24 +599,42 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
     private void ShowFailure()
     {
         StatusPanel.Visibility = Visibility.Visible;
+        ProfileLoadingIndicator.Visibility = Visibility.Collapsed;
+        StatusText.Visibility = Visibility.Visible;
         StatusText.Text = LauncherLocalization.IsEnglish ? "Armory unavailable" : "Armurerie indisponible";
         RetryButton.Content = LauncherLocalization.IsEnglish ? "Retry" : "Réessayer";
         RetryButton.Visibility = Visibility.Visible;
+        CustomizeButton.Visibility = IsReadOnlyProfile ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void PublishProfile()
     {
         if (_browser?.CoreWebView2 is not { } core || _state?.IsNavigationEnabled != true) return;
         AccountViewState state = _state.Current;
-        if (!ReferenceEquals(_avatarSource, state.AvatarImage))
+        BitmapSource? avatarImage = _friendProfile is FriendUiItem friend ? ResolveFriendProfileAvatar(friend) : state.AvatarImage;
+        if (!ReferenceEquals(_avatarSource, avatarImage))
         {
-            _avatarSource = state.AvatarImage;
-            _avatarData = EncodeAvatar(state.AvatarImage);
+            _avatarSource = avatarImage;
+            _avatarData = EncodeAvatar(avatarImage);
         }
         try
         {
+            if (_friendProfile is FriendUiItem publicProfile)
+            {
+                core.PostWebMessageAsJson(JsonSerializer.Serialize(new { type = "profile", readOnly = true,
+                    requestedCharacterGuid = RequestedCharacterGuid, requestedCharacterNonce = _requestedCharacterNonce,
+                    username = publicProfile.Username, statusMessage = publicProfile.StatusMessage, bio = publicProfile.Bio,
+                    presence = publicProfile.Presence ?? (publicProfile.IsOnline ? "online" : "offline"),
+                    presenceLabel = publicProfile.ProfilePresenceText,
+                    avatar = _avatarData, canUpdateSocialProfile = false, canModifyAvatar = false, canRemoveAvatar = false,
+                    canModifyBanner = false, canSendMessage = state.IsRuntimeConnected && !state.IsPreview,
+                    locale = LauncherLocalization.IsEnglish ? "en" : "fr" }));
+                return;
+            }
             core.PostWebMessageAsJson(JsonSerializer.Serialize(new { type = "profile", username = state.Username,
+                requestedCharacterGuid = RequestedCharacterGuid, requestedCharacterNonce = _requestedCharacterNonce,
                 statusMessage = state.StatusMessage, bio = state.Bio, avatar = _avatarData,
+                presence = _presence, presenceLabel = _profilePresence?.PresenceLabel ?? LauncherLocalization.Text("Hors ligne"),
                 canUpdateSocialProfile = state.IsRuntimeConnected && !state.IsPreview && state.CanUpdateSocialProfile,
                 canModifyAvatar = state.IsRuntimeConnected && !state.IsPreview && !_avatarSelectionPending && state.CanModifyAvatar,
                 canRemoveAvatar = state.IsRuntimeConnected && !state.IsPreview && !_avatarSelectionPending && state.CanRemoveAvatar,
@@ -544,8 +693,21 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
 
     private void StateChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (_state?.IsNavigationEnabled != true) { ResetSession(); return; }
-        if (_sessionUsername is not null && _sessionUsername != _state.Current.Username) ResetSession();
+        if (_state?.IsNavigationEnabled != true)
+        {
+            _friendProfile = null;
+            ResetSession();
+            StopFriendCacheSession(purge: _friendCacheUsername is not null);
+            return;
+        }
+        if ((_friendCacheUsername is not null && _friendCacheUsername != _state.Current.Username)
+            || (_sessionUsername is not null && _sessionUsername != _state.Current.Username))
+        {
+            _friendProfile = null;
+            ResetSession();
+            StopFriendCacheSession(purge: true);
+        }
+        StartFriendCacheSession();
         if (_lifetime is null && IsVisible) _ = OpenAsync();
         else PublishProfile();
     }
@@ -554,19 +716,29 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
     {
         CustomizeButton.Content = LauncherLocalization.IsEnglish ? "Customize profile" : "Personnaliser le profil";
         if (RetryButton.Visibility == Visibility.Visible) ShowFailure();
-        else StatusText.Text = LauncherLocalization.IsEnglish ? "Loading profile…" : "Chargement du profil…";
+        else AutomationProperties.SetName(ProfileLoadingIndicator, LocalText("Chargement du profil", "Loading profile"));
         PublishProfile();
     }
-    private void RetryButton_Click(object sender, RoutedEventArgs args) { ResetSession(); _ = OpenAsync(); }
-    private void CustomizeButton_Click(object sender, RoutedEventArgs args) => CustomizeRequested?.Invoke(this, EventArgs.Empty);
-
-    internal void ResetSession()
+    private void RetryButton_Click(object sender, RoutedEventArgs args) { ResetSession(preserveSharedCharacter: true); _ = OpenAsync(); }
+    private void CustomizeButton_Click(object sender, RoutedEventArgs args)
     {
+        if (!IsReadOnlyProfile) CustomizeRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    internal void ResetSession(bool preserveSharedCharacter = false)
+    {
+        // An opening failure/retry still targets the same profile and shared
+        // character. Navigation, account changes and disposal clear the target.
+        if (!preserveSharedCharacter) ResetSharedCharacter();
+        ProfileLoadingIndicator.Visibility = Visibility.Collapsed;
+        StatusPanel.Visibility = Visibility.Collapsed;
         CancellationTokenSource? lifetime = _lifetime;
         _lifetime = null;
         _sessionUsername = null;
         _avatarSource = null;
         _avatarData = null;
+        _friendAvatarRequest = null;
+        _friendAvatarImage = null;
         _profileBridgeError = null;
         _avatarBridgeError = null;
         _avatarSelectionPending = false;
@@ -589,6 +761,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
         if (_disposed) return;
         _disposed = true;
         ResetSession();
+        StopFriendCacheSession(purge: false);
         if (_state is not null) _state.PropertyChanged -= StateChanged;
         LauncherLocalization.LocaleChanged -= LocaleChanged;
         _getAccount = null; _state = null;

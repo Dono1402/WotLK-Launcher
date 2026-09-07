@@ -14,7 +14,10 @@ SELECT JSON_OBJECT('observedAtUtc',UTC_TIMESTAMP(6),'characters',JSON_ARRAYAGG(J
     'online',c.online,'zoneId',c.zone,'lastLogout',c.logout_time),
   'snapshot',a.snapshot,
   'values',IF(s.guid IS NULL,NULL,JSON_OBJECT('strength',s.strength,'agility',s.agility,'stamina',s.stamina,
-    'intellect',s.intellect,'spirit',s.spirit,'armor',s.armor,'maxHealth',s.maxhealth,'maxMana',s.maxpower1)),
+    'intellect',s.intellect,'spirit',s.spirit,'armor',s.armor,'maxHealth',s.maxhealth,'maxMana',s.maxpower1,
+    'baseAttackPower',s.attackPower,'baseRangedAttackPower',s.rangedAttackPower,'baseSpellPower',s.spellPower,
+    'meleeCritPct',s.critPct,'rangedCritPct',s.rangedCritPct,'dodgePct',s.dodgePct,
+    'parryPct',s.parryPct,'blockPct',s.blockPct,'resilience',s.resilience)),
   'equipment',(SELECT JSON_ARRAYAGG(JSON_OBJECT('slot',i.slot,'itemId',ii.itemEntry,'displayId',it.displayid,
     'name',it.name,'nameFr',l.Name,'quality',it.Quality,'inventoryType',it.InventoryType,'itemLevel',it.ItemLevel,
     'randomPropertyId',ii.randomPropertyId,'enchantments',ii.enchantments))

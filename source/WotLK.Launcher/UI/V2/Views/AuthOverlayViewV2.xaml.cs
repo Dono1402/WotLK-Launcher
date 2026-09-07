@@ -35,7 +35,7 @@ public partial class AuthOverlayViewV2 : UserControl
         nameof(CanClose),
         typeof(bool),
         typeof(AuthOverlayViewV2),
-        new PropertyMetadata(true));
+        new PropertyMetadata(true, CanCloseChanged));
 
     public AuthOverlayViewV2()
     {
@@ -494,6 +494,17 @@ public partial class AuthOverlayViewV2 : UserControl
         }
 
         CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static void CanCloseChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)
+    {
+        AuthOverlayViewV2 view = (AuthOverlayViewV2)dependencyObject;
+        KeyboardNavigationMode navigation = (bool)args.NewValue
+            ? KeyboardNavigationMode.Cycle
+            : KeyboardNavigationMode.Continue;
+        // Mandatory login shares its tab cycle with the shell's two system buttons.
+        KeyboardNavigation.SetTabNavigation(view.AuthCard, navigation);
+        KeyboardNavigation.SetControlTabNavigation(view.AuthCard, navigation);
     }
 
     private void Scrim_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)

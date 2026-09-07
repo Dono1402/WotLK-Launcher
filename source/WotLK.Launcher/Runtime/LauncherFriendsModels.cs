@@ -83,9 +83,10 @@ internal sealed record FriendRuntimeItem(
     string Bio = "",
     ImmutableArray<FriendCharacterRuntimeItem> Characters = default,
     bool IsLauncherOnline = false,
-    DateTimeOffset? LauncherLastSeenAt = null)
+    DateTimeOffset? LauncherLastSeenAt = null,
+    string? Presence = null)
 {
-    public bool IsAvailable => IsOnline || IsLauncherOnline;
+    public bool IsAvailable => Presence is null ? IsOnline || IsLauncherOnline : Presence != "offline";
 }
 
 internal sealed record FriendCharacterRuntimeItem(

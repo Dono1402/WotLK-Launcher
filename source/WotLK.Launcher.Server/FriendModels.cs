@@ -18,7 +18,8 @@ public sealed record LauncherFriend(
     string Bio = "",
     IReadOnlyList<LauncherFriendCharacter>? Characters = null,
     bool LauncherOnline = false,
-    DateTimeOffset? LauncherLastSeenAt = null);
+    DateTimeOffset? LauncherLastSeenAt = null,
+    string? Presence = null);
 
 public sealed record LauncherFriendCharacter(
     string Name,

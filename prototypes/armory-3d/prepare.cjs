@@ -1,6 +1,6 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { openClient } = require('./local-client.cjs');
+const { openClient, withIndexedTableRows } = require('./local-client.cjs');
 const {renderError,selectAppearance} = require('./equipment-rendering.cjs');
 
 async function main() {
@@ -10,7 +10,7 @@ async function main() {
   const db2 = require(path.join(vendor, 'casc/db2.js'));
   await db2.preload.ChrCustomizationMaterial();
   const customization = require(path.join(vendor, 'db/caches/DBCharacterCustomization.js'));
-  await customization.ensureInitialized();
+  await withIndexedTableRows(db2.ChrCustomizationMaterial,() => customization.ensureInitialized());
   const modelId = customization.get_chr_model_id(c.race, c.gender);
   if (!modelId) throw new Error('Character model mapping missing');
   const fileId = customization.get_model_file_data_id(modelId);

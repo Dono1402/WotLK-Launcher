@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using WotLK.Launcher.Account;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2.Commands;
 using WotLK.Launcher.UI.V2.Localization;
@@ -43,9 +44,13 @@ public partial class LauncherShellV2 : Window
 
     internal void AttachArmory(Func<CancellationToken, Task<uint?>> getAccount,
         Func<uint, LauncherArmoryDataRequest, CancellationToken, Task<JsonElement>>? readData = null,
-        Func<string?>? getGameDirectory = null)
+        Func<string?>? getGameDirectory = null,
+        Func<uint, uint, LauncherArmoryDataRequest, CancellationToken, Task<JsonElement>>? readFriendData = null,
+        AvatarImageCache? avatarImages = null)
     {
-        ArmoryView.Configure(getAccount, AccountState, readData: readData, getGameDirectory: getGameDirectory);
+        ArmoryView.Configure(getAccount, AccountState, readData: readData, getGameDirectory: getGameDirectory,
+            readFriendData: readFriendData, avatarImages: avatarImages);
+        ArmoryView.UpdatePresence(ProfileState);
     }
 
     public LauncherShellV2(GamePreviewScenario scenario = GamePreviewScenario.Ready)
@@ -373,6 +378,7 @@ public partial class LauncherShellV2 : Window
                 ? "Atlas Launcher · Client local"
                 : "Atlas Launcher";
         DataContext = this;
+        InitializeChatPresentation();
 
         SizeChanged += LauncherShellV2_SizeChanged;
         StateChanged += LauncherShellV2_StateChanged;
@@ -390,6 +396,7 @@ public partial class LauncherShellV2 : Window
         DashboardState.PropertyChanged += DashboardState_PropertyChanged;
         Loaded += LauncherShellV2_Loaded;
         Closed += LauncherShellV2_Closed;
+        ApplyAuthenticationGate(openWhenRequired: false);
     }
 
     public ShellUiState ShellState { get; }
@@ -650,6 +657,7 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_Closed(object? sender, EventArgs e)
     {
+        DetachChatPresentation();
         Loaded -= LauncherShellV2_Loaded;
         SizeChanged -= LauncherShellV2_SizeChanged;
         StateChanged -= LauncherShellV2_StateChanged;
@@ -720,6 +728,9 @@ public partial class LauncherShellV2 : Window
         TitleBar.Height = barHeight;
         TitleBar.CornerRadius = new CornerRadius(spacious ? 14 : 11);
         ContentTopRow.Height = new GridLength(inset + barHeight + (spacious ? 22 : 16));
+        AuthOverlay.Margin = IsAuthenticationRequired
+            ? new Thickness(0)
+            : new Thickness(0, ContentTopRow.Height.Value, 0, 0);
         TopChromeDragZone.Height = ContentTopRow.Height.Value;
         BrandIdentity.Margin = new Thickness(spacious ? 24 : 14, 0, spacious ? 72 : compact ? 12 : 24, 0);
         BrandLogo.Width = BrandLogo.Height = spacious ? 42 : compact ? 32 : 36;
@@ -742,7 +753,7 @@ public partial class LauncherShellV2 : Window
         }
 
         TopBarActions.Margin = new Thickness(0, 0, spacious ? 12 : 8, 0);
-        foreach (Button action in new[] { LauncherUpdateButton, FriendsButton, SettingsButton })
+        foreach (Button action in new[] { LauncherUpdateButton, MessagesNavigationButton, FriendsButton, SettingsButton })
         {
             action.Width = action.Height = iconSize;
             action.Padding = new Thickness(spacious ? 11 : 8);
@@ -823,6 +834,8 @@ public partial class LauncherShellV2 : Window
 
     private void ProfileTitleBarOverlay_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (ReferenceEquals(sender, ProfileState) && string.IsNullOrEmpty(e.PropertyName))
+            ArmoryView.UpdatePresence(ProfileState);
         if ((!string.IsNullOrEmpty(e.PropertyName) && e.PropertyName != nameof(ProfileUiState.IsOpen))
             || CurrentPage != LauncherShellPage.Armory) return;
         if (ProfileState.IsOpen || FriendsState.IsOpen || ActivityState.IsOpen)
@@ -1156,6 +1169,7 @@ public partial class LauncherShellV2 : Window
         {
             _suppressProfileFocusRestore = true;
             _overlayCoordinator.CloseProfile();
+            ArmoryView.ShowOwnProfile();
             NavigateTo(LauncherShellPage.Armory);
             _accountCommands?.RefreshProfile();
             return;
@@ -1377,7 +1391,14 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
-        Keyboard.Focus(ActivityButton);
+        Keyboard.Focus(ActivityButton.IsVisible ? ActivityButton : CurrentPage switch
+        {
+            LauncherShellPage.Addons => AddonsNavigationButton,
+            LauncherShellPage.PatchNotes => PatchNotesNavigationButton,
+            LauncherShellPage.Chat => MessagesNavigationButton,
+            LauncherShellPage.Settings => SettingsButton,
+            _ => GameNavigationButton
+        });
     }
 
     private void ProfileMenu_Closed(object? sender, EventArgs e)
@@ -1395,6 +1416,16 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (IsAuthenticationRequired)
+        {
+            if (e.Key == Key.Escape)
+            {
+                CloseAuthenticationFromUser();
+                e.Handled = true;
+            }
+            return;
+        }
+
         if (e.Key == Key.Escape
             && CurrentPage == LauncherShellPage.Addons
             && AddonsView.TryCloseTopLayer())
@@ -1486,6 +1517,18 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_PreviewGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
+        if (IsAuthenticationRequired)
+        {
+            if (!AuthOverlay.ContainsKeyboardFocusTarget(e.NewFocus as DependencyObject)
+                && !IsWithinLoginWindowChrome(e.NewFocus as DependencyObject))
+            {
+                e.Handled = true;
+                if (AuthState.IsOpen) AuthOverlay.FocusFirstControl();
+                else Keyboard.Focus(LoginMinimizeWindowButton);
+            }
+            return;
+        }
+
         if (AccountView.IsSensitiveEditorOpen)
         {
             if (!AccountView.ContainsSensitiveEditorFocus(e.NewFocus as DependencyObject))
@@ -1586,6 +1629,21 @@ public partial class LauncherShellV2 : Window
 
     private bool CanCloseAuthentication => IsPreviewMode || ShellState.IsAuthenticated;
 
+    private bool IsAuthenticationRequired => !CanCloseAuthentication;
+
+    private bool IsWithinLoginWindowChrome(DependencyObject? target)
+    {
+        DependencyObject? current = target;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, LoginWindowChrome)) return true;
+            current = current is Visual or System.Windows.Media.Media3D.Visual3D
+                ? VisualTreeHelper.GetParent(current)
+                : LogicalTreeHelper.GetParent(current);
+        }
+        return false;
+    }
+
     private void ShellState_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (IsPreviewMode
@@ -1599,10 +1657,18 @@ public partial class LauncherShellV2 : Window
         ApplyAuthenticationGate();
     }
 
-    private void ApplyAuthenticationGate()
+    private void ApplyAuthenticationGate(bool openWhenRequired = true)
     {
         AuthOverlay.CanClose = CanCloseAuthentication;
-        if (IsPreviewMode || ShellState.IsSessionRestoring || ShellState.IsAuthenticated)
+        bool required = IsAuthenticationRequired;
+        LauncherSurface.IsEnabled = !required;
+        LauncherSurface.IsHitTestVisible = !required;
+        LauncherSurface.Visibility = required ? Visibility.Hidden : Visibility.Visible;
+        LoginBackdrop.Visibility = required ? Visibility.Visible : Visibility.Collapsed;
+        LoginWindowChrome.Visibility = required ? Visibility.Visible : Visibility.Collapsed;
+        AuthOverlay.Margin = required ? new Thickness(0) : new Thickness(0, ContentTopRow.Height.Value, 0, 0);
+        FriendsButton.Focusable = !required && !FriendsState.IsOpen;
+        if (!required || ShellState.IsSessionRestoring || !openWhenRequired)
         {
             return;
         }
@@ -1624,6 +1690,7 @@ public partial class LauncherShellV2 : Window
 
     private void NavigateTo(LauncherShellPage page)
     {
+        if (IsAuthenticationRequired && page != LauncherShellPage.Game) return;
         if (page == LauncherShellPage.Settings && !IsSettingsNavigationEnabled)
         {
             return;
@@ -1656,12 +1723,15 @@ public partial class LauncherShellV2 : Window
         PatchNotesView.Visibility = showPatchNotes ? Visibility.Visible : Visibility.Collapsed;
         SettingsView.Visibility = showSettings ? Visibility.Visible : Visibility.Collapsed;
         AccountView.Visibility = showAccount ? Visibility.Visible : Visibility.Collapsed;
+        ChatView.Visibility = page == LauncherShellPage.Chat ? Visibility.Visible : Visibility.Collapsed;
         ArmoryView.Visibility = page == LauncherShellPage.Armory ? Visibility.Visible : Visibility.Collapsed;
         RefreshProfileTitleBarMode();
         GameNavigationButton.Tag = showGame ? "Active" : null;
         AddonsNavigationButton.Tag = showAddons ? "Active" : null;
         PatchNotesNavigationButton.Tag = showPatchNotes ? "Active" : null;
+        MessagesNavigationButton.Tag = page == LauncherShellPage.Chat ? "Active" : null;
         SettingsButton.Tag = showSettings ? "Active" : null;
+        RefreshChatViewActivation();
         if (showAddons)
         {
             if (AddonsView.ListHost.Items.Count > 0)

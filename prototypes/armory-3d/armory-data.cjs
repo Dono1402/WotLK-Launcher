@@ -17,8 +17,8 @@ function equipmentKey(equipment) {
   }).sort((a,b) => a[0]-b[0]));
 }
 
-function buildCombatStatistics(baseline,current,verifiedAfter,{characterName='Flowmage'}={}) {
-  if (!baseline?.capturedAtUtc || !characterName || baseline.character?.name!==characterName) throw new Error('Only the authorized character snapshot is supported');
+function buildCombatStatistics(baseline,current,verifiedAfter,{characterName=baseline?.character?.name}={}) {
+  if (!baseline?.capturedAtUtc || typeof characterName!=='string' || !characterName || baseline.character?.name!==characterName) throw new Error('Only the authorized character snapshot is supported');
   const snapshot = current?.snapshot;
   if (!snapshot) return {status:'unavailable',reason:'missing-combat-snapshot',record:null};
   if (snapshot.schemaVersion!==1 || snapshot.source!=='atlas-armory-engine' || !['logout','login','equipment','periodic'].includes(snapshot.reason)) throw new Error('Unknown combat collector');

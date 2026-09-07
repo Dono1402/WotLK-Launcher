@@ -485,9 +485,11 @@
                 <Grid Grid.Row="1" Grid.ColumnSpan="3" Margin="0,8,0,0">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                     <ComboBox x:Name="CategorySelector" Width="174" Height="32" FontSize="12"
+                              TextSearch.TextPath="DisplayLabel"
                               Style="{StaticResource AtlasV2.ComboBox.Field}" ItemTemplate="{StaticResource AtlasV2.Addons.ChoiceTemplate}" SelectedValuePath="Key"
                               AutomationProperties.Name="Filtrer par catégorie" SelectionChanged="CategorySelector_SelectionChanged"/>
                     <ComboBox x:Name="SortSelector" Grid.Column="1" Width="190" Height="32" Margin="8,0,0,0" FontSize="12"
+                              TextSearch.TextPath="DisplayLabel"
                               Style="{StaticResource AtlasV2.ComboBox.Field}" ItemTemplate="{StaticResource AtlasV2.Addons.ChoiceTemplate}" SelectedValuePath="Key"
                               AutomationProperties.Name="Trier les addons" SelectionChanged="SortSelector_SelectionChanged"/>
                     <TextBlock Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Center" FontSize="12"
@@ -509,10 +511,12 @@
                     </DockPanel>
                     <WrapPanel Margin="0,0,-8,0">
                         <ComboBox x:Name="PackSelector" Width="142" Height="32" Margin="0,0,8,6" FontSize="12"
+                                  TextSearch.TextPath="DisplayName"
                                   Style="{StaticResource AtlasV2.ComboBox.Field}" ItemTemplate="{StaticResource AtlasV2.Addons.PackTemplate}" SelectedValuePath="Id"
                                   AutomationProperties.Name="Choisir un pack" SelectionChanged="PackSelector_SelectionChanged"/>
                         <Button x:Name="LoadPackButton" Content="Charger le pack" Margin="0,0,14,6" Style="{StaticResource AtlasV2.Addons.LibraryButton}" Click="LoadPackButton_Click"/>
                         <ComboBox x:Name="ProfileSelector" Width="180" Height="32" Margin="0,0,8,6" FontSize="12"
+                                  TextSearch.TextPath="Name"
                                   Style="{StaticResource AtlasV2.ComboBox.Field}" ItemTemplate="{StaticResource AtlasV2.Addons.ProfileTemplate}" SelectedValuePath="Name"
                                   AutomationProperties.Name="Choisir un profil personnel" IsEnabled="{Binding State.HasProfiles, ElementName=AddonsRoot}"
                                   SelectionChanged="ProfileSelector_SelectionChanged"/>

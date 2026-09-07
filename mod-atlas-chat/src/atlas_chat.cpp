@@ -63,6 +63,20 @@ void PrivateLine(Player* player, std::string const& line)
     player->GetSession()->SendPacket(&packet);
 }
 
+void NamedWhisper(Player* player, std::string const& username, std::string const& line, bool sent = false)
+{
+    auto name = AtlasChat::WhisperName(username);
+    if (!name)
+        return;
+    WorldPacket packet;
+    // The legacy GM-message opcode carries an explicit name. No GM flag or
+    // invented character GUID is assigned. The paired Hermes adapter preserves
+    // the name as an ordinary modern WHISPER / WHISPER_INFORM.
+    ChatHandler::BuildChatPacket(packet, sent ? CHAT_MSG_WHISPER_INFORM : CHAT_MSG_WHISPER,
+        LANG_UNIVERSAL, ObjectGuid(), player->GetGUID(), line, CHAT_TAG_NONE, *name, "", 0, true);
+    player->GetSession()->SendPacket(&packet);
+}
+
 class Bridge
 {
 public:
@@ -88,7 +102,7 @@ public:
                 if (!_ready)
                     LOG_ERROR("module", "Atlas chat disabled: launcher auth migration 0006 is required.");
                 else
-                    LOG_INFO("module", "Atlas chat bridge ready for realm {} (private SYSTEM + .atlasmsg).", _realm);
+                    LOG_INFO("module", "Atlas chat bridge ready for realm {} (named #Launcher whispers).", _realm);
             });
     }
 
@@ -97,7 +111,7 @@ public:
         if (!_enabled || !Human(player))
             return;
         auto account = player->GetSession()->GetAccountId();
-        _sessions[account] = { { account, uint32(player->GetGUID().GetCounter()), ++_generation, UtcMicros() }, false };
+        _sessions[account] = { { account, uint32(player->GetGUID().GetCounter()), ++_generation, UtcMicros() } };
     }
 
     void Logout(Player* player)
@@ -211,7 +225,7 @@ public:
     }
 
 private:
-    struct Session { SessionStamp Stamp; bool HelpShown; };
+    struct Session { SessionStamp Stamp; };
     struct Request
     {
         SessionStamp Sender;
@@ -305,8 +319,8 @@ private:
                     if (fields[1].Get<uint8>() == 1)
                     {
                         if (auto player = CurrentPlayer(request->second.Sender))
-                            for (auto const& line : AtlasChat::RenderLines("[Atlas -> " + request->second.TargetName + "] ", request->second.Body))
-                                PrivateLine(player, line);
+                            for (auto const& line : AtlasChat::RenderLines("", request->second.Body))
+                                NamedWhisper(player, request->second.TargetName, line, true);
                     }
                     else
                         Notify(request->second.Sender, "[Atlas] Message refuse : verifiez votre amitie Atlas ou patientez avant de reessayer.");
@@ -398,16 +412,11 @@ private:
                     fields[5].Get<uint8>() != 0, fields[6].Get<uint64>(), fields[7].Get<uint64>(), UtcMicros()))
             {
                 auto player = CurrentPlayer(current->second.Stamp);
-                auto lines = AtlasChat::ValidUsername(name) ? AtlasChat::RenderLines("[Atlas] " + name + " : ", body) : std::vector<std::string>{};
+                auto lines = AtlasChat::ValidUsername(name) ? AtlasChat::RenderLines("", body) : std::vector<std::string>{};
                 if (player && !lines.empty() && _delivered.size() < 8192)
                 {
                     for (auto const& line : lines)
-                        PrivateLine(player, line);
-                    if (!current->second.HelpShown)
-                    {
-                        PrivateLine(player, "[Atlas] Pour repondre : .atlasmsg " + name + " votre message (pseudo du compte Atlas).");
-                        current->second.HelpShown = true;
-                    }
+                        NamedWhisper(player, name, line);
                     character = current->second.Stamp.Character;
                     _delivered.emplace(id, Delivered{ character, SteadyMs() + 90000 });
                     status = 2;

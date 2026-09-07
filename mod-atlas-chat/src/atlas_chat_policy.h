@@ -50,6 +50,13 @@ inline bool ValidUsername(std::string_view name)
         });
 }
 
+inline std::optional<std::string> WhisperName(std::string_view username)
+{
+    if (!ValidUsername(username))
+        return std::nullopt;
+    return std::string(username) + "#Launcher";
+}
+
 inline bool ValidBody(std::string_view text)
 {
     if (text.empty() || text.size() > 4000)

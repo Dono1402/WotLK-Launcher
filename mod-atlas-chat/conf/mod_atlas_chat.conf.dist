@@ -1,6 +1,7 @@
 [worldserver]
 
 # Requires launcher auth migration 0006 and its running chat inbox worker.
+# Requires the paired Hermes named-whisper adapter in hermes/atlas-whispers.patch.
 # Installation/build and a worldserver restart are separate deployment steps.
 AtlasChat.Enable = 0
 

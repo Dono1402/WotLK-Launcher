@@ -3,28 +3,28 @@
 Module autonome préparé localement pour la migration launcher **0006_private_chat.sql**.
 Il utilise la base auth déjà ouverte par AzerothCore et le worker de messagerie du
 launcher. Il ne crée aucune table, aucun compte SQL, aucun service HTTP ni secret.
-Il est **désactivé par défaut** et n'a pas été installé sur le serveur.
+Il est **désactivé par défaut**. Les candidats du 7 septembre 2026 sont compilés,
+mais le pont n'est pas activé dans les services de production.
 
 ## Utilisation en jeu
 
 Un message reçu apparaît uniquement chez le destinataire :
 
 ```text
-[Atlas] Dono_42 : Bonjour !
-[Atlas] Pour repondre : .atlasmsg Dono_42 votre message (pseudo du compte Atlas).
+Dono_42#Launcher vous chuchote : Bonjour !
 ```
 
-La seconde ligne apparaît à la première réception de chaque connexion au jeu.
-La réponse utilise le **pseudo du compte Atlas**, indépendamment du personnage :
+La réponse vise le **pseudo du compte Atlas**, indépendamment du personnage.
+Le client peut utiliser son interface de whisper habituelle, `/r` ou :
 
 ```text
-.atlasmsg Dono_42 Bonjour depuis le jeu !
+/w Dono_42#Launcher Bonjour depuis le jeu !
 ```
 
 Après confirmation de la persistance par l'API, l'expéditeur voit son message :
 
 ```text
-[Atlas -> Dono_42] Bonjour depuis le jeu !
+À Dono_42#Launcher : Bonjour depuis le jeu !
 ```
 
 Cette confirmation signifie que le launcher a conservé le message. Elle ne
@@ -32,13 +32,21 @@ signifie pas que l'autre personne l'a lu ou que son client de jeu l'a affiché.
 Les messages restent consultables dans le launcher. La copie en jeu est limitée
 à une connexion active : aucune récupération de l'historique à la connexion.
 
-Le transport utilise `SMSG_MESSAGECHAT / CHAT_MSG_SYSTEM`, envoyé à la seule
-session du destinataire. `/w`, `/r`, les faux GUID de personnages et les faux noms
-de personnages ne sont pas utilisés. Dans le protocole 3.3.5, le whisper normal
-résout un GUID de personnage. La variante avec nom explicite traverse une autre
-branche Hermes, qui conserve actuellement le NUL du nom lu avec `ReadString`.
-Ce chemin n'a pas été validé en jeu ; le module conserve donc une réponse
-explicite et fiable par `.atlasmsg`.
+Le transport utilise l'enveloppe avec nom explicite `SMSG_GM_MESSAGECHAT`,
+`CHAT_MSG_WHISPER` à la réception et `CHAT_MSG_WHISPER_INFORM` après confirmation
+de l'envoi. L'indicateur GM reste nul. Aucun GUID de personnage n'est inventé.
+L'adaptation [Hermes](hermes/README.md) reconnaît cette enveloppe bornée et écrit
+un whisper moderne dont le nom ne contient pas le NUL terminal du protocole
+ancien. Le GUID réel sert uniquement à identifier le personnage destinataire.
+
+À l'envoi, Hermes reconnaît `Pseudo#Launcher` et transporte une soumission
+`.atlasmsg Pseudo texte` vers le core avant la résolution du nom de personnage.
+La commande n'est pas demandée à l'utilisateur ; elle reste utilisable comme
+repli. La langue du joueur, le texte complet et les contrôles du module sont
+conservés. Un message long reste une seule soumission, sans découpage préalable
+en plusieurs messages par Hermes. Les captures de paquets sont testées ;
+l'affichage effectif et la touche de réponse `/r` restent à vérifier en jeu
+après une activation autorisée.
 
 ## Contrat et isolation
 
@@ -87,12 +95,14 @@ effectif n'est pas prouvé par un appel réussi à `SendPacket`.
 2. Placer ce dossier sous `core/modules/mod-atlas-chat`, puis reconfigurer et
    compiler AzerothCore. Les fichiers `src/` et `conf/` sont découverts par le
    système de modules du core ; aucun patch du core n'est nécessaire.
-3. Installer le fichier `conf/mod_atlas_chat.conf.dist` selon le déploiement,
+3. Appliquer et compiler l'adaptation Hermes correspondante. Les deux binaires
+   doivent être déployés ensemble ; un ancien Hermes ne préserve pas ces noms.
+4. Installer le fichier `conf/mod_atlas_chat.conf.dist` selon le déploiement,
    définir `AtlasChat.Enable = 1` et conserver le `RealmID` existant.
-4. Déployer le nouveau binaire et redémarrer le worldserver dans une opération
-   distincte et autorisée. Le module lit son activation au démarrage.
+5. Déployer les nouveaux binaires et redémarrer Hermes et le worldserver dans
+   une opération distincte et autorisée. Le module lit son activation au démarrage.
 
-Ces étapes ne sont pas exécutées par ce travail local. La version du core dont
+L'activation et les redémarrages ne sont pas exécutés par la préparation. La version du core dont
 les hooks ont été examinés est `f67b86df8bec0d06b76ad17a9512f08d615f2057`, dans
 `C:/Codex/Server WoTLK Custom/Arthas/core`.
 
@@ -111,7 +121,7 @@ tests C++. Les tests ne réimplémentent pas ces règles.
 ./tests/Run-PolicyTests.ps1 -ZigPath /chemin/vers/zig.exe
 ```
 
-Exécution locale vérifiée le 6 septembre 2026 : **199 546 assertions réussies**,
+Exécution locale vérifiée le 7 septembre 2026 : **199 552 assertions réussies**,
 compilation C++20 avec `-Wall -Wextra -Werror -pedantic`, puis exécution du binaire.
 Les cas comprennent UTF-8 invalide, liens/textures/couleurs WoW, fragmentations
 sur différentes limites en octets, message avant/après reconnexion, autre compte,
@@ -146,8 +156,27 @@ proviennent des en-têtes tiers fmt et G3D. Zig ne termine pas correctement son
 mode `-fsyntax-only` sans objet émis ; le script compile donc de vrais objets
 avec `-c`, ce qui vérifie aussi la génération de code, sans édition de liens.
 
-**Limites de validation :** le module n'a pas été lié avec le worldserver ;
-les bibliothèques natives nécessaires au build complet restent à valider. Aucun
-worldserver, Hermes, launcher ou client WoW n'a été démarré pour ces tests. Il
-reste à valider le binaire du module puis un aller-retour réel entre deux comptes
-amis, la coupure/reconnexion du destinataire et le retrait d'amitié.
+Le candidat Linux a aussi été compilé et lié contre les objets exacts du
+worldserver actif, avec Playerbots. Le script de préparation
+[`build-atlas-chat-world-candidate.py`](../scripts/build-atlas-chat-world-candidate.py)
+reconstruit d'abord les sections exécutables de la base et compare toutes les
+sections ELF allouées (sauf la note d'identifiant de build). Le mode de liaison
+économe en mémoire modifie les informations de débogage et l'identifiant de build,
+mais les sections utilisées à l'exécution sont identiques avant l'ajout du module.
+Les sept enregistrements de modules existants sont conservés. Le script écrit
+uniquement dans le dossier du nouveau candidat et ne démarre aucun service.
+
+Candidat : `/opt/arthas-next/candidates/atlas-chat-whispers-20260907/server/bin/worldserver`.
+SHA-256 : `de9f14523f7b933b714904f05cb0d4bb6d65f6592c9cd4d2aaeb0de125bfe315`.
+Les sources, commandes et contrôles de la base figurent dans son `build-manifest.json`
+et son dossier `build-overlay`.
+Pour ce candidat construit par superposition d'objets, les clés `AtlasChat.Enable`
+et `AtlasChat.PollIntervalMs` doivent être placées dans le `worldserver.conf`
+effectivement utilisé : la liste de fichiers de configuration des modules de la
+base n'a pas été régénérée. Une compilation CMake complète peut utiliser le
+fichier de configuration du module normalement.
+
+**Limites de validation :** ces tests ne démarrent ni monde de test ni client WoW.
+Le pont n'est pas actif en production. Il reste à vérifier un aller-retour entre
+deux comptes amis dans le jeu réel, la réponse par `/r`, la reconnexion du
+destinataire et le retrait d'amitié après l'activation autorisée.

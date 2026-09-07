@@ -12,6 +12,11 @@ unsigned checks = 0;
 void IdentityAndContent()
 {
     CHECK(AtlasChat::ValidUsername("Dono_42"));
+    CHECK(AtlasChat::WhisperName("Dono_42") == "Dono_42#Launcher");
+    CHECK(AtlasChat::WhisperName(std::string(32, 'Z'))->size() == 41);
+    CHECK(!AtlasChat::WhisperName("Dono_42#Launcher"));
+    CHECK(!AtlasChat::WhisperName("Dono-Realm"));
+    CHECK(!AtlasChat::WhisperName("|Hplayer:Admin|h"));
     CHECK(AtlasChat::ValidUsername(std::string(32, 'Z')));
     for (auto const& bad : { "", "ab", "Jean Paul", "Dono-Realm", "|Hplayer:Admin|h", "\" OR 1=1 --", "\xD0\x90" "dmin" })
         CHECK(!AtlasChat::ValidUsername(bad));
@@ -52,6 +57,7 @@ void IdentityAndContent()
 
 void PlainRendering()
 {
+    CHECK(AtlasChat::RenderLines("", "Bonjour | et 日本語").front() == "Bonjour || et 日本語");
     std::string prefix = "[Atlas] Dono_42 : ";
     auto lines = AtlasChat::RenderLines(prefix, "Bonjour |Hplayer:Admin|h[Ami]|h |Ticon:80|t\nseconde ligne");
     CHECK(lines.size() == 1);

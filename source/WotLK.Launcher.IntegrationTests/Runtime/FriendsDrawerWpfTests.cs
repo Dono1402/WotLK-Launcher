@@ -1,5 +1,6 @@
 using System.IO;
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -79,6 +80,29 @@ internal static class FriendsDrawerWpfTests
             && populated.Current.Friends.Any(friend => !friend.HasAvatarImage),
             "Le scénario peuplé doit mélanger photos synchronisées et fallback.");
 
+        FriendUiItem profile = populated.Current.Friends.First(friend => friend.AllCharacters.Length == 3);
+        Equal(2, profile.OtherCharacters.Length, "Le personnage mis en avant ne doit pas être répété.");
+        True(profile.OtherCharacters.All(character => character.Name != profile.FeaturedCharacter?.Name),
+            "Les autres personnages doivent exclure le personnage principal.");
+        FriendUiItem offline = profile with
+        {
+            IsOnline = false,
+            Characters = profile.AllCharacters.Select(character => character with { IsOnline = false }).ToImmutableArray()
+        };
+        Equal("DERNIER PERSONNAGE JOUÉ", offline.FeaturedCharacterTitle, "Hors ligne, il ne s'agit pas d'un personnage actif.");
+        Equal("LAST CHARACTER PLAYED", LauncherLocalization.TranslateFromFrench(offline.FeaturedCharacterTitle),
+            "Le libellé hors ligne doit être traduit.");
+        FriendUiItem online = offline with
+        {
+            IsOnline = true,
+            Characters = offline.AllCharacters.Select((character, index) => character with { IsOnline = index == 1 }).ToImmutableArray()
+        };
+        Equal("Frostoon", online.FeaturedCharacter?.Name ?? "", "Un personnage réellement en ligne doit être prioritaire.");
+        Equal("PERSONNAGE ACTIF", online.FeaturedCharacterTitle, "Le personnage actif doit suivre la présence réelle.");
+        FriendUiItem emptyProfile = profile with { Characters = [] };
+        True(!emptyProfile.HasFeaturedCharacter && !emptyProfile.HasOtherCharacters,
+            "Un compte sans personnage ne doit pas créer de fiche vide.");
+
         FriendsUiState empty = LauncherV2PreviewData.CreateFriends(FriendsPreviewScenario.Empty);
         True(empty.Current.ShowsGlobalEmpty, "L’état vide doit être explicite.");
         FriendsUiState network = LauncherV2PreviewData.CreateFriends(FriendsPreviewScenario.NetworkError);
@@ -148,7 +172,14 @@ internal static class FriendsDrawerWpfTests
                     ShutdownMode = ShutdownMode.OnExplicitShutdown
                 };
                 LoadV2Resources(application);
+                foreach (byte classId in new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 11 })
+                {
+                    FriendCharacterUiItem character = new("Test", "Classe", 80, "", false, "", classId);
+                    BitmapImage icon = new(new Uri("pack://application:,,," + character.ClassIconPath));
+                    True(icon.PixelWidth >= 32 && icon.PixelHeight >= 32, "Chaque icône de classe doit être embarquée et décodable.");
+                }
                 await ValidateScenariosAndCapturesAsync(captureDirectory);
+                await ValidateFriendActionMenusAsync(captureDirectory);
                 await ValidateFocusAndClosureAsync();
                 await ValidateBusyRequestSurvivesDrawerClosureAsync();
                 await ValidateSingleTimerAcrossRepeatedDrawerOpeningsAsync();
@@ -227,9 +258,17 @@ internal static class FriendsDrawerWpfTests
                 SavePng(
                     profileWindow,
                     Path.Combine(captureDirectory, "07-friend-profile-1440x860.png"));
+                profileWindow.Width = 1080;
+                profileWindow.Height = 680;
+                await DelayAndPumpAsync(120);
+                SavePng(profileWindow, Path.Combine(captureDirectory, "08-friend-profile-1080x680.png"));
+                LauncherLocalization.SetLocale("en-US");
+                await DelayAndPumpAsync(150);
+                SavePng(profileWindow, Path.Combine(captureDirectory, "09-friend-profile-en-1080x680.png"));
             }
             finally
             {
+                LauncherLocalization.SetLocale("fr-FR");
                 profileWindow.Close();
                 await PumpAsync(DispatcherPriority.Background);
             }
@@ -255,15 +294,14 @@ internal static class FriendsDrawerWpfTests
         True(drawer.FindName("RefreshFriendsButton") is null,
             "L’actualisation manuelle doit disparaître au profit du timer social.");
         Equal(
-            $"{window.FriendsState.Current.Friends.Length} ami{(window.FriendsState.Current.Friends.Length > 1 ? "s" : string.Empty)} · {window.FriendsState.Current.OnlineCount} en jeu",
+            $"{window.FriendsState.Current.Friends.Length} ami{(window.FriendsState.Current.Friends.Length > 1 ? "s" : string.Empty)} · {window.FriendsState.Current.OnlineCount} en ligne",
             window.FriendsState.Current.FriendsSummary,
-            "Le résumé compact doit afficher le total avant le nombre en jeu.");
+            "Le résumé compact doit afficher le total avant le nombre en ligne.");
         True(!drawer.IsAddFriendEditorOpen
             && Required<Border>(drawer, "AddFriendPanel").ActualHeight <= 0.5,
             "Le champ d’ajout doit rester replié par défaut.");
-        Geometry moreIcon = (Geometry)Application.Current.FindResource("AtlasV2.Icon.MoreHorizontal");
-        True(moreIcon.Bounds.Width > 10 && moreIcon.Bounds.Height > 2,
-            "L’icône d’actions doit conserver trois points visibles au lieu de s’écraser.");
+        True(!Descendants<Button>(drawer).Any(button => button.Name == "FriendActionsButton"),
+            "Les lignes d’amis ne doivent plus afficher de bouton à trois points.");
         True(Required<Button>(window, "MinimizeWindowButton").IsVisible
             && Required<Button>(window, "MaximizeWindowButton").IsVisible
             && Required<Button>(window, "CloseWindowButton").IsVisible,
@@ -288,22 +326,21 @@ internal static class FriendsDrawerWpfTests
                 "Les amis en jeu doivent avoir leur propre section.");
             Equal(Visibility.Visible, Required<StackPanel>(drawer, "OfflineFriendsSection").Visibility,
                 "Les amis hors ligne doivent avoir leur propre section.");
-            Button actions = Descendants<Button>(drawer).First(button =>
-                string.Equals(AutomationProperties.GetName(button), "Actions pour cet ami", StringComparison.Ordinal));
-            True(actions.IsEnabled && actions.Opacity >= 0.9,
-                "Le menu d’actions doit rester visible et facile à découvrir.");
-            RaiseClick(actions);
-            Popup popup = actions.Tag as Popup
+            Border card = Descendants<Border>(drawer).First(border => border.Name == "FriendCard");
+            Button target = Descendants<Button>(card).Single(button => button.Name == "OpenFriendProfileButton");
+            RaisePreviewKey(target, Key.Apps);
+            Popup popup = card.Tag as Popup
                 ?? throw new InvalidOperationException("Le menu contextuel de l’ami est absent.");
-            True(popup.IsOpen,
-                "Le bouton d’actions doit ouvrir le menu contextuel.");
-            Button remove = popup.Child as Button
-                ?? throw new InvalidOperationException("Le retrait d’ami doit être le seul cadre du menu contextuel.");
+            True(popup.IsOpen && ReferenceEquals(popup.PlacementTarget, target),
+                "La touche Menu doit conserver les actions depuis la ligne d’ami.");
+            Button[] menuItems = Descendants<Button>(popup.Child).ToArray();
+            Equal(3, menuItems.Length, "Le menu doit proposer le profil, le message et la suppression.");
+            Button remove = menuItems.Single(button => button.Name == "RemoveFriendMenuItem");
             True(string.Equals(
                     AutomationProperties.GetName(remove),
-                    "Retirer de mes amis",
+                    "Supprimer des amis",
                     StringComparison.Ordinal),
-                "Le retrait d’ami doit être rangé dans le menu contextuel sans cadre imbriqué.");
+                "La suppression doit rester identifiable dans le menu contextuel.");
             popup.IsOpen = false;
         }
         if (scenario is FriendsPreviewScenario.Avatars
@@ -368,6 +405,156 @@ internal static class FriendsDrawerWpfTests
         }
     }
 
+    private static async Task ValidateFriendActionMenusAsync(string? captureDirectory)
+    {
+        FriendsUiState state = LauncherV2PreviewData.CreateFriends(FriendsPreviewScenario.Populated);
+        FriendUiItem first = state.Current.Friends[0] with { CanRemove = true };
+        FriendUiItem second = state.Current.Friends[1] with { CanRemove = false, IsBusy = true };
+        state.ApplyRuntimeView(state.Current with
+        {
+            IsPreview = false,
+            IsRuntimeConnected = true,
+            Friends = [first, second],
+            IncomingRequests = [],
+            OutgoingRequests = []
+        });
+        state.IsOpen = true;
+        RecordingFriendRemovalCommand removeCommand = new();
+        state.AttachCommands(removeCommand, removeCommand, removeCommand, removeCommand, removeCommand, removeCommand);
+        FriendsDrawerV2 drawer = new() { State = state, IsOpen = true };
+        Window window = new()
+        {
+            Width = 580, Height = 860, Left = -20000, Top = -20000,
+            WindowStartupLocation = WindowStartupLocation.Manual,
+            ShowInTaskbar = false, ShowActivated = false, Content = drawer
+        };
+        using LauncherLocalizationBridge localization = new(window);
+        List<FriendPublicProfileRequestedEventArgs> profiles = [];
+        List<FriendPublicProfileRequestedEventArgs> messages = [];
+        drawer.PublicProfileRequested += (_, args) => profiles.Add(args);
+        drawer.MessageRequested += (_, args) => messages.Add(args);
+        window.Show();
+        try
+        {
+            await PumpAsync(DispatcherPriority.ApplicationIdle);
+            Border Card(uint accountId) => Descendants<Border>(drawer).Single(border =>
+                border.Name == "FriendCard" && border.DataContext is FriendUiItem friend && friend.AccountId == accountId);
+            static Button ProfileButton(Border card) => Descendants<Button>(card).Single(button => button.Name == "OpenFriendProfileButton");
+            static Popup Menu(Border card) => card.Tag as Popup
+                ?? throw new InvalidOperationException("Toute la ligne d’ami doit exposer son menu.");
+            static Button Item(Popup popup, string name) => Descendants<Button>(popup.Child).Single(button => button.Name == name);
+
+            Border firstCard = Card(first.AccountId);
+            Button leftClickTarget = Descendants<Button>(firstCard).Single(button => button.Name == "OpenFriendProfileButton");
+            RaiseClick(leftClickTarget);
+            True(drawer.IsFriendProfileOpen && profiles.Count == 0,
+                "Le clic gauche doit conserver le mini détail sans déclencher une navigation publique.");
+            state.CloseFriendProfile();
+            await PumpAsync(DispatcherPriority.DataBind);
+            firstCard = Card(first.AccountId);
+            leftClickTarget = Descendants<Button>(firstCard).Single(button => button.Name == "OpenFriendProfileButton");
+            RaisePreviewRightMouseDown(leftClickTarget);
+            Popup firstMenu = Menu(firstCard);
+            True(firstMenu.IsOpen && !drawer.IsFriendProfileOpen,
+                "Le clic droit sur le contenu de la ligne doit ouvrir le menu sans ouvrir le mini détail.");
+            Equal(PlacementMode.MousePoint, firstMenu.Placement, "Le menu au clic droit doit partir du pointeur.");
+            await PumpAsync(DispatcherPriority.Input);
+            Button profile = Item(firstMenu, "ViewPublicProfileMenuItem");
+            Button message = Item(firstMenu, "SendMessageMenuItem");
+            Button remove = Item(firstMenu, "RemoveFriendMenuItem");
+            Equal(profile, Keyboard.FocusedElement, "Le premier choix du menu doit recevoir le focus clavier.");
+            RaisePreviewKey(profile, Key.Down);
+            Equal(message, Keyboard.FocusedElement, "La flèche Bas doit sélectionner l’envoi de message.");
+            RaisePreviewKey(message, Key.Down);
+            Equal(remove, Keyboard.FocusedElement, "La flèche Bas doit sélectionner la suppression.");
+            RaisePreviewKey(remove, Key.Down);
+            Equal(profile, Keyboard.FocusedElement, "Les flèches doivent rester cycliques dans le menu.");
+            RaisePreviewKey(profile, Key.Escape);
+            True(!firstMenu.IsOpen && drawer.IsOpen, "Échap doit fermer le menu en laissant la liste ouverte.");
+            Equal(ProfileButton(firstCard), Keyboard.FocusedElement, "Échap doit rendre le focus à la ligne d’ami.");
+
+            RaisePreviewRightMouseDown(firstCard);
+            True(firstMenu.IsOpen, "Le clic droit sur la bordure ou le padding doit également fonctionner.");
+            RaiseClick(profile);
+            Equal(1, profiles.Count, "Voir le profil doit émettre une seule navigation publique.");
+            Equal(first.AccountId, profiles[0].AccountId, "La navigation doit transmettre l’identifiant de l’ami choisi.");
+            Equal(first.Username, profiles[0].Username, "La navigation doit transmettre son nom.");
+            True(!firstMenu.IsOpen && !drawer.IsFriendProfileOpen,
+                "La navigation publique doit fermer son menu sans ouvrir le mini détail.");
+            RaiseClick(profile);
+            Equal(1, profiles.Count, "Un clic retardé sur un menu fermé doit être ignoré.");
+
+            RaisePreviewKey(ProfileButton(firstCard), Key.Apps);
+            True(firstMenu.IsOpen, "La touche Menu doit ouvrir les mêmes actions depuis la ligne.");
+            Equal(PlacementMode.Bottom, firstMenu.Placement, "Le menu clavier doit rester attaché à la ligne d’ami.");
+            Border secondCard = Card(second.AccountId);
+            RaisePreviewKey(ProfileButton(secondCard), Key.Apps);
+            Popup secondMenu = Menu(secondCard);
+            True(secondMenu.IsOpen && !firstMenu.IsOpen, "Un seul menu d’ami doit rester ouvert.");
+            True(Item(secondMenu, "ViewPublicProfileMenuItem").IsEnabled
+                && Item(secondMenu, "SendMessageMenuItem").IsEnabled
+                && !Item(secondMenu, "RemoveFriendMenuItem").IsEnabled,
+                "Une suppression indisponible ne doit pas désactiver le profil ou le message.");
+            RaiseClick(Item(secondMenu, "SendMessageMenuItem"));
+            Equal(1, messages.Count, "Envoyer un message doit émettre une seule ouverture de conversation.");
+            Equal(second.AccountId, messages[0].AccountId, "Le message doit viser le bon ami.");
+            True(!secondMenu.IsOpen, "Ouvrir une conversation doit fermer le menu.");
+
+            RaisePreviewKey(ProfileButton(firstCard), Key.Apps);
+            await PumpAsync(DispatcherPriority.ApplicationIdle);
+            if (!string.IsNullOrWhiteSpace(captureDirectory))
+            {
+                SavePng((FrameworkElement)firstMenu.Child, Path.Combine(captureDirectory, "friends-actions-menu-fr.png"));
+            }
+            LauncherLocalization.SetLocale("en-US");
+            await PumpAsync(DispatcherPriority.DataBind);
+            Equal("View profile", AutomationProperties.GetName(profile), "Le profil doit être traduit à chaud.");
+            Equal("Send a message", AutomationProperties.GetName(message), "L’envoi de message doit être traduit à chaud.");
+            Equal("Remove friend", AutomationProperties.GetName(remove), "La suppression doit être traduite à chaud.");
+            if (!string.IsNullOrWhiteSpace(captureDirectory))
+            {
+                SavePng((FrameworkElement)firstMenu.Child, Path.Combine(captureDirectory, "friends-actions-menu-en.png"));
+            }
+            LauncherLocalization.SetLocale("fr-FR");
+            await PumpAsync(DispatcherPriority.DataBind);
+            RaiseClick(remove);
+            True(drawer.IsRemoveFriendConfirmationOpen && removeCommand.AccountIds.Count == 0,
+                "Supprimer des amis doit ouvrir une confirmation sans mutation immédiate.");
+            RaiseClick(Required<Button>(drawer, "CancelRemoveFriendButton"));
+            True(!drawer.IsRemoveFriendConfirmationOpen && removeCommand.AccountIds.Count == 0,
+                "Annuler la suppression doit laisser l’amitié intacte.");
+            RaisePreviewKey(ProfileButton(firstCard), Key.Apps);
+            RaiseClick(remove);
+            RaiseClick(Required<Button>(drawer, "ConfirmRemoveFriendButton"));
+            Equal(1, removeCommand.AccountIds.Count, "Confirmer doit exécuter exactement une suppression.");
+            Equal(first.AccountId, removeCommand.AccountIds[0], "La suppression doit viser l’ami confirmé.");
+
+            RaisePreviewKey(ProfileButton(firstCard), Key.Apps);
+            state.ApplyRuntimeView(state.Current with { Friends = [second] });
+            RaiseClick(profile);
+            RaiseClick(message);
+            RaiseClick(remove);
+            True(profiles.Count == 1 && messages.Count == 1 && removeCommand.AccountIds.Count == 1
+                && !drawer.IsRemoveFriendConfirmationOpen,
+                "Un ami retiré de l’état courant ne doit plus déclencher d’action depuis un ancien menu.");
+        }
+        finally
+        {
+            drawer.IsOpen = false;
+            LauncherLocalization.SetLocale("fr-FR");
+            window.Close();
+            await PumpAsync(DispatcherPriority.Background);
+        }
+    }
+
+    private sealed class RecordingFriendRemovalCommand : ICommand
+    {
+        internal List<uint> AccountIds { get; } = [];
+        public event EventHandler? CanExecuteChanged { add { } remove { } }
+        public bool CanExecute(object? parameter) => parameter is uint;
+        public void Execute(object? parameter) => AccountIds.Add((uint)parameter!);
+    }
+
     private static async Task ValidateFocusAndClosureAsync()
     {
         LauncherShellV2 window = CreateWindow(FriendsPreviewScenario.Populated, 1440, 860, activate: true);
@@ -402,6 +589,10 @@ internal static class FriendsDrawerWpfTests
                 "Cliquer sur un ami doit pouvoir ouvrir sa fiche détaillée.");
             Equal(3, window.FriendsState.SelectedFriend?.AllCharacters.Length ?? 0,
                 "La fiche doit afficher tous les personnages fournis par Atlas.");
+            Equal(2, Required<ItemsControl>(drawer, "OtherCharactersList").Items.Count,
+                "La liste WPF doit exclure le personnage déjà présenté dans l'encart principal.");
+            FriendCharacterUiItem featured = (FriendCharacterUiItem)Required<ContentControl>(drawer, "FeaturedCharacterCard").Content;
+            True(featured.HasClassIcon && featured.IsFeatured, "La fiche doit distinguer le personnage mis en avant avec son icône de classe.");
             True(!string.IsNullOrWhiteSpace(window.FriendsState.SelectedFriend?.DisplayBio),
                 "La fiche doit exposer la bio du profil.");
             RaisePreviewKey(window, Key.Escape);
@@ -963,6 +1154,13 @@ internal static class FriendsDrawerWpfTests
             Source = target
         });
     }
+
+    private static void RaisePreviewRightMouseDown(UIElement target) =>
+        target.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Right)
+        {
+            RoutedEvent = UIElement.PreviewMouseRightButtonDownEvent,
+            Source = target
+        });
 
     private static async Task DelayAndPumpAsync(int milliseconds)
     {

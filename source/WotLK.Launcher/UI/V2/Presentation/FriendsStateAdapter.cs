@@ -165,7 +165,7 @@ internal sealed class FriendsStateAdapter : IDisposable
             friend.Avatar?.Version,
             avatarImage,
             avatarImage is not null,
-            friend.IsOnline,
+            friend.IsAvailable,
             GetPresenceText(friend),
             characterName,
             characterDetails,
@@ -178,7 +178,8 @@ internal sealed class FriendsStateAdapter : IDisposable
             friend.StatusMessage,
             friend.Bio,
             GetZoneName(friend.ZoneId),
-            characters);
+            characters,
+            friend.IsLauncherOnline);
     }
 
     private static ImmutableArray<FriendCharacterUiItem> ProjectCharacters(
@@ -199,13 +200,15 @@ internal sealed class FriendsStateAdapter : IDisposable
                         friend.LastSeenAt)
                 ]
                 : [];
-        return source.Select(character => new FriendCharacterUiItem(
+        return source.DistinctBy(character => character.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(character => new FriendCharacterUiItem(
                 character.Name,
                 GetClassName(character.ClassId),
                 character.Level,
                 GetZoneName(character.ZoneId),
                 character.IsOnline,
-                GetCharacterPresenceText(character)))
+                GetCharacterPresenceText(character),
+                character.ClassId))
             .ToImmutableArray();
     }
 
@@ -402,13 +405,21 @@ internal sealed class FriendsStateAdapter : IDisposable
             return zone.Length == 0 ? "En jeu" : $"En jeu · {zone}";
         }
 
-        if (friend.LastSeenAt is null)
+        if (friend.IsLauncherOnline)
+        {
+            return "Connecté au launcher";
+        }
+
+        DateTimeOffset? lastSeen = friend.LastSeenAt;
+        if (friend.LauncherLastSeenAt is DateTimeOffset launcherSeen
+            && (lastSeen is null || launcherSeen > lastSeen.Value)) lastSeen = launcherSeen;
+        if (lastSeen is null)
         {
             return "Hors ligne";
         }
 
         DateTimeOffset localNow = (now ?? DateTimeOffset.Now).ToLocalTime();
-        DateTimeOffset localLastSeen = friend.LastSeenAt.Value.ToLocalTime();
+        DateTimeOffset localLastSeen = lastSeen.Value.ToLocalTime();
         int elapsedDays = (localNow.Date - localLastSeen.Date).Days;
         return elapsedDays switch
         {

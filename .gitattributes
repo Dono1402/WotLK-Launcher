@@ -1,3 +1,6 @@
 *.sh text eol=lf
 *.py text eol=lf
 *.caddy text eol=lf
+
+# Migration manifests hash these bytes; keep the same LF form on every platform.
+source/WotLK.Launcher.Server/Database/Migrations/*.sql text eol=lf

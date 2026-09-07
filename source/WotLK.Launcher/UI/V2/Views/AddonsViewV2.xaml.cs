@@ -11,6 +11,8 @@ public partial class AddonsViewV2 : UserControl
 {
     private AddonsUiState? _subscribedState;
     private bool _isApplyingState;
+    private bool _wasDetailOpen;
+    private bool _wasDeleteConfirmationOpen;
 
     public static readonly DependencyProperty StateProperty = DependencyProperty.Register(
         nameof(State),
@@ -54,6 +56,19 @@ public partial class AddonsViewV2 : UserControl
     internal bool IsDetailOpen => State?.Current.IsDetailOpen == true;
 
     internal bool IsDeleteConfirmationOpen => State?.Current.IsDeleteConfirmationOpen == true;
+
+    internal bool ContainsDeleteConfirmationFocus(DependencyObject? target) =>
+        target is not null && (ReferenceEquals(target, DeleteConfirmationPanel)
+            || DeleteConfirmationPanel.IsAncestorOf(target));
+
+    internal void FocusDeleteConfirmation()
+    {
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+        {
+            if (IsDeleteConfirmationOpen && CancelDeleteButton.IsEnabled)
+                Keyboard.Focus(CancelDeleteButton);
+        });
+    }
 
     internal void OnNavigatedAway()
     {
@@ -120,24 +135,29 @@ public partial class AddonsViewV2 : UserControl
 
         ContentFrame.MaxWidth = mode switch
         {
-            AdaptiveLayoutMode.Wide => 1180,
-            AdaptiveLayoutMode.Compact => 1080,
-            _ => 900
+            AdaptiveLayoutMode.Wide => 1520,
+            AdaptiveLayoutMode.Compact => 1400,
+            _ => 1180
         };
-        ContentFrame.Width = ContentFrame.MaxWidth;
+        ContentFrame.Width = double.NaN;
         ContentFrame.Margin = mode switch
         {
-            AdaptiveLayoutMode.Wide => new Thickness(34, 26, 34, 28),
-            AdaptiveLayoutMode.Compact => new Thickness(28, 24, 28, 26),
-            _ => new Thickness(22, 20, 22, 22)
+            AdaptiveLayoutMode.Wide => new Thickness(84, 6, 82, 20),
+            AdaptiveLayoutMode.Compact => new Thickness(56, 10, 56, 20),
+            _ => new Thickness(32, 12, 32, 18)
         };
         PageTitle.FontSize = mode switch
         {
-            AdaptiveLayoutMode.Wide => 30,
-            AdaptiveLayoutMode.Compact => 29,
-            _ => 28
+            AdaptiveLayoutMode.Wide => 70,
+            AdaptiveLayoutMode.Compact => 58,
+            _ => 52
         };
-        SearchField.Width = mode == AdaptiveLayoutMode.Stacked ? 268 : 310;
+        SearchField.Width = mode switch
+        {
+            AdaptiveLayoutMode.Wide => 486,
+            AdaptiveLayoutMode.Compact => 390,
+            _ => 360
+        };
         DetailPanel.Width = mode == AdaptiveLayoutMode.Stacked ? 360 : 390;
     }
 
@@ -174,17 +194,24 @@ public partial class AddonsViewV2 : UserControl
                 ? "Supprimer cet addon ?"
                 : $"Supprimer {current.SelectedAddon.Name} ?";
 
-            if (current.IsDeleteConfirmationOpen)
+            bool openedDeleteConfirmation = current.IsDeleteConfirmationOpen && !_wasDeleteConfirmationOpen;
+            bool closedDeleteConfirmation = !current.IsDeleteConfirmationOpen && _wasDeleteConfirmationOpen;
+            bool openedDetails = current.IsDetailOpen && !_wasDetailOpen;
+            _wasDeleteConfirmationOpen = current.IsDeleteConfirmationOpen;
+            _wasDetailOpen = current.IsDetailOpen;
+            if (openedDeleteConfirmation)
             {
-                Dispatcher.BeginInvoke(
-                    DispatcherPriority.Input,
-                    () => Keyboard.Focus(CancelDeleteButton));
+                FocusDeleteConfirmation();
             }
-            else if (current.IsDetailOpen)
+            else if (current.IsDetailOpen && (openedDetails || closedDeleteConfirmation))
             {
                 Dispatcher.BeginInvoke(
                     DispatcherPriority.Input,
-                    () => Keyboard.Focus(CloseDetailButton));
+                    () =>
+                    {
+                        if (IsDetailOpen && !IsDeleteConfirmationOpen)
+                            Keyboard.Focus(closedDeleteConfirmation ? RemoveSelectedAddonButton : CloseDetailButton);
+                    });
             }
         }
         finally
@@ -231,6 +258,15 @@ public partial class AddonsViewV2 : UserControl
         if (sender is Button { DataContext: AddonUiItem addon })
         {
             State?.InvokePrimary(addon.Id);
+            e.Handled = true;
+        }
+    }
+
+    private void AddonDetailsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: AddonUiItem addon })
+        {
+            State?.OpenDetails(addon.Id);
             e.Handled = true;
         }
     }

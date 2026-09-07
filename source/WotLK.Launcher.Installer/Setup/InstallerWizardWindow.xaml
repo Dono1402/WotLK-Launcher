@@ -105,7 +105,7 @@
                         <TextBlock VerticalAlignment="Center"
                                    FontSize="12"
                                    Foreground="{StaticResource AtlasInstaller.Brush.TextDim}"
-                                   Text="1.3.0 · x64"/>
+                                   Text="1.4.0 · x64"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                         <Button x:Name="MinimizeButton"
@@ -339,7 +339,7 @@
                                             </Border>
                                             <StackPanel Grid.Column="1">
                                                 <TextBlock Style="{StaticResource AtlasInstaller.Text.SectionTitle}"
-                                                           Text="Atlas Launcher 1.3.0"/>
+                                                           Text="Atlas Launcher 1.4.0"/>
                                                 <TextBlock Margin="0,7,0,0"
                                                            Style="{StaticResource AtlasInstaller.Text.Body}"
                                                            Text="Le launcher sera installé localement avec son désinstalleur et les raccourcis que tu auras choisis."/>
@@ -558,7 +558,7 @@
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Style="{StaticResource AtlasInstaller.Text.Caption}" Text="VERSION INSTALLÉE"/>
-                                                    <TextBlock Grid.Column="1" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource AtlasInstaller.Brush.Text}" Text="1.3.0"/>
+                                                    <TextBlock Grid.Column="1" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource AtlasInstaller.Brush.Text}" Text="1.4.0"/>
                                                 </Grid>
                                             </Border>
                                             <Border Style="{StaticResource AtlasInstaller.SummaryRow}">

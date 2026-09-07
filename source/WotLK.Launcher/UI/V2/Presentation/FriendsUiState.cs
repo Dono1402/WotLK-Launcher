@@ -31,11 +31,29 @@ public sealed record FriendCharacterUiItem(
     byte Level,
     string ZoneName,
     bool IsOnline,
-    string PresenceText)
+    string PresenceText,
+    byte ClassId = 0)
 {
+    public bool IsFeatured { get; init; }
+
     public string Details => $"{ClassName} · niveau {Level}";
 
     public bool HasZone => !string.IsNullOrWhiteSpace(ZoneName);
+
+    public string ProfilePresenceText => IsOnline ? "En jeu" : PresenceText;
+
+    public string ClassColor => ClassId switch
+    {
+        1 => "#C79C6E", 2 => "#F58CBA", 3 => "#ABD473", 4 => "#FFF569",
+        5 => "#FFFFFF", 6 => "#F06A83", 7 => "#599FFF", 8 => "#69CCF0",
+        9 => "#B39DDB", 11 => "#FF9C46", _ => "#C6CED8"
+    };
+
+    public string ClassIconPath => ClassId is 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 11
+        ? $"/WotLK.Launcher;component/Assets/Launcher/class-icons/{ClassId}.jpg"
+        : string.Empty;
+
+    public bool HasClassIcon => ClassIconPath.Length > 0;
 }
 
 public sealed record FriendUiItem(
@@ -61,7 +79,8 @@ public sealed record FriendUiItem(
     string StatusMessage = "",
     string Bio = "",
     string CharacterZone = "",
-    ImmutableArray<FriendCharacterUiItem> Characters = default)
+    ImmutableArray<FriendCharacterUiItem> Characters = default,
+    bool IsLauncherOnline = false)
 {
     public string CharacterSummary => !HasCharacter
         ? string.Empty
@@ -70,6 +89,10 @@ public sealed record FriendUiItem(
             : $"{CharacterName} · {CharacterDetails}";
 
     public bool HasStatusMessage => !string.IsNullOrWhiteSpace(StatusMessage);
+
+    public bool IsInGame => AllCharacters.Any(character => character.IsOnline) || IsOnline && !IsLauncherOnline;
+
+    public string ProfilePresenceText => IsInGame ? "En jeu" : PresenceText;
 
     public bool HasBio => !string.IsNullOrWhiteSpace(Bio);
 
@@ -84,6 +107,29 @@ public sealed record FriendUiItem(
         : Characters;
 
     public bool HasCharacters => !Characters.IsDefaultOrEmpty;
+
+    public FriendCharacterUiItem? FeaturedCharacter
+    {
+        get
+        {
+            FriendCharacterUiItem? character = AllCharacters.FirstOrDefault(item => item.IsOnline)
+                ?? AllCharacters.FirstOrDefault(item => string.Equals(item.Name, CharacterName, StringComparison.OrdinalIgnoreCase))
+                ?? AllCharacters.FirstOrDefault();
+            return character is null ? null : character with { IsFeatured = true };
+        }
+    }
+
+    public bool HasFeaturedCharacter => FeaturedCharacter is not null;
+
+    public string FeaturedCharacterTitle => FeaturedCharacter?.IsOnline == true
+        ? "PERSONNAGE ACTIF"
+        : "DERNIER PERSONNAGE JOUÉ";
+
+    public ImmutableArray<FriendCharacterUiItem> OtherCharacters => AllCharacters
+        .Where(character => !string.Equals(character.Name, FeaturedCharacter?.Name, StringComparison.OrdinalIgnoreCase))
+        .ToImmutableArray();
+
+    public bool HasOtherCharacters => !OtherCharacters.IsDefaultOrEmpty;
 
     public override string ToString() => Username;
 }
@@ -113,7 +159,7 @@ public sealed record FriendsViewState(
         .Where(friend => !friend.IsOnline)
         .ToImmutableArray();
 
-    public string FriendsSummary => $"{Friends.Length} ami{(Friends.Length > 1 ? "s" : string.Empty)} · {OnlineCount} en jeu";
+    public string FriendsSummary => $"{Friends.Length} ami{(Friends.Length > 1 ? "s" : string.Empty)} · {OnlineCount} en ligne";
 
     public bool HasFriends => !Friends.IsDefaultOrEmpty;
 

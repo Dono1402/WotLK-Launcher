@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using WotLK.Launcher.Dashboard;
 using WotLK.Launcher.Runtime;
 
 namespace WotLK.Launcher.Game;
@@ -55,6 +56,8 @@ internal sealed class GameRuntimeCoordinator :
     private readonly Func<GameClientLocalState> _readLocalState;
     private readonly Action<string> _writeLog;
     private readonly TimeProvider _timeProvider;
+    private readonly GameLaunchAvailability _launchAvailability = new();
+    private ILauncherDashboardRuntime? _dashboard;
     private string? _installedVersion;
     private GameRuntimeSnapshot _currentSnapshot;
     private Task _activeOperation = Task.CompletedTask;
@@ -62,6 +65,7 @@ internal sealed class GameRuntimeCoordinator :
     private Task _activePlayOperation = Task.CompletedTask;
     private Task _activeGameStopOperation = Task.CompletedTask;
     private LauncherOperationLease? _activePlayLease;
+    private GameLaunchPermit? _activePlayPermit;
     private TaskCompletionSource? _activePlayCompletion;
     private GameAction? _activeMaintenanceAction;
     private bool _repairDetectedChanges;
@@ -135,6 +139,34 @@ internal sealed class GameRuntimeCoordinator :
     internal event EventHandler? PlayStarted;
 
     public event EventHandler<GameRuntimeSnapshotEventArgs>? SnapshotChanged;
+
+    internal void AttachDashboard(ILauncherDashboardRuntime dashboard)
+    {
+        ArgumentNullException.ThrowIfNull(dashboard);
+        if (_dashboard is not null) throw new InvalidOperationException("Le statut du serveur est déjà raccordé.");
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeState) != 0, this);
+        _dashboard = dashboard;
+        dashboard.SnapshotChanged += Dashboard_SnapshotChanged;
+        ApplyDashboardAvailability(dashboard.CurrentSnapshot);
+    }
+
+    private void Dashboard_SnapshotChanged(object? sender, DashboardSnapshotEventArgs e) =>
+        ApplyDashboardAvailability(e.Snapshot);
+
+    private void ApplyDashboardAvailability(DashboardSnapshot dashboard)
+    {
+        if (Volatile.Read(ref _disposeState) != 0 || !_launchAvailability.Update(dashboard)) return;
+        LauncherOperationLease? pendingAuthentication = null;
+        lock (_sync)
+        {
+            if (_launchAvailability.IsUnavailable && _currentSnapshot.IsPlayPendingAuthentication)
+                pendingAuthentication = _activePlayLease;
+        }
+        if (pendingAuthentication is not null)
+            CompletePlayAttempt(pendingAuthentication, new GameLaunchResult(pendingAuthentication.OperationId,
+                GameLaunchOutcome.ServerUnavailable, GameLaunchFailureCategory.ServerUnavailable));
+        RefreshAuthenticationAvailability();
+    }
 
     public bool CanVerify
     {
@@ -438,6 +470,7 @@ internal sealed class GameRuntimeCoordinator :
                 || _operations.IsShuttingDown
                 || _getSessionState() != LauncherSessionState.Authenticated
                 || _activePlayLease is null
+                || _activePlayPermit?.IsAvailable != true
                 || !_currentSnapshot.IsPlayPendingAuthentication
                 || !_activePlayLease.IsCurrent)
             {
@@ -487,6 +520,7 @@ internal sealed class GameRuntimeCoordinator :
         LauncherSessionState sessionState;
         bool isAuthenticated;
         bool isPlayable;
+        GameLaunchPermit permit;
         lock (_sync)
         {
             if (Volatile.Read(ref _disposeState) != 0 || _operations.IsShuttingDown)
@@ -510,6 +544,9 @@ internal sealed class GameRuntimeCoordinator :
             {
                 return GamePrimaryActionStatus.Busy;
             }
+
+            permit = _launchAvailability.CreatePermit();
+            if (!permit.IsAvailable) return GamePrimaryActionStatus.ServerUnavailable;
 
             sessionState = _getSessionState();
             isAuthenticated = _isAuthenticated();
@@ -555,7 +592,14 @@ internal sealed class GameRuntimeCoordinator :
                 return GamePrimaryActionStatus.ShuttingDown;
             }
 
+            if (!permit.IsAvailable)
+            {
+                lease.Complete();
+                return GamePrimaryActionStatus.ServerUnavailable;
+            }
+
             _activePlayLease = lease;
+            _activePlayPermit = permit;
             _activePlayCompletion = completion;
             _activePlayOperation = completion.Task;
             snapshot = CreatePlaySnapshotUnsafe(
@@ -572,6 +616,11 @@ internal sealed class GameRuntimeCoordinator :
         Publish(snapshot, availabilityChanged: true);
         if (waitForAuthentication)
         {
+            lock (_sync)
+            {
+                if (!ReferenceEquals(_activePlayLease, lease) || !permit.IsAvailable)
+                    return GamePrimaryActionStatus.ServerUnavailable;
+            }
             RaisePlayAuthenticationRequired();
             return GamePrimaryActionStatus.Unauthenticated;
         }
@@ -594,13 +643,22 @@ internal sealed class GameRuntimeCoordinator :
     private async Task RunPlayAsync(LauncherOperationLease lease)
     {
         GameLaunchResult result;
+        GameLaunchPermit? permit;
+        lock (_sync)
+        {
+            if (!ReferenceEquals(_activePlayLease, lease)) return;
+            permit = _activePlayPermit;
+        }
         try
         {
-            result = await _launchService!.LaunchAsync(
+            result = permit?.IsAvailable != true
+                ? new GameLaunchResult(lease.OperationId, GameLaunchOutcome.ServerUnavailable, GameLaunchFailureCategory.ServerUnavailable)
+                : await _launchService!.LaunchAsync(
                 new GameLaunchRequest(
                     lease.OperationId,
                     _settings.InstallPath,
-                    _settings.GameLocale),
+                    _settings.GameLocale,
+                    permit),
                 progress => ReportPlayProgress(lease, progress),
                 lease.CancellationToken).ConfigureAwait(false);
         }
@@ -617,6 +675,10 @@ internal sealed class GameRuntimeCoordinator :
         {
             return;
         }
+
+        if (permit?.IsAvailable == false && result.Outcome is not (GameLaunchOutcome.Started or GameLaunchOutcome.AlreadyRunning)
+            && !lease.CancellationToken.IsCancellationRequested)
+            result = new GameLaunchResult(lease.OperationId, GameLaunchOutcome.ServerUnavailable, GameLaunchFailureCategory.ServerUnavailable);
 
         if (result.Outcome == GameLaunchOutcome.AuthenticationRequired)
         {
@@ -776,6 +838,7 @@ internal sealed class GameRuntimeCoordinator :
             }
 
             _activePlayLease = null;
+            _activePlayPermit = null;
             completion = _activePlayCompletion;
             _activePlayCompletion = null;
         }
@@ -891,6 +954,7 @@ internal sealed class GameRuntimeCoordinator :
             }
 
             _activePlayLease = null;
+            _activePlayPermit = null;
             completion = _activePlayCompletion;
             _activePlayCompletion = null;
         }
@@ -1281,6 +1345,7 @@ internal sealed class GameRuntimeCoordinator :
             GameRuntimeSnapshot refreshed = RecalculateAvailabilityUnsafe(_currentSnapshot);
             if (refreshed.CanVerify != _currentSnapshot.CanVerify
                 || refreshed.CanPrimaryAction != _currentSnapshot.CanPrimaryAction
+                || refreshed.IsGameServerUnavailable != _currentSnapshot.IsGameServerUnavailable
                 || refreshed.CanUserCancel != _currentSnapshot.CanUserCancel
                 || !string.Equals(
                     refreshed.PrimaryActionUnavailableReason,
@@ -1372,6 +1437,7 @@ internal sealed class GameRuntimeCoordinator :
                 pendingLease = _activePlayLease;
                 pendingCompletion = _activePlayCompletion;
                 _activePlayLease = null;
+                _activePlayPermit = null;
                 _activePlayCompletion = null;
             }
             else if (_activePlayLease is not null
@@ -2067,6 +2133,7 @@ internal sealed class GameRuntimeCoordinator :
         if (!retryRepair && action == GameAction.Play)
         {
             return _launchService is not null
+                && !_launchAvailability.IsUnavailable
                 && _currentSnapshot.IsPlayable
                 && _getSessionState() != LauncherSessionState.Restoring
                 && _operations.CanBeginPlay(clientIsPlayable: true);
@@ -2105,6 +2172,12 @@ internal sealed class GameRuntimeCoordinator :
         if (snapshot.IsFinalizing)
         {
             unavailableReason = "Finalisation en cours";
+        }
+        else if (!retryRepair && action == GameAction.Play && !snapshot.IsMaintenanceActive
+                 && snapshot.PlayLaunchPhase is not (GameLaunchPhase.Started or GameLaunchPhase.Running)
+                 && _launchAvailability.IsUnavailable)
+        {
+            unavailableReason = "Serveur indisponible";
         }
         else if (snapshot.IsPlayActive)
         {
@@ -2155,6 +2228,7 @@ internal sealed class GameRuntimeCoordinator :
             CanVerify = canVerify,
             CanPrimaryAction = canPrimaryAction,
             CanUserCancel = canUserCancel,
+            IsGameServerUnavailable = _launchAvailability.IsUnavailable,
             PrimaryActionUnavailableReason = unavailableReason
         };
     }
@@ -2263,6 +2337,7 @@ internal sealed class GameRuntimeCoordinator :
         }
 
         _operations.StateChanged -= Operations_StateChanged;
+        if (_dashboard is not null) _dashboard.SnapshotChanged -= Dashboard_SnapshotChanged;
         _processMonitor?.Dispose();
         PlayAuthenticationRequired = null;
         PlayStarted = null;

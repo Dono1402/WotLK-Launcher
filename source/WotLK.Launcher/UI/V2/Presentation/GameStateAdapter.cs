@@ -64,6 +64,25 @@ internal sealed class GameStateAdapter : IDisposable
 
     internal static GameViewState Project(GameRuntimeSnapshot snapshot)
     {
+        GameViewState view = ProjectClient(snapshot);
+        if (snapshot.IsGameServerUnavailable && !snapshot.IsMaintenanceActive
+            && snapshot.RetryOperationKind != LauncherOperationKind.GameRepair
+            && (snapshot.RetryAction ?? snapshot.Action) == GameAction.Play
+            && snapshot.PlayLaunchPhase is not (GameLaunchPhase.Started or GameLaunchPhase.Running))
+        {
+            return view with
+            {
+                PrimaryActionLabel = "Serveur indisponible",
+                IsPrimaryActionEnabled = false,
+                IsLaunchInProgress = false,
+                PrimaryActionUnavailableReason = "Serveur indisponible"
+            };
+        }
+        return view;
+    }
+
+    private static GameViewState ProjectClient(GameRuntimeSnapshot snapshot)
+    {
         if (snapshot.PlayLaunchPhase != GameLaunchPhase.Idle)
         {
             return ProjectLaunch(snapshot);
@@ -212,6 +231,7 @@ internal sealed class GameStateAdapter : IDisposable
 
         string failureStatus = snapshot.LastPlayOutcome switch
         {
+            GameLaunchOutcome.ServerUnavailable => "Serveur indisponible",
             GameLaunchOutcome.NetworkUnavailable
                 or GameLaunchOutcome.ServiceUnavailable => "Service Atlas indisponible",
             GameLaunchOutcome.AuthenticationRequired

@@ -262,10 +262,32 @@ public sealed partial class LauncherDatabase
             LIMIT 1;
             """;
         command.Parameters.Add("@hash", MySqlDbType.Binary, 32).Value = hash;
-        await using MySqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
-        return await reader.ReadAsync(cancellationToken)
-            ? new AuthenticatedAccount(reader.GetUInt32("account_id"), reader.GetString("username"))
-            : null;
+        AuthenticatedAccount? account;
+        await using (MySqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            account = await reader.ReadAsync(cancellationToken)
+                ? new AuthenticatedAccount(reader.GetUInt32("account_id"), reader.GetString("username"))
+                : null;
+        }
+
+        if (account is not null)
+        {
+            // The authenticated friends poll keeps launcher presence alive even without a game character.
+            // Throttling limits writes when several API requests share the same session.
+            await using MySqlCommand touch = connection.CreateCommand();
+            touch.CommandText = """
+                UPDATE atlas_launcher_session
+                SET updated_at = UTC_TIMESTAMP()
+                WHERE access_hash = @hash
+                  AND revoked_at IS NULL
+                  AND access_expires_at > UTC_TIMESTAMP()
+                  AND updated_at < UTC_TIMESTAMP() - INTERVAL 10 SECOND;
+                """;
+            touch.Parameters.Add("@hash", MySqlDbType.Binary, 32).Value = hash;
+            await touch.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        return account;
     }
 
     public async Task<AccountProfile> GetProfileAsync(uint accountId, CancellationToken cancellationToken)

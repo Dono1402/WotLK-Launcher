@@ -105,7 +105,17 @@ internal sealed class SettingsStateAdapter : IDisposable
                 IsUpdating: selfUpdate?.IsUpdating == true,
                 CanCheck: selfUpdate is { IsChecking: false, IsUpdating: false },
                 CanStartUpdate: selfUpdate is
-                    { IsUpdateAvailable: true, IsChecking: false, IsUpdating: false }),
+                    { IsUpdateAvailable: true, IsChecking: false, IsUpdating: false },
+                HasChecked: selfUpdate?.LastCheckedAt is not null,
+                HasError: selfUpdate?.ErrorCategory is not null,
+                ErrorStatusText: selfUpdate?.ErrorCategory is null
+                    or LauncherSelfUpdateErrorCategory.ManifestUnavailable
+                    or LauncherSelfUpdateErrorCategory.ManifestInvalid
+                    or LauncherSelfUpdateErrorCategory.ManifestTransportRejected
+                    or LauncherSelfUpdateErrorCategory.ManifestSignatureInvalid
+                    or LauncherSelfUpdateErrorCategory.ManifestUnsupported
+                        ? "Vérification indisponible"
+                        : "Échec de la mise à jour"),
             new NotificationSettingsViewState(settings.FriendPresenceNotifications),
             new DiagnosticSettingsViewState(
                 LogLocation: launcherLogPath,

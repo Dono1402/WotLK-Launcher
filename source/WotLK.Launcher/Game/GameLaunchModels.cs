@@ -27,7 +27,8 @@ internal enum GameLaunchOutcome
     SsoFailed,
     StartFailed,
     Cancelled,
-    Unknown
+    Unknown,
+    ServerUnavailable
 }
 
 internal enum GameLaunchFailureCategory
@@ -42,7 +43,8 @@ internal enum GameLaunchFailureCategory
     Sso,
     Process,
     Cancelled,
-    Unknown
+    Unknown,
+    ServerUnavailable
 }
 
 internal enum GameTicketAcquisitionStatus
@@ -72,7 +74,8 @@ internal sealed record GameTicketAcquisitionResult(
 internal sealed record GameLaunchRequest(
     long AttemptId,
     string InstallPath,
-    string GameLocale);
+    string GameLocale,
+    GameLaunchPermit? Permit = null);
 
 internal sealed record GameLaunchProgress(
     long AttemptId,

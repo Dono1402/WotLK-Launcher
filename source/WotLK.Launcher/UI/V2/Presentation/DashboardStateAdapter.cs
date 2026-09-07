@@ -81,7 +81,19 @@ internal sealed class DashboardStateAdapter : IDisposable
             snapshot.HasPatchNote,
             snapshot.IsStale,
             CanOpenLatestPatchNote: snapshot.HasPatchNote,
-            PatchNotes: patchNotes);
+            PatchNotes: patchNotes)
+        {
+            OnlinePlayersText = snapshot.OnlinePlayers is >= 0 ? snapshot.OnlinePlayers.Value.ToString("N0", FrenchCulture) : "—",
+            OnlinePlayersToolTip = snapshot.OnlinePlayers is not >= 0 ? "Le nombre de joueurs est indisponible."
+                : snapshot.OnlinePlayerCountKind == "excluding-random-bots"
+                    ? "Personnages connectés au royaume. Les comptes de bots identifiés sont exclus."
+                    : "Personnages connectés au royaume. Cette mesure peut inclure des bots.",
+            GatewayLatencyText = snapshot.GatewayLatencyMilliseconds is >= 0
+                ? $"{snapshot.GatewayLatencyMilliseconds.Value.ToString(FrenchCulture)} ms" : "—",
+            GatewayLatencyToolTip = snapshot.GatewayLatencyMilliseconds is >= 0
+                ? "Temps de connexion à la passerelle du jeu (TCP)."
+                : "La latence de la passerelle du jeu est indisponible."
+        };
     }
 
     private static ImmutableArray<PatchNoteEntryViewState> ProjectPatchNotes(

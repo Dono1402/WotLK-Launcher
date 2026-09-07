@@ -32,6 +32,7 @@ internal static class SettingsPreviewTests
         CharacterizePreviewStartupIsolation();
         CharacterizeReadOnlyPreviewState();
         CharacterizePreviewScenarios();
+        CharacterizeUpdateSummary();
         await ValidateWpfLayoutsNavigationAndCapturesAsync(captureDirectory);
         Console.WriteLine($"Settings WPF preview OK (02G.2 isolation, window DPI={_observedWindowDpi}).");
         return 0;
@@ -63,6 +64,24 @@ internal static class SettingsPreviewTests
             LauncherStartupMode.UiV2,
             App.ResolveStartupMode(["--ui-v2"]),
             "La V2 réelle doit conserver sa branche distincte.");
+    }
+
+    private static void CharacterizeUpdateSummary()
+    {
+        UpdateSettingsViewState unknown = new("v1.3.0", "");
+        Equal("Non vérifiée", unknown.StatusText, "Une version non vérifiée ne doit pas être verte.");
+        True(!unknown.IsUpToDate, "L'absence de recherche ne prouve pas que le launcher est à jour.");
+        UpdateSettingsViewState current = unknown with { HasChecked = true };
+        Equal("À jour", current.StatusText, "Une recherche réussie doit afficher À jour.");
+        True(current.IsUpToDate, "Le statut à jour doit être positif.");
+        Equal("Recherche en cours…", (current with { IsChecking = true }).StatusText, "La recherche reste visible.");
+        Equal("Mise à jour en cours…", (current with { IsUpdating = true }).StatusText, "Le téléchargement reste visible.");
+        Equal("Vérification indisponible", (current with { HasError = true }).StatusText, "Une erreur ne doit pas afficher À jour.");
+        True(!(current with { HasError = true }).IsUpToDate, "L'erreur retire le statut à jour.");
+        Equal("Update available · v1.4.0", LauncherLocalization.TranslateFromFrench(
+            (current with { IsUpdateAvailable = true, AvailableLauncherVersion = "v1.4.0" }).StatusText),
+            "Le résumé disponible doit être traduit sans perdre la version.");
+        Equal("Release notes", LauncherLocalization.TranslateFromFrench("Notes de version"), "La navigation doit être traduite.");
     }
 
     private static void CharacterizeReadOnlyPreviewState()

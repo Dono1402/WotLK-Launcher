@@ -1,7 +1,16 @@
-# Notes de mise à jour - brouillon local
+# Notes de version — brouillon 1.4.0
 
-Le brouillon 1.3.0 ci-dessous est archivé. Sa version complétée, publiée à la
-demande de Dono le 4 septembre 2026, est conservée dans
+Le brouillon complet préparé le 6 septembre 2026 est disponible en
+[français](../../../releases/v1.4.0/PATCH-NOTES-DRAFT.md) et en
+[anglais](../../../releases/v1.4.0/PATCH-NOTES-DRAFT.en.md), avec les versions
+structurées [FR](../../../releases/v1.4.0/patch-note.draft.json) et
+[EN](../../../releases/v1.4.0/patch-note.en.draft.json).
+Il rassemble 53 points en 10 rubriques et alimente le brouillon du client local.
+La préparation du paquet public est documentée dans
+[`PREPARATION-RELEASE.md`](../../../releases/v1.4.0/PREPARATION-RELEASE.md).
+
+Le premier brouillon ci-dessous reste archivé. Le texte publié le
+4 septembre 2026 est conservé dans
 [`releases/v1.3.0/patch-note.json`](../../../releases/v1.3.0/patch-note.json).
 Toute publication suivante nécessite une nouvelle demande explicite.
 

@@ -7,6 +7,13 @@
              IsHitTestVisible="False"
              Focusable="False"
              PreviewKeyDown="Root_PreviewKeyDown">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Resources/AtlasV2.OverlaysPilot.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
     <Grid>
         <Border x:Name="Scrim"
                 Background="#A805080B"
@@ -22,10 +29,10 @@
                 Padding="26,22,26,26"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
-                Background="{StaticResource AtlasV2.Brush.SurfaceRaised}"
-                BorderBrush="{StaticResource AtlasV2.Brush.Border}"
+                Background="{StaticResource AtlasV2.Overlay.Panel}"
+                BorderBrush="{StaticResource AtlasV2.Overlay.Edge}"
                 BorderThickness="1"
-                CornerRadius="8"
+                CornerRadius="14"
                 Opacity="0"
                 KeyboardNavigation.TabNavigation="Cycle"
                 KeyboardNavigation.ControlTabNavigation="Cycle"
@@ -52,13 +59,13 @@
                 <Grid Grid.Row="0">
                     <TextBlock VerticalAlignment="Center"
                                Text="NOTE DE MISE À JOUR"
-                               Style="{StaticResource AtlasV2.Text.Eyebrow}"/>
+                               Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
                     <Button x:Name="CloseButton"
                             Width="38"
                             Height="38"
                             Padding="10"
                             HorizontalAlignment="Right"
-                            Style="{StaticResource AtlasV2.Button.Icon}"
+                            Style="{StaticResource AtlasV2.Overlay.IconButton}"
                             ToolTip="Fermer"
                             KeyboardNavigation.TabIndex="0"
                             AutomationProperties.Name="Fermer la note de mise à jour"
@@ -73,18 +80,18 @@
                            Margin="0,12,46,0"
                            Text="{Binding LatestPatchNoteTitle}"
                            TextWrapping="Wrap"
-                           Style="{StaticResource AtlasV2.Text.SectionTitle}"
-                           FontSize="27"
+                           Style="{StaticResource AtlasV2.Overlay.Title}"
+                           FontSize="30"
                            FontWeight="ExtraBold"/>
 
                 <StackPanel Grid.Row="2"
                             Margin="0,12,0,0"
                             Orientation="Horizontal">
                     <Border Padding="9,4"
-                            Background="{StaticResource AtlasV2.Brush.CyanSurface}"
-                            BorderBrush="{StaticResource AtlasV2.Brush.CyanBorder}"
+                            Background="{StaticResource AtlasV2.Overlay.Card}"
+                            BorderBrush="{StaticResource AtlasV2.Overlay.CardEdge}"
                             BorderThickness="1"
-                            CornerRadius="5">
+                            CornerRadius="10">
                         <TextBlock x:Name="PatchNoteVersionText"
                                    Text="{Binding LatestPatchNoteVersion}"
                                    Style="{StaticResource AtlasV2.Text.Caption}"
@@ -96,7 +103,7 @@
                                VerticalAlignment="Center"
                                Text="{Binding LatestPatchNoteMetaText}"
                                Style="{StaticResource AtlasV2.Text.Caption}"
-                               Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+                               Foreground="{StaticResource AtlasV2.Overlay.Muted}"/>
                 </StackPanel>
 
                 <ScrollViewer x:Name="BodyScrollViewer"

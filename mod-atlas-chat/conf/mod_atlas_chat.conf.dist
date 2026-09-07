@@ -1,0 +1,9 @@
+[worldserver]
+
+# Requires launcher auth migration 0006 and its running chat inbox worker.
+# Installation/build and a worldserver restart are separate deployment steps.
+AtlasChat.Enable = 0
+
+# Uses the world's existing RealmID; no second realm identifier is invented.
+# The module polls asynchronously, with at most 64 delivery rows per batch.
+AtlasChat.PollIntervalMs = 1000

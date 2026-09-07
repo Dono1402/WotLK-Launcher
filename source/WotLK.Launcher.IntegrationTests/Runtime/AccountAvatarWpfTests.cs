@@ -269,6 +269,8 @@ internal static class AccountAvatarWpfTests
                     "Gérer mon profil conserve l'actualisation explicite existante.");
                 SaveCapture(window, captureDirectory, "03-global-avatar-account-1440x860.png");
 
+                await ValidateCancelledAvatarSelectionAsync(account, accountState, dispatcher, selectedImage);
+
                 Button modify = Required<Button>(window.AccountPage, "ModifyAvatarButton");
                 RaiseClick(modify);
                 await WaitUntilAsync(() => cropState.IsOpen, "Le sélecteur simulé doit ouvrir le crop réel.");
@@ -900,9 +902,53 @@ internal static class AccountAvatarWpfTests
     private static async Task PumpAsync(DispatcherPriority priority) =>
         await Dispatcher.CurrentDispatcher.InvokeAsync(() => { }, priority);
 
-    private sealed class FixedPicker(string path) : IAvatarFilePicker
+    private static async Task ValidateCancelledAvatarSelectionAsync(
+        LauncherAccountCoordinator account,
+        AccountUiState sourceState,
+        Dispatcher dispatcher,
+        string selectedImage)
     {
-        public string? PickImagePath() => path;
+        AccountAvatarClientTests.True(sourceState.Current.CanModifyAvatar,
+            "La sélection annulée doit être testée depuis un compte autorisé à modifier sa photo.");
+        foreach (string path in new[] { selectedImage, selectedImage + ".missing.jpg" })
+        {
+            using CancellationTokenSource selectionLifetime = new();
+            AccountUiState state = new(sourceState.Current);
+            AvatarCropUiState crop = new(AvatarCropUiState.Empty.Current);
+            AccountViewState before = state.Current;
+            int pickerCalls = 0;
+            using AccountCommands commands = new(
+                account,
+                state,
+                crop,
+                new AvatarFileSelectionService(new FixedPicker(path, () =>
+                {
+                    pickerCalls++;
+                    selectionLifetime.Cancel();
+                })),
+                dispatcher);
+            AccountAvatarClientTests.False(await commands.SelectAvatarAsync(selectionLifetime.Token),
+                "Une session annulée pendant le sélecteur doit refuser son résultat tardif.");
+            AccountAvatarClientTests.Equal(1, pickerCalls,
+                "Le test doit annuler la session pendant une véritable tentative de sélection.");
+            AccountAvatarClientTests.False(crop.IsOpen,
+                "Le résultat d'une ancienne session ne doit pas ouvrir le cadrage.");
+            AccountAvatarClientTests.True(ReferenceEquals(before, state.Current),
+                "Une image valide ou manquante issue d'une ancienne session ne doit pas modifier l'état courant.");
+            AccountAvatarClientTests.False(await commands.SelectAvatarAsync(selectionLifetime.Token),
+                "Un token déjà annulé doit refuser immédiatement une nouvelle sélection.");
+            AccountAvatarClientTests.Equal(1, pickerCalls,
+                "Un token déjà annulé ne doit pas rouvrir le sélecteur.");
+        }
+    }
+
+    private sealed class FixedPicker(string path, Action? onPick = null) : IAvatarFilePicker
+    {
+        public string? PickImagePath()
+        {
+            onPick?.Invoke();
+            return path;
+        }
     }
 
     private sealed class TestBearerHandler(string token) : DelegatingHandler(new SocketsHttpHandler())

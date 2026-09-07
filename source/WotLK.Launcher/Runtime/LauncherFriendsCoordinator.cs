@@ -731,7 +731,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
         {
             friends = friends
                 .Add(accepted with { Relationship = FriendRelationship.Accepted })
-                .OrderByDescending(friend => friend.IsOnline)
+                .OrderByDescending(friend => friend.IsAvailable)
                 .ThenBy(friend => friend.Username, StringComparer.OrdinalIgnoreCase)
                 .ToImmutableArray();
         }
@@ -805,7 +805,9 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
                         character.ZoneId,
                         character.Online,
                         character.LastSeenAt))
-                    .ToImmutableArray());
+                    .ToImmutableArray(),
+                item.LauncherOnline,
+                item.LauncherLastSeenAt);
             switch (relationship)
             {
                 case FriendRelationship.Incoming:
@@ -821,7 +823,7 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
         }
 
         return new FriendLists(
-            friends.OrderByDescending(friend => friend.IsOnline)
+            friends.OrderByDescending(friend => friend.IsAvailable)
                 .ThenBy(friend => friend.Username, StringComparer.OrdinalIgnoreCase)
                 .ToImmutableArray(),
             incoming.OrderBy(friend => friend.Username, StringComparer.OrdinalIgnoreCase)

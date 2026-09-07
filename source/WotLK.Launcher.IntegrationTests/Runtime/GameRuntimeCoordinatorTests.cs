@@ -528,10 +528,15 @@ internal static class GameRuntimeCoordinatorTests
                 {
                     Width = 1080,
                     Height = 680,
+                    Left = -20000,
+                    Top = -20000,
+                    WindowStartupLocation = WindowStartupLocation.Manual,
                     ShowInTaskbar = false,
+                    ShowActivated = false,
                     Opacity = 0,
                     Content = view
                 };
+                host.PreviewGotKeyboardFocus += (_, args) => args.Handled = true;
                 host.Show();
                 view.UpdateLayout();
 

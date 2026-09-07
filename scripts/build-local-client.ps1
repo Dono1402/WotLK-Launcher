@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$DotnetPath = 'C:\Users\Dono\.dotnet\sdk-8.0.424\dotnet.exe',
-    [string]$OutputDirectory
+    [string]$OutputDirectory,
+    [string]$ArmoryNodePath = (Join-Path $env:USERPROFILE '.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,6 +20,12 @@ if (-not $OutputDirectory.StartsWith(
 }
 if (-not (Test-Path -LiteralPath $DotnetPath -PathType Leaf)) {
     throw "SDK .NET introuvable : $DotnetPath"
+}
+$armoryNode = [IO.Path]::GetFullPath($ArmoryNodePath)
+$armoryServer = Join-Path $repository 'prototypes\armory-3d\launcher-server.cjs'
+if (-not (Test-Path -LiteralPath $armoryNode -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $armoryServer -PathType Leaf)) {
+    throw "Les dépendances de l'armurerie locale sont introuvables. Vérifiez ArmoryNodePath et prototypes/armory-3d."
 }
 
 $project = Join-Path $repository 'source\WotLK.Launcher\WotLK.Launcher.csproj'
@@ -51,6 +58,9 @@ if (-not (Test-Path -LiteralPath $publishedExecutable -PathType Leaf)) {
     throw "Le publish ne contient pas WotLK.Launcher.exe."
 }
 Move-Item -LiteralPath $publishedExecutable -Destination $localExecutable
+
+@{ NodePath = $armoryNode; ServerPath = $armoryServer } | ConvertTo-Json |
+    Set-Content -LiteralPath (Join-Path $OutputDirectory 'armory-local.json') -Encoding utf8
 
 $file = Get-Item -LiteralPath $localExecutable
 $hash = (Get-FileHash -LiteralPath $localExecutable -Algorithm SHA256).Hash.ToLowerInvariant()

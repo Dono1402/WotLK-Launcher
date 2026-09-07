@@ -2,7 +2,7 @@ using MySqlConnector;
 
 namespace WotLK.Launcher.Server.Database;
 
-internal sealed class LauncherSchemaValidator
+internal sealed partial class LauncherSchemaValidator
 {
     private static readonly IReadOnlyDictionary<string, TableExpectation> HistoryTables = CreateHistoryTables();
     private static readonly IReadOnlyDictionary<string, TableExpectation> LegacyV1Tables = CreateLegacyTables(false);

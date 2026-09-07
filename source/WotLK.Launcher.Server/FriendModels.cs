@@ -16,7 +16,9 @@ public sealed record LauncherFriend(
     Avatars.AvatarDescriptor? Avatar = null,
     string StatusMessage = "",
     string Bio = "",
-    IReadOnlyList<LauncherFriendCharacter>? Characters = null);
+    IReadOnlyList<LauncherFriendCharacter>? Characters = null,
+    bool LauncherOnline = false,
+    DateTimeOffset? LauncherLastSeenAt = null);
 
 public sealed record LauncherFriendCharacter(
     string Name,

@@ -385,6 +385,27 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
         }
     }
 
+    internal void NotifyAuthenticatedRequestUnauthorized(long expectedSequence, CancellationToken cancellationToken = default)
+    {
+        AuthSessionSnapshot? snapshot;
+        lock (_sync)
+        {
+            if (IsStoppingUnsafe() || cancellationToken.IsCancellationRequested
+                || !_currentSnapshot.IsAuthenticated || _currentSnapshot.Sequence != expectedSequence) return;
+            // Clearing credentials and changing the snapshot share the login commit lock.
+            // A late refusal must not invalidate a newly connected session, even for the same account.
+            try { _authentication.InvalidateLocalSession(); }
+            catch (Exception exception)
+            {
+                WriteGameTicketFailureSafely(LauncherSessionFailureCategory.SessionExpired, exception);
+            }
+            snapshot = SetSnapshotUnsafe(
+                attemptId: null, LauncherSessionState.SignedOut, operationKind: null,
+                string.Empty, isEmailVerified: true, LauncherSessionFailureCategory.SessionExpired);
+        }
+        RaiseSnapshotChanged(snapshot);
+    }
+
     internal void BeginShutdown()
     {
         CancellationTokenSource[] cancellations;

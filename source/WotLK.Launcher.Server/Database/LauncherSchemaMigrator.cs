@@ -199,6 +199,10 @@ internal sealed class LauncherSchemaMigrator
             await _validator.ValidateLegacyAsync(connection, version, cancellationToken);
         if (version >= 2)
             await _validator.ValidateAvatarAsync(connection, version, cancellationToken);
+        if (version >= 6)
+            await _validator.ValidateChatAsync(connection, cancellationToken);
+        if (version >= 7)
+            await _validator.ValidateChatV2Async(connection, cancellationToken);
     }
 
     private static async Task ExecuteMigrationAsync(

@@ -35,6 +35,11 @@ public sealed record DashboardViewState(
     bool CanOpenLatestPatchNote,
     ImmutableArray<PatchNoteEntryViewState> PatchNotes)
 {
+    public string OnlinePlayersText { get; init; } = "—";
+    public string OnlinePlayersToolTip { get; init; } = "Le nombre de joueurs est indisponible.";
+    public string GatewayLatencyText { get; init; } = "—";
+    public string GatewayLatencyToolTip { get; init; } = "La latence de la passerelle du jeu est indisponible.";
+
     internal static DashboardViewState Initial { get; } = new(
         RealmState: DashboardRealmState.Unknown,
         RealmStatusLabel: "Non vérifié",

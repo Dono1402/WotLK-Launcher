@@ -15,6 +15,7 @@ internal sealed class LauncherFriendsNotificationCoordinator : IDisposable
     private readonly ILauncherSettingsRuntime _settings;
     private readonly ILauncherDesktopNotificationSink _notifications;
     private readonly Action<string> _writeLog;
+    private readonly Func<bool> _suppressNotifications;
     private Dictionary<uint, bool> _friendPresence = [];
     private HashSet<uint> _incomingRequestIds = [];
     private uint? _currentUserId;
@@ -25,8 +26,9 @@ internal sealed class LauncherFriendsNotificationCoordinator : IDisposable
         LauncherFriendsCoordinator friends,
         ILauncherSettingsRuntime settings,
         ILauncherDesktopNotificationSink notifications,
-        Action<string> writeLog)
-        : this(settings, notifications, writeLog)
+        Action<string> writeLog,
+        Func<bool>? suppressNotifications = null)
+        : this(settings, notifications, writeLog, suppressNotifications)
     {
         _friends = friends ?? throw new ArgumentNullException(nameof(friends));
         _friends.SnapshotChanged += Friends_SnapshotChanged;
@@ -36,11 +38,13 @@ internal sealed class LauncherFriendsNotificationCoordinator : IDisposable
     internal LauncherFriendsNotificationCoordinator(
         ILauncherSettingsRuntime settings,
         ILauncherDesktopNotificationSink notifications,
-        Action<string> writeLog)
+        Action<string> writeLog,
+        Func<bool>? suppressNotifications = null)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
         _writeLog = writeLog ?? throw new ArgumentNullException(nameof(writeLog));
+        _suppressNotifications = suppressNotifications ?? (() => false);
     }
 
     internal void Observe(FriendsRuntimeSnapshot snapshot)
@@ -71,7 +75,7 @@ internal sealed class LauncherFriendsNotificationCoordinator : IDisposable
 
             Dictionary<uint, bool> currentPresence = snapshot.Friends
                 .Where(friend => friend.Relationship == FriendRelationship.Accepted)
-                .ToDictionary(friend => friend.AccountId, friend => friend.IsOnline);
+                .ToDictionary(friend => friend.AccountId, friend => friend.IsAvailable);
             HashSet<uint> currentIncoming = snapshot.IncomingRequests
                 .Where(request => request.Relationship == FriendRelationship.Incoming)
                 .Select(request => request.AccountId)
@@ -88,7 +92,7 @@ internal sealed class LauncherFriendsNotificationCoordinator : IDisposable
 
             FriendRuntimeItem[] newlyOnline = snapshot.Friends
                 .Where(friend => friend.Relationship == FriendRelationship.Accepted
-                    && friend.IsOnline
+                    && friend.IsAvailable
                     && _friendPresence.TryGetValue(friend.AccountId, out bool wasOnline)
                     && !wasOnline)
                 .OrderBy(friend => friend.Username, StringComparer.OrdinalIgnoreCase)
@@ -185,6 +189,7 @@ internal sealed class LauncherFriendsNotificationCoordinator : IDisposable
 
         try
         {
+            if (_suppressNotifications()) return;
             _notifications.ShowNotification(
                 notification.Title,
                 notification.Message,

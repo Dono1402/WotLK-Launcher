@@ -102,7 +102,7 @@ internal static class LauncherSettingsRuntimeTests
         Equal(beforeUnchanged, saveCalls, "Une valeur identique ne doit toucher aucun fichier.");
     }
 
-    private static void CharacterizeStartupRegistration()
+    internal static void CharacterizeStartupRegistration()
     {
         FakeLauncherStartupRegistry registry = new();
         registry.Values["Atlas Launcher Similar"] = "do-not-touch.exe";
@@ -116,11 +116,17 @@ internal static class LauncherSettingsRuntimeTests
         LauncherStartupRegistrationResult enabled = registration.TrySetEnabled(true);
         True(enabled.IsApplied, "L'inscription HKCU simulée doit réussir.");
         Equal(
-            "\"C:\\Program Files\\Atlas Launcher\\AtlasLauncher.exe\"",
+            "\"C:\\Program Files\\Atlas Launcher\\AtlasLauncher.exe\" --autostart",
             registry.Values["Atlas Launcher Test"],
-            "Le chemin de démarrage doit être absolu et correctement cité.");
+            "Le démarrage Windows doit utiliser un chemin absolu cité et le mode automatique réduit.");
         True(registration.IsEnabled, "La valeur exacte doit être reconnue.");
         True(registration.IsRegistered, "La valeur exacte doit être détectée.");
+
+        registry.Values["Atlas Launcher Test"] = "\"C:\\Program Files\\Atlas Launcher\\AtlasLauncher.exe\"";
+        True(registration.IsRegistered && !registration.IsEnabled,
+            "L'ancienne commande sans argument doit demander la migration sans perdre son inscription.");
+        True(registration.TrySetEnabled(true).IsApplied && registration.IsEnabled,
+            "La réparation de l'inscription existante doit ajouter --autostart.");
 
         LauncherStartupRegistrationResult disabled = registration.TrySetEnabled(false);
         True(disabled.IsApplied, "La désactivation simulée doit réussir.");
@@ -562,8 +568,10 @@ internal static class LauncherSettingsRuntimeTests
             await PumpAsync(DispatcherPriority.DataBind);
             Equal("v1.1.0", Required<TextBlock>(view, "LauncherVersionText").Text,
                 "Settings doit afficher la version installée du coordinateur.");
-            Equal("v1.2.0", Required<TextBlock>(view, "AvailableLauncherVersionText").Text,
+            Equal("Mise à jour disponible · v1.2.0", Required<TextBlock>(view, "LauncherUpdateStatusText").Text,
                 "Settings doit afficher la version réellement disponible.");
+            True(view.FindName("AvailableLauncherVersionText") is null,
+                "Le double cadre de versions ne doit plus être rendu.");
             True(view.FindName("CheckLauncherUpdateButton") is null
                  && view.FindName("StartLauncherUpdateButton") is null,
                 "Les boutons manuels de mise à jour doivent être retirés de Settings.");
@@ -582,6 +590,8 @@ internal static class LauncherSettingsRuntimeTests
                 "Le bouton doit déléguer une seule fois au coordinateur partagé.");
             True(settingsState.Current.Updates.IsChecking,
                 "L'état Checking doit être projeté sans créer une opération Activity.");
+            Equal("Recherche en cours…", Required<TextBlock>(view, "LauncherUpdateStatusText").Text,
+                "Un check ne doit jamais être présenté comme À jour.");
             True(!settingsState.CheckLauncherUpdateCommand.CanExecute(null),
                 "Un deuxième check doit être refusé pendant la requête active.");
             True(updateButton.IsVisible && !updateButton.IsEnabled,
@@ -617,10 +627,16 @@ internal static class LauncherSettingsRuntimeTests
 
             selfUpdateRuntime.PublishError(LauncherSelfUpdateErrorCategory.ManifestUnavailable);
             await PumpAsync(DispatcherPriority.DataBind);
+            Equal("Vérification indisponible", Required<TextBlock>(view, "LauncherUpdateStatusText").Text,
+                "L'erreur doit rester explicite dans le résumé compact.");
             True(!settingsState.Current.Updates.IsUpdateAvailable,
                 "Une erreur de manifeste doit retirer l'état de mise à jour disponible.");
             Equal(Visibility.Collapsed, updateButton.Visibility,
                 "Un manifeste indisponible ne doit pas afficher une fausse mise à jour.");
+            selfUpdateRuntime.PublishError(LauncherSelfUpdateErrorCategory.DownloadFailed);
+            await PumpAsync(DispatcherPriority.DataBind);
+            Equal("Échec de la mise à jour", Required<TextBlock>(view, "LauncherUpdateStatusText").Text,
+                "Un téléchargement échoué doit être distingué d'une vérification indisponible.");
             selfUpdateRuntime.SetUpdateAvailable(true);
 
             window.Width = 1080;

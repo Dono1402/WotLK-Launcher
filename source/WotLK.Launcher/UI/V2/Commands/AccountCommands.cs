@@ -88,9 +88,10 @@ internal sealed class AccountCommands : IDisposable
             "Cette session ne peut pas être déconnectée pour le moment.");
     }
 
-    internal async Task<bool> SelectAvatarAsync()
+    internal async Task<bool> SelectAvatarAsync(CancellationToken cancellationToken = default)
     {
         if (Volatile.Read(ref _disposeState) != 0
+            || cancellationToken.IsCancellationRequested
             || !_accountState.Current.CanModifyAvatar)
         {
             return false;
@@ -99,8 +100,9 @@ internal sealed class AccountCommands : IDisposable
         try
         {
             AvatarPreviewImage? selection = await _selectionService
-                .PickAndLoadAsync(CancellationToken.None);
-            if (selection is null || Volatile.Read(ref _disposeState) != 0)
+                .PickAndLoadAsync(cancellationToken);
+            if (selection is null || cancellationToken.IsCancellationRequested
+                || Volatile.Read(ref _disposeState) != 0 || !_accountState.Current.CanModifyAvatar)
             {
                 return false;
             }
@@ -111,7 +113,8 @@ internal sealed class AccountCommands : IDisposable
         }
         catch (AvatarSelectionException exception)
         {
-            _accountState.ShowLocalError(MapSelectionFailure(exception.Category));
+            if (!cancellationToken.IsCancellationRequested && Volatile.Read(ref _disposeState) == 0)
+                _accountState.ShowLocalError(MapSelectionFailure(exception.Category));
             return false;
         }
         catch (OperationCanceledException)

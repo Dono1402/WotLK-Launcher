@@ -141,7 +141,7 @@ internal static class AccountPreviewTests
                 LoadV2Resources(application);
                 await ValidateProfileMenuNavigationAsync(captureDirectory);
                 await ValidateRuntimeNavigationActivationAsync();
-                await ValidateAvatarHoverActionsAsync();
+                await ValidateSensitiveEditorGuardsAsync();
                 await ValidateAccountScenariosAndCapturesAsync(captureDirectory);
                 await ValidateCropInteractionAsync();
             }
@@ -195,10 +195,12 @@ internal static class AccountPreviewTests
             RaiseClick(manageProfile);
             await DelayAndPumpAsync(180);
             Equal(LauncherShellPage.Account, window.CurrentPage, "Gérer mon profil doit ouvrir AccountViewV2.");
-            Equal(AccountSection.Profile, window.AccountPage.SelectedSection,
-                "Gérer mon profil doit ouvrir directement la personnalisation.");
-            Equal("Mon profil", Required<TextBlock>(window.AccountPage, "PageTitle").Text,
-                "L'accès Profil doit être identifié comme une personnalisation.");
+            Equal(AccountSection.Security, window.AccountPage.SelectedSection,
+                "Sans armurerie configurée, l'ancien accès Profil doit aboutir au compte sans réafficher le profil dupliqué.");
+            Equal("Mon compte", Required<TextBlock>(window.AccountPage, "PageTitle").Text,
+                "Le fallback isolé doit conserver l'identité de la page Compte.");
+            True(!Required<Grid>(window.AccountPage, "ProfilePanel").IsVisible,
+                "L'ancien profil natif ne doit pas doubler la personnalisation de l'armurerie.");
             Equal(Visibility.Visible, window.AccountPage.Visibility, "AccountViewV2 doit être visible.");
             True(!window.ProfileState.IsOpen, "Le menu profil doit se fermer après navigation.");
 
@@ -283,6 +285,7 @@ internal static class AccountPreviewTests
             (AccountPreviewScenario.AvatarChanged, 1440, 860, "02b-account-avatar-changed-1440x860.png"),
             (AccountPreviewScenario.AvatarDeleted, 1440, 860, "02c-account-avatar-deleted-1440x860.png"),
             (AccountPreviewScenario.Security, 1440, 860, "03-account-security-1440x860.png"),
+            (AccountPreviewScenario.Security, 1080, 680, "03b-account-security-1080x680.png"),
             (AccountPreviewScenario.Sessions, 1440, 860, "04-account-sessions-1440x860.png"),
             (AccountPreviewScenario.PasswordChange, 1440, 860, "04b-account-password-change-1440x860.png"),
             (AccountPreviewScenario.PasswordError, 1080, 680, "04c-account-password-error-1080x680.png"),
@@ -309,11 +312,6 @@ internal static class AccountPreviewTests
             try
             {
                 await DelayAndPumpAsync(220);
-                if (scenario == AccountPreviewScenario.Profile)
-                {
-                    RaiseMouseEnter(Required<Grid>(window.AccountPage, "AvatarInteractionArea"));
-                    await DelayAndPumpAsync(180);
-                }
                 ValidateCommonContract(window, scenario);
                 if (!string.IsNullOrWhiteSpace(captureDirectory))
                 {
@@ -342,55 +340,65 @@ internal static class AccountPreviewTests
         }
     }
 
-    private static async Task ValidateAvatarHoverActionsAsync()
+    private static async Task ValidateSensitiveEditorGuardsAsync()
     {
-        LauncherShellV2 window = CreateWindow(1440, 860, AccountPreviewScenario.Profile, directAccountPreview: true);
+        LauncherShellV2 window = CreateWindow(1080, 680, AccountPreviewScenario.Security, directAccountPreview: true);
         window.Show();
         try
         {
             await DelayAndPumpAsync(160);
-            Grid interactionArea = Required<Grid>(window.AccountPage, "AvatarInteractionArea");
-            Grid overlay = Required<Grid>(window.AccountPage, "AvatarActionsOverlay");
-            Button modify = Required<Button>(window.AccountPage, "ModifyAvatarButton");
-            Button remove = Required<Button>(window.AccountPage, "RemoveAvatarButton");
+            foreach (bool passwordEditor in new[] { false, true })
+            {
+                string editorName = passwordEditor ? "Password" : "Email";
+                RaiseClick(Required<Button>(window.AccountPage, $"Modify{editorName}Button"));
+                await PumpAsync(DispatcherPriority.DataBind);
+                True(window.AccountPage.IsSensitiveEditorOpen,
+                    "L'action de modification doit ouvrir son formulaire.");
 
-            True(!overlay.IsHitTestVisible && overlay.Opacity < 0.01,
-                "Les actions masquées ne doivent pas intercepter l'avatar.");
-            True(modify.Content is System.Windows.Shapes.Path,
-                "Changer la photo doit être une action iconique sans ancien libellé.");
-            True(remove.Content is System.Windows.Shapes.Path,
-                "Supprimer la photo doit être une croix iconique sans ancien libellé.");
+                TextBox email = Required<TextBox>(window.AccountPage, "NewEmailBox");
+                PasswordBox password = Required<PasswordBox>(window.AccountPage, "CurrentPasswordBoxV2");
+                if (passwordEditor)
+                {
+                    password.Password = "local-preview-only";
+                }
+                else
+                {
+                    email.Text = "preview@example.invalid";
+                }
 
-            RaiseMouseEnter(interactionArea);
-            await DelayAndPumpAsync(190);
-            True(overlay.IsHitTestVisible && overlay.Opacity > 0.98,
-                "Le survol doit révéler les actions dans le cercle.");
-            Equal(160d, modify.ActualWidth,
-                "Toute la largeur de l'avatar doit déclencher le changement de photo.");
-            Equal(160d, modify.ActualHeight,
-                "Toute la hauteur de l'avatar doit déclencher le changement de photo.");
-            True(IsHitWithin(modify, interactionArea.InputHitTest(new Point(8, 80))),
-                "Un clic près du bord gauche du cercle doit changer la photo.");
-            True(!IsHitWithin(modify, interactionArea.InputHitTest(new Point(4, 4))),
-                "La zone cliquable ne doit pas dépasser du cercle dans ses angles.");
-            True(IsHitWithin(remove, interactionArea.InputHitTest(new Point(133, 27))),
-                "La croix doit rester prioritaire sur la surface de changement.");
-            True(modify.Background is SolidColorBrush { Color.A: < 190 },
-                "Le disque jaune doit rester suffisamment transparent.");
+                AccountViewState idle = window.AccountState.Current;
+                window.AccountState.ApplyRuntimeView(idle with
+                {
+                    AccountOperation = passwordEditor
+                        ? AccountOperationViewState.ChangingPassword
+                        : AccountOperationViewState.ChangingEmail
+                });
+                await PumpAsync(DispatcherPriority.DataBind);
+                Button cancel = Required<Button>(window.AccountPage, $"Cancel{editorName}ChangeButton");
+                True(!cancel.IsEnabled, "Annuler doit être indisponible pendant l'opération sensible.");
+                True(RaiseEscape(window).Handled, "Échap doit être consommé par le formulaire occupé.");
+                RaiseClick(cancel);
+                RaiseClick(Required<Button>(window.AccountPage, "SessionsTabButton"));
+                True(window.AccountPage.IsSensitiveEditorOpen,
+                    "Échap, Annuler et la navigation ne doivent pas fermer un formulaire occupé.");
+                Equal(AccountSection.Security, window.AccountPage.SelectedSection,
+                    "La navigation doit rester sur Sécurité pendant l'opération sensible.");
+                Equal(passwordEditor ? "local-preview-only" : "preview@example.invalid",
+                    passwordEditor ? password.Password : email.Text,
+                    "Une fermeture bloquée ne doit pas effacer la saisie.");
 
-            RaiseMouseLeave(interactionArea);
-            await DelayAndPumpAsync(150);
-            True(!overlay.IsHitTestVisible && overlay.Opacity < 0.02,
-                "La sortie doit masquer les actions et retirer leur hit-test.");
+                window.AccountState.ApplyRuntimeView(idle);
+                await PumpAsync(DispatcherPriority.DataBind);
+                True(RaiseEscape(window).Handled, "Échap doit fermer le formulaire redevenu disponible.");
+                True(!window.AccountPage.IsSensitiveEditorOpen,
+                    "Le formulaire doit pouvoir être fermé après la fin de l'opération.");
+                Equal(string.Empty, passwordEditor ? password.Password : email.Text,
+                    "La fermeture effective doit effacer la saisie sensible.");
+            }
 
-            RaiseMouseEnter(interactionArea);
-            await DelayAndPumpAsync(25);
-            RaiseMouseLeave(interactionArea);
-            await DelayAndPumpAsync(25);
-            RaiseMouseEnter(interactionArea);
-            await DelayAndPumpAsync(190);
-            True(overlay.IsHitTestVisible && overlay.Opacity > 0.98,
-                "Des survols rapides ne doivent pas laisser l'animation dans un état intermédiaire.");
+            RaiseClick(Required<Button>(window.AccountPage, "SessionsTabButton"));
+            Equal(AccountSection.Sessions, window.AccountPage.SelectedSection,
+                "La navigation Sessions doit fonctionner après la fermeture du formulaire.");
         }
         finally
         {
@@ -438,6 +446,9 @@ internal static class AccountPreviewTests
             Equal(AvatarCropPreviewStatus.Uploading, window.AvatarCropState.Current.Status, "Le bouton doit lancer l'envoi fictif local.");
             True(!Required<Button>(overlay, "SaveCropButton").IsEnabled, "Un second envoi fictif doit être impossible.");
             True(!Required<Button>(overlay, "CloseCropButton").IsEnabled, "La fermeture interne doit être neutralisée pendant l'envoi fictif.");
+            True(!overlay.TryRequestClose(), "La fermeture partagée doit refuser l'envoi fictif occupé.");
+            True(RaiseEscape(window).Handled && window.AvatarCropState.IsOpen,
+                "Échap doit être consommé sans fermer le recadrage pendant l'envoi fictif.");
         }
         finally
         {
@@ -456,6 +467,11 @@ internal static class AccountPreviewTests
         Equal(Visibility.Collapsed, Required<GameViewV2>(window, "GameView").Visibility, "GameView ne doit pas rester derrière Compte.");
         Equal(ScrollBarVisibility.Disabled, window.AccountPage.ScrollHost.HorizontalScrollBarVisibility, "Aucune barre horizontale n'est autorisée.");
         True(window.AccountPage.ScrollHost.ScrollableWidth <= 0.5, "Le compte ne doit pas déborder horizontalement.");
+        True(!Required<Grid>(window.AccountPage, "ProfilePanel").IsVisible,
+            "La page Compte ne doit pas réafficher le profil déjà personnalisable dans l'armurerie.");
+        Button oldProfileTab = Required<Button>(window.AccountPage, "ProfileTabButton");
+        True(!oldProfileTab.IsVisible && !oldProfileTab.IsTabStop,
+            "L'ancien onglet Profil doit être absent du parcours visuel et clavier.");
         True(window.AccountPage.FindName("SecuritySummaryTitle") is null,
             "Le rappel Compte protégé doit être retiré de la page Profil.");
         True(!ContainsText(window.AccountPage, "Session Atlas active"),
@@ -475,7 +491,7 @@ internal static class AccountPreviewTests
             AccountPreviewScenario.Sessions
                 or AccountPreviewScenario.SessionRevoke
                 or AccountPreviewScenario.SessionRevokeError => AccountSection.Sessions,
-            _ => AccountSection.Profile
+            _ => AccountSection.Security
         };
         Equal(expectedSection, window.AccountPage.SelectedSection, "L'onglet initial est incorrect.");
 
@@ -494,6 +510,28 @@ internal static class AccountPreviewTests
             True(dialogScroll.ScrollableWidth <= 0.5, "Le crop ne doit pas déborder horizontalement.");
             Rect saveBounds = BoundsInAncestor(Required<Button>(window.AvatarCropPreviewOverlay, "SaveCropButton"), window);
             True(saveBounds.Bottom <= window.ActualHeight + 0.5, "L'action principale du crop doit rester visible.");
+            if (scenario is AccountPreviewScenario.Uploading or AccountPreviewScenario.UploadError)
+            {
+                string feedbackName = scenario == AccountPreviewScenario.Uploading
+                    ? "UploadStatusBanner"
+                    : "CropErrorBanner";
+                Rect feedbackBounds = BoundsInAncestor(
+                    Required<Border>(window.AvatarCropPreviewOverlay, feedbackName), window);
+                True(feedbackBounds.Top >= 0 && feedbackBounds.Bottom <= saveBounds.Top - 8,
+                    "La progression et l'erreur doivent rester intégralement visibles au-dessus des actions du recadrage.");
+            }
+            if (window.ActualWidth >= 1080)
+            {
+                Grid workspace = Required<Grid>(window.AvatarCropPreviewOverlay, "CropWorkspace");
+                FrameworkElement editor = Required<StackPanel>(window.AvatarCropPreviewOverlay, "CropEditorColumn");
+                FrameworkElement preview = Required<StackPanel>(window.AvatarCropPreviewOverlay, "PreviewColumn");
+                Rect editorBounds = BoundsInAncestor(editor, workspace);
+                Rect previewBounds = BoundsInAncestor(preview, workspace);
+                True(editorBounds.Width >= workspace.ActualWidth * 0.45,
+                    "Le cadrage doit disposer de sa pleine colonne même en fenêtre compacte.");
+                True(previewBounds.Left >= editorBounds.Right + 20,
+                    "Les aperçus doivent rester à côté du cadrage sans le recouvrir à partir de 1080 px.");
+            }
         }
 
         bool expectsAvatar = scenario is not (
@@ -537,7 +575,8 @@ internal static class AccountPreviewTests
 
         if (scenario == AccountPreviewScenario.Removing)
         {
-            Equal(Visibility.Visible, Required<Border>(window.AccountPage, "AvatarOperationBanner").Visibility, "La suppression fictive doit être visible.");
+            Equal(AvatarPreviewOperation.Removing, window.AccountState.Current.AvatarOperation,
+                "La suppression fictive doit rester disponible dans l'état partagé avec l'armurerie.");
             True(!Required<Button>(window.AccountPage, "ModifyAvatarButton").IsEnabled, "Les actions avatar doivent être bloquées pendant la suppression.");
         }
 
@@ -567,6 +606,8 @@ internal static class AccountPreviewTests
                 "Le formulaire ne doit pas préremplir l'adresse e-mail actuelle.");
             True(Required<Border>(window.AccountPage, "NewEmailField").BorderThickness.Left >= 1,
                 "La nouvelle adresse doit disposer d'une zone de saisie délimitée.");
+            Equal("Enregistrement…", Required<Button>(window.AccountPage, "ConfirmEmailChangeButton").Content,
+                "Le changement d'e-mail occupé doit afficher un retour d'état explicite.");
         }
 
         if (scenario == AccountPreviewScenario.SessionRevokeError)
@@ -635,12 +676,6 @@ internal static class AccountPreviewTests
             new Rect(0, 0, element.ActualWidth, element.ActualHeight));
     }
 
-    private static bool IsHitWithin(FrameworkElement element, IInputElement? hit)
-    {
-        return hit is DependencyObject target
-            && (ReferenceEquals(element, target) || element.IsAncestorOf(target));
-    }
-
     private static T Required<T>(FrameworkElement root, string name)
         where T : class
     {
@@ -671,19 +706,18 @@ internal static class AccountPreviewTests
     private static void RaiseClick(Button button) =>
         button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, button));
 
-    private static void RaiseMouseEnter(UIElement target) =>
-        target.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+    private static KeyEventArgs RaiseEscape(UIElement target)
+    {
+        PresentationSource source = PresentationSource.FromVisual(target)
+            ?? throw new InvalidOperationException("Le contrôle WPF doit disposer d'une source de présentation.");
+        KeyEventArgs args = new(Keyboard.PrimaryDevice, source, Environment.TickCount, Key.Escape)
         {
-            RoutedEvent = Mouse.MouseEnterEvent,
+            RoutedEvent = Keyboard.PreviewKeyDownEvent,
             Source = target
-        });
-
-    private static void RaiseMouseLeave(UIElement target) =>
-        target.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
-        {
-            RoutedEvent = Mouse.MouseLeaveEvent,
-            Source = target
-        });
+        };
+        target.RaiseEvent(args);
+        return args;
+    }
 
     private static MouseWheelEventArgs RaiseMouseWheel(UIElement target, int delta)
     {

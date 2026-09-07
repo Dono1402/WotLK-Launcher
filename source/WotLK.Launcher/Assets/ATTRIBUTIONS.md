@@ -22,6 +22,13 @@
 | Bold 700 | `fonts/ttf/manrope-bold.ttf` | `Assets/Fonts/Manrope-Bold.ttf` | `2da33eb378d59e6314ed7afdfa837cdcb60e41ac8b1f5d3c4909471b95fcf7d9` |
 | ExtraBold 800 | `fonts/ttf/manrope-extrabold.ttf` | `Assets/Fonts/Manrope-ExtraBold.ttf` | `2522cd61b754100a42a53024148a134c63efc5d114447474a7f13519966cfad5` |
 
+## Icônes de classe WoW
+
+- Fichiers `Assets/Launcher/class-icons/{classId}.jpg` : icônes de World of Warcraft, propriété de Blizzard Entertainment, utilisées pour identifier les classes.
+- Source consultée le 4 septembre 2026 : `https://wow.zamimg.com/images/wow/icons/large/classicon_{class}.jpg` (CDN Wowhead).
+- Correspondances : 1 warrior, 2 paladin, 3 hunter, 4 rogue, 5 priest, 6 deathknight, 7 shaman, 8 mage, 9 warlock, 11 druid.
+- Les images sont embarquées sans modification ; aucun appel au CDN n'est effectué à l'ouverture d'un profil.
+
 ## Lucide
 
 - Source: https://github.com/lucide-icons/lucide/tree/1.37.0/icons

@@ -17,7 +17,9 @@ internal static class LauncherFriendsTests
         CharacterizeSecretFreeImmutableState();
         CharacterizeSocialAvatarContractAndQueryShape();
         CharacterizeDesktopNotifications();
+        CharacterizeLauncherPresenceNotifications();
         await RestoreAndLoadRealRelationshipsAsync();
+        await ProjectLauncherPresenceAndSortAsync();
         await RefreshFromOneSessionAwareTimerAsync();
         await CoalesceTimerAndManualRefreshAsync();
         await PreserveKnownDataAfterAutomaticFailureAsync();
@@ -129,6 +131,33 @@ internal static class LauncherFriendsTests
         };
     }
 
+    private static void CharacterizeLauncherPresenceNotifications()
+    {
+        LauncherSettings settings = new() { FriendPresenceNotifications = true };
+        using LauncherOperationCoordinator operations = new();
+        using LauncherSettingsCoordinator settingsRuntime = new(
+            settings, operations, static _ => { }, static _ => { }, static _ => { });
+        FakeDesktopNotificationSink notifications = new();
+        using LauncherFriendsNotificationCoordinator coordinator = new(settingsRuntime, notifications, static _ => { });
+        FriendRuntimeItem offline = NotificationFriend(2, "Alice", online: false);
+        FriendRuntimeItem launcher = offline with { IsLauncherOnline = true };
+        coordinator.Observe(NotificationSnapshot(1, [offline], []));
+        coordinator.Observe(NotificationSnapshot(1, [launcher], []));
+        Equal(1, notifications.Messages.Count,
+            "Ouvrir le launcher doit annoncer la disponibilité d'un ami qui était hors ligne.");
+        coordinator.Observe(NotificationSnapshot(1, [launcher], []));
+        coordinator.Observe(NotificationSnapshot(1, [launcher with { IsOnline = true }], []));
+        coordinator.Observe(NotificationSnapshot(1, [offline with { IsOnline = true }], []));
+        Equal(1, notifications.Messages.Count,
+            "Passer du launcher au jeu, puis fermer le launcher en restant en jeu ne doit pas répéter l'alerte.");
+        coordinator.Observe(NotificationSnapshot(1, [offline], []));
+        coordinator.Observe(NotificationSnapshot(1, [launcher], []));
+        Equal(2, notifications.Messages.Count,
+            "Une nouvelle présence après la fermeture du jeu et du launcher doit être annoncée une seule fois.");
+        True(notifications.Messages.All(message => message.PlaySound),
+            "La notification du launcher doit respecter le même réglage sonore de présence.");
+    }
+
     private static FriendRuntimeItem NotificationFriend(
         uint accountId,
         string username,
@@ -186,6 +215,8 @@ internal static class LauncherFriendsTests
                     "Altfriend", 72, 5, 4395, false, DateTimeOffset.UtcNow)
             ]);
         JsonSerializerOptions json = new(JsonSerializerDefaults.Web);
+        DateTimeOffset launcherSeen = new(2026, 9, 6, 14, 25, 0, TimeSpan.Zero);
+        serverFriend = serverFriend with { LauncherOnline = true, LauncherLastSeenAt = launcherSeen };
         string payload = JsonSerializer.Serialize(serverFriend, json);
         WotLK.Launcher.LauncherFriend client = JsonSerializer.Deserialize<WotLK.Launcher.LauncherFriend>(
             payload,
@@ -201,6 +232,12 @@ internal static class LauncherFriendsTests
             "La bio doit traverser le contrat Friends.");
         Equal(2, client.Characters?.Count ?? 0,
             "Tous les personnages doivent traverser le contrat Friends.");
+        True(client.Online && client.LauncherOnline,
+            "Le contrat doit conserver séparément les présences jeu et launcher.");
+        Equal<DateTimeOffset?>(launcherSeen, client.LauncherLastSeenAt,
+            "La date de présence du launcher doit traverser le contrat sans perdre son fuseau.");
+        Equal("En jeu", client.PresenceText,
+            "La présence en jeu doit rester prioritaire dans le DTO client.");
         True(client.Avatar?.Url64.EndsWith("/64.png", StringComparison.Ordinal) == true,
             "Le contrat social doit fournir la variante 64 px.");
 
@@ -213,6 +250,8 @@ internal static class LauncherFriendsTests
             ?? throw new InvalidOperationException("L’ancien contrat ami est illisible.");
         True(oldClient.Avatar is null,
             "Un ancien serveur sans propriété Avatar doit conserver le fallback.");
+        True(!oldClient.LauncherOnline && oldClient.LauncherLastSeenAt is null,
+            "Un ancien JSON ne doit pas inventer de présence ou d'activité du launcher.");
         LegacyFriendContract legacyClient = JsonSerializer.Deserialize<LegacyFriendContract>(payload, json)
             ?? throw new InvalidOperationException("Le contrat enrichi est illisible par un ancien client.");
         Equal("atlasfriend", legacyClient.Username,
@@ -300,9 +339,9 @@ internal static class LauncherFriendsTests
             "Chaque rafraîchissement doit produire exactement un appel liste.");
 
         FriendsViewState view = FriendsStateAdapter.Project(snapshot);
-        Equal(1, view.OnlineCount, "Le compteur en jeu doit provenir des données réelles.");
-        Equal("2 amis · 1 en jeu", view.FriendsSummary, "Le résumé doit regrouper le total et les amis en jeu.");
-        Equal(1, view.OnlineFriends.Length, "La section en jeu doit être projetée séparément.");
+        Equal(1, view.OnlineCount, "Le compteur en ligne doit provenir des données réelles.");
+        Equal("2 amis · 1 en ligne", view.FriendsSummary, "Le résumé doit regrouper le total et les amis disponibles.");
+        Equal(1, view.OnlineFriends.Length, "La section en ligne doit être projetée séparément.");
         Equal(1, view.OfflineFriends.Length, "La section hors ligne doit être projetée séparément.");
         Equal("Mage niveau 12", view.Friends[0].CharacterDetails, "La classe et le niveau doivent être projetés.");
         Equal("Ophntfranck · Mage niveau 12", view.Friends[0].CharacterSummary,
@@ -332,6 +371,83 @@ internal static class LauncherFriendsTests
             localNow.AddMinutes(-20));
         True(FriendsStateAdapter.GetPresenceText(seenToday, localNow).StartsWith("Aujourd’hui à", StringComparison.Ordinal),
             "Une activité du jour doit utiliser une date relative.");
+    }
+
+    private static async Task ProjectLauncherPresenceAndSortAsync()
+    {
+        await using FriendsEnvironment environment = await FriendsEnvironment.CreateAsync();
+        DateTimeOffset now = new(2026, 9, 6, 12, 0, 0, TimeSpan.Zero);
+        DateTimeOffset launcherSeen = now.AddMinutes(-5);
+        environment.Authentication.FriendsHandler = _ => Task.FromResult<IReadOnlyList<LauncherFriend>>(
+        [
+            Friend(11, "Offline", "accepted", lastSeenAt: now.AddDays(-2), launcherLastSeenAt: launcherSeen),
+            Friend(12, "ZLauncher", "accepted", characterName: "DernierMage", level: 80, classId: 8,
+                lastSeenAt: now.AddDays(-1), launcherOnline: true, launcherLastSeenAt: now),
+            Friend(13, "Game", "accepted", online: true, characterName: "Actif", level: 80, classId: 5,
+                zoneId: 210, launcherOnline: true, launcherLastSeenAt: now) with
+                {
+                    Characters =
+                    [
+                        new LauncherFriendCharacter("Actif", 80, 5, 210, true, null),
+                        new LauncherFriendCharacter("Ancien", 70, 8, 1519, false, now.AddDays(-1))
+                    ]
+                },
+            Friend(14, "ALauncher", "accepted", launcherOnline: true, launcherLastSeenAt: now)
+        ]);
+        FriendsRuntimeSnapshot snapshot = (await RequiredCompletion(environment.Friends.TryRefresh())).Snapshot;
+        True(snapshot.Friends.Select(friend => friend.AccountId).SequenceEqual(new uint[] { 14, 13, 12, 11 }),
+            "Les amis disponibles dans le launcher ou le jeu doivent précéder les amis hors ligne, avec tri alphabétique stable.");
+        FriendRuntimeItem launcher = snapshot.Friends.Single(friend => friend.AccountId == 12);
+        True(launcher.IsAvailable && launcher.IsLauncherOnline && !launcher.IsOnline,
+            "La présence launcher doit rendre l'ami disponible sans le marquer en jeu.");
+        Equal<DateTimeOffset?>(now, launcher.LauncherLastSeenAt,
+            "Le runtime doit conserver la dernière présence du launcher.");
+
+        FriendsViewState view = FriendsStateAdapter.Project(snapshot);
+        Equal(3, view.OnlineCount, "Le compteur doit inclure les amis sur le launcher et en jeu une seule fois.");
+        Equal(3, view.OnlineFriends.Length, "Les deux présences doivent partager la section en ligne.");
+        Equal(1, view.OfflineFriends.Length, "Un ami sans présence active doit rester hors ligne.");
+        Equal("4 amis · 3 en ligne", view.FriendsSummary,
+            "Le résumé ne doit pas présenter les amis du launcher comme étant en jeu.");
+        Equal("4 friends · 3 online", LauncherLocalization.TranslateFromFrench(view.FriendsSummary),
+            "Le compteur de présence combinée doit rester traduit.");
+        FriendUiItem launcherView = view.Friends.Single(friend => friend.AccountId == 12);
+        True(launcherView.IsOnline && launcherView.IsLauncherOnline && !launcherView.IsInGame,
+            "Le profil launcher-only doit rester distinct du statut En jeu.");
+        Equal("Connecté au launcher", launcherView.PresenceText,
+            "La carte doit indiquer la présence dans le launcher.");
+        Equal("Connecté au launcher", launcherView.ProfilePresenceText,
+            "Ouvrir le profil ne doit pas transformer la présence launcher en présence jeu.");
+        Equal("Online in the launcher", LauncherLocalization.TranslateFromFrench(launcherView.ProfilePresenceText),
+            "La présence launcher doit être disponible en anglais.");
+        True(launcherView.FeaturedCharacter is { IsOnline: false }
+            && launcherView.AllCharacters.All(character => !character.IsOnline),
+            "La projection du dernier personnage legacy doit garder son état hors ligne.");
+        Equal("DERNIER PERSONNAGE JOUÉ", launcherView.FeaturedCharacterTitle,
+            "Le dernier personnage d'un ami launcher-only ne doit pas être marqué actif.");
+        True(!view.Friends.Single(friend => friend.AccountId == 14).HasCharacters,
+            "Ouvrir le launcher sans personnage ne doit pas créer un personnage artificiel.");
+        FriendUiItem game = view.Friends.Single(friend => friend.AccountId == 13);
+        True(game.IsOnline && game.IsLauncherOnline && game.IsInGame,
+            "La présence en jeu doit rester identifiable quand le launcher est aussi ouvert.");
+        Equal("En jeu · Couronne de glace", game.PresenceText,
+            "Le statut de jeu et sa zone doivent être prioritaires.");
+        Equal("En jeu", game.ProfilePresenceText, "Le profil du joueur doit conserver le statut En jeu.");
+        True((launcherView with { IsLauncherOnline = false, Characters = [] }).IsInGame,
+            "Les anciens previews IsOnline sans nouvelle propriété doivent conserver leur sens En jeu.");
+
+        FriendRuntimeItem offline = snapshot.Friends.Single(friend => friend.AccountId == 11);
+        Equal($"Aujourd’hui à {launcherSeen.ToLocalTime():HH:mm}", FriendsStateAdapter.GetPresenceText(offline, now),
+            "La dernière présence launcher doit être retenue quand elle est plus récente que le jeu.");
+        DateTimeOffset latestGame = now.AddMinutes(-2);
+        Equal($"Aujourd’hui à {latestGame.ToLocalTime():HH:mm}",
+            FriendsStateAdapter.GetPresenceText(offline with { LastSeenAt = latestGame }, now),
+            "Une présence jeu plus récente doit rester prioritaire dans la dernière activité.");
+        Equal($"Aujourd’hui à {launcherSeen.ToLocalTime():HH:mm}",
+            FriendsStateAdapter.GetPresenceText(offline with { LastSeenAt = null }, now),
+            "Un ami sans activité de jeu doit pouvoir afficher sa dernière présence launcher.");
+        Equal("Hors ligne", FriendsStateAdapter.GetPresenceText(offline with { LastSeenAt = null, LauncherLastSeenAt = null }, now),
+            "Aucune date ne doit être inventée quand le serveur ne fournit aucune activité.");
     }
 
     private static async Task RefreshFromOneSessionAwareTimerAsync()
@@ -494,7 +610,7 @@ internal static class LauncherFriendsTests
         IReadOnlyList<LauncherFriend> current =
         [
             Friend(2, "friend", "accepted"),
-            Friend(3, "requester", "incoming"),
+            Friend(3, "requester", "incoming", launcherOnline: true),
             Friend(4, "pending", "outgoing")
         ];
         environment.Authentication.FriendsHandler = _ => Task.FromResult(current);
@@ -505,6 +621,8 @@ internal static class LauncherFriendsTests
         Equal(FriendsActionCompletionStatus.Succeeded, accepted.Status, "Accepter doit réussir.");
         True(accepted.Snapshot.Friends.Any(item => item.AccountId == 3), "La demande acceptée doit rejoindre les amis.");
         True(accepted.Snapshot.IncomingRequests.All(item => item.AccountId != 3), "La demande acceptée doit disparaître.");
+        Equal(3U, accepted.Snapshot.Friends[0].AccountId,
+            "Un ami accepté et connecté au launcher doit être trié avant les amis hors ligne sans attendre le prochain poll.");
         Equal(1, environment.Authentication.AcceptFriendCalls, "L’endpoint d’acceptation doit être appelé une fois.");
 
         FriendsActionCompletion cancelled = await RequiredCompletion(
@@ -676,9 +794,12 @@ internal static class LauncherFriendsTests
         byte? classId = null,
         uint? zoneId = 1,
         DateTimeOffset? lastSeenAt = null,
-        AvatarDescriptor? avatar = null) =>
+        AvatarDescriptor? avatar = null,
+        bool launcherOnline = false,
+        DateTimeOffset? launcherLastSeenAt = null) =>
         new(accountId, username, accountId % 2 == 0 ? "ice" : null, relationship,
-            online, characterName, level, classId, zoneId, lastSeenAt, avatar);
+            online, characterName, level, classId, zoneId, lastSeenAt, avatar,
+            LauncherOnline: launcherOnline, LauncherLastSeenAt: launcherLastSeenAt);
 
     private static AvatarDescriptor Avatar(uint accountId, ulong version)
     {

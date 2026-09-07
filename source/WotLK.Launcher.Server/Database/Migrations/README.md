@@ -47,6 +47,13 @@ cannot acquire Atlas data unless an Atlas profile already exists. Migrations
 the Atlas friends profile. Both fields remain empty by default and the migration
 does not modify existing profile values.
 
+`0006_private_chat.sql` adds persistent private conversations, messages, per-account
+send quotas and cursors, and the game bridge inbox/outbox. It references existing
+Atlas profiles and leaves account credentials, sessions and friendships unchanged.
+The public API and game-inbox worker remain disabled with a schema ceiling below 6.
+The production ceiling stays at 5; adding this local migration does not authorize
+applying it to production.
+
 Named MySQL locks are scoped from the database name. Migration commands never
 run concurrently in the same schema, while separate test and production schemas
 do not block each other.

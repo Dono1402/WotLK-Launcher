@@ -4,16 +4,18 @@ using WotLK.Launcher.Runtime;
 
 internal static class LauncherStartupRoutingTests
 {
-    internal static Task<int> RunAsync()
+    internal static async Task<int> RunAsync()
     {
         CharacterizeRouting();
         CharacterizeExclusiveWindowDispatch();
         CharacterizeSingleInstanceRoutes();
+        CharacterizeAutomaticStartup();
         EnforceSingleInstanceGate();
         CharacterizeSingleRuntimeComposition();
+        await LauncherAutostartWpfTests.RunAsync();
         Console.WriteLine(
             "Routage de démarrage OK (05A.1 : V2 par défaut, fallback legacy, previews isolées, fenêtre/composition uniques).");
-        return Task.FromResult(0);
+        return 0;
     }
 
     private static void CharacterizeRouting()
@@ -150,6 +152,10 @@ internal static class LauncherStartupRoutingTests
             True(!LauncherSingleInstanceGate.TryAcquire(identity, out LauncherSingleInstanceGate? second),
                 "Une seconde instance doit être refusée immédiatement.");
             True(second is null, "Une instance refusée ne doit posséder aucun verrou.");
+            True(!LauncherSingleInstanceGate.SignalExisting(identity, activateExisting: false),
+                "Une relance automatique ne doit envoyer aucune activation à l'instance existante.");
+            True(!activation.Wait(TimeSpan.FromMilliseconds(100)),
+                "L'instance existante doit rester discrète lors du démarrage Windows.");
             True(LauncherSingleInstanceGate.SignalExisting(identity),
                 "La seconde instance doit pouvoir réveiller la première.");
             True(activation.Wait(TimeSpan.FromSeconds(2)),
@@ -160,6 +166,36 @@ internal static class LauncherStartupRoutingTests
             "Le verrou doit être libéré à la fermeture réelle du launcher.");
         reopened!.Dispose();
         reopened.Dispose();
+    }
+
+    private static void CharacterizeAutomaticStartup()
+    {
+        foreach (string[] arguments in new[]
+        {
+            new[] { "--autostart" },
+            new[] { "--AUTOSTART", "--ui-v2" },
+            new[] { "--legacy", "--autostart" }
+        })
+        {
+            True(App.ShouldStartMinimized(App.ResolveStartupMode(arguments), arguments),
+                "Le démarrage Windows doit réduire uniquement la fenêtre runtime demandée.");
+        }
+
+        foreach (string[] arguments in new[]
+        {
+            Array.Empty<string>(),
+            new[] { "--ui-v2" },
+            new[] { "--legacy" },
+            new[] { "--autostart=false" },
+            new[] { "--ui-v2", "--preview-state=Ready", "--autostart" },
+            new[] { "--grant-game-access", "--autostart" },
+            new[] { "--uninstall-game", "--autostart" },
+            new[] { "--legacy", "--ui-v2", "--autostart" }
+        })
+        {
+            True(!App.ShouldStartMinimized(App.ResolveStartupMode(arguments), arguments),
+                "Les lancements manuels, previews, helpers et routes invalides doivent garder leur comportement.");
+        }
     }
 
     private static void CharacterizeSingleRuntimeComposition()

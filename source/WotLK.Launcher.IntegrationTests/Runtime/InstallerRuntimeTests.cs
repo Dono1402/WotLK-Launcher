@@ -62,7 +62,7 @@ internal static class InstallerRuntimeTests
         True(File.Exists(setupArtifact), "AtlasLauncherSetup.exe est absent.");
         ValidateSetupArtifact(setupArtifact);
         string id = Guid.NewGuid().ToString("N")[..10];
-        string root = $@"D:\Atlas Launcher 04D2 Test artifact {id}";
+        string root = Path.Combine(Path.GetTempPath(), $"Atlas Launcher 04D2 Test artifact {id}");
         string installRoot = Path.Combine(root, "Atlas Launcher");
         string desktopShortcut = Path.Combine(root, "Desktop", $"Atlas Launcher 04D2 Test {id}.lnk");
         string startShortcut = Path.Combine(root, "Start Menu", $"Atlas Launcher 04D2 Test {id}", "Atlas Launcher.lnk");
@@ -156,7 +156,7 @@ internal static class InstallerRuntimeTests
     private static void ValidateEmbeddedPayload()
     {
         EmbeddedInstallerPayloadSource payload = new();
-        True(payload.Length > 0, "Le payload 1.3.0 doit contenir le launcher canonique.");
+        True(payload.Length > 0, "Le payload 1.4.0 doit contenir le launcher canonique.");
         Equal(
             InstallerProduct.PayloadSha256,
             payload.Sha256,
@@ -187,7 +187,7 @@ internal static class InstallerRuntimeTests
         InstallerWizardViewState welcome = InstallerWizardPreviewData.Create(InstallerPreviewScenario.Welcome);
         Equal("Bienvenue dans l’assistant d’installation", welcome.HeaderTitle, "Le titre d'accueil est incorrect.");
         Equal(
-            "Cet assistant va installer Atlas Launcher 1.3.0 sur cet ordinateur.",
+            "Cet assistant va installer Atlas Launcher 1.4.0 sur cet ordinateur.",
             welcome.HeaderSubtitle,
             "Le sous-titre d'accueil est incorrect.");
     }
@@ -249,7 +249,7 @@ internal static class InstallerRuntimeTests
 
     private static void ValidateSetupArtifact(string setupArtifact)
     {
-        Equal("1.3.0.0", FileVersionInfo.GetVersionInfo(setupArtifact).FileVersion,
+        Equal("1.4.0.0", FileVersionInfo.GetVersionInfo(setupArtifact).FileVersion,
             "La version de l'artefact setup est incorrecte.");
 
         using FileStream stream = File.OpenRead(setupArtifact);
@@ -611,7 +611,7 @@ internal static class InstallerRuntimeTests
             Equal(InstallerProduct.PayloadSha256, Hash(result.LauncherPath), "Le payload Program Files est altéré.");
             Equal(payload.Length, new FileInfo(result.LauncherPath).Length, "La taille installée est incorrecte.");
             Equal(Hash(setupArtifact), Hash(result.UninstallerPath), "Uninstall.exe n'est pas autonome.");
-            Equal("1.3.0.0", FileVersionInfo.GetVersionInfo(result.LauncherPath).FileVersion,
+            Equal("1.4.0.0", FileVersionInfo.GetVersionInfo(result.LauncherPath).FileVersion,
                 "La version du launcher installé est incorrecte.");
             ValidateProgress(progress);
             IReadOnlyDictionary<string, object?> values = registry.Read(registrySubKey);

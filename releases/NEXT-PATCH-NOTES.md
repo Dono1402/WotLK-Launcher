@@ -13,7 +13,6 @@ La version et la date de publication ne sont pas encore définies.
 
 - Texte principal agrandi à 15 px et informations secondaires à 12 px.
 - Contraste renforcé tout en conservant le décor de la Citadelle.
-- Repère visuel plus clair pour les messages envoyés.
 - Recherche dans la conversation avec Ctrl+F, surlignage des résultats et parcours de l'historique.
 - Commandes des petits aperçus vidéo réorganisées pour garder les durées lisibles à 12 px.
 
@@ -34,6 +33,5 @@ The version and publication date have not been set.
 
 - Main text increased to 15 px and secondary information to 12 px.
 - Improved contrast while preserving the Citadel backdrop.
-- Clearer visual marker for messages you send.
 - Ctrl+F conversation search with highlighted results and history navigation.
 - Rearranged compact video preview controls to keep timestamps readable at 12 px.

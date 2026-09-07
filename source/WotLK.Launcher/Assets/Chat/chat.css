@@ -140,10 +140,6 @@ mark.search-match.is-current{background:#e0c27f;color:#10202d;box-shadow:0 0 0 1
 .message-heading{display:flex;align-items:baseline;gap:9px;padding:0 0 5px;min-height:21px}
 .message.is-continuation .message-heading{display:none}
 .message-author{font-size:var(--font-body);font-weight:600;color:#e1e4e2}
-.message.is-own{background:linear-gradient(90deg,rgba(116,169,201,.085),rgba(116,169,201,0) 78%)}
-.message.is-own:before{content:'';position:absolute;left:12px;top:8px;bottom:7px;width:2px;border-radius:2px;background:rgba(158,205,231,.38);pointer-events:none}
-.message.is-own.is-continuation:before{top:0;bottom:0}
-.message.is-own .message-author{color:#d0e6f2}
 .message-time{font-size:var(--font-secondary);color:#9aaaba;white-space:nowrap}
 .message-origin{font-size:var(--font-secondary);letter-spacing:.3px;text-transform:uppercase;color:#95b6c8;background:rgba(106,163,192,.09);border:1px solid rgba(106,163,192,.11);border-radius:3px;padding:1px 4px}
 .message-hover-time{position:absolute;left:20px;top:8px;font-size:var(--font-secondary);color:#96a9b9;opacity:0;pointer-events:none;transition:opacity var(--motion-ui) var(--motion-ease)}

@@ -1,6 +1,6 @@
 # Lisibilité de Messages et de la liste d'amis
 
-Cette évolution du client conserve la fenêtre fixe et le décor de la Citadelle. Le texte principal de Messages utilise 15 px et les informations secondaires 12 px. Le fond des conversations est légèrement plus dense ; les messages envoyés par le compte connecté portent un filet bleu discret et une teinte de fond douce.
+Cette évolution du client conserve la fenêtre fixe et le décor de la Citadelle. Le texte principal de Messages utilise 15 px et les informations secondaires 12 px. Le fond des conversations est légèrement plus dense. Les messages envoyés par le compte connecté utilisent le même fond et la même couleur de nom que les autres messages.
 
 ## Liste d'amis
 

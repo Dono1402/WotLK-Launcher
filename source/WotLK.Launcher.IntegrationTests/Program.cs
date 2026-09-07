@@ -128,7 +128,7 @@ if (args.Length == 1
     && string.Equals(args[0], "--patch-notes", StringComparison.OrdinalIgnoreCase))
 {
     LauncherDashboardTests.ProjectCategorizedPatchNotesWithLegacyFallback();
-    Console.WriteLine("Patch notes OK (version 1.4.0, complete local draft, English translations, published notes preserved).");
+    Console.WriteLine("Patch notes OK (version 1.5.0, complete local draft, English translations, published notes preserved).");
     return 0;
 }
 

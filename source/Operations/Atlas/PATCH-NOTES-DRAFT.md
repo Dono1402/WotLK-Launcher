@@ -1,18 +1,6 @@
-# Notes de version — brouillon 1.4.0
+# Notes de version — 1.5.0
 
-Le brouillon complet préparé le 6 septembre 2026 est disponible en
-[français](../../../releases/v1.4.0/PATCH-NOTES-DRAFT.md) et en
-[anglais](../../../releases/v1.4.0/PATCH-NOTES-DRAFT.en.md), avec les versions
-structurées [FR](../../../releases/v1.4.0/patch-note.draft.json) et
-[EN](../../../releases/v1.4.0/patch-note.en.draft.json).
-Il rassemble 53 points en 10 rubriques et alimente le brouillon du client local.
-La préparation du paquet public est documentée dans
-[`PREPARATION-RELEASE.md`](../../../releases/v1.4.0/PREPARATION-RELEASE.md).
-
-Le premier brouillon ci-dessous reste archivé. Le texte publié le
-4 septembre 2026 est conservé dans
-[`releases/v1.3.0/patch-note.json`](../../../releases/v1.3.0/patch-note.json).
-Toute publication suivante nécessite une nouvelle demande explicite.
+Le bilan de la version 1.5.0 est disponible en [français](../../../releases/v1.5.0/PATCH-NOTES.md) et en [anglais](../../../releases/v1.5.0/PATCH-NOTES.en.md). Il rassemble 37 points en huit rubriques. Les versions précédentes sont conservées dans `releases/`.
 
 ## Brouillon archivé - 1.3.0
 

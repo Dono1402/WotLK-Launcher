@@ -1,6 +1,6 @@
 # Atlas Launcher 1.5.0 — livraison
 
-La distribution AnimeClub est passée à **1.5.0 le 7 septembre 2026 à 21 h 35 min 33 s (Paris)**. Le manifeste signé porte la date UTC `2026-09-07T19:34:09Z`. La release GitHub utilise le tag `v1.5.0` et les mêmes octets ; son contrôle final est consigné séparément après publication.
+La distribution AnimeClub est passée à **1.5.0 le 7 septembre 2026 à 21 h 35 min 33 s (Paris)**. Le manifeste signé porte la date UTC `2026-09-07T19:34:09Z`. La release GitHub a été publiée à **21 h 41 min 50 s (Paris)**, sous le tag `v1.5.0`, sur le commit `9f06acc96a163634e0b54cdf38b40581339f0522`. Elle est publique, non préliminaire et désignée comme dernière version. Les sept fichiers, leurs tailles et leurs empreintes SHA-256 correspondent aux fichiers préparés ; une lecture anonyme de l’API GitHub confirme leur disponibilité. Le relevé exact est [github-publication.json](github-publication.json).
 
 - [Installation Windows x64](https://animeclub.fr/wotlk/launcher/AtlasLauncherSetup.exe)
 - [Client 1.5.0](https://animeclub.fr/wotlk/launcher/releases/1.5.0/WotLK-Launcher.exe)
@@ -48,3 +48,7 @@ Le flux `patch-notes.json` contient la 1.5.0 puis les quatre entrées antérieur
 L’API, le serveur de jeu, Hermes et le serveur d’authentification conservent leurs PID et horodatages de démarrage ; Caddy et les configurations restent inchangés. Les fonctionnalités serveur nécessaires étaient déjà déployées. Aucune migration ni aucun redémarrage n’ont été nécessaires pour publier ce client.
 
 Les preuves détaillées se trouvent sous `artifacts/atlas-release-150/` : logs de compilation/tests, `package-content-verification.json`, puis `deployment/stage-proof.json`, `publication-result.json` et `public-manifest-client-verification.json`.
+
+## Retours d’installation
+
+Après publication, l’utilisateur a confirmé avoir téléchargé la mise à jour, puis a confirmé qu’une autre personne avait également réussi à l’installer. Cette personne avait initialement vu « Mise à jour disponible · 1.5.0 » dans son launcher 1.4.0. Le délai signalé s’est résolu ; sa cause n’a pas été établie et aucun correctif supplémentaire n’a été publié. Ces retours utilisateur sont distincts des tests automatisés décrits ci-dessus.

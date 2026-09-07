@@ -1,0 +1,57 @@
+{
+  "published": true,
+  "tag": "v1.5.0",
+  "commit": "9f06acc96a163634e0b54cdf38b40581339f0522",
+  "url": "https://github.com/Dono1402/WotLK-Launcher/releases/tag/v1.5.0",
+  "publishedAt": "2026-09-07T19:41:50Z",
+  "verifiedAt": "2026-09-07T19:41:51.911360+00:00",
+  "draft": false,
+  "prerelease": false,
+  "isLatest": true,
+  "notesMatch": true,
+  "assetDigestsMatch": true,
+  "assets": [
+    {
+      "name": "armory-runtime.zip",
+      "bytes": 298277802,
+      "sha256": "9ac80ae302565f7b9bc8cc6606bc3acc0be86bd1987589b0f968a936dfcca3d6",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.5.0/armory-runtime.zip"
+    },
+    {
+      "name": "launcher-update.json",
+      "bytes": 424,
+      "sha256": "7bf49e19d55e1e2d3cdfbb67140987c027262fd54b5eaf9ee0a468e15cb47e65",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.5.0/launcher-update.json"
+    },
+    {
+      "name": "PATCH-NOTES.en.md",
+      "bytes": 4712,
+      "sha256": "806772fbc69d2ea690b142138b054f410645b909bab89fb48376318d2368b7e2",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.5.0/PATCH-NOTES.en.md"
+    },
+    {
+      "name": "PATCH-NOTES.md",
+      "bytes": 5480,
+      "sha256": "c8a48b2e40e48edbb39fad9f5566b3bc6a126ffb101aacf663ac393930801d45",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.5.0/PATCH-NOTES.md"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "bytes": 517,
+      "sha256": "60d7ac18996933c2a2b24bb76eeb4addf66de60c78ad8f14b73f95d03d5fef9f",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.5.0/SHA256SUMS.txt"
+    },
+    {
+      "name": "WotLK-Launcher-Installer.exe",
+      "bytes": 506566745,
+      "sha256": "4cd42ae8b700028682adc4126be9848e9fa2cc72cfae2e61c3a93b7f53a754fb",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.5.0/WotLK-Launcher-Installer.exe"
+    },
+    {
+      "name": "WotLK-Launcher.exe",
+      "bytes": 401195333,
+      "sha256": "b7e8ba706da2f9e4f1356f387472289f8573b1e2b473ff757cbe1f06e0f4a783",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.5.0/WotLK-Launcher.exe"
+    }
+  ]
+}

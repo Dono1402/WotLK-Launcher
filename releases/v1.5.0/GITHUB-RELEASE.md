@@ -1,4 +1,6 @@
-Téléchargement Windows x64 : **WotLK-Launcher-Installer.exe** dans les fichiers ci-dessous, ou [installateur AnimeClub](https://animeclub.fr/wotlk/launcher/AtlasLauncherSetup.exe). La mise à jour est également proposée par le launcher.
+**[Télécharger Atlas Launcher pour Windows](https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.5.0/AtlasLauncherSetup.exe)**
+
+Ouvre **AtlasLauncherSetup.exe** et suis les étapes de l’installation. Si Atlas Launcher est déjà installé, la mise à jour est également proposée dans l’application.
 
 [English release notes](https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.5.0/PATCH-NOTES.en.md) · [SHA-256](https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.5.0/SHA256SUMS.txt)
 
@@ -68,4 +70,3 @@ Publication : 2026-09-07T19:34:09Z
 - Menus, transitions et aperçus de Messages plus fluides, avec respect du réglage Windows de réduction des animations.
 - Amélioration de la cadence d’affichage de Messages sur les écrans à fréquence élevée, lorsque la version de Windows le permet.
 - Libellés, commandes de lecture et nouveaux états disponibles en français et en anglais.
-

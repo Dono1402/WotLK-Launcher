@@ -63,8 +63,10 @@
     "status": "published",
     "publishedAt": "2026-09-07T19:41:50Z",
     "commit": "9f06acc96a163634e0b54cdf38b40581339f0522",
-    "assets": 7,
+    "assets": 6,
     "digestsVerified": true,
-    "isLatest": true
+    "isLatest": true,
+    "installerAssetName": "AtlasLauncherSetup.exe",
+    "presentationReport": "github-presentation.json"
   }
 }

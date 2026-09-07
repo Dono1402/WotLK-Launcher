@@ -37,6 +37,28 @@ sha256() {
   sha256sum "$1" | awk '{print $1}'
 }
 
+prepare_github_release_assets() {
+  local source_dir="$1"
+  local output_dir="$2"
+  local name
+  mkdir "$output_dir"
+  cp "$source_dir/WotLK-Launcher-Installer.exe" "$output_dir/AtlasLauncherSetup.exe"
+  for name in armory-runtime.zip launcher-update.json PATCH-NOTES.md PATCH-NOTES.en.md; do
+    if [ -f "$source_dir/$name" ]; then
+      cp "$source_dir/$name" "$output_dir/$name"
+    fi
+  done
+  (
+    cd "$output_dir"
+    sha256sum AtlasLauncherSetup.exe
+    for name in armory-runtime.zip launcher-update.json PATCH-NOTES.md PATCH-NOTES.en.md; do
+      if [ -f "$name" ]; then
+        sha256sum "$name"
+      fi
+    done
+  ) > "$output_dir/SHA256SUMS.txt"
+}
+
 repo_from_remote() {
   local url="$1"
   local repo=""
@@ -211,13 +233,13 @@ git add .gitignore README.md scripts/release-launcher.sh current releases server
 if git diff --cached --quiet; then
   echo "No git changes to commit for $tag."
 else
-  git commit -m "Release WotLK Launcher $tag"
+  git commit -m "Release Atlas Launcher $tag"
 fi
 
 if git rev-parse "$tag" >/dev/null 2>&1; then
   echo "Tag $tag already exists."
 else
-  git tag -a "$tag" -m "WotLK Launcher $tag"
+  git tag -a "$tag" -m "Atlas Launcher $tag"
 fi
 
 if git remote get-url origin >/dev/null 2>&1; then
@@ -228,7 +250,7 @@ if git remote get-url origin >/dev/null 2>&1; then
     if ! gh repo view "$repo_full_name" >/dev/null 2>&1; then
       gh repo create "$repo_full_name" \
         --private \
-        --description "WotLK Launcher releases"
+        --description "Atlas Launcher pour le royaume Arthas sur World of Warcraft: Wrath of the Lich King Classic."
     fi
   fi
 
@@ -236,13 +258,30 @@ if git remote get-url origin >/dev/null 2>&1; then
   git push origin "$tag"
 
   if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-    mapfile -d '' release_assets < <(find "$artifact_store/$tag" -maxdepth 1 -type f -print0 | sort -z)
+    github_asset_dir="$verification_temp/github-assets"
+    prepare_github_release_assets "$artifact_store/$tag" "$github_asset_dir"
+    mapfile -d '' release_assets < <(find "$github_asset_dir" -maxdepth 1 -type f -print0 | sort -z)
+    release_notes_args=(--notes "Atlas Launcher $version")
+    if [ -f "$repo_root/releases/$tag/GITHUB-RELEASE.md" ]; then
+      release_notes_args=(--notes-file "$repo_root/releases/$tag/GITHUB-RELEASE.md")
+    elif [ -f "$artifact_store/$tag/PATCH-NOTES.md" ]; then
+      release_notes_args=(--notes-file "$artifact_store/$tag/PATCH-NOTES.md")
+    fi
     if gh release view "$tag" >/dev/null 2>&1; then
       gh release upload "$tag" "${release_assets[@]}" --clobber
+      mapfile -t previous_assets < <(gh release view "$tag" --json assets --jq '.assets[].name')
+      for name in "${previous_assets[@]}"; do
+        case "$name" in
+          WotLK-Launcher.exe|WotLK-Launcher-Installer.exe)
+            gh release delete-asset "$tag" "$name" --yes
+            ;;
+        esac
+      done
+      gh release edit "$tag" --title "Atlas Launcher $version" "${release_notes_args[@]}"
     else
       gh release create "$tag" "${release_assets[@]}" \
-        --title "WotLK Launcher $tag" \
-        --notes "Release WotLK Launcher $tag"
+        --title "Atlas Launcher $version" \
+        "${release_notes_args[@]}"
     fi
   else
     echo "Remote pushed. GitHub release skipped: gh is not installed or not authenticated."

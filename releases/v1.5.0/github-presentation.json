@@ -1,0 +1,49 @@
+{
+  "updated": true,
+  "verifiedAt": "2026-09-07T20:11:24.889105+00:00",
+  "url": "https://github.com/Dono1402/WotLK-Launcher/releases/tag/v1.5.0",
+  "releaseAuthor": "Dono1402",
+  "installerOnlyExecutable": true,
+  "updaterServerPackagePreserved": true,
+  "releaseStillLatest": true,
+  "assetDigestsMatch": true,
+  "description": "Atlas Launcher pour le royaume Arthas sur World of Warcraft: Wrath of the Lich King Classic.",
+  "assets": [
+    {
+      "name": "armory-runtime.zip",
+      "bytes": 298277802,
+      "sha256": "9ac80ae302565f7b9bc8cc6606bc3acc0be86bd1987589b0f968a936dfcca3d6",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.5.0/armory-runtime.zip"
+    },
+    {
+      "name": "AtlasLauncherSetup.exe",
+      "bytes": 506566745,
+      "sha256": "4cd42ae8b700028682adc4126be9848e9fa2cc72cfae2e61c3a93b7f53a754fb",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.5.0/AtlasLauncherSetup.exe"
+    },
+    {
+      "name": "launcher-update.json",
+      "bytes": 424,
+      "sha256": "7bf49e19d55e1e2d3cdfbb67140987c027262fd54b5eaf9ee0a468e15cb47e65",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.5.0/launcher-update.json"
+    },
+    {
+      "name": "PATCH-NOTES.en.md",
+      "bytes": 4712,
+      "sha256": "806772fbc69d2ea690b142138b054f410645b909bab89fb48376318d2368b7e2",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.5.0/PATCH-NOTES.en.md"
+    },
+    {
+      "name": "PATCH-NOTES.md",
+      "bytes": 5480,
+      "sha256": "c8a48b2e40e48edbb39fad9f5566b3bc6a126ffb101aacf663ac393930801d45",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.5.0/PATCH-NOTES.md"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "bytes": 426,
+      "sha256": "b8b391e025f1054bd4b80647343286d30a49f6ef5e59a9411aeb8dd679aaad90",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.5.0/SHA256SUMS.txt"
+    }
+  ]
+}

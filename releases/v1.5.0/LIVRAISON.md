@@ -1,10 +1,8 @@
 # Atlas Launcher 1.5.0 — livraison
 
-La distribution AnimeClub est passée à **1.5.0 le 7 septembre 2026 à 21 h 35 min 33 s (Paris)**. Le manifeste signé porte la date UTC `2026-09-07T19:34:09Z`. La release GitHub a été publiée à **21 h 41 min 50 s (Paris)**, sous le tag `v1.5.0`, sur le commit `9f06acc96a163634e0b54cdf38b40581339f0522`. Elle est publique, non préliminaire et désignée comme dernière version. Les sept fichiers, leurs tailles et leurs empreintes SHA-256 correspondent aux fichiers préparés ; une lecture anonyme de l’API GitHub confirme leur disponibilité. Le relevé exact est [github-publication.json](github-publication.json).
+Atlas Launcher est passé à **1.5.0 le 7 septembre 2026 à 21 h 35 min 33 s (Paris)**. Le manifeste signé porte la date UTC `2026-09-07T19:34:09Z`. La release GitHub a été publiée à **21 h 41 min 50 s (Paris)**, sous le tag `v1.5.0`, sur le commit `9f06acc96a163634e0b54cdf38b40581339f0522`. Elle est publique, non préliminaire et désignée comme dernière version. Lors de cette publication initiale, les sept fichiers, leurs tailles et leurs empreintes SHA-256 ont été comparés aux fichiers préparés, puis leur disponibilité a été vérifiée sans authentification. Le relevé historique est [github-publication.json](github-publication.json). La présentation des téléchargements a ensuite été corrigée : l’état actuel est décrit dans [github-presentation.json](github-presentation.json).
 
-- [Installation Windows x64](https://animeclub.fr/wotlk/launcher/AtlasLauncherSetup.exe)
-- [Client 1.5.0](https://animeclub.fr/wotlk/launcher/releases/1.5.0/WotLK-Launcher.exe)
-- [Installateur 1.5.0](https://animeclub.fr/wotlk/launcher/releases/1.5.0/WotLK-Launcher-Installer.exe)
+- [Installation Windows x64](https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.5.0/AtlasLauncherSetup.exe)
 - [Manifeste signé](https://animeclub.fr/wotlk/launcher/launcher-update.json)
 - [Release GitHub](https://github.com/Dono1402/WotLK-Launcher/releases/tag/v1.5.0)
 - Patchnotes : [français](PATCH-NOTES.md), [anglais](PATCH-NOTES.en.md), **37 points dans huit rubriques**.
@@ -17,7 +15,7 @@ La distribution AnimeClub est passée à **1.5.0 le 7 septembre 2026 à 21 h 35 
 | WotLK-Launcher-Installer.exe | 506 566 745 | 1.5.0 / 1.5.0.0 |
 | armory-runtime.zip | 298 277 802 | 318 fichiers vérifiés |
 
-Les empreintes complètes sont dans [SHA256SUMS.txt](SHA256SUMS.txt). L’installateur embarque le client public final, avec les ressources de messagerie et le paquet actuel de profil/armurerie. Son désinstalleur autonome est une copie du setup : le test mesure 907 763 295 octets installés et 974 870 942 octets d’espace requis. Les exécutables restent hors Git.
+Les empreintes des fichiers GitHub sont dans [SHA256SUMS.txt](SHA256SUMS.txt), et celles des paquets du serveur dans [release.json](release.json). L’installateur GitHub `AtlasLauncherSetup.exe` contient les mêmes octets que `WotLK-Launcher-Installer.exe` dans le stockage serveur. Il embarque le client public final, avec les ressources de messagerie et le paquet actuel de profil/armurerie. Son désinstalleur autonome est une copie du setup : le test mesure 907 763 295 octets installés et 974 870 942 octets d’espace requis. Les exécutables restent hors Git.
 
 La préparation utilise `scripts/build-armory-runtime.ps1`, `scripts/build-public-client.ps1` et `scripts/build-atlas-installer.ps1`, avec des chemins de sortie explicites sous `artifacts/atlas-release-150`. Le client est compilé avec `AtlasLocalClientBuild=false`. Les versions du projet, les métadonnées PE et les trois libellés de l’assistant indiquent 1.5.0.
 
@@ -52,3 +50,11 @@ Les preuves détaillées se trouvent sous `artifacts/atlas-release-150/` : logs 
 ## Retours d’installation
 
 Après publication, l’utilisateur a confirmé avoir téléchargé la mise à jour, puis a confirmé qu’une autre personne avait également réussi à l’installer. Cette personne avait initialement vu « Mise à jour disponible · 1.5.0 » dans son launcher 1.4.0. Le délai signalé s’est résolu ; sa cause n’a pas été établie et aucun correctif supplémentaire n’a été publié. Ces retours utilisateur sont distincts des tests automatisés décrits ci-dessus.
+
+## Présentation publique corrigée
+
+La release GitHub présente désormais **AtlasLauncherSetup.exe** comme seul exécutable pour les joueurs. Le client seul a été retiré de ses fichiers ; le paquet utilisé par les mises à jour automatiques reste disponible sur le serveur à l’URL du manifeste signé. Les octets de l’installateur et du client n’ont pas changé.
+
+Les six fichiers GitHub actuels comprennent l’installateur, le paquet d’armurerie, le manifeste, les deux patchnotes et la liste SHA-256 mise à jour. Le README décrit l’installation et les fonctionnalités pour les joueurs ; les informations d’administration ont été déplacées dans [la documentation technique](../../docs/RELEASE-MAINTENANCE.md). La présentation emploie le nom Atlas Launcher.
+
+L’identité Git du dépôt local et de son dépôt de publication serveur utilise `Dono1402` avec son adresse GitHub `noreply`. Le commit `fd9e716aabef7c15c43f1335848d77ac4e1ca627` est rattaché à ce compte comme auteur et committer dans l’API GitHub. Les anciens commits conservent leur identité historique.

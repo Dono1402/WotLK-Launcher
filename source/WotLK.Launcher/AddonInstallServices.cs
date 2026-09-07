@@ -62,7 +62,8 @@ internal static partial class AddonInstallServices
             if (!state.Addons.TryGetValue(package.Id, out var installed))
             {
                 result[package.Id] = new AddonInspection(
-                    allFoldersExist ? AddonLocalStatus.DetectedUnmanaged : AddonLocalStatus.NotInstalled,
+                    package.Folders.Any(folder => Directory.Exists(Path.Combine(addonsDirectory, folder)))
+                        ? AddonLocalStatus.DetectedUnmanaged : AddonLocalStatus.NotInstalled,
                     IsManaged: false);
                 continue;
             }
@@ -98,7 +99,10 @@ internal static partial class AddonInstallServices
             installed.Version,
             installed.Sha256,
             installed.Folders.ToArray(),
-            installed.InstalledAtUtc);
+            installed.InstalledAtUtc)
+        {
+            HasFileManifest = IsValidFileManifest(installed)
+        };
     }
 
     internal static async Task ApplySelectionAsync(
@@ -108,7 +112,10 @@ internal static partial class AddonInstallServices
         IReadOnlyDictionary<string, bool> selection,
         IProgress<AddonTransferProgress>? progress,
         Action<string>? log,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool forceReinstall = false,
+        bool allowExternalReplacement = false,
+        bool resolveDependencies = true)
     {
         if (!GameInstallServices.HasPlayableClient(installRoot))
         {
@@ -116,13 +123,24 @@ internal static partial class AddonInstallServices
         }
 
         var addonsDirectory = GetAddonsDirectory(installRoot);
-        Directory.CreateDirectory(addonsDirectory);
+        AddonLocalInventory.EnsureNotLinked(addonsDirectory);
         var state = LoadState(addonsDirectory);
-
-        foreach (var package in catalog.Addons)
+        HashSet<string> installIds = selection.Where(pair => pair.Value).Select(pair => pair.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> removeIds = selection.Where(pair => !pair.Value).Select(pair => pair.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        IReadOnlyList<AddonPackage> installOrder = resolveDependencies
+            ? AddonDependencyPlanner.Plan(catalog, installIds)
+            : catalog.Addons.Where(package => installIds.Contains(package.Id)).ToArray();
+        if (installOrder.Any(package => removeIds.Contains(package.Id)))
+            throw new AddonPlanException("dependency-in-use", removeIds);
+        PreflightSelection(catalog, addonsDirectory, state, installOrder, removeIds, allowExternalReplacement, cancellationToken);
+        // All consent/dependency/path checks finish before the first directory,
+        // removal, state write or download in a multi-addon operation.
+        Directory.CreateDirectory(addonsDirectory);
+        // Explicit selection only: packages not mentioned by the plan stay untouched.
+        foreach (var package in catalog.Addons.Where(package => removeIds.Contains(package.Id)).Concat(installOrder))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var shouldInstall = selection.TryGetValue(package.Id, out var selected) && selected;
+            var shouldInstall = !removeIds.Contains(package.Id);
 
             if (!shouldInstall)
             {
@@ -140,7 +158,7 @@ internal static partial class AddonInstallServices
             }
 
             var allFoldersExist = package.Folders.All(folder => Directory.Exists(Path.Combine(addonsDirectory, folder)));
-            if (state.Addons.TryGetValue(package.Id, out var current) &&
+            if (!forceReinstall && state.Addons.TryGetValue(package.Id, out var current) &&
                 allFoldersExist &&
                 string.Equals(current.Version, package.Version, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(current.Sha256, package.EffectiveInstallHash, StringComparison.OrdinalIgnoreCase))
@@ -150,21 +168,22 @@ internal static partial class AddonInstallServices
             }
 
             log?.Invoke($"Téléchargement de {package.Name} {package.Version}...");
-            await InstallPackageAsync(http, package, addonsDirectory, progress, cancellationToken);
+            Dictionary<string, InstalledAddonFile> files = await InstallPackageAsync(http, package, addonsDirectory, progress, cancellationToken);
 
             state.Addons[package.Id] = new InstalledAddonState
             {
                 Version = package.Version,
                 Sha256 = package.EffectiveInstallHash,
                 Folders = [.. package.Folders],
-                InstalledAtUtc = DateTimeOffset.UtcNow
+                InstalledAtUtc = DateTimeOffset.UtcNow,
+                Files = files
             };
             SaveState(addonsDirectory, state);
             log?.Invoke($"{package.Name} {package.Version} installé.");
         }
     }
 
-    private static async Task InstallPackageAsync(
+    private static async Task<Dictionary<string, InstalledAddonFile>> InstallPackageAsync(
         HttpClient http,
         AddonPackage package,
         string addonsDirectory,
@@ -195,7 +214,9 @@ internal static partial class AddonInstallServices
 
             ApplyTokenReplacements(package, extractionRoot);
             ValidateExtractedFolders(package, extractionRoot);
+            Dictionary<string, InstalledAddonFile> files = await CreateFileManifestAsync(extractionRoot, package.Folders, cancellationToken);
             InstallExtractedFolders(package, extractionRoot, addonsDirectory, operationId, cancellationToken);
+            return files;
         }
         finally
         {
@@ -424,6 +445,7 @@ internal static partial class AddonInstallServices
                 cancellationToken.ThrowIfCancellationRequested();
                 var source = Path.Combine(extractionRoot, folder);
                 var target = Path.Combine(addonsDirectory, folder);
+                AddonLocalInventory.EnsureNotLinked(target);
                 var prepared = Path.Combine(addonsDirectory, $".atlas-stage-{operationId}-{folder}");
                 var backup = Path.Combine(addonsDirectory, $".atlas-backup-{operationId}-{folder}");
 
@@ -475,6 +497,7 @@ internal static partial class AddonInstallServices
             {
                 ValidateFolderName(folder);
                 var target = Path.Combine(addonsDirectory, folder);
+                AddonLocalInventory.EnsureNotLinked(target);
                 if (!Directory.Exists(target))
                 {
                     continue;
@@ -507,6 +530,7 @@ internal static partial class AddonInstallServices
     private static AddonInstallState LoadState(string addonsDirectory)
     {
         var statePath = Path.Combine(addonsDirectory, StateFileName);
+        AddonLocalInventory.EnsureNotLinked(statePath);
         if (!File.Exists(statePath))
         {
             return new AddonInstallState();
@@ -516,6 +540,7 @@ internal static partial class AddonInstallServices
         {
             var state = JsonSerializer.Deserialize<AddonInstallState>(File.ReadAllText(statePath, Encoding.UTF8), JsonOptions)
                 ?? new AddonInstallState();
+            if (state.SchemaVersion != 1) return new AddonInstallState();
             var sanitizedAddons = new Dictionary<string, InstalledAddonState>(StringComparer.OrdinalIgnoreCase);
             if (state.Addons is not null)
             {
@@ -548,6 +573,8 @@ internal static partial class AddonInstallServices
         Directory.CreateDirectory(addonsDirectory);
         var statePath = Path.Combine(addonsDirectory, StateFileName);
         var tempPath = statePath + ".tmp";
+        AddonLocalInventory.EnsureNotLinked(statePath);
+        AddonLocalInventory.EnsureNotLinked(tempPath);
         File.WriteAllText(tempPath, JsonSerializer.Serialize(state, JsonOptions), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         File.Move(tempPath, statePath, overwrite: true);
     }
@@ -583,6 +610,10 @@ internal static partial class AddonInstallServices
                 !Sha256Regex().IsMatch(package.EffectiveInstallHash) ||
                 package.Folders is null || package.Folders.Count is 0 or > 20 ||
                 package.Components is null || package.Components.Count > 10 ||
+                package.Dependencies is null || package.Dependencies.Count > 20 ||
+                package.Dependencies.Any(dependency => dependency is null || !AddonIdRegex().IsMatch(dependency)) ||
+                package.KnownLimitations is null || package.KnownLimitations.Length > 2000 ||
+                package.AtlasValidation is not null && package.ValidatedAtlasEvidenceUrl.Length == 0 ||
                 package.TokenReplacements is null || package.TokenReplacements.Count > 10)
             {
                 throw new InvalidOperationException("Entrée invalide dans le catalogue d'addons.");

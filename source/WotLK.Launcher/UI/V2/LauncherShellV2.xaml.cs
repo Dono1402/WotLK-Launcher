@@ -1426,6 +1426,16 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
+        if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control
+            && CurrentPage == LauncherShellPage.Addons
+            && !AuthState.IsOpen && !AvatarCropState.IsOpen && !PatchNoteState.IsOpen
+            && !FriendsState.IsOpen && !ActivityState.IsOpen && !ProfileState.IsOpen
+            && !AccountView.IsSensitiveEditorOpen && AddonsView.TryFocusSearch())
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.Escape
             && CurrentPage == LauncherShellPage.Addons
             && AddonsView.TryCloseTopLayer())

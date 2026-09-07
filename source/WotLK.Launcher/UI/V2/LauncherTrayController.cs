@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Media;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Threading;
 using WotLK.Launcher.UI.V2.Localization;
@@ -155,6 +156,9 @@ internal sealed class LauncherTrayController : IDisposable, ILauncherDesktopNoti
 
 internal sealed class WindowsLauncherTrayIconHost : ILauncherTrayIconHost
 {
+    private static readonly IntPtr MenuTopMost = new(-1);
+    private const uint MenuPositionFlags = 0x0001 | 0x0002 | 0x0010 | 0x0200; // NOSIZE | NOMOVE | NOACTIVATE | NOOWNERZORDER
+    private readonly ILauncherTrayMenuInterop _menuInterop;
     private readonly Icon _icon;
     private readonly Forms.NotifyIcon _notifyIcon;
     private readonly Forms.ContextMenuStrip _menu;
@@ -162,8 +166,9 @@ internal sealed class WindowsLauncherTrayIconHost : ILauncherTrayIconHost
     private readonly Forms.ToolStripMenuItem _exitItem;
     private int _disposeState;
 
-    internal WindowsLauncherTrayIconHost()
+    internal WindowsLauncherTrayIconHost(ILauncherTrayMenuInterop? menuInterop = null)
     {
+        _menuInterop = menuInterop ?? WindowsLauncherTrayMenuInterop.Instance;
         _icon = LoadApplicationIcon();
         _openItem = new Forms.ToolStripMenuItem("Ouvrir Atlas Launcher");
         _exitItem = new Forms.ToolStripMenuItem("Quitter");
@@ -183,6 +188,8 @@ internal sealed class WindowsLauncherTrayIconHost : ILauncherTrayIconHost
         };
 
         _notifyIcon.MouseClick += NotifyIcon_MouseClick;
+        _menu.Opened += Menu_Opened;
+        _menu.Closed += Menu_Closed;
         _openItem.Click += OpenItem_Click;
         _exitItem.Click += ExitItem_Click;
         LauncherLocalization.LocaleChanged += LauncherLocalization_LocaleChanged;
@@ -232,6 +239,8 @@ internal sealed class WindowsLauncherTrayIconHost : ILauncherTrayIconHost
         }
 
         _notifyIcon.MouseClick -= NotifyIcon_MouseClick;
+        _menu.Opened -= Menu_Opened;
+        _menu.Closed -= Menu_Closed;
         _openItem.Click -= OpenItem_Click;
         _exitItem.Click -= ExitItem_Click;
         LauncherLocalization.LocaleChanged -= LauncherLocalization_LocaleChanged;
@@ -249,6 +258,35 @@ internal sealed class WindowsLauncherTrayIconHost : ILauncherTrayIconHost
         {
             RestoreRequested?.Invoke(this, EventArgs.Empty);
         }
+    }
+
+    private void Menu_Opened(object? sender, EventArgs e)
+    {
+        if (Volatile.Read(ref _disposeState) != 0 || !_menu.IsHandleCreated)
+        {
+            return;
+        }
+
+        // NotifyIcon already activates its hidden owner before ShowInTaskbar.
+        // Activate the now-created popup itself as well: Explorer's overflow
+        // flyout can otherwise stay in front of it. Reassert only this menu's
+        // Z-order; never restore or make the launcher window topmost.
+        IntPtr handle = _menu.Handle;
+        _ = _menuInterop.SetForegroundWindow(handle);
+        _ = _menuInterop.SetWindowPos(handle, MenuTopMost, 0, 0, 0, 0, MenuPositionFlags);
+    }
+
+    private void Menu_Closed(object? sender, Forms.ToolStripDropDownClosedEventArgs e)
+    {
+        if (Volatile.Read(ref _disposeState) != 0 || !_menu.IsHandleCreated)
+        {
+            return;
+        }
+
+        // Complete the notification-menu activation cycle with a benign
+        // queued message, so reopening does not immediately dismiss it.
+        // https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-trackpopupmenu
+        _ = _menuInterop.PostMessage(_menu.Handle, 0 /* WM_NULL */, IntPtr.Zero, IntPtr.Zero);
     }
 
     private void OpenItem_Click(object? sender, EventArgs e) =>
@@ -273,4 +311,36 @@ internal sealed class WindowsLauncherTrayIconHost : ILauncherTrayIconHost
         return Icon.ExtractAssociatedIcon(processPath)
             ?? throw new InvalidOperationException("L'icône d'Atlas Launcher est indisponible.");
     }
+}
+
+internal interface ILauncherTrayMenuInterop
+{
+    bool SetForegroundWindow(IntPtr window);
+    bool SetWindowPos(IntPtr window, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
+    bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+}
+
+internal sealed class WindowsLauncherTrayMenuInterop : ILauncherTrayMenuInterop
+{
+    internal static readonly WindowsLauncherTrayMenuInterop Instance = new();
+
+    private WindowsLauncherTrayMenuInterop() { }
+
+    public bool SetForegroundWindow(IntPtr window) => NativeSetForegroundWindow(window);
+    public bool SetWindowPos(IntPtr window, IntPtr insertAfter, int x, int y, int width, int height, uint flags)
+        => NativeSetWindowPos(window, insertAfter, x, y, width, height, flags);
+    public bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam)
+        => NativePostMessage(window, message, wParam, lParam);
+
+    [DllImport("user32.dll", EntryPoint = "SetForegroundWindow", ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool NativeSetForegroundWindow(IntPtr window);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowPos", ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool NativeSetWindowPos(IntPtr window, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
+
+    [DllImport("user32.dll", EntryPoint = "PostMessageW", ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool NativePostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
 }

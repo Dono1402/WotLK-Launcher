@@ -5,7 +5,7 @@ using System.Net.Http;
 
 namespace WotLK.Launcher.Runtime;
 
-internal sealed class LauncherAddonsCoordinator : IDisposable
+internal sealed partial class LauncherAddonsCoordinator : IDisposable
 {
     internal static readonly TimeSpan ProgressPublishInterval = TimeSpan.FromMilliseconds(80);
 
@@ -160,6 +160,7 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
     internal bool RefreshLocalState()
     {
         AddonCatalog? catalog;
+        string installRoot;
         lock (_sync)
         {
             if (IsStoppingUnsafe()
@@ -170,17 +171,20 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
             }
 
             catalog = _catalog;
+            installRoot = _settings.InstallPath;
         }
 
-        bool playable = ReadPlayableSafely(_settings.InstallPath);
-        bool gameRunning = playable && ReadGameRunningSafely(_settings.InstallPath);
+        bool playable = ReadPlayableSafely(installRoot);
+        bool gameRunning = playable && ReadGameRunningSafely(installRoot);
         IReadOnlyDictionary<string, AddonInspection>? inspections = catalog is null
             ? null
-            : InspectSafely(catalog, _settings.InstallPath, AddonsRequestedAction.None);
+            : InspectSafely(catalog, installRoot, AddonsRequestedAction.None);
+        ImmutableArray<ManualAddonInstallation> manual = catalog is null ? [] : InspectManualSafely(catalog, installRoot);
         AddonsRuntimeSnapshot? snapshot;
         lock (_sync)
         {
-            if (IsStoppingUnsafe() || !ReferenceEquals(catalog, _catalog))
+            if (IsStoppingUnsafe() || !ReferenceEquals(catalog, _catalog)
+                || !string.Equals(installRoot, _settings.InstallPath, StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
@@ -191,6 +195,7 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
             snapshot = SetSnapshotUnsafe(RecalculateAvailabilityUnsafe(_currentSnapshot with
             {
                 Items = items,
+                ManualAddons = manual,
                 IsClientPlayable = playable,
                 IsGameRunning = gameRunning
             }));
@@ -200,7 +205,7 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
         return true;
     }
 
-    internal AddonsActionStartResult TryInvokePrimary(string addonId)
+    internal AddonsActionStartResult TryInvokePrimary(string addonId, bool allowExternalReplacement = false)
     {
         AddonsRequestedAction action;
         lock (_sync)
@@ -219,7 +224,7 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
 
             action = item.ErrorCategory != AddonsErrorCategory.None
                 ? item.RetryAction
-                : item.LocalStatus switch
+                : item.NeedsRepair ? AddonsRequestedAction.Repair : item.LocalStatus switch
                 {
                     AddonLocalStatus.MissingFiles => AddonsRequestedAction.Repair,
                     AddonLocalStatus.UpdateAvailable => AddonsRequestedAction.Update,
@@ -231,7 +236,7 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
 
         return action == AddonsRequestedAction.None
             ? AddonsActionStartResult.Rejected(AddonsActionStartStatus.InvalidState)
-            : TryStartAction(action, [addonId]);
+            : TryStartAction(action, [addonId], allowExternalReplacement);
     }
 
     internal AddonsActionStartResult TryRemove(string addonId)
@@ -346,11 +351,11 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
 
     private AddonsActionStartResult TryStartAction(
         AddonsRequestedAction action,
-        ImmutableArray<string> targetIds)
+        ImmutableArray<string> targetIds,
+        bool allowExternalReplacement = false,
+        ImmutableDictionary<string, AddonsRequestedAction>? retryActions = null)
     {
-        AddonCatalog catalog;
-        ImmutableArray<AddonPackage> packages;
-        string installRoot;
+        OperationPlan plan;
         bool canUserCancel = action != AddonsRequestedAction.Remove;
 
         lock (_sync)
@@ -361,12 +366,13 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                 return AddonsActionStartResult.Rejected(validation);
             }
 
-            catalog = _catalog!;
-            Dictionary<string, AddonPackage> byId = catalog.Addons.ToDictionary(
-                package => package.Id,
-                StringComparer.OrdinalIgnoreCase);
-            packages = targetIds.Select(id => byId[id]).ToImmutableArray();
-            installRoot = _settings.InstallPath;
+            AddonsActionStartResult? planError = TryBuildOperationPlanUnsafe(
+                action, targetIds, allowExternalReplacement, retryActions, out OperationPlan? candidate);
+            if (planError is not null)
+            {
+                return planError;
+            }
+            plan = candidate!;
         }
 
         LauncherOperationStartResult operationStart = _operations.TryBegin(
@@ -387,28 +393,37 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
         lock (_sync)
         {
             postLeaseValidation = ValidateStartUnsafe(action, targetIds);
+            if (postLeaseValidation == AddonsActionStartStatus.Started
+                && (!ReferenceEquals(plan.Catalog, _catalog)
+                    || !string.Equals(plan.InstallRoot, _settings.InstallPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                postLeaseValidation = AddonsActionStartStatus.InvalidState;
+            }
             if (postLeaseValidation == AddonsActionStartStatus.Started)
             {
                 _activeLease = lease;
-                ResetTransferTrackingUnsafe(targetIds[0]);
+                ImmutableArray<string> plannedIds = plan.Packages.Select(package => package.Id).ToImmutableArray();
+                string firstId = plannedIds[0];
+                ResetTransferTrackingUnsafe(firstId);
                 AddonsOperationState operationState = ToOperationState(action);
-                ImmutableArray<AddonRuntimeItem> items = MarkActiveItem(
+                AddonsOperationPhase initialPhase = IsVerification(action)
+                    ? AddonsOperationPhase.Verifying
+                    : AddonsOperationPhase.PreparingSession;
+                ImmutableArray<AddonRuntimeItem> items = PrepareTargetItemsUnsafe(
                     _currentSnapshot.Items,
-                    targetIds[0],
-                    action == AddonsRequestedAction.UpdateAll
-                        ? AddonsOperationState.Updating
-                        : operationState);
+                    firstId,
+                    plan.Actions[firstId]);
                 snapshot = SetSnapshotUnsafe(_currentSnapshot with
                 {
                     OperationId = lease.OperationId,
                     Items = items,
                     OperationState = operationState,
-                    OperationPhase = AddonsOperationPhase.PreparingSession,
-                    ActiveAddonId = targetIds[0],
-                    PendingAddonIds = targetIds,
+                    OperationPhase = initialPhase,
+                    ActiveAddonId = firstId,
+                    PendingAddonIds = plannedIds,
                     Progress = new AddonsRuntimeProgress(
-                        targetIds[0],
-                        AddonsOperationPhase.PreparingSession,
+                        firstId,
+                        initialPhase,
                         null,
                         null,
                         null,
@@ -418,16 +433,12 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                     CanMutate = false,
                     CanCancel = lease.CanUserCancel,
                     TerminalResult = null,
-                    ActiveAddonPosition = action == AddonsRequestedAction.UpdateAll ? 1 : null,
-                    ActiveAddonTotal = action == AddonsRequestedAction.UpdateAll
-                        ? targetIds.Length
-                        : null
+                    FailedAddonIds = [],
+                    UnprocessedAddonIds = [],
+                    PendingRetryAction = AddonsRequestedAction.None,
+                    ActiveAddonPosition = plan.Packages.Length > 1 ? 1 : null,
+                    ActiveAddonTotal = plan.Packages.Length > 1 ? plan.Packages.Length : null
                 });
-                OperationPlan plan = new(
-                    catalog,
-                    packages,
-                    action,
-                    installRoot);
                 operation = RunOperationAfterGateAsync(startGate.Task, lease, plan);
                 TrackUnsafe(operation);
             }
@@ -489,9 +500,13 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                     item.LocalStatus == AddonLocalStatus.UpdateAvailable,
                 AddonsRequestedAction.Remove => item.IsManaged,
                 AddonsRequestedAction.Repair =>
-                    item.LocalStatus == AddonLocalStatus.MissingFiles,
+                    item.NeedsRepair,
                 AddonsRequestedAction.UpdateAll =>
                     item.LocalStatus == AddonLocalStatus.UpdateAvailable,
+                AddonsRequestedAction.InstallSelection => true,
+                AddonsRequestedAction.Reinstall => item.IsManaged || item.IsDetectedUnmanaged,
+                AddonsRequestedAction.Verify or AddonsRequestedAction.VerifySelection =>
+                    item.IsManaged || item.IsDetectedUnmanaged,
                 _ => false
             };
             if (!valid)
@@ -529,7 +544,8 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
             IReadOnlyDictionary<string, AddonInspection> inspections = _service.Inspect(
                 catalog,
                 _settings.InstallPath);
-            CompleteCatalogSuccess(generation, catalog, inspections, cancellation);
+            ImmutableArray<ManualAddonInstallation> manual = InspectManualSafely(catalog, _settings.InstallPath);
+            CompleteCatalogSuccess(generation, catalog, inspections, manual, cancellation);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
@@ -561,15 +577,20 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
         OperationPlan plan)
     {
         string activeAddonId = plan.Packages[0].Id;
-        AddonsRequestedAction activeAction = plan.Action == AddonsRequestedAction.UpdateAll
-            ? AddonsRequestedAction.Update
-            : plan.Action;
+        AddonsRequestedAction activeAction = plan.Actions[activeAddonId];
         IReadOnlyDictionary<string, AddonInspection>? latestInspections = null;
         try
         {
-            AtlasRequestPreparationStatus preparation = await _session
-                .PrepareAuthenticatedRequestAsync(lease.CancellationToken)
-                .ConfigureAwait(false);
+            if (!IsVerification(plan.Action))
+            {
+                _service.ValidatePlan(plan.Catalog, plan.InstallRoot,
+                    plan.Packages.Where(package => plan.Actions[package.Id] != AddonsRequestedAction.Remove).Select(package => package.Id),
+                    plan.Packages.Where(package => plan.Actions[package.Id] == AddonsRequestedAction.Remove).Select(package => package.Id),
+                    plan.AllowExternalReplacement, lease.CancellationToken);
+            }
+            AtlasRequestPreparationStatus preparation = IsVerification(plan.Action)
+                ? AtlasRequestPreparationStatus.Ready
+                : await _session.PrepareAuthenticatedRequestAsync(lease.CancellationToken).ConfigureAwait(false);
             if (lease.CancellationReason != LauncherOperationCancellationReason.None)
             {
                 return CompleteCancelled(lease, plan);
@@ -599,29 +620,38 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                 lease.CancellationToken.ThrowIfCancellationRequested();
                 AddonPackage package = plan.Packages[index];
                 activeAddonId = package.Id;
-                activeAction = plan.Action == AddonsRequestedAction.UpdateAll
-                    ? AddonsRequestedAction.Update
-                    : plan.Action;
+                activeAction = plan.Actions[package.Id];
                 PublishTargetStart(lease, plan, index, activeAction);
 
-                AddonCatalog scopedCatalog = CreateScopedCatalog(plan.Catalog, package);
-                Dictionary<string, bool> selection = new(StringComparer.OrdinalIgnoreCase)
+                if (IsVerification(activeAction))
                 {
-                    [package.Id] = activeAction != AddonsRequestedAction.Remove
-                };
-                IProgress<AddonTransferProgress>? progress = activeAction == AddonsRequestedAction.Remove
-                    ? null
-                    : new InlineProgress<AddonTransferProgress>(value =>
-                        ReportProgress(lease, package.Id, value));
-                await _service.ApplySelectionAsync(
-                    scopedCatalog,
-                    plan.InstallRoot,
-                    selection,
-                    progress,
-                    _ => WritePhaseSafely(package, activeAction),
-                    lease.CancellationToken).ConfigureAwait(false);
-
-                latestInspections = _service.Inspect(plan.Catalog, plan.InstallRoot);
+                    AddonVerificationResult verification = await _service.VerifyAsync(
+                        plan.Catalog, plan.InstallRoot, package.Id, lease.CancellationToken).ConfigureAwait(false);
+                    latestInspections = _service.Inspect(plan.Catalog, plan.InstallRoot);
+                    latestInspections.TryGetValue(package.Id, out AddonInspection? verifiedInspection);
+                    lock (_sync)
+                    {
+                        if (IsCurrentUnsafe(lease))
+                        {
+                            _verificationResults[package.Id] = new(plan.InstallRoot,
+                                verifiedInspection?.InstalledSha256, verifiedInspection?.InstalledAtUtc, verification);
+                        }
+                    }
+                }
+                else
+                {
+                    IProgress<AddonTransferProgress>? progress = activeAction == AddonsRequestedAction.Remove
+                        ? null
+                        : new InlineProgress<AddonTransferProgress>(value => ReportProgress(lease, package.Id, value));
+                    await _service.ApplyPackageAsync(plan.Catalog, plan.InstallRoot, package,
+                        install: activeAction != AddonsRequestedAction.Remove,
+                        forceReinstall: activeAction is AddonsRequestedAction.Reinstall or AddonsRequestedAction.Repair,
+                        allowExternalReplacement: plan.AllowExternalReplacement, progress,
+                        _ => WritePhaseSafely(package, activeAction), lease.CancellationToken).ConfigureAwait(false);
+                    lock (_sync) { _verificationResults.Remove(package.Id); }
+                    latestInspections = _service.Inspect(plan.Catalog, plan.InstallRoot);
+                }
+                plan.CompletedIds.Add(package.Id);
                 if (index + 1 < plan.Packages.Length)
                 {
                     PublishCompletedTarget(
@@ -652,6 +682,15 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                 return CompleteCancelled(lease, plan);
             }
 
+            if (exception is AddonPlanException planException)
+            {
+                string? affectedId = planException.AddonIds.FirstOrDefault(plan.Actions.ContainsKey);
+                if (affectedId is not null)
+                {
+                    activeAddonId = affectedId;
+                    activeAction = plan.Actions[affectedId];
+                }
+            }
             AddonsErrorCategory category = ClassifyFailure(exception);
             if (category == AddonsErrorCategory.Unauthorized)
             {
@@ -697,13 +736,10 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
             }
 
             ResetTransferTrackingUnsafe(package.Id);
-            AddonsOperationPhase phase = action == AddonsRequestedAction.Remove
-                ? AddonsOperationPhase.Removing
-                : AddonsOperationPhase.Downloading;
-            AddonsOperationState itemOperation = ToOperationState(action);
+            AddonsOperationPhase phase = PhaseFor(action);
             snapshot = SetSnapshotUnsafe(_currentSnapshot with
             {
-                Items = MarkActiveItem(_currentSnapshot.Items, package.Id, itemOperation),
+                Items = PrepareTargetItemsUnsafe(_currentSnapshot.Items, package.Id, action),
                 OperationPhase = phase,
                 ActiveAddonId = package.Id,
                 PendingAddonIds = plan.Packages[index..]
@@ -717,10 +753,10 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                     null,
                     null),
                 CanCancel = lease.CanUserCancel,
-                ActiveAddonPosition = plan.Action == AddonsRequestedAction.UpdateAll
+                ActiveAddonPosition = plan.Packages.Length > 1
                     ? index + 1
                     : null,
-                ActiveAddonTotal = plan.Action == AddonsRequestedAction.UpdateAll
+                ActiveAddonTotal = plan.Packages.Length > 1
                     ? plan.Packages.Length
                     : null
             });
@@ -750,7 +786,7 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                 preserveErrors: true,
                 clearErrorIds: [plan.Packages[completedIndex].Id]);
             AddonPackage next = plan.Packages[nextIndex];
-            items = MarkActiveItem(items, next.Id, AddonsOperationState.Updating);
+            items = PrepareTargetItemsUnsafe(items, next.Id, plan.Actions[next.Id]);
             snapshot = SetSnapshotUnsafe(_currentSnapshot with
             {
                 Items = items,
@@ -758,10 +794,10 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                 PendingAddonIds = plan.Packages[nextIndex..]
                     .Select(package => package.Id)
                     .ToImmutableArray(),
-                OperationPhase = AddonsOperationPhase.Downloading,
+                OperationPhase = PhaseFor(plan.Actions[next.Id]),
                 Progress = new AddonsRuntimeProgress(
                     next.Id,
-                    AddonsOperationPhase.Downloading,
+                    PhaseFor(plan.Actions[next.Id]),
                     null,
                     null,
                     null,
@@ -841,6 +877,7 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
         OperationPlan plan,
         IReadOnlyDictionary<string, AddonInspection> inspections)
     {
+        ImmutableArray<ManualAddonInstallation> manual = InspectManualSafely(plan.Catalog, plan.InstallRoot);
         AddonsRuntimeSnapshot? snapshot = null;
         OperationTerminalResult? terminalResult = null;
         bool publish = false;
@@ -848,6 +885,7 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
         {
             if (OwnsLeaseUnsafe(lease))
             {
+                _retryPlan = null;
                 terminalResult = CreateTerminalResult(
                     lease,
                     plan,
@@ -863,18 +901,25 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                         inspections,
                         preserveErrors: true,
                         clearErrorIds: completedIds),
+                    ManualAddons = manual,
                     OperationState = AddonsOperationState.None,
                     OperationPhase = AddonsOperationPhase.None,
                     ActiveAddonId = string.Empty,
                     PendingAddonIds = ImmutableArray<string>.Empty,
                     Progress = AddonsRuntimeProgress.None,
                     Error = AddonsRuntimeError.None,
-                    Notice = ToNotice(plan.Action),
+                    Notice = IsVerification(plan.Action) && plan.Packages.Any(package =>
+                        !_verificationResults.TryGetValue(package.Id, out VerificationCache? cached)
+                            || cached.Result.Status != AddonVerificationStatus.Verified)
+                        ? AddonsNoticeKind.VerificationIncomplete : ToNotice(plan.Action),
                     IsGameRunning = ReadGameRunningSafely(plan.InstallRoot),
                     CanCancel = false,
                     TerminalResult = terminalResult,
                     ActiveAddonPosition = null,
-                    ActiveAddonTotal = null
+                    ActiveAddonTotal = null,
+                    FailedAddonIds = [],
+                    UnprocessedAddonIds = [],
+                    PendingRetryAction = AddonsRequestedAction.None
                 }));
                 publish = !IsStoppingUnsafe();
             }
@@ -898,6 +943,7 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
             plan.Catalog,
             plan.InstallRoot,
             plan.Action);
+        ImmutableArray<ManualAddonInstallation> manual = InspectManualSafely(plan.Catalog, plan.InstallRoot);
         AddonsRuntimeSnapshot? snapshot = null;
         OperationTerminalResult? terminalResult = null;
         bool publish = false;
@@ -905,6 +951,7 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
         {
             if (OwnsLeaseUnsafe(lease))
             {
+                _retryPlan = plan;
                 terminalResult = CreateTerminalResult(
                     lease,
                     plan,
@@ -916,6 +963,7 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                     Items = inspections is null
                         ? ResetActiveOperations(_currentSnapshot.Items)
                         : BuildItems(plan.Catalog, inspections, preserveErrors: true),
+                    ManualAddons = manual,
                     OperationState = AddonsOperationState.None,
                     OperationPhase = AddonsOperationPhase.None,
                     ActiveAddonId = string.Empty,
@@ -927,7 +975,11 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                     CanCancel = false,
                     TerminalResult = terminalResult,
                     ActiveAddonPosition = null,
-                    ActiveAddonTotal = null
+                    ActiveAddonTotal = null,
+                    FailedAddonIds = [],
+                    PendingRetryAction = plan.Action,
+                    UnprocessedAddonIds = plan.Packages.Where(package => !plan.CompletedIds.Contains(package.Id))
+                        .Select(package => package.Id).ToImmutableArray()
                 }));
                 publish = !IsStoppingUnsafe();
             }
@@ -955,6 +1007,7 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
             plan.Catalog,
             plan.InstallRoot,
             plan.Action);
+        ImmutableArray<ManualAddonInstallation> manual = InspectManualSafely(plan.Catalog, plan.InstallRoot);
         AddonsRuntimeSnapshot? snapshot = null;
         OperationTerminalResult? terminalResult = null;
         bool publish = false;
@@ -962,6 +1015,7 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
         {
             if (OwnsLeaseUnsafe(lease))
             {
+                _retryPlan = plan;
                 terminalResult = CreateTerminalResult(
                     lease,
                     plan,
@@ -974,6 +1028,8 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                 AddonsRequestedAction retry = failedAction is AddonsRequestedAction.Install
                     or AddonsRequestedAction.Update
                     or AddonsRequestedAction.Repair
+                    or AddonsRequestedAction.Reinstall
+                    or AddonsRequestedAction.Verify
                         ? failedAction
                         : AddonsRequestedAction.None;
                 items = MarkError(items, failedAddonId, retry, category);
@@ -981,6 +1037,7 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                 {
                     OperationId = null,
                     Items = items,
+                    ManualAddons = manual,
                     OperationState = AddonsOperationState.None,
                     OperationPhase = AddonsOperationPhase.None,
                     ActiveAddonId = string.Empty,
@@ -992,7 +1049,12 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                     CanCancel = false,
                     TerminalResult = terminalResult,
                     ActiveAddonPosition = null,
-                    ActiveAddonTotal = null
+                    ActiveAddonTotal = null,
+                    FailedAddonIds = [failedAddonId],
+                    PendingRetryAction = plan.Action,
+                    UnprocessedAddonIds = plan.Packages.Where(package => !plan.CompletedIds.Contains(package.Id)
+                            && !string.Equals(package.Id, failedAddonId, StringComparison.OrdinalIgnoreCase))
+                        .Select(package => package.Id).ToImmutableArray()
                 }));
                 publish = !IsStoppingUnsafe();
             }
@@ -1015,6 +1077,7 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
         long generation,
         AddonCatalog catalog,
         IReadOnlyDictionary<string, AddonInspection> inspections,
+        ImmutableArray<ManualAddonInstallation> manual,
         CancellationTokenSource cancellation)
     {
         AddonsRuntimeSnapshot? snapshot = null;
@@ -1027,6 +1090,7 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                 snapshot = SetSnapshotUnsafe(RecalculateAvailabilityUnsafe(_currentSnapshot with
                 {
                     Items = BuildItems(catalog, inspections, preserveErrors: false),
+                    ManualAddons = manual,
                     LoadState = AddonsCatalogLoadState.Loaded,
                     IsCatalogStale = false,
                     CatalogErrorCategory = AddonsErrorCategory.None,
@@ -1127,9 +1191,9 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                 legacyItem.ApplyInspection(inspection);
                 previous.TryGetValue(package.Id, out AddonRuntimeItem? oldItem);
                 bool retainError = preserveErrors
-                    && oldItem?.ErrorCategory != AddonsErrorCategory.None
+                    && oldItem is { ErrorCategory: not AddonsErrorCategory.None }
                     && !cleared.Contains(package.Id);
-                return new AddonRuntimeItem(
+                return AttachVerificationUnsafe(new AddonRuntimeItem(
                     legacyItem.Id,
                     legacyItem.Name,
                     legacyItem.Description,
@@ -1146,7 +1210,7 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
                     inspection.IsManaged,
                     AddonsOperationState.None,
                     retainError ? oldItem!.RetryAction : AddonsRequestedAction.None,
-                    retainError ? oldItem!.ErrorCategory : AddonsErrorCategory.None);
+                    retainError ? oldItem!.ErrorCategory : AddonsErrorCategory.None), package, inspection);
             })
             .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
             .ThenBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
@@ -1441,6 +1505,9 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
             AddonsRequestedAction.Remove => AddonsOperationState.Removing,
             AddonsRequestedAction.Repair => AddonsOperationState.Repairing,
             AddonsRequestedAction.UpdateAll => AddonsOperationState.UpdatingAll,
+            AddonsRequestedAction.InstallSelection => AddonsOperationState.InstallingSelection,
+            AddonsRequestedAction.Verify or AddonsRequestedAction.VerifySelection => AddonsOperationState.Verifying,
+            AddonsRequestedAction.Reinstall => AddonsOperationState.Reinstalling,
             _ => AddonsOperationState.None
         };
 
@@ -1452,6 +1519,9 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
             AddonsRequestedAction.Repair => LauncherOperationType.AddonRepair,
             AddonsRequestedAction.Remove => LauncherOperationType.AddonRemove,
             AddonsRequestedAction.UpdateAll => LauncherOperationType.AddonBatchUpdate,
+            AddonsRequestedAction.Reinstall => LauncherOperationType.AddonRepair,
+            AddonsRequestedAction.InstallSelection or AddonsRequestedAction.Verify or AddonsRequestedAction.VerifySelection
+                => LauncherOperationType.AddonSynchronization,
             _ => throw new ArgumentOutOfRangeException(nameof(action))
         };
 
@@ -1492,6 +1562,9 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
         AddonsRequestedAction.Remove => AddonsNoticeKind.Removed,
         AddonsRequestedAction.Repair => AddonsNoticeKind.Repaired,
         AddonsRequestedAction.UpdateAll => AddonsNoticeKind.BatchUpdated,
+        AddonsRequestedAction.InstallSelection => AddonsNoticeKind.SelectionInstalled,
+        AddonsRequestedAction.Verify or AddonsRequestedAction.VerifySelection => AddonsNoticeKind.Verified,
+        AddonsRequestedAction.Reinstall => AddonsNoticeKind.Reinstalled,
         _ => AddonsNoticeKind.None
     };
 
@@ -1506,6 +1579,11 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
 
     internal static AddonsErrorCategory ClassifyFailure(Exception exception)
     {
+        if (exception is AddonPlanException planException)
+        {
+            return planException.Code == "external-replacement-required"
+                ? AddonsErrorCategory.ExternalReplacementRequired : AddonsErrorCategory.Dependency;
+        }
         if (exception is TaskCanceledException or TimeoutException)
         {
             return AddonsErrorCategory.Timeout;
@@ -1573,7 +1651,12 @@ internal sealed class LauncherAddonsCoordinator : IDisposable
         AddonCatalog Catalog,
         ImmutableArray<AddonPackage> Packages,
         AddonsRequestedAction Action,
-        string InstallRoot);
+        string InstallRoot,
+        ImmutableDictionary<string, AddonsRequestedAction> Actions,
+        bool AllowExternalReplacement)
+    {
+        internal HashSet<string> CompletedIds { get; } = new(StringComparer.OrdinalIgnoreCase);
+    }
 
     private sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
     {

@@ -18,7 +18,10 @@ internal enum AddonsOperationState
     Updating,
     Removing,
     Repairing,
-    UpdatingAll
+    UpdatingAll,
+    Verifying,
+    Reinstalling,
+    InstallingSelection
 }
 
 internal enum AddonsOperationPhase
@@ -26,7 +29,8 @@ internal enum AddonsOperationPhase
     None,
     PreparingSession,
     Downloading,
-    Removing
+    Removing,
+    Verifying
 }
 
 internal enum AddonsRequestedAction
@@ -36,7 +40,11 @@ internal enum AddonsRequestedAction
     Update,
     Remove,
     Repair,
-    UpdateAll
+    UpdateAll,
+    Verify,
+    Reinstall,
+    InstallSelection,
+    VerifySelection
 }
 
 internal enum AddonsErrorCategory
@@ -51,7 +59,9 @@ internal enum AddonsErrorCategory
     FilesLocked,
     Disk,
     InvalidPackage,
-    Unknown
+    Unknown,
+    Dependency,
+    ExternalReplacementRequired
 }
 
 internal enum AddonsNoticeKind
@@ -62,7 +72,11 @@ internal enum AddonsNoticeKind
     Removed,
     Repaired,
     BatchUpdated,
-    Cancelled
+    Cancelled,
+    Verified,
+    VerificationIncomplete,
+    Reinstalled,
+    SelectionInstalled
 }
 
 internal sealed record AddonRuntimeItem(
@@ -84,12 +98,21 @@ internal sealed record AddonRuntimeItem(
     AddonsRequestedAction RetryAction,
     AddonsErrorCategory ErrorCategory)
 {
+    internal AddonVerificationStatus VerificationStatus { get; init; } = AddonVerificationStatus.NotVerified;
+    internal string VerificationMessage { get; init; } = string.Empty;
+    internal DateTimeOffset? VerifiedAtUtc { get; init; }
+    internal string SourceUrl { get; init; } = string.Empty;
+    internal string KnownLimitations { get; init; } = string.Empty;
+    internal string AtlasValidationEvidence { get; init; } = string.Empty;
+    internal bool IsAtlasValidated => !string.IsNullOrEmpty(AtlasValidationEvidence);
+
     internal bool IsInstalled => IsManaged;
 
     internal bool NeedsUpdate => LocalStatus is AddonLocalStatus.UpdateAvailable
         or AddonLocalStatus.MissingFiles;
 
-    internal bool NeedsRepair => LocalStatus == AddonLocalStatus.MissingFiles;
+    internal bool NeedsRepair => LocalStatus == AddonLocalStatus.MissingFiles
+        || VerificationStatus == AddonVerificationStatus.NeedsRepair;
 
     internal bool IsDetectedUnmanaged => LocalStatus == AddonLocalStatus.DetectedUnmanaged;
 
@@ -155,6 +178,11 @@ internal sealed record AddonsRuntimeSnapshot(
     int? ActiveAddonPosition = null,
     int? ActiveAddonTotal = null)
 {
+    internal ImmutableArray<ManualAddonInstallation> ManualAddons { get; init; } = [];
+    internal ImmutableArray<string> FailedAddonIds { get; init; } = [];
+    internal ImmutableArray<string> UnprocessedAddonIds { get; init; } = [];
+    internal AddonsRequestedAction PendingRetryAction { get; init; } = AddonsRequestedAction.None;
+
     internal static AddonsRuntimeSnapshot Initial { get; } = new(
         Sequence: 0,
         OperationId: null,
@@ -219,7 +247,10 @@ internal enum AddonsActionStartStatus
     ClientUnavailable,
     AddonNotFound,
     InvalidState,
-    RejectedByCompatibility
+    RejectedByCompatibility,
+    InvalidPlan,
+    ConfirmationRequired,
+    DependencyInUse
 }
 
 internal enum AddonsActionCompletionStatus
@@ -240,10 +271,32 @@ internal sealed record AddonsActionStartResult(
     long? OperationId,
     Task<AddonsActionCompletion>? Completion)
 {
+    internal string ErrorCode { get; init; } = string.Empty;
+    internal ImmutableArray<string> RelatedAddonIds { get; init; } = [];
+
     internal bool IsStarted => Status == AddonsActionStartStatus.Started
         && OperationId is not null
         && Completion is not null;
 
     internal static AddonsActionStartResult Rejected(AddonsActionStartStatus status) =>
         new(status, null, null);
+}
+
+internal sealed record AddonsPlanItem(
+    string Id,
+    string Name,
+    string Version,
+    AddonsRequestedAction Action,
+    bool IsDependency,
+    bool ReplacesExternal,
+    ImmutableArray<string> Folders);
+
+internal sealed record AddonsPlanPreview(
+    ImmutableArray<string> RequestedAddonIds,
+    ImmutableArray<AddonsPlanItem> Items,
+    string ErrorCode,
+    ImmutableArray<string> RelatedAddonIds)
+{
+    internal bool IsValid => string.IsNullOrEmpty(ErrorCode);
+    internal bool RequiresExternalReplacementConfirmation => Items.Any(item => item.ReplacesExternal);
 }

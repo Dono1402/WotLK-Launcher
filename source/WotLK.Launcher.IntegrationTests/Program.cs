@@ -359,6 +359,31 @@ if (args.Length >= 1
 }
 
 if (args.Length >= 1
+    && string.Equals(args[0], "--addons-full-shell-wpf", StringComparison.OrdinalIgnoreCase))
+{
+    string? captureDirectory = args.Length == 3
+        && string.Equals(args[1], "--capture-directory", StringComparison.OrdinalIgnoreCase)
+            ? args[2]
+            : null;
+    return await AddonsFullShellWpfTests.RunAsync(captureDirectory);
+}
+
+if (args.Length == 1 && string.Equals(args[0], "--tray-menu", StringComparison.OrdinalIgnoreCase))
+{
+    return await LauncherTrayMenuTests.RunAsync();
+}
+
+if (args.Length == 1 && string.Equals(args[0], "--addons-library-commands", StringComparison.OrdinalIgnoreCase))
+{
+    return await AddonsLibraryCommandTests.RunAsync();
+}
+
+if (args.Length == 1 && string.Equals(args[0], "--addons-library-memory", StringComparison.OrdinalIgnoreCase))
+{
+    return AddonsLibraryMemoryTests.Run();
+}
+
+if (args.Length >= 1
     && string.Equals(args[0], "--addons-runtime", StringComparison.OrdinalIgnoreCase))
 {
     string? captureDirectory = args.Length == 3

@@ -50,6 +50,7 @@ internal sealed class AddonsStateAdapter : IDisposable
         ArgumentNullException.ThrowIfNull(snapshot);
         ImmutableArray<AddonUiItem> catalog = snapshot.Items
             .Select(item => ProjectItem(item, snapshot))
+            .Concat(snapshot.ManualAddons.Select(ProjectManualItem))
             .OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
             .ThenBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
             .ToImmutableArray();
@@ -69,8 +70,14 @@ internal sealed class AddonsStateAdapter : IDisposable
             IsCatalogLoading: snapshot.LoadState == AddonsCatalogLoadState.Loading,
             CanMutate: snapshot.CanMutate,
             CanCancelCurrent: snapshot.CanCancel,
-            IsBatchOperation: snapshot.OperationState == AddonsOperationState.UpdatingAll,
-            ActiveAddonId: snapshot.ActiveAddonId);
+            IsBatchOperation: snapshot.OperationState is AddonsOperationState.UpdatingAll or AddonsOperationState.InstallingSelection
+                || snapshot.OperationState != AddonsOperationState.None && snapshot.ActiveAddonTotal > 1,
+            ActiveAddonId: snapshot.ActiveAddonId)
+        {
+            ActiveAddonPosition = snapshot.ActiveAddonPosition,
+            ActiveAddonTotal = snapshot.ActiveAddonTotal,
+            CanRetryFailed = !snapshot.FailedAddonIds.IsEmpty || !snapshot.UnprocessedAddonIds.IsEmpty
+        };
     }
 
     public void Dispose()
@@ -130,6 +137,9 @@ internal sealed class AddonsStateAdapter : IDisposable
                 AddonsOperationState.Updating => AddonVisualState.Updating,
                 AddonsOperationState.Removing => AddonVisualState.Removing,
                 AddonsOperationState.Repairing => AddonVisualState.Repairing,
+                AddonsOperationState.Verifying => AddonVisualState.Verifying,
+                AddonsOperationState.Reinstalling => AddonVisualState.Reinstalling,
+                _ when item.NeedsRepair => AddonVisualState.UpdateAvailable,
                 _ => item.LocalStatus switch
                 {
                     AddonLocalStatus.Installed => AddonVisualState.Installed,
@@ -142,7 +152,7 @@ internal sealed class AddonsStateAdapter : IDisposable
             ? AddonPrimaryActionKind.Cancel
             : item.ErrorCategory != AddonsErrorCategory.None
                 ? ToPrimaryAction(item.RetryAction)
-                : item.LocalStatus switch
+                : item.NeedsRepair ? AddonPrimaryActionKind.Repair : item.LocalStatus switch
                 {
                     AddonLocalStatus.MissingFiles => AddonPrimaryActionKind.Repair,
                     AddonLocalStatus.UpdateAvailable => AddonPrimaryActionKind.Update,
@@ -176,6 +186,12 @@ internal sealed class AddonsStateAdapter : IDisposable
             IsManagedByAtlas = item.IsManaged,
             RequiresRepair = item.NeedsRepair,
             IsDetectedUnmanaged = item.IsDetectedUnmanaged,
+            IsCatalogEntry = true,
+            IsVerified = item.VerificationStatus == AddonVerificationStatus.Verified,
+            VerificationMessage = item.VerificationMessage,
+            IsInterfaceCompatible = item.InterfaceVersion == "30403",
+            KnownLimitations = item.KnownLimitations,
+            AtlasValidationEvidence = item.AtlasValidationEvidence,
             InstalledSha256 = item.InstalledSha256,
             InstalledAtUtc = item.InstalledAtUtc,
             PrimaryAction = primaryAction,
@@ -186,12 +202,30 @@ internal sealed class AddonsStateAdapter : IDisposable
         };
     }
 
+    private static AddonUiItem ProjectManualItem(ManualAddonInstallation item) => new(
+        item.Id, item.Name, "Addon installé en dehors du catalogue Atlas.", "Manuels",
+        string.Empty, item.Version, item.InterfaceVersion, item.Author,
+        item.Dependencies.ToImmutableArray(), [item.Folder], string.Empty, false,
+        AddonVisualState.Installed, null, false, string.Empty)
+    {
+        IsCatalogEntry = false,
+        IsDetectedUnmanaged = true,
+        IsManagedByAtlas = false,
+        UsesExplicitPrimaryAction = true,
+        ActionsEnabled = false,
+        IsInterfaceCompatible = item.HasCompatibleInterface,
+        VerificationMessage = string.IsNullOrEmpty(item.InspectionError)
+            ? "Installation externe : aucune référence de fichiers connue"
+            : "Les informations de cet addon n’ont pas pu être entièrement lues."
+    };
+
     private static AddonPrimaryActionKind ToPrimaryAction(AddonsRequestedAction action) =>
         action switch
         {
             AddonsRequestedAction.Install => AddonPrimaryActionKind.Install,
             AddonsRequestedAction.Update => AddonPrimaryActionKind.Update,
             AddonsRequestedAction.Repair => AddonPrimaryActionKind.Repair,
+            AddonsRequestedAction.Reinstall => AddonPrimaryActionKind.Repair,
             _ => AddonPrimaryActionKind.None
         };
 
@@ -230,12 +264,17 @@ internal sealed class AddonsStateAdapter : IDisposable
                 AddonsOperationState.Removing => $"Suppression de {addonName}…",
                 AddonsOperationState.Repairing => $"Réparation de {addonName}…",
                 AddonsOperationState.UpdatingAll => $"Mise à jour de {addonName}…",
+                AddonsOperationState.Verifying => $"Vérification de {addonName}…",
+                AddonsOperationState.Reinstalling => $"Réinstallation de {addonName}…",
+                AddonsOperationState.InstallingSelection => $"Installation de la sélection · {addonName}…",
                 _ => string.Empty
             };
         }
         if (snapshot.Error.Category != AddonsErrorCategory.None)
         {
-            return MapItemError(snapshot.Error.Category);
+            string remaining = snapshot.UnprocessedAddonIds.IsEmpty ? string.Empty
+                : $" {snapshot.UnprocessedAddonIds.Length} addon(s) restent à traiter.";
+            return MapItemError(snapshot.Error.Category) + remaining;
         }
         if (snapshot.LoadState == AddonsCatalogLoadState.Loaded
             && !snapshot.IsClientPlayable)
@@ -248,6 +287,8 @@ internal sealed class AddonsStateAdapter : IDisposable
                 or AddonsNoticeKind.Updated
                 or AddonsNoticeKind.Repaired
                 or AddonsNoticeKind.BatchUpdated
+                or AddonsNoticeKind.Reinstalled
+                or AddonsNoticeKind.SelectionInstalled
                     ? " Utilise /reload dans le jeu pour l’activer."
                     : string.Empty;
         return snapshot.Notice switch
@@ -257,6 +298,10 @@ internal sealed class AddonsStateAdapter : IDisposable
             AddonsNoticeKind.Removed => "Addon supprimé.",
             AddonsNoticeKind.Repaired => "Addon réparé." + suffix,
             AddonsNoticeKind.BatchUpdated => "Tous les addons disponibles ont été mis à jour." + suffix,
+            AddonsNoticeKind.SelectionInstalled => "La sélection d’addons a été installée." + suffix,
+            AddonsNoticeKind.Reinstalled => "Addon réinstallé." + suffix,
+            AddonsNoticeKind.Verified => "Vérification terminée : les fichiers correspondent à leur référence.",
+            AddonsNoticeKind.VerificationIncomplete => "Vérification terminée : consulte l’état de chaque addon.",
             AddonsNoticeKind.Cancelled => "Opération annulée.",
             _ => string.Empty
         };
@@ -274,6 +319,8 @@ internal sealed class AddonsStateAdapter : IDisposable
         AddonsErrorCategory.FilesLocked => "Certains fichiers de l’addon sont utilisés par une autre application.",
         AddonsErrorCategory.Disk => "Atlas n’a pas pu écrire les fichiers de cet addon.",
         AddonsErrorCategory.InvalidPackage => "L’archive reçue n’est pas valide.",
+        AddonsErrorCategory.Dependency => "Les dépendances de cet addon ne peuvent pas être résolues.",
+        AddonsErrorCategory.ExternalReplacementRequired => "Le remplacement de l’installation manuelle doit être confirmé.",
         _ => "Une erreur inattendue empêche cette opération."
     };
 

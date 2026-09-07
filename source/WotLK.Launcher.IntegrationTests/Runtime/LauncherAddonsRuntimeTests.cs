@@ -3,10 +3,13 @@ using System.IO.Compression;
 using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -18,7 +21,7 @@ using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Preview;
 using WotLK.Launcher.UI.V2.Views;
 
-internal static class LauncherAddonsRuntimeTests
+internal static partial class LauncherAddonsRuntimeTests
 {
     internal static async Task<int> RunAsync(string? captureDirectory)
     {
@@ -27,6 +30,11 @@ internal static class LauncherAddonsRuntimeTests
         await CharacterizeRuntimeOperationsAsync();
         await CharacterizeFailuresCancellationAndShutdownAsync();
         await CharacterizeSequentialBatchAsync();
+        _ = AddonDependencyPlannerTests.Run();
+        _ = await AddonIntegrityTests.RunAsync();
+        await CharacterizeAdvancedActionsAsync();
+        await CharacterizeRepeatedReinstallRetryAsync();
+        await CharacterizeVerificationFailureInvalidationAsync();
         CharacterizeCompatibilityMatrix();
         CharacterizePreviewIsolation();
         await ValidateRuntimeWpfAsync(captureDirectory);
@@ -123,8 +131,8 @@ internal static class LauncherAddonsRuntimeTests
             Equal("local version = '1.0.0'\n",
                 await File.ReadAllTextAsync(Path.Combine(alphaDirectory, "core.lua")),
                 "Les remplacements de jetons legacy doivent rester appliqués.");
-            True(!Directory.Exists(Path.Combine(addonsDirectory, "AtlasDependency")),
-                "Les dépendances du catalogue restent des métadonnées et ne sont pas auto-installées.");
+            True(Directory.Exists(Path.Combine(addonsDirectory, "AtlasDependency")),
+                "Les dépendances du catalogue doivent être installées avant leur addon dépendant.");
             True(progress.Count >= 2 && progress[^1].BytesReceived == componentV1.Length,
                 "La progression legacy doit exposer les octets réellement reçus pour chaque archive.");
 
@@ -192,7 +200,7 @@ internal static class LauncherAddonsRuntimeTests
                 "Un dossier géré absent doit demander une réparation.");
             await AddonInstallServices.ApplySelectionAsync(
                 http,
-                CreateCatalog(alphaV1),
+                catalogV1,
                 root,
                 new Dictionary<string, bool> { [alphaV1.Id] = true },
                 progress: null,
@@ -214,8 +222,8 @@ internal static class LauncherAddonsRuntimeTests
                     log: null,
                     cancelled.Token),
                 "Le token legacy doit interrompre une installation avant mutation.");
-            True(!Directory.Exists(Path.Combine(addonsDirectory, "AtlasDependency")),
-                "Une installation annulée ne doit pas publier un état partiel.");
+            True(Directory.Exists(Path.Combine(addonsDirectory, "AtlasDependency")),
+                "Une installation annulée doit conserver la dépendance déjà installée.");
 
             AddonPackage blockingPackage = CreateFakePackage(
                 "blocking-download",
@@ -656,6 +664,17 @@ internal static class LauncherAddonsRuntimeTests
                 "Les addons non encore traités doivent rester à mettre à jour.");
             Equal(2, uiState.Current.VisibleAddons.Length,
                 "Le filtre doit être réappliqué dès la fin du batch.");
+            SequenceEqual(["beta"], completion.Snapshot.FailedAddonIds,
+                "La reprise doit mémoriser uniquement l’élément en échec.");
+            SequenceEqual(["charlie"], completion.Snapshot.UnprocessedAddonIds,
+                "La reprise doit distinguer les éléments non encore traités.");
+            failureService.ApplyBehavior = null;
+            await CompleteAsync(environment.Coordinator.TryRetryFailed());
+            SequenceEqual(["alpha", "beta", "beta", "charlie"], failureService.AppliedAddonIds,
+                "La reprise doit traiter l’échec et le reste sans réinstaller le premier succès.");
+            True(environment.Coordinator.CurrentSnapshot.FailedAddonIds.IsEmpty
+                && environment.Coordinator.CurrentSnapshot.UnprocessedAddonIds.IsEmpty,
+                "Une reprise réussie doit effacer la liste d’échecs et de restants.");
         }
 
         FakeAddonManagementService cancelService = new(catalog);
@@ -686,6 +705,8 @@ internal static class LauncherAddonsRuntimeTests
                 "L'annulation doit empêcher le démarrage de l'addon suivant.");
             Equal(1, cancelService.MaximumConcurrency,
                 "L'annulation globale ne doit pas créer de branche parallèle.");
+            SequenceEqual(["beta", "charlie"], completion.Snapshot.UnprocessedAddonIds,
+                "L’annulation doit conserver les cibles restantes dans leur ordre.");
         }
     }
 
@@ -894,18 +915,27 @@ internal static class LauncherAddonsRuntimeTests
             ShowInTaskbar = false,
             ShowActivated = false
         };
+        window.PreviewGotKeyboardFocus += (_, args) => args.Handled = true;
+        window.SourceInitialized += (_, _) =>
+        {
+            IntPtr handle = new WindowInteropHelper(window).Handle;
+            SetFixtureWindowLong(handle, -20, GetFixtureWindowLong(handle, -20) | 0x08000000);
+        };
         using AddonsCommands commands = new(
             coordinator,
             addonsState,
             window,
             () => settings.InstallPath,
-            (_, _) => true);
+            (_, _) => true,
+            libraryDialogs: new FakeLibraryDialogs(),
+            libraryStore: new MemoryLibraryStore());
         using AddonsStateAdapter adapter = new(addonsState, coordinator, window.Dispatcher);
         window.AttachAddons(commands);
         window.Show();
         try
         {
             await DelayAndPumpAsync(120);
+            True(!window.IsActive, "Le harnais WPF doit rester inactif sans prendre le focus du bureau.");
             True(!window.IsPreviewMode && window.HasRealAddonsAttached,
                 "Le harnais WPF doit utiliser la branche Addons réelle.");
             RaiseClick(Required<Button>(window, "AddonsNavigationButton"));
@@ -961,8 +991,17 @@ internal static class LauncherAddonsRuntimeTests
             AddonUiItem installItem = addonsState.Current.Catalog.Single(item => item.Id == catalog.Addons[0].Id);
             window.AddonsPage.ListHost.SelectedItem = installItem;
             await PumpAsync(DispatcherPriority.Input);
+            True(!window.AddonsPage.IsDetailOpen,
+                "La sélection d’une ligne doit préserver la navigation sans ouvrir les détails automatiquement.");
+            window.AddonsPage.ListHost.ScrollIntoView(installItem);
+            window.AddonsPage.ListHost.UpdateLayout();
+            ListBoxItem installRow = (ListBoxItem)window.AddonsPage.ListHost.ItemContainerGenerator.ContainerFromItem(installItem);
+            window.AddonsPage.ListHost.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left)
+            { RoutedEvent = UIElement.MouseLeftButtonUpEvent, Source = installRow });
+            await PumpAsync(DispatcherPriority.Input);
             True(window.AddonsPage.IsDetailOpen,
-                "Le panneau détail doit s'ouvrir avec les données runtime.");
+                "Le clic synthétique sur une ligne doit ouvrir le panneau détail avec les données runtime.");
+            True(!window.IsActive, "Les actions synthétiques doivent conserver une fenêtre inactive.");
 
             TaskCompletionSource installGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
             TaskCompletionSource installStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -1029,6 +1068,12 @@ internal static class LauncherAddonsRuntimeTests
             await PumpAsync(DispatcherPriority.Background);
         }
     }
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
+    private static extern int GetFixtureWindowLong(IntPtr window, int index);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongW")]
+    private static extern int SetFixtureWindowLong(IntPtr window, int index, int value);
 
     private static async Task LoadCatalogAsync(LauncherAddonsCoordinator coordinator)
     {
@@ -1429,6 +1474,40 @@ internal static class LauncherAddonsRuntimeTests
         internal int LoadCalls { get; private set; }
 
         internal int MaximumConcurrency { get; private set; }
+
+        internal Dictionary<string, AddonVerificationResult> VerificationResults { get; } = new(StringComparer.OrdinalIgnoreCase);
+        internal IReadOnlyList<ManualAddonInstallation> ManualAddons { get; set; } = [];
+        internal List<string> ForcedAddonIds { get; } = [];
+        internal List<string> AllowedExternalAddonIds { get; } = [];
+        internal Exception? PlanFailure { get; set; }
+        internal Exception? VerificationFailure { get; set; }
+
+        public void ValidatePlan(AddonCatalog catalog, string installRoot, IEnumerable<string> installIds,
+            IEnumerable<string> removalIds, bool allowExternalReplacement, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (PlanFailure is not null) throw PlanFailure;
+        }
+
+        public IReadOnlyList<ManualAddonInstallation> InspectManualAddons(AddonCatalog catalog, string installRoot) => ManualAddons;
+
+        public Task<AddonVerificationResult> VerifyAsync(AddonCatalog catalog, string installRoot, string addonId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (VerificationFailure is not null) throw VerificationFailure;
+            return Task.FromResult(VerificationResults.TryGetValue(addonId, out AddonVerificationResult? result) ? result
+                : new AddonVerificationResult(addonId, AddonVerificationStatus.LegacyUnverified, 0, [], [], [], DateTimeOffset.UtcNow));
+        }
+
+        public Task ApplyPackageAsync(AddonCatalog catalog, string installRoot, AddonPackage package, bool install,
+            bool forceReinstall, bool allowExternalReplacement, IProgress<AddonTransferProgress>? progress,
+            Action<string>? log, CancellationToken cancellationToken)
+        {
+            if (forceReinstall) ForcedAddonIds.Add(package.Id);
+            if (allowExternalReplacement) AllowedExternalAddonIds.Add(package.Id);
+            return ApplySelectionAsync(CreateCatalog(package), installRoot,
+                new Dictionary<string, bool> { [package.Id] = install }, progress, log, cancellationToken);
+        }
 
         internal IReadOnlyList<string> AppliedAddonIds
         {

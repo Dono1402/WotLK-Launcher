@@ -202,6 +202,7 @@ internal sealed class LauncherLocalizationBridge : IDisposable
 
     private void TranslateProperty(DependencyObject target, DependencyProperty property)
     {
+        if (LauncherLocalizationOptions.GetIsUserText(target)) return;
         if (target.GetValue(property) is not string source
             || string.IsNullOrEmpty(source))
         {

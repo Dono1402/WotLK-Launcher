@@ -69,8 +69,32 @@ public sealed class AddonPackage
     [JsonPropertyName("dependencies")]
     public List<string> Dependencies { get; set; } = [];
 
+    [JsonPropertyName("knownLimitations")]
+    public string KnownLimitations { get; set; } = "";
+
+    [JsonPropertyName("atlasValidation")]
+    public AddonAtlasValidation? AtlasValidation { get; set; }
+
     [JsonIgnore]
     internal string EffectiveInstallHash => string.IsNullOrWhiteSpace(InstallHash) ? Sha256 : InstallHash;
+
+    [JsonIgnore]
+    internal string ValidatedAtlasEvidenceUrl => AtlasValidation is { } validation
+        && string.Equals(validation.Version, Version, StringComparison.Ordinal)
+        && !string.IsNullOrWhiteSpace(validation.Version)
+        && validation.EvidenceUrl is { Length: > 0 and <= 2048 }
+        && Uri.TryCreate(validation.EvidenceUrl, UriKind.Absolute, out Uri? evidence)
+        && evidence.Scheme is "http" or "https" && evidence.UserInfo.Length == 0
+            ? evidence.AbsoluteUri : string.Empty;
+}
+
+public sealed class AddonAtlasValidation
+{
+    [JsonPropertyName("version")]
+    public string Version { get; set; } = "";
+
+    [JsonPropertyName("evidenceUrl")]
+    public string EvidenceUrl { get; set; } = "";
 }
 
 public sealed class AddonPackageComponent
@@ -106,7 +130,10 @@ internal sealed record AddonInspection(
     string? InstalledVersion = null,
     string? InstalledSha256 = null,
     IReadOnlyList<string>? InstalledFolders = null,
-    DateTimeOffset? InstalledAtUtc = null);
+    DateTimeOffset? InstalledAtUtc = null)
+{
+    internal bool HasFileManifest { get; init; }
+}
 
 internal sealed record AddonTransferProgress(string AddonName, long BytesReceived, long TotalBytes);
 
@@ -216,4 +243,59 @@ internal sealed class InstalledAddonState
 
     [JsonPropertyName("installedAtUtc")]
     public DateTimeOffset InstalledAtUtc { get; set; }
+
+    // Optional for existing schema-1 state files. Absence is explicitly reported
+    // as unverified until a validated installation creates this manifest.
+    [JsonPropertyName("files")]
+    public Dictionary<string, InstalledAddonFile>? Files { get; set; }
 }
+
+internal sealed class InstalledAddonFile
+{
+    [JsonPropertyName("size")]
+    public long Size { get; set; }
+
+    [JsonPropertyName("sha256")]
+    public string Sha256 { get; set; } = "";
+}
+
+internal enum AddonVerificationStatus
+{
+    NotVerified,
+    Verified,
+    NeedsRepair,
+    LegacyUnverified,
+    Unmanaged,
+    NotInstalled
+}
+
+internal sealed record AddonVerificationResult(
+    string AddonId,
+    AddonVerificationStatus Status,
+    int CheckedFiles,
+    IReadOnlyList<string> MissingFiles,
+    IReadOnlyList<string> ModifiedFiles,
+    IReadOnlyList<string> UnexpectedFiles,
+    DateTimeOffset VerifiedAtUtc)
+{
+    internal string Message => Status switch
+    {
+        AddonVerificationStatus.Verified => $"{CheckedFiles} fichiers vérifiés",
+        AddonVerificationStatus.NeedsRepair => $"{MissingFiles.Count} absents, {ModifiedFiles.Count} modifiés, {UnexpectedFiles.Count} supplémentaires",
+        AddonVerificationStatus.LegacyUnverified => "Manifeste absent ou invalide : réinstallez pour activer la vérification",
+        AddonVerificationStatus.Unmanaged => "Installation externe : aucune référence de fichiers connue",
+        AddonVerificationStatus.NotInstalled => "Addon non installé",
+        _ => "Non vérifié"
+    };
+}
+
+internal sealed record ManualAddonInstallation(
+    string Id,
+    string Folder,
+    string Name,
+    string Version,
+    string Author,
+    string InterfaceVersion,
+    bool HasCompatibleInterface,
+    IReadOnlyList<string> Dependencies,
+    string InspectionError);

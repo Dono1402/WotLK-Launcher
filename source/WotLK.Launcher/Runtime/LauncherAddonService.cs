@@ -17,6 +17,20 @@ internal interface IAddonManagementService
         IProgress<AddonTransferProgress>? progress,
         Action<string>? log,
         CancellationToken cancellationToken);
+
+    IReadOnlyList<ManualAddonInstallation> InspectManualAddons(AddonCatalog catalog, string installRoot) => [];
+
+    Task<AddonVerificationResult> VerifyAsync(AddonCatalog catalog, string installRoot, string addonId, CancellationToken cancellationToken)
+        => Task.FromResult(new AddonVerificationResult(addonId, AddonVerificationStatus.LegacyUnverified, 0, [], [], [], DateTimeOffset.UtcNow));
+
+    void ValidatePlan(AddonCatalog catalog, string installRoot, IEnumerable<string> installIds,
+        IEnumerable<string> removalIds, bool allowExternalReplacement, CancellationToken cancellationToken) { }
+
+    Task ApplyPackageAsync(AddonCatalog catalog, string installRoot, AddonPackage package, bool install,
+        bool forceReinstall, bool allowExternalReplacement, IProgress<AddonTransferProgress>? progress,
+        Action<string>? log, CancellationToken cancellationToken)
+        => ApplySelectionAsync(new AddonCatalog { SchemaVersion = catalog.SchemaVersion, ClientInterface = catalog.ClientInterface, Addons = [package] },
+            installRoot, new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase) { [package.Id] = install }, progress, log, cancellationToken);
 }
 
 internal sealed class LegacyAddonManagementService : IAddonManagementService
@@ -59,6 +73,23 @@ internal sealed class LegacyAddonManagementService : IAddonManagementService
             progress,
             log,
             cancellationToken);
+
+    public IReadOnlyList<ManualAddonInstallation> InspectManualAddons(AddonCatalog catalog, string installRoot)
+        => AddonInstallServices.InspectManualAddons(catalog, installRoot);
+
+    public Task<AddonVerificationResult> VerifyAsync(AddonCatalog catalog, string installRoot, string addonId, CancellationToken cancellationToken)
+        => AddonInstallServices.VerifyAsync(catalog, installRoot, addonId, cancellationToken);
+
+    public void ValidatePlan(AddonCatalog catalog, string installRoot, IEnumerable<string> installIds,
+        IEnumerable<string> removalIds, bool allowExternalReplacement, CancellationToken cancellationToken)
+        => AddonInstallServices.ValidatePlan(catalog, installRoot, installIds, removalIds, allowExternalReplacement, cancellationToken);
+
+    public Task ApplyPackageAsync(AddonCatalog catalog, string installRoot, AddonPackage package, bool install,
+        bool forceReinstall, bool allowExternalReplacement, IProgress<AddonTransferProgress>? progress,
+        Action<string>? log, CancellationToken cancellationToken)
+        => AddonInstallServices.ApplySelectionAsync(_httpClient, catalog, installRoot,
+            new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase) { [package.Id] = install }, progress, log, cancellationToken,
+            forceReinstall, allowExternalReplacement, resolveDependencies: false);
 }
 
 internal interface IAddonsSessionContext

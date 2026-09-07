@@ -108,7 +108,8 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
         ArmoryBannerStore? bannerStore = null, IAvatarFilePicker? bannerPicker = null,
         Func<uint, LauncherArmoryDataRequest, CancellationToken, Task<JsonElement>>? readData = null,
         Func<string?>? getGameDirectory = null,
-        Func<uint, uint, LauncherArmoryDataRequest, CancellationToken, Task<JsonElement>>? readFriendData = null)
+        Func<uint, uint, LauncherArmoryDataRequest, CancellationToken, Task<JsonElement>>? readFriendData = null,
+        AvatarImageCache? avatarImages = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ResetSession();
@@ -126,6 +127,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
                 ?? throw new InvalidOperationException("Missing friend armory cache directory.");
         _readData = readData;
         _readFriendData = readFriendData;
+        _friendAvatarImages = avatarImages;
         _userDataFolder = userDataFolder;
         _bannerStore = bannerStore ?? new ArmoryBannerStore();
         _bannerSelection = new AvatarFileSelectionService(bannerPicker ?? new BannerFilePicker());
@@ -609,7 +611,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
     {
         if (_browser?.CoreWebView2 is not { } core || _state?.IsNavigationEnabled != true) return;
         AccountViewState state = _state.Current;
-        BitmapSource? avatarImage = _friendProfile is FriendUiItem friend ? friend.AvatarImage as BitmapSource : state.AvatarImage;
+        BitmapSource? avatarImage = _friendProfile is FriendUiItem friend ? ResolveFriendProfileAvatar(friend) : state.AvatarImage;
         if (!ReferenceEquals(_avatarSource, avatarImage))
         {
             _avatarSource = avatarImage;
@@ -735,6 +737,8 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
         _sessionUsername = null;
         _avatarSource = null;
         _avatarData = null;
+        _friendAvatarRequest = null;
+        _friendAvatarImage = null;
         _profileBridgeError = null;
         _avatarBridgeError = null;
         _avatarSelectionPending = false;

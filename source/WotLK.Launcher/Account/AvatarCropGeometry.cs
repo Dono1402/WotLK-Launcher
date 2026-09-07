@@ -15,7 +15,6 @@ internal static class AvatarCropGeometry
 {
     internal const double DefaultViewportSize = 360;
     internal const double AbsoluteMaximumZoom = 2.4;
-    internal const double InitialInteractiveZoom = 1.12;
     internal const int ServerMinimumCropPixels = 256;
 
     internal static double GetMaximumZoom(int orientedWidth, int orientedHeight)
@@ -28,8 +27,11 @@ internal static class AvatarCropGeometry
                 Math.Min(orientedWidth, orientedHeight) / (double)ServerMinimumCropPixels));
     }
 
-    internal static double GetInitialZoom(int orientedWidth, int orientedHeight) =>
-        Math.Min(InitialInteractiveZoom, GetMaximumZoom(orientedWidth, orientedHeight));
+    internal static double GetInitialZoom(int orientedWidth, int orientedHeight)
+    {
+        ValidateDimensions(orientedWidth, orientedHeight);
+        return 1;
+    }
 
     internal static AvatarCropLayout Calculate(
         int orientedWidth,

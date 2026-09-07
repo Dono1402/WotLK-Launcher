@@ -516,7 +516,7 @@ public partial class App : Application
             window.Dispatcher);
         window.AttachAccount(accountCommands);
         window.AttachArmory(runtime.GetArmoryAccountAsync, runtime.GetArmoryDataAsync,
-            () => runtime.Settings.InstallPath, runtime.GetFriendArmoryDataAsync);
+            () => runtime.Settings.InstallPath, runtime.GetFriendArmoryDataAsync, runtime.AvatarImages);
         AuthStateAdapter authStateAdapter = new(
             window.AuthState,
             shellState,

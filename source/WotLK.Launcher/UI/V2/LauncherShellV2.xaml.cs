@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using WotLK.Launcher.Account;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2.Commands;
 using WotLK.Launcher.UI.V2.Localization;
@@ -44,9 +45,11 @@ public partial class LauncherShellV2 : Window
     internal void AttachArmory(Func<CancellationToken, Task<uint?>> getAccount,
         Func<uint, LauncherArmoryDataRequest, CancellationToken, Task<JsonElement>>? readData = null,
         Func<string?>? getGameDirectory = null,
-        Func<uint, uint, LauncherArmoryDataRequest, CancellationToken, Task<JsonElement>>? readFriendData = null)
+        Func<uint, uint, LauncherArmoryDataRequest, CancellationToken, Task<JsonElement>>? readFriendData = null,
+        AvatarImageCache? avatarImages = null)
     {
-        ArmoryView.Configure(getAccount, AccountState, readData: readData, getGameDirectory: getGameDirectory, readFriendData: readFriendData);
+        ArmoryView.Configure(getAccount, AccountState, readData: readData, getGameDirectory: getGameDirectory,
+            readFriendData: readFriendData, avatarImages: avatarImages);
         ArmoryView.UpdatePresence(ProfileState);
     }
 

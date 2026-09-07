@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Windows.Input;
 using System.Windows.Media;
+using WotLK.Launcher.Account;
 using WotLK.Launcher.UI.V2.Commands;
 
 namespace WotLK.Launcher.UI.V2.Presentation;
@@ -82,6 +83,8 @@ public sealed record FriendUiItem(
     ImmutableArray<FriendCharacterUiItem> Characters = default,
     bool IsLauncherOnline = false)
 {
+    internal AvatarDescriptor? AvatarDescriptor { get; init; }
+
     public string? Presence { get; init; }
 
     public string PresenceColor => Presence switch

@@ -307,6 +307,12 @@ if (args.Length >= 1
 }
 
 if (args.Length >= 1
+    && string.Equals(args[0], "--avatar-crop-rendering", StringComparison.OrdinalIgnoreCase))
+{
+    return await AccountAvatarCropRenderingTests.RunAsync(args.Skip(1).ToArray());
+}
+
+if (args.Length >= 1
     && string.Equals(args[0], "--account-avatar-client", StringComparison.OrdinalIgnoreCase))
 {
     string? captureDirectory = args.Length == 3

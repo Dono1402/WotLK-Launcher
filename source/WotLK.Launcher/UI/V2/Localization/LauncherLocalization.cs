@@ -332,6 +332,7 @@ internal static class LauncherLocalization
             ["Liège, Belgique · active maintenant"] = "Liège, Belgium · active now",
             ["Namur, Belgique · il y a 2 jours"] = "Namur, Belgium · 2 days ago",
             ["Recadrer la photo"] = "Crop picture",
+            ["Recentrer et dézoomer"] = "Center and zoom out",
             ["Position et cadrage"] = "Position and crop",
             ["Aperçus"] = "Previews",
             ["Format préparé"] = "Prepared format",

@@ -179,7 +179,7 @@ internal sealed class FriendsStateAdapter : IDisposable
             friend.Bio,
             GetZoneName(friend.ZoneId),
             characters,
-            friend.IsLauncherOnline) { Presence = friend.Presence };
+            friend.IsLauncherOnline) { Presence = friend.Presence, AvatarDescriptor = friend.Avatar };
     }
 
     private static ImmutableArray<FriendCharacterUiItem> ProjectCharacters(

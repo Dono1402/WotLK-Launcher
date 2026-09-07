@@ -17,15 +17,24 @@ internal static partial class ArmoryLauncherTests
     {
         ValidateFriendCacheLifecycle(fixture);
         AccountUiState state = ConnectedAccount("ViewerAtlas");
+        state.ApplyAvatarImage(AvatarWpfImageDecoder.DecodePng(CreateProfileAvatarPng(256, 42)), descriptorPresent: true);
+        ProfileAvatarMediaClient avatarMedia = new();
+        using AvatarImageCache avatarCache = new(avatarMedia,
+            Path.Combine(fixture.BannerStoreDirectory, "avatar-cache"), CancellationToken.None);
         LauncherShellV2 window = CreateShell(state);
         ArmoryViewV2 armory = Required<ArmoryViewV2>(window, "ArmoryView");
-        FriendUiItem friend = window.FriendsState.Current.Friends.First() with
+        FriendRuntimeItem runtimeFriend = new(91, "AmiAtlas", null, ProfileAvatarDescriptor(1),
+            FriendRelationship.Accepted, false, null, null, null, null, null,
+            "Disponible pour un donjon", "Une bio publique de test.", IsLauncherOnline: true);
+        FriendsViewState friends = FriendsStateAdapter.Project(FriendsRuntimeSnapshot.SignedOut with
         {
-            AccountId = 91, Username = "AmiAtlas", StatusMessage = "Disponible pour un donjon", Bio = "Une bio publique de test.",
-            AvatarImage = null, HasAvatarImage = false
+            CurrentUserId = 42, IsAuthenticated = true, LoadState = FriendsLoadState.Loaded, Friends = [runtimeFriend]
+        });
+        FriendUiItem friend = friends.Friends.Single() with
+        {
+            AvatarImage = AvatarWpfImageDecoder.DecodePng(CreateProfileAvatarPng(64, 64)), HasAvatarImage = true
         };
-        window.FriendsState.ApplyRuntimeView(window.FriendsState.Current with
-        { IsRuntimeConnected = true, IsPreview = false, LoadState = FriendsViewLoadState.Loaded, Friends = [friend] });
+        window.FriendsState.ApplyRuntimeView(friends with { Friends = [friend] });
         ConcurrentQueue<(uint Viewer, uint Target, string Operation)> calls = new();
         uint viewer = 42;
         Task<JsonElement> Read(uint owner, uint target, LauncherArmoryDataRequest request, CancellationToken token)
@@ -43,7 +52,8 @@ internal static partial class ArmoryLauncherTests
         }
         armory.Configure(_ => Task.FromResult<uint?>(viewer), state, () => fixture.AuthenticatedConfiguration,
             fixture.WebViewDataDirectory, bannerStore: new ArmoryBannerStore(fixture.BannerStoreDirectory),
-            readData: (owner, request, token) => Read(owner, owner, request, token), readFriendData: Read);
+            readData: (owner, request, token) => Read(owner, owner, request, token), readFriendData: Read,
+            avatarImages: avatarCache);
         int mutations = 0, messageRequests = 0;
         armory.ProfileSaveRequested += (_, _) => mutations++;
         armory.AvatarChangeRequested += (_, _) => mutations++;
@@ -65,6 +75,7 @@ internal static partial class ArmoryLauncherTests
             await WaitForScriptAsync(armory, "document.getElementById('profile-name').textContent==='AmiAtlas' && document.querySelector('.character strong')?.textContent==='Mage91'",
                 "Le profil et le roster doivent provenir du compte ami.");
             True(armory.IsReadOnlyProfile && armory.FriendAccountId == 91, "Le profil ami doit être identifié comme non modifiable.");
+            await ValidateFriendProfileAvatarAsync(armory, friend, avatarMedia, avatarCache);
             object? openedBrowser = armory.Browser;
             OpenFriend(91, "AmiAtlas");
             True(ReferenceEquals(openedBrowser, armory.Browser), "Rouvrir le même ami doit conserver le modèle et le helper en cours.");
@@ -73,6 +84,7 @@ internal static partial class ArmoryLauncherTests
             await WaitForScriptAsync(armory, "document.getElementById('profile-presence').dataset.presence==='dnd' && document.getElementById('profile-presence-label').textContent==='Ne pas déranger'",
                 "La présence doit se mettre à jour dans le profil ami ouvert.");
             True(ReferenceEquals(openedBrowser, armory.Browser), "Une mise à jour de présence ne doit pas recréer l'armurerie.");
+            await AssertProfileAvatarAsync(armory, 256, 1, "La présence ne doit pas remplacer le portrait par la vignette.");
             True(calls.Any(call => call.Viewer == 42 && call.Target == 91 && call.Operation == "roster")
                 && calls.All(call => call.Viewer == 42), "Le helper RPC doit transmettre le compte cible en gardant le compte viewer pour l'authentification.");
             await WaitForScriptAsync(armory, "document.getElementById('edit-profile').hidden && document.querySelector('.banner-controls').hidden && document.getElementById('change-avatar').disabled && !document.getElementById('friend-actions').hidden",
@@ -103,6 +115,7 @@ internal static partial class ArmoryLauncherTests
 
             await OpenProfileAsync(window);
             await WaitForScriptAsync(armory, "document.getElementById('profile-name').textContent==='ViewerAtlas' && document.querySelector('.character strong')?.textContent==='Mage42' && document.getElementById('friend-actions').hidden", "Mon profil doit revenir au compte connecté après un profil ami.");
+            await AssertProfileAvatarAsync(armory, 256, 42, "Mon profil doit conserver ses pixels 256 px et son propre avatar.");
             long presenceSequence = 100;
             foreach (string presence in new[] { "online", "away", "dnd", "offline" })
             {

@@ -238,6 +238,7 @@ public partial class AvatarCropOverlayV2 : UserControl
         }
         UploadProgressBar.IsIndeterminate = state.IsProgressIndeterminate;
         UploadProgressBar.Value = state.UploadPercentage ?? 0;
+        ResetCropButton.IsEnabled = !uploading;
 
         ApplyTransform(state.Zoom, state.OffsetX, state.OffsetY, publish: false);
     }
@@ -332,11 +333,16 @@ public partial class AvatarCropOverlayV2 : UserControl
             zoom,
             offsetX,
             offsetY);
+        // Absolute ImageBrush viewboxes use DIPs, not source pixels. Relative
+        // coordinates keep the preview identical to the uploaded pixel crop,
+        // including images with non-96 or asymmetric embedded DPI metadata.
+        double width = Math.Max(1, State.Current.OrientedPixelWidth);
+        double height = Math.Max(1, State.Current.OrientedPixelHeight);
         Rect viewbox = new(
-            layout.PixelCrop.X,
-            layout.PixelCrop.Y,
-            layout.PixelCrop.Size,
-            layout.PixelCrop.Size);
+            layout.PixelCrop.X / width,
+            layout.PixelCrop.Y / height,
+            layout.PixelCrop.Size / width,
+            layout.PixelCrop.Size / height);
         foreach (ImageBrush brush in new[]
                  {
                      CropEditorBrush,
@@ -439,6 +445,15 @@ public partial class AvatarCropOverlayV2 : UserControl
     }
 
     private void CropViewport_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => EndDrag();
+
+    private void ResetCropButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsBusy)
+        {
+            EndDrag();
+            ApplyTransform(1, 0, 0, publish: true);
+        }
+    }
 
     private void CropViewport_LostMouseCapture(object sender, MouseEventArgs e) => _isDragging = false;
 

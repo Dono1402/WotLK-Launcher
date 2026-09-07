@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const fixtures = require('./chat-fixtures.cjs');
 const repo = path.resolve(process.env.ATLAS_CHAT_REPO_ROOT || path.join(__dirname, '../../..'));
 const assets = path.join(repo, 'source/WotLK.Launcher/Assets/Chat');
-const output = path.resolve(repo, process.env.ATLAS_CHAT_TEST_OUTPUT || 'artifacts/atlas-chat-followup-20260907/dom');
+const output = path.resolve(repo, process.env.ATLAS_CHAT_TEST_OUTPUT || 'artifacts/atlas-chat-player-20260907/dom');
 // Measured innerWidth/innerHeight beneath the 124-DIP header in the fixed V2 shell.
 const fixedViewport = { width: 1597, height: 872 };
 const bundledPlaywright = path.join(os.homedir(), '.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
@@ -43,7 +43,7 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   fixtureBrowser = browser;
   const page = await browser.newPage({viewport:fixedViewport,deviceScaleFactor:1});
   await page.emulateMedia({reducedMotion:'no-preference'});
-  const capture = name => page.screenshot({path:path.join(output,name),omitBackground:true});
+  const capture = async name => { await settleMotion(page); return page.screenshot({path:path.join(output,name),omitBackground:true}); };
   const iconOnlySend = expected => page.locator('#send-button').evaluate((node,label)=>{
     const box=node.getBoundingClientRect();
     return node.getAttribute('aria-label')===label&&node.title===label&&node.innerText.trim()===''
@@ -78,6 +78,8 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
       return route.fulfill({status:200,contentType:type,headers:{'Content-Security-Policy':policy},body:await fs.readFile(target)});
     }
     if (url.origin === 'https://atlas-chat-media.invalid') {
+      if (url.pathname==='/linked-media'&&url.searchParams.get('url')?.endsWith('viewer-video.webm')) return fulfillMedia(route,'video/webm',fixtures.viewerVideoBytes);
+      if (url.pathname==='/linked-media'&&url.searchParams.get('url')?.endsWith('viewer-audio.wav')) return fulfillMedia(route,'audio/wav',fixtures.viewerAudioBytes);
       if (url.pathname.endsWith('viewer-video.webm')) return fulfillMedia(route,'video/webm',fixtures.viewerVideoBytes);
       if (url.pathname.endsWith('viewer-audio.wav')) return fulfillMedia(route,'audio/wav',fixtures.viewerAudioBytes);
       if (url.pathname.endsWith('fixture-video.webm')) return fulfillMedia(route,'video/webm',fixtures.videoBytes);
@@ -89,7 +91,7 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
       if (url.pathname.includes('tiny')) return route.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="96" height="64"><rect width="96" height="64" fill="#466e68"/><circle cx="48" cy="32" r="18" fill="#bdd5cd"/></svg>'});
       return route.fulfill({status:200,contentType:'application/octet-stream',body:''});
     }
-    if (url.origin === 'https://www.youtube-nocookie.com' || url.origin === 'https://player.vimeo.com') return route.fulfill({status:200,contentType:'text/html',body:'<!doctype html><title>Fixture video</title><body style="margin:0;background:#081826;color:#ccddeb;display:grid;place-items:center;height:100vh;font:16px sans-serif">Lecteur de test isolé</body>'});
+    if (url.origin === 'https://www.youtube-nocookie.com' || url.origin === 'https://player.vimeo.com') return route.fulfill({status:200,contentType:'text/html; charset=utf-8',body:'<!doctype html><meta charset="utf-8"><title>Fixture video</title><body style="margin:0;background:#081826;color:#ccddeb;display:grid;place-items:center;height:100vh;font:16px sans-serif">Lecteur de test isolé</body>'});
     return route.abort();
   };
   await page.route('**/*', routeFixture);
@@ -156,15 +158,18 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   state.messages.push(fixtures.message('9007199254741000',fixtures.lyra,'Deux aperçus dans le même message :\nhttps://example.test/guide\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ',15,{linkPreviews:[{id:'ordinary',url:'https://example.test/guide',kind:'link',title:'Un guide utile',canRemove:true,isRemoved:false},{id:'youtube',url:'https://www.youtube.com/watch?v=dQw4w9WgXcQ',kind:'video',title:'Vidéo de test',embedUrl:'https://www.youtube.com/embed/dQw4w9WgXcQ',provider:'YouTube',canRemove:true,isRemoved:false}],attachments:[{id:'audio',fileName:'Note vocale.ogg',kind:'audio',contentType:'audio/ogg',size:'15000',url:fixtures.mediaOrigin+'attachments/audio'}]}));
   await apply(state);const rich=page.locator('[data-message-id="9007199254741000"]');await rich.scrollIntoViewIfNeeded();
   check('Multiple previews stay in source order and video never has a dismiss cross',JSON.stringify(await rich.locator('.link-preview').evaluateAll(nodes=>nodes.map(n=>[n.dataset.previewId,!!n.querySelector('.preview-dismiss')])))===JSON.stringify([['ordinary',true],['youtube',false]]));
+  state.isActive=false;state.isMediaActive=true;await apply(state);
   await rich.getByRole('button',{name:'Lire la vidéo',exact:true}).click();await page.waitForTimeout(100);
-  check('YouTube uses an allowlisted frame with a real page origin and referrer policy',await rich.locator('iframe').evaluate(frame=>frame.src.startsWith('https://www.youtube-nocookie.com/embed/')&&frame.referrerPolicy==='strict-origin-when-cross-origin'&&location.origin==='https://animeclub.fr'));
+  check('A first YouTube click requests playback even while UI focus is inactive but Messages media is allowed',await rich.locator('iframe').evaluate(frame=>{const url=new URL(frame.src);return url.hostname==='www.youtube-nocookie.com'&&url.pathname==='/embed/dQw4w9WgXcQ'&&url.searchParams.get('autoplay')==='1'&&url.searchParams.get('origin')===location.origin&&frame.loading==='eager'&&frame.allow.includes('autoplay')&&frame.referrerPolicy==='strict-origin-when-cross-origin'&&location.origin==='https://animeclub.fr';}));
+  check('YouTube has no duplicate provider heading, title, description or footer outside its iframe',await rich.locator('.is-video .link-preview-main,.is-video .link-preview-provider,.is-video .link-preview-title,.is-video .link-preview-description,.is-video .preview-source-action,.is-video .media-placeholder').count()===0);
+  state.isActive=true;await apply(state);
   await rich.evaluate(node=>{window.__frame=node.querySelector('iframe');window.__audio=node.querySelector('audio');window.__body=node.querySelector('.message-content');});
   state.messages.at(-1).reactions=[{emoji:'🔥',accountIds:[42],count:1}]; await apply(state);
   check('Reaction update preserves media instances and the selectable body DOM',await rich.evaluate(node=>node.querySelector('iframe')===window.__frame&&node.querySelector('audio')===window.__audio&&node.querySelector('.message-content')===window.__body));
   await rich.locator('.preview-dismiss').click();check('Non-video cross requests shared deletion without deleting text',await page.evaluate(()=>__actions.some(a=>a.action==='dismissPreview'&&a.payload.messageId==='9007199254741000'&&a.payload.previewId==='ordinary')&&!__actions.some(a=>a.action==='deleteMessage')));
   state.messages.at(-1).linkPreviews[0].isRemoved=true;await apply(state);
   check('Persisted removal affects only the matching preview',await rich.locator('.link-preview').count()===1&&await rich.locator('iframe').count()===1&&await rich.locator('.message-content').innerText().then(text=>text.includes('https://example.test/guide')));
-  state.isActive=false;await apply(state);check('Inactive page removes active embedded players',await rich.locator('iframe').count()===0);state.isActive=true;
+  state.isActive=false;state.isMediaActive=false;await apply(state);check('Leaving Messages media scope removes active embedded players',await rich.locator('iframe').count()===0);state.isActive=true;
 
   state=clone(fixtures.snapshot);state.sessionId='43e20968-4137-4f23-9174-4a097cc6a874';await apply(state);
   const incoming=page.locator('[data-message-id="9007199254740999"]');await incoming.hover();await incoming.getByRole('button',{name:'Répondre',exact:true}).click();
@@ -234,7 +239,7 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   state=clone(fixtures.snapshot);state.sessionId='followup-media-previews';state.draft={body:'Trois aperçus avant l’envoi.',attachments:clone(fixtures.mediaDraft)};await apply(state);
   await page.waitForFunction(()=>[...document.querySelectorAll('.queued-preview video,.queued-preview audio')].every(media=>media.readyState>=1));
   check('Image, video and audio use their actual preview elements before sending',await page.locator('.queued-file.is-image .queued-preview img').count()===1&&await page.locator('.queued-file.is-video .queued-preview video').count()===1&&await page.locator('.queued-file.is-audio .queued-preview audio').count()===1);
-  check('Ready media previews display no filename, size, Ready text or metadata row',await page.locator('.queued-file').evaluateAll(nodes=>nodes.every(node=>node.innerText.trim()===''&&!node.querySelector('.queued-file-name,.queued-file-status'))));
+  check('Ready media previews show only player times without filename, size, Ready text or metadata rows',await page.locator('.queued-file').evaluateAll(nodes=>nodes.every(node=>node.innerText.replace(/\d+:\d{2}|--:--/g,'').trim()===''&&!node.querySelector('.queued-file-name,.queued-file-status'))));
   check('Audio and video metadata decode from isolated local fixture bytes',await page.locator('.queued-preview video,.queued-preview audio').evaluateAll(nodes=>nodes.every(media=>media.readyState>=1&&!media.error&&media.preload!=='none')&&nodes.find(media=>media.tagName==='VIDEO').videoWidth===160&&nodes.find(media=>media.tagName==='AUDIO').duration===1));
   await page.evaluate(()=>window.__queuedPlayers=[...document.querySelectorAll('.queued-preview video,.queued-preview audio')]);state.draft.attachments=state.draft.attachments.map(upload=>({...upload,isComplete:false,status:'uploading',offset:String(Math.floor(Number(upload.size)/2))}));await apply(state);
   check('Upload progress updates keep the existing audio and video players and their decoded metadata',await page.evaluate(()=>[...document.querySelectorAll('.queued-preview video,.queued-preview audio')].every((media,index)=>media===__queuedPlayers[index]&&media.readyState>=1)));
@@ -253,8 +258,9 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   await capture('chat-fr-queued-error-fixed.png');
   state.draft={};state.messages=[fixtures.message('4999',fixtures.lyra,'Un fichier reste accessible même si le lecteur ne peut pas le décoder.',1,{attachments:[{id:'fixture-broken.mkv',fileName:'Vidéo non décodable.mkv',kind:'video',contentType:'video/x-matroska',size:'38',url:fixtures.mediaOrigin+'attachments/fixture-broken.mkv'}]})];await apply(state);await page.locator('.attachment video').evaluate(media=>{media.preload='metadata';media.load();});
   await page.locator('.media-playback-unavailable').waitFor({state:'visible'});
-  check('An undecodable received media shows local playback feedback while keeping the original file download',await page.locator('.media-playback-unavailable').innerText().then(text=>text.trim().length>0&&!text.includes('mediaPlaybackUnavailable'))&&await page.locator('[data-attachment-id="fixture-broken.mkv"]').getByRole('button',{name:'Télécharger',exact:true}).count()===1&&await page.locator('#composer-error').count()===0);
+  check('An undecodable received video shows local feedback without a download action or composer error',await page.locator('.media-playback-unavailable').innerText().then(text=>text.trim().length>0&&!text.includes('mediaPlaybackUnavailable'))&&await page.locator('[data-attachment-id="fixture-broken.mkv"] button').count()===0&&await page.locator('#composer-error').count()===0);
   await exerciseDraftMediaViewer(page,apply,capture);
+  await exerciseMediaMenusAndLinks(page,apply,capture);
 
   state=clone(fixtures.snapshot);state.sessionId='followup-pending-errors';state.messages=[fixtures.message('5001',fixtures.lyra,'Le message de mon ami reste intact.',1)];
   const failedPending=fixtures.pending(1,{body:'Cet envoi a été refusé.',status:'failed',canCancel:true,errorCode:'chat-forbidden'});
@@ -341,6 +347,8 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   check('The image lightbox closes native file admission and rejects hidden drops or image paste',lightboxFiles.actions.length===0&&lightboxFiles.acceptsFiles===false&&!lightboxFiles.overlay);
   await capture('chat-fr-image-lightbox-fixed.png');
   await page.locator('#image-dialog-image').click();check('Clicking the enlarged image leaves it open and never starts a download',await imageDialog.isVisible()&&await page.evaluate(before=>__actions.filter(action=>action.action==='downloadAttachment').length===before,downloadsBefore));
+  await page.locator('#image-dialog-image').dblclick();
+  check('Repeated image clicks do not create blue text selection or enable image dragging',await page.locator('#image-dialog-image').evaluate(image=>getComputedStyle(image).userSelect==='none'&&!image.draggable&&getSelection().toString()===''&&!image.dispatchEvent(new Event('selectstart',{bubbles:true,cancelable:true}))&&!image.dispatchEvent(new DragEvent('dragstart',{bubbles:true,cancelable:true})))&&await imageDialog.isVisible());
   await page.keyboard.press('Escape');await imageDialog.waitFor({state:'hidden'});check('Escape closes the lightbox and restores focus to its original image',!await imageDialog.isVisible()&&await page.locator('.attachment-image').first().evaluate(node=>node===document.activeElement));
   check('Closing the lightbox publishes fresh native file admission for the same conversation',await page.evaluate(()=>__actions.filter(action=>action.action==='composerState').at(-1)?.payload.acceptsFiles===true));
   await page.locator('.attachment-image').first().click();await imageDialog.click({position:{x:5,y:5}});await imageDialog.waitFor({state:'hidden'});check('Clicking the lightbox background closes it and restores image focus',!await imageDialog.isVisible()&&await page.locator('.attachment-image').first().evaluate(node=>node===document.activeElement));
@@ -446,7 +454,7 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   const fallbackApply=async value=>{value.sequence=String(++sequence);await fallbackPage.evaluate(value=>AtlasChat.applySnapshot(value),value);await fallbackPage.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));};
   await exerciseDraftMediaViewer(fallbackPage,fallbackApply,null,'fallback');await fallbackPage.close();
   check('No uncaught browser script errors',errors.length===0);
-  const assetHashes={};for(const name of ['index.html','chat.css','chat.js','chat-render.js'])assetHashes[name]=createHash('sha256').update(await fs.readFile(path.join(assets,name))).digest('hex');
+  const assetHashes={};for(const name of ['index.html','chat.css','chat.js','chat-render.js','chat-media.js','chat-media.css'])assetHashes[name]=createHash('sha256').update(await fs.readFile(path.join(assets,name))).digest('hex');
   await fs.writeFile(path.join(output,'results.json'),JSON.stringify({passed:checks.length,viewport:fixedViewport,runtime,background:'Transparent DOM capture; native Citadel composition is verified separately.',assetHashes,checks,errors},null,2));
   await browser.close();console.log('Chat DOM: '+checks.length+' checks passed. Headless isolated Edge, synthetic accounts, no user session.');
 })().catch(async error=>{console.error(error);if(fixtureBrowser)await fixtureBrowser.close();process.exitCode=1;});
@@ -555,21 +563,30 @@ async function exerciseDraftMediaViewer(page,apply,capture,mode='native') {
   for(const kind of ['video','audio']) {
     const index=kind==='video'?1:2;
     const inline=page.locator('.queued-file.is-'+kind+' '+kind);
-    const opener=page.locator('.queued-file.is-'+kind+' .queued-preview-open');
-    assertViewer('The '+kind+' expand control remains separate from the native player controls',await opener.count()===1&&await opener.evaluate(node=>!node.querySelector('audio,video'))&&await inline.evaluate(media=>media.controls));
-    await inline.evaluate(media=>{window.__viewerPlayer=media;media.muted=true;media.volume=.35;media.playbackRate=1.25;media.pause();media.currentTime=.75;});
+    const opener=page.locator('.queued-file.is-'+kind+' .media-expand');
+    assertViewer('The '+kind+' expand command belongs to its shared player controls',await opener.count()===1&&await opener.evaluate(node=>!!node.closest('.media-controls')&&!node.querySelector('audio,video'))&&await inline.evaluate(media=>!media.controls&&!!AtlasChatMedia.shellFor(media)));
+    await inline.evaluate(media=>{window.__viewerPlayer=media;window.__viewerShell=AtlasChatMedia.shellFor(media);media.muted=true;media.volume=.35;media.playbackRate=1.25;media.pause();media.currentTime=.75;});
     try { await page.waitForFunction(()=>!__viewerPlayer.seeking&&__viewerPlayer.readyState>=2&&Math.abs(__viewerPlayer.currentTime-.75)<.08); }
     catch(error){console.error('Media seek diagnostics: '+JSON.stringify(await page.evaluate(()=>{const m=__viewerPlayer;return{src:m.currentSrc,time:m.currentTime,seeking:m.seeking,ready:m.readyState,network:m.networkState,paused:m.paused,duration:m.duration,error:m.error?.message,buffered:Array.from({length:m.buffered.length},(_,i)=>[m.buffered.start(i),m.buffered.end(i)]),seekable:Array.from({length:m.seekable.length},(_,i)=>[m.seekable.start(i),m.seekable.end(i)])};})));throw error;}
     await opener.evaluate(node=>window.__viewerOpener=node);await opener.click();await viewer.waitFor({state:'visible'});
     await page.waitForFunction(()=>document.querySelector('#media-dialog-player-host')?.contains(__viewerPlayer)&&__viewerPlayer.paused&&Math.abs(__viewerPlayer.currentTime-.75)<.08);
-    assertViewer('Opening draft '+kind+' enlarges the same paused player with its seek, volume and speed intact',await page.evaluate(kind=>{const media=__viewerPlayer,box=media.getBoundingClientRect();return document.querySelector('#image-dialog').classList.contains('is-'+kind)&&media.volume===.35&&media.playbackRate===1.25&&media.muted&&box.width>(kind==='video'?media.videoWidth:250)&&box.width<=innerWidth*.9+1&&!document.querySelector('.queued-file.is-'+kind+' '+kind);},kind));
-    assertViewer('Only the expanded audio displays its accessible media title',await page.locator('#media-dialog-title').isVisible()===(kind==='audio'));
-    await page.locator('#media-dialog-player-host '+kind).hover();
-    const controls=await nativePlayerControls(page);
-    assertViewer('The expanded '+kind+' exposes its real native playback buttons and seek slider',controls.buttons>=2&&controls.sliders>=1&&!!controls.playToggle);
-    await page.mouse.click(controls.playToggle.x,controls.playToggle.y);
+    assertViewer('Opening draft '+kind+' enlarges the same paused player and shell with seek, volume and speed intact',await page.evaluate(kind=>{const media=__viewerPlayer,shell=AtlasChatMedia.shellFor(media),box=shell.getBoundingClientRect();return document.querySelector('#image-dialog').classList.contains('is-'+kind)&&shell===__viewerShell&&shell.dataset.mode==='viewer'&&media.volume===.35&&media.playbackRate===1.25&&media.muted&&box.width>(kind==='video'?media.videoWidth:250)&&box.width<=innerWidth*.9+1&&!document.querySelector('.queued-file.is-'+kind+' '+kind);},kind));
+    assertViewer('The expanded '+kind+' retains its accessible name without a visible title or footer',await page.locator('#media-dialog-title').count()===0&&await page.evaluate(()=>!!__viewerShell.getAttribute('aria-label')&&!document.querySelector('#media-dialog-player-host .attachment-footer')&&!document.querySelector('#media-dialog-player-host').innerText.includes(__viewerShell.getAttribute('aria-label'))));
+    await page.locator('#media-dialog-player-host .media-player').hover();
+    const controls=await customPlayerControls(page);
+    assertViewer('The expanded '+kind+' exposes usable shared buttons and seek controls while native controls stay disabled',controls.buttons>=2&&controls.sliders>=1&&!!controls.playToggle&&controls.nativeControls===false);
+    const seek=page.locator('#media-dialog-player-host .media-seek');await seek.focus();await page.keyboard.press('End');await page.waitForFunction(()=>!__viewerPlayer.seeking&&Math.abs(__viewerPlayer.currentTime-4)<.08);
+    await page.keyboard.press('Home');await page.waitForFunction(()=>!__viewerPlayer.seeking&&__viewerPlayer.currentTime<.08);
+    assertViewer('The '+kind+' seek bar responds to its Home and End keyboard commands',await seek.getAttribute('aria-valuetext').then(value=>value.startsWith('0:00 / 0:04')));
+    await page.locator('#media-dialog-player-host .media-volume-button').click();
+    await page.locator('#media-dialog-player-host .media-volume').focus();await page.keyboard.press('End');
+    assertViewer('The '+kind+' volume popover changes real volume and unmutes the player',await page.evaluate(()=>__viewerPlayer.volume===1&&!__viewerPlayer.muted&&__viewerShell.querySelector('.media-volume-button').getAttribute('aria-expanded')==='true'));
+    await page.keyboard.press('Home');assertViewer('Zero volume mutes '+kind+' without changing playback position',await page.evaluate(()=>__viewerPlayer.volume===0&&__viewerPlayer.muted&&__viewerPlayer.currentTime<.08));
+    await page.keyboard.press('Escape');assertViewer('Escape dismisses '+kind+' volume before the viewer and restores the volume control focus',await viewer.isVisible()&&await page.evaluate(()=>document.activeElement===__viewerShell.querySelector('.media-volume-button')&&__viewerShell.querySelector('.media-volume-panel').hidden));
+    await page.evaluate(()=>{__viewerPlayer.currentTime=.75;__viewerPlayer.volume=.35;__viewerPlayer.muted=true;});await page.waitForFunction(()=>!__viewerPlayer.seeking&&Math.abs(__viewerPlayer.currentTime-.75)<.08);
+    const currentControls=await customPlayerControls(page);await page.mouse.click(currentControls.playToggle.x,currentControls.playToggle.y);
     await page.waitForFunction(()=>!__viewerPlayer.paused&&__viewerPlayer.currentTime>1);
-    assertViewer('The native '+kind+' play button actually starts playback in the viewer',await page.evaluate(()=>!__viewerPlayer.paused&&__viewerPlayer.currentTime>1));
+    assertViewer('The shared '+kind+' play button actually starts playback in the viewer',await page.evaluate(()=>!__viewerPlayer.paused&&__viewerPlayer.currentTime>1));
     await page.evaluate(()=>{window.__viewerProgressTime=__viewerPlayer.currentTime;window.__queueMotionCount=__motionEvents.filter(event=>event.queue&&event.duration>0).length;});
     Object.assign(state.draft.attachments[index],{status:'uploading',isComplete:false,offset:String(Math.floor(Number(state.draft.attachments[index].size)/2))});
     state.locale=state.locale==='fr'?'en':'fr';await apply(state);
@@ -577,38 +594,52 @@ async function exerciseDraftMediaViewer(page,apply,capture,mode='native') {
     assertViewer('Progress and locale snapshots do not replay draft preview entrance animations',await page.evaluate(()=>__motionEvents.filter(event=>event.queue&&event.duration>0).length===__queueMotionCount));
     const upload=state.draft.attachments[index];Object.assign(upload,{status:'ready',isComplete:true,offset:upload.size,attachment:{id:'completed-'+kind,fileName:upload.fileName,contentType:upload.contentType,kind,url:upload.previewUrl}});await apply(state);
     assertViewer('Completing the same '+kind+' upload keeps its enlarged player instead of rebuilding it',await page.evaluate(()=>document.querySelector('#image-dialog').open&&document.querySelector('#media-dialog-player-host').querySelector('audio,video')===__viewerPlayer&&!__viewerPlayer.paused));
-    if(capture){await page.locator('#media-dialog-player-host '+kind).hover();await page.waitForTimeout(200);await capture('chat-'+state.locale+'-draft-'+kind+'-viewer-fixed.png');}
+    if(capture){await page.locator('#media-dialog-player-host .media-player').hover();await page.waitForTimeout(200);await capture('chat-'+state.locale+'-draft-'+kind+'-viewer-fixed.png');}
     await viewer.click({position:{x:5,y:5}});await viewer.waitFor({state:'hidden'});
     await page.waitForFunction(kind=>document.querySelector('.queued-file.is-'+kind+' '+kind)===__viewerPlayer&&!__viewerPlayer.paused,kind);
     assertViewer('Backdrop closure returns the same playing '+kind+' element and restores its opener focus',await page.evaluate(()=>document.activeElement===__viewerOpener&&__viewerPlayer.currentTime>.75&&__viewerPlayer.volume===.35&&__viewerPlayer.playbackRate===1.25));
-    await inline.hover();const returnedControls=await nativePlayerControls(page);
-    if(returnedControls.buttons<2||returnedControls.sliders<1){console.error('Returned native control diagnostics: '+JSON.stringify({kind,...returnedControls}));if(capture)await capture('chat-returned-'+kind+'-controls-diagnostic.png');}
-    assertViewer('The returned inline '+kind+' keeps its native playback controls accessible',returnedControls.buttons>=2&&returnedControls.sliders>=1);
-    const inlineBox=await inline.boundingBox(),pauseButton=returnedControls.playToggle;
-    assertViewer('The returned '+kind+' native control remains positioned inside its preview',!!pauseButton&&pauseButton.x>=inlineBox.x&&pauseButton.x<=inlineBox.x+inlineBox.width&&pauseButton.y>=inlineBox.y&&pauseButton.y<=inlineBox.y+inlineBox.height);
+    await page.locator('.queued-file.is-'+kind+' .media-player').hover();const returnedControls=await customPlayerControls(page);
+    if(returnedControls.buttons<2||returnedControls.sliders<1){console.error('Returned shared control diagnostics: '+JSON.stringify({kind,...returnedControls}));if(capture)await capture('chat-returned-'+kind+'-controls-diagnostic.png');}
+    assertViewer('The returned inline '+kind+' keeps its shared playback controls accessible',returnedControls.buttons>=2&&returnedControls.sliders>=1&&returnedControls.nativeControls===false);
+    const inlineBox=await page.locator('.queued-file.is-'+kind+' .media-player').boundingBox(),pauseButton=returnedControls.playToggle;
+    assertViewer('The returned '+kind+' shared control remains positioned inside its preview',!!pauseButton&&pauseButton.x>=inlineBox.x&&pauseButton.x<=inlineBox.x+inlineBox.width&&pauseButton.y>=inlineBox.y&&pauseButton.y<=inlineBox.y+inlineBox.height);
     await page.mouse.click(pauseButton.x,pauseButton.y);await page.waitForFunction(()=>__viewerPlayer.paused);
-    assertViewer('The returned native '+kind+' pause button remains usable after the player moves',await page.evaluate(()=>__viewerPlayer.paused));
+    assertViewer('The returned shared '+kind+' pause button remains usable after the player moves',await page.evaluate(()=>__viewerPlayer.paused&&AtlasChatMedia.shellFor(__viewerPlayer)===__viewerShell));
     if(capture){await page.waitForTimeout(200);await capture('chat-'+state.locale+'-returned-'+kind+'-controls-fixed.png');}
     await page.evaluate(()=>{__viewerPlayer.pause();__viewerPlayer.currentTime=1.5;});
     await page.waitForFunction(()=>!__viewerPlayer.seeking&&Math.abs(__viewerPlayer.currentTime-1.5)<.08);
-    await opener.click();await viewer.waitFor({state:'visible'});await page.locator('#media-dialog-player-host '+kind).hover();const reopenedControls=await nativePlayerControls(page);
-    assertViewer('Reopening the '+kind+' viewer keeps the actual native controls accessible',reopenedControls.buttons>=2&&reopenedControls.sliders>=1);
+    await opener.click();await viewer.waitFor({state:'visible'});await page.locator('#media-dialog-player-host .media-player').hover();const reopenedControls=await customPlayerControls(page);
+    assertViewer('Reopening the '+kind+' viewer keeps the actual shared controls accessible',reopenedControls.buttons>=2&&reopenedControls.sliders>=1);
     if(capture)await capture('chat-'+state.locale+'-reopened-'+kind+'-viewer-fixed.png');
     await page.keyboard.press('Escape');await viewer.waitFor({state:'hidden'});
     assertViewer('A paused '+kind+' stays paused at its position after opening and closing again',await page.evaluate(kind=>document.querySelector('.queued-file.is-'+kind+' '+kind)===__viewerPlayer&&__viewerPlayer.paused&&Math.abs(__viewerPlayer.currentTime-1.5)<.08,kind));
   }
+  state.isMediaActive=true;await apply(state);
+  await page.locator('.queued-file.is-audio audio').evaluate(media=>{window.__scopePlayer=media;media.currentTime=.5;media.muted=true;});
+  await page.locator('.queued-file.is-audio .media-expand').click();await viewer.waitFor({state:'visible'});
+  await page.locator('#media-dialog-player-host .media-play').click();await page.waitForFunction(()=>!__scopePlayer.paused);
+  const readsBeforeFocusLoss=await page.evaluate(()=>__actions.filter(action=>action.action==='read').length);
+  state.isActive=false;state.messages.push(fixtures.message('6002',fixtures.lyra,'Message arrivé pendant la perte de focus.',2));state.state.threads[0].lastMessage=state.messages.at(-1);await apply(state);
+  const focusScope=await page.evaluate(value=>{const before=__actions.length,data=new DataTransfer();data.items.add(new File(['fixture'],'inactive.png',{type:'image/png'}));document.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:data}));AtlasChat.receive({type:'dropState',active:true,sessionId:value.sessionId,ownerAccountId:value.ownerAccountId});return{viewer:document.querySelector('#image-dialog').open,playing:!__scopePlayer.paused,files:__actions.slice(before).filter(action=>action.action==='dropFiles').length,acceptsFiles:__actions.filter(action=>action.action==='composerState').at(-1)?.payload.acceptsFiles,reads:__actions.filter(action=>action.action==='read').length,overlay:!document.querySelector('#drop-overlay').hidden};},state);
+  assertViewer('Losing UI focus preserves allowed media playback while read receipts and file admission remain inactive',focusScope.viewer&&focusScope.playing&&focusScope.files===0&&focusScope.acceptsFiles===false&&focusScope.reads===readsBeforeFocusLoss&&!focusScope.overlay);
+  await page.keyboard.press('Escape');await viewer.waitFor({state:'hidden'});
+  assertViewer('Closing a preview while UI focus is inactive returns the same still-playing audio',await page.evaluate(()=>document.querySelector('.queued-file.is-audio audio')===__scopePlayer&&!__scopePlayer.paused&&!!AtlasChatMedia.shellFor(__scopePlayer)));
+  state.isMediaActive=false;await apply(state);
+  assertViewer('Leaving Messages stops playback but retains a usable shell for the same conversation',await page.evaluate(()=>__scopePlayer.paused&&!!AtlasChatMedia.shellFor(__scopePlayer)&&__scopePlayer.isConnected));
+  state.isActive=true;state.isMediaActive=true;await apply(state);
+  assertViewer('Returning to Messages keeps the stopped audio paused until another explicit play',await page.evaluate(()=>__scopePlayer.paused));
   if(mode==='fallback')return;
 
   state.draft.attachments[1]=clone(fixtures.mediaDraft[1]);await apply(state);
   await page.waitForFunction(()=>document.querySelector('.queued-file.is-video video')?.videoWidth===160);
-  await page.locator('.queued-file.is-video .queued-preview-open').click();await viewer.waitFor({state:'visible'});await settleMotion(page);
+  await page.locator('.queued-file.is-video .media-expand').click();await viewer.waitFor({state:'visible'});await settleMotion(page);
   assertViewer('A low-resolution video opens at a comfortable larger size while retaining its aspect ratio and fitting the viewer',await page.locator('#media-dialog-player-host video').evaluate(media=>{const box=media.getBoundingClientRect();return media.videoWidth===160&&box.width>=320&&Math.abs(box.width/box.height-16/9)<.02&&box.width<=innerWidth*.9+1&&box.height<=innerHeight*.9+1;}));
   if(capture)await capture('chat-fr-draft-low-resolution-video-viewer-fixed.png');
   await page.keyboard.press('Escape');await viewer.waitFor({state:'hidden'});state.draft.attachments=clone(fixtures.viewerMediaDraft);await apply(state);
 
   async function openPlayingVideo() {
     await page.locator('.queued-file.is-video video').evaluate(media=>{window.__invalidatedPlayer=media;media.muted=true;media.currentTime=.5;});
-    await page.locator('.queued-file.is-video .queued-preview-open').click();await viewer.waitFor({state:'visible'});
+    await page.locator('.queued-file.is-video .media-expand').click();await viewer.waitFor({state:'visible'});
     await page.evaluate(async()=>{await __invalidatedPlayer.play();});
     await page.waitForFunction(()=>!__invalidatedPlayer.paused);
   }
@@ -616,9 +647,9 @@ async function exerciseDraftMediaViewer(page,apply,capture,mode='native') {
   assertViewer('Removing the viewed upload closes immediately, pauses playback and makes any exiting preview inert',await page.evaluate(()=>{const exiting=__invalidatedPlayer.closest('.queued-file-exit');return !document.querySelector('#image-dialog').open&&__invalidatedPlayer.paused&&(!__invalidatedPlayer.isConnected||exiting?.inert&&exiting.getAttribute('aria-hidden')==='true');}));
   await page.waitForFunction(()=>!__invalidatedPlayer.isConnected);
   assertViewer('The removed upload player detaches after its short visual exit',await page.evaluate(()=>!__invalidatedPlayer.isConnected));
-  state.draft.attachments=clone(fixtures.viewerMediaDraft);await apply(state);await openPlayingVideo();state.isActive=false;await apply(state);
-  assertViewer('An inactive launcher closes the viewer and pauses its media',await page.evaluate(()=>!document.querySelector('#image-dialog').open&&__invalidatedPlayer.paused));
-  state.isActive=true;await apply(state);await openPlayingVideo();state.selectedThreadId='d:42:92';state.messages=[];state.draft={};await apply(state);
+  state.draft.attachments=clone(fixtures.viewerMediaDraft);await apply(state);await openPlayingVideo();state.isActive=false;state.isMediaActive=false;await apply(state);
+  assertViewer('Leaving Messages closes the open viewer and pauses its media',await page.evaluate(()=>!document.querySelector('#image-dialog').open&&__invalidatedPlayer.paused));
+  state.isActive=true;state.isMediaActive=true;await apply(state);await openPlayingVideo();state.selectedThreadId='d:42:92';state.messages=[];state.draft={};await apply(state);
   assertViewer('Changing conversation closes the viewer, pauses playback and clears the old local source',await page.evaluate(()=>!document.querySelector('#image-dialog').open&&__invalidatedPlayer.paused&&!document.querySelector('#media-dialog-player-host audio,#media-dialog-player-host video')));
   state.selectedThreadId='d:42:91';state.draft={attachments:clone(fixtures.viewerMediaDraft)};await apply(state);await openPlayingVideo();state.sessionId='motion-viewer-replacement-session';state.ownerAccountId=84;state.selectedThreadId=null;state.messages=[];state.draft={};state.state={...state.state,self:{accountId:84,username:'Second'},contacts:[],threads:[]};await apply(state);
   assertViewer('Replacing the account session closes the viewer without restoring a private player into the new account',await page.evaluate(()=>!document.querySelector('#image-dialog').open&&__invalidatedPlayer.paused&&!__invalidatedPlayer.isConnected&&!document.querySelector('#media-dialog-player-host audio,#media-dialog-player-host video')));
@@ -627,39 +658,107 @@ async function exerciseDraftMediaViewer(page,apply,capture,mode='native') {
   state.messages=[fixtures.message('6101',fixtures.lyra,'Une vidéo reçue.',1,{attachments:[{id:'viewer-video.webm',fileName:'Clip reçu.webm',kind:'video',contentType:'video/webm',size:String(fixtures.viewerVideoBytes.length),url:fixtures.mediaOrigin+'attachments/viewer-video.webm'}]})];await apply(state);
   const received=page.locator('[data-attachment-id="viewer-video.webm"]');
   await received.locator('video').evaluate(media=>{window.__receivedPlayer=media;media.muted=true;media.preload='auto';media.load();});
-  await page.waitForFunction(()=>__receivedPlayer.readyState>=2);await received.locator('.attachment-expand').click();await viewer.waitFor({state:'visible'});
+  await page.waitForFunction(()=>__receivedPlayer.readyState>=2);await received.locator('.media-expand').click();await viewer.waitFor({state:'visible'});
   assertViewer('An already sent video expands through the same viewer using its existing player',await page.evaluate(()=>document.querySelector('#media-dialog-player-host').querySelector('audio,video')===__receivedPlayer));
-  const fullscreen=await page.evaluate(async()=>{try{await __receivedPlayer.requestFullscreen();return document.fullscreenElement===__receivedPlayer;}catch{return false;}});
+  const fullscreen=await page.locator('#media-dialog-player-host .media-fullscreen').isVisible();
+  if(fullscreen){await page.locator('#media-dialog-player-host .media-fullscreen').click();await page.waitForFunction(()=>document.fullscreenElement===AtlasChatMedia.shellFor(__receivedPlayer));}
   if(fullscreen){
     await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.fullscreenElement);
     assertViewer('Escape exits fullscreen video without leaving its player detached or hidden',await page.evaluate(()=>__receivedPlayer.isConnected&&__receivedPlayer.getBoundingClientRect().width>0&&(document.querySelector('#image-dialog').open?document.querySelector('#media-dialog-player-host').contains(__receivedPlayer):!!__receivedPlayer.closest('.attachment'))));
-    if(!await viewer.isVisible()){await received.locator('.attachment-expand').click();await viewer.waitFor({state:'visible'});}
+    if(!await viewer.isVisible()){await received.locator('.media-expand').click();await viewer.waitFor({state:'visible'});}
   }else console.log('SKIP Fullscreen API is unavailable in this headless browser.');
   await page.evaluate(async()=>{await __receivedPlayer.play();});state.messages[0].deletedAt=fixtures.at(2);await apply(state);
   assertViewer('Deleting the viewed sent message closes the viewer and pauses its media',await page.evaluate(()=>!document.querySelector('#image-dialog').open&&__receivedPlayer.paused&&!__receivedPlayer.isConnected));
   state.messages[0].id='6102';state.messages[0].deletedAt=null;await apply(state);
   await received.locator('video').evaluate(media=>{window.__failedReceivedPlayer=media;media.muted=true;media.preload='auto';media.load();});
-  await page.waitForFunction(()=>__failedReceivedPlayer.readyState>=2);await received.locator('.attachment-expand').click();await viewer.waitFor({state:'visible'});
+  await page.waitForFunction(()=>__failedReceivedPlayer.readyState>=2);await received.locator('.media-expand').click();await viewer.waitFor({state:'visible'});
   await page.evaluate(async()=>{await __failedReceivedPlayer.play();__failedReceivedPlayer.src='https://atlas-chat-media.invalid/attachments/fixture-broken.mkv';__failedReceivedPlayer.load();});
   await received.locator('.media-playback-unavailable').waitFor({state:'visible'});
-  assertViewer('A decode error in an open sent-media viewer closes and pauses it while preserving feedback and download in the original attachment',await page.evaluate(()=>!document.querySelector('#image-dialog').open&&__failedReceivedPlayer.paused&&!document.querySelector('#media-dialog-player-host audio,#media-dialog-player-host video,#media-dialog-player-host .media-playback-unavailable'))&&await received.locator('video,.attachment-expand:visible').count()===0&&await received.getByRole('button',{name:'Télécharger',exact:true}).count()===1);
+  assertViewer('A decode error closes and pauses sent video, restores local feedback and exposes no download',await page.evaluate(()=>!document.querySelector('#image-dialog').open&&__failedReceivedPlayer.paused&&!document.querySelector('#media-dialog-player-host audio,#media-dialog-player-host video,#media-dialog-player-host .media-playback-unavailable'))&&await received.locator('video,.media-player,button').count()===0);
   assertViewer('Media viewing never triggers a send or download and preserves the transparent Citadel canvas',await page.evaluate(()=>!__actions.some(action=>['send','downloadAttachment'].includes(action.action))&&[document.documentElement,document.body,document.querySelector('#chat-app')].every(node=>getComputedStyle(node).backgroundColor==='rgba(0, 0, 0, 0)')));
 }
 
-async function nativePlayerControls(page) {
-  const session=await page.context().newCDPSession(page);
-  try {
-    const {result}=await session.send('Runtime.evaluate',{expression:'window.__viewerPlayer'});
-    const {node}=await session.send('DOM.describeNode',{objectId:result.objectId});
-    const {nodes}=await session.send('Accessibility.getFullAXTree');
-    const byId=new Map(nodes.map(item=>[item.nodeId,item]));
-    const player=nodes.find(item=>item.backendDOMNodeId===node.backendNodeId);
-    const descendants=[],queue=[...(player?.childIds||[])];
-    while(queue.length){const current=byId.get(queue.shift());if(!current)continue;descendants.push(current);queue.push(...current.childIds||[]);}
-    const visible=descendants.filter(item=>!item.ignored);
-    const toggle=visible.find(item=>item.role?.value==='button'&&/^(lire|play|mettre en pause|pause)$/i.test(item.name?.value||''));
-    let playToggle=null;
-    if(toggle?.backendDOMNodeId){const {model}=await session.send('DOM.getBoxModel',{backendNodeId:toggle.backendDOMNodeId});const q=model.content;playToggle={x:(q[0]+q[2]+q[4]+q[6])/4,y:(q[1]+q[3]+q[5]+q[7])/4};}
-    return{buttons:visible.filter(item=>item.role?.value==='button').length,sliders:visible.filter(item=>item.role?.value==='slider').length,playToggle,visibleControls:visible.map(item=>({role:item.role?.value,name:item.name?.value}))};
-  } finally { await session.detach(); }
+async function exerciseMediaMenusAndLinks(page,apply,capture) {
+  const state=clone(fixtures.snapshot);state.sessionId='player-media-menus';state.hasEarlier=false;
+  state.state.threads[0].pinnedMessages=[];state.state.threads[0].unreadCount=0;
+  state.draft={attachments:[...clone(fixtures.viewerMediaDraft),{id:'draft-document',fileName:'Brouillon.pdf',contentType:'application/pdf',size:'500',offset:'500',status:'ready',isComplete:true,previewUrl:fixtures.mediaOrigin+'attachments/document'}]};
+  const attachments=[
+    {id:'tiny',fileName:'Image privée.png',kind:'image',contentType:'image/png',url:fixtures.mediaOrigin+'attachments/tiny'},
+    {id:'viewer-audio.wav',fileName:'Audio privé.wav',kind:'audio',contentType:'audio/wav',url:fixtures.mediaOrigin+'attachments/viewer-audio.wav'},
+    {id:'viewer-video.webm',fileName:'Vidéo privée.webm',kind:'video',contentType:'video/webm',url:fixtures.mediaOrigin+'attachments/viewer-video.webm'},
+    {id:'document',fileName:'Document privé.pdf',kind:'file',contentType:'application/pdf',url:fixtures.mediaOrigin+'attachments/document'}];
+  state.messages=attachments.map((attachment,index)=>fixtures.message(String(6201+index),fixtures.lyra,'',index,{attachments:[attachment]}));
+  state.state.threads[0].lastMessage=state.messages.at(-1);await apply(state);await page.evaluate(()=>window.__actions=[]);
+  const menu=page.locator('#context-menu'),viewer=page.locator('#image-dialog');let saves=0;
+  const saveFromMenu=async(target,payload,label,insideViewer=false)=>{
+    await target.click({button:'right'});await menu.waitFor({state:'visible'});
+    check(label+' exposes only its localized Save as command',await menu.getByRole('menuitem').count()===1&&await menu.getByRole('menuitem',{name:state.locale==='en'?'Save as…':'Enregistrer sous…',exact:true}).count()===1);
+    if(insideViewer)check(label+' keeps its context menu inside the modal top layer',await menu.evaluate(node=>node.parentElement.id==='image-dialog'));
+    await menu.getByRole('menuitem').click();await menu.waitFor({state:'hidden'});saves++;
+    const request=await page.evaluate(()=>__actions.filter(action=>action.action==='downloadAttachment').at(-1));
+    check(label+' sends the exact native Save as identifier',JSON.stringify(request.payload)===JSON.stringify(payload));
+    await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,payload:{saved:true}}),request);
+  };
+  for(const id of ['tiny','viewer-audio.wav','document'])await saveFromMenu(page.locator('[data-attachment-id="'+id+'"]'),{attachmentId:id},'Received '+id);
+  await page.locator('[data-attachment-id="viewer-video.webm"] .media-player').click({button:'right'});
+  check('Received video has no context Save as, visible download or file footer',!await menu.isVisible()&&await page.locator('[data-attachment-id="viewer-video.webm"] .media-save:visible,[data-attachment-id="viewer-video.webm"] .attachment-footer').count()===0);
+  for(const [kind,id] of [['image','preview-image'],['audio','preview-audio'],['file','draft-document']])await saveFromMenu(page.locator('.queued-file.is-'+kind),{uploadId:id},'Draft '+kind);
+  await page.locator('.queued-file.is-video .media-player').click({button:'right'});
+  check('Draft video suppresses the context menu and any Save as player command',!await menu.isVisible()&&await page.locator('.queued-file.is-video .media-save:visible').count()===0);
+  await page.locator('.queued-file.is-image .queued-preview-open').click();await viewer.waitFor({state:'visible'});
+  await saveFromMenu(page.locator('#image-dialog-image'),{uploadId:'preview-image'},'Expanded draft image',true);
+  await page.locator('#image-dialog-image').click({button:'right'});await menu.waitFor({state:'visible'});await page.keyboard.press('Escape');await menu.waitFor({state:'hidden'});
+  check('The first Escape closes the image Save as menu while preserving its viewer',await viewer.isVisible());
+  await page.keyboard.press('Escape');await viewer.waitFor({state:'hidden'});
+  await page.locator('.queued-file.is-audio .media-expand').click();await viewer.waitFor({state:'visible'});
+  await saveFromMenu(page.locator('#media-dialog-player-host .media-player'),{uploadId:'preview-audio'},'Expanded draft audio',true);
+  await page.keyboard.press('Escape');await viewer.waitFor({state:'hidden'});
+  await page.locator('[data-attachment-id="tiny"]').click();await viewer.waitFor({state:'visible'});
+  await saveFromMenu(page.locator('#image-dialog-image'),{attachmentId:'tiny'},'Expanded received image',true);
+  await page.keyboard.press('Escape');await viewer.waitFor({state:'hidden'});
+  state.locale='en';await apply(state);
+  await page.locator('[data-attachment-id="viewer-audio.wav"] .media-save').click();saves++;
+  const audioSave=await page.evaluate(()=>__actions.filter(action=>action.action==='downloadAttachment').at(-1));
+  check('The received audio player exposes an explicit localized Save as control',await page.locator('[data-attachment-id="viewer-audio.wav"] .media-save').getAttribute('aria-label')==='Save as…'&&audioSave.payload.attachmentId==='viewer-audio.wav');
+  await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,payload:{saved:true}}),audioSave);
+  await saveFromMenu(page.locator('[data-attachment-id="document"]'),{attachmentId:'document'},'English received document');
+  check('Media menus produce only explicit Save as requests and no implicit send or open',await page.evaluate(expected=>__actions.filter(action=>action.action==='downloadAttachment').length===expected&&!__actions.some(action=>['send','openAttachment'].includes(action.action)),saves));
+  state.draft={};state.messages=[fixtures.message('6251',fixtures.lyra,'Direct media previews and Vimeo.',1,{linkPreviews:[
+    {id:'direct-video',kind:'video',url:'https://example.test/viewer-video.webm',title:'Private direct video title',canRemove:false},
+    {id:'direct-audio',kind:'audio',url:'https://example.test/viewer-audio.wav',title:'Private direct audio title',canRemove:false},
+    {id:'vimeo',kind:'vimeo',url:'https://vimeo.com/123456789',embedUrl:'https://player.vimeo.com/video/123456789',title:'Duplicate Vimeo title',description:'Duplicate Vimeo description',canRemove:false} ]})];state.state.threads[0].lastMessage=state.messages[0];await apply(state);await page.evaluate(()=>window.__actions=[]);
+  const directVideo=page.locator('[data-preview-id="direct-video"]'),directAudio=page.locator('[data-preview-id="direct-audio"]'),vimeo=page.locator('[data-preview-id="vimeo"]');
+  check('Direct audio and video links immediately expose integrated custom players with no separate poster click',await directVideo.locator('.media-player video').count()===1&&await directAudio.locator('.media-player audio').count()===1&&await page.locator('[data-preview-id^="direct-"] .media-placeholder').count()===0);
+  check('Direct media and Vimeo show no duplicate visible title, file footer or source button',await page.locator('.message-previews .link-preview-main,.message-previews .attachment-footer,.message-previews .preview-source-action').count()===0&&!await page.locator('.message-previews').innerText().then(text=>text.includes('Private direct')||text.includes('Duplicate Vimeo')));
+  check('A direct audio preview fits its player exactly without a second frame or empty side panel',await directAudio.evaluate(node=>{const shell=node.querySelector('.media-player'),style=getComputedStyle(node);return Math.abs(node.getBoundingClientRect().width-shell.getBoundingClientRect().width)<1&&style.borderLeftWidth==='0px'&&style.backgroundColor==='rgba(0, 0, 0, 0)'&&style.paddingRight==='0px';}));
+  check('A direct video has only its shared player frame',await directVideo.evaluate(node=>getComputedStyle(node).borderTopWidth==='0px'&&getComputedStyle(node).backgroundColor==='rgba(0, 0, 0, 0)'));
+  await directVideo.locator('video').evaluate(player=>{window.__linkedPlayer=player;window.__linkedShell=AtlasChatMedia.shellFor(player);player.muted=true;});
+  await directVideo.locator('.media-play').click();await page.waitForFunction(()=>!__linkedPlayer.paused&&__linkedPlayer.currentTime>.05);
+  check('A direct video starts from one actual custom play click',await page.evaluate(()=>__linkedPlayer.currentSrc.includes('/linked-media?')&&!__linkedPlayer.paused));
+  await directVideo.locator('.media-expand').click();await viewer.waitFor({state:'visible'});
+  state.locale='fr';await apply(state);
+  check('Direct linked video preserves its player, shell and preview identity through expansion and locale refresh',await page.evaluate(()=>document.querySelector('#media-dialog-player-host').contains(__linkedPlayer)&&AtlasChatMedia.shellFor(__linkedPlayer)===__linkedShell&&__linkedShell.dataset.mode==='viewer'&&!__linkedPlayer.paused));
+  await page.keyboard.press('Escape');await viewer.waitFor({state:'hidden'});await directVideo.locator('.media-play').click();await page.waitForFunction(()=>__linkedPlayer.paused);
+  await directAudio.locator('.media-player').click({button:'right'});
+  check('A linked audio preview without a native attachment identity cannot fabricate a Save as request',!await menu.isVisible()&&await directAudio.locator('.media-save:visible').count()===0&&await page.evaluate(()=>!__actions.some(action=>action.action==='downloadAttachment')));
+  state.messages[0].linkPreviews[1].canRemove=true;await apply(state);
+  check('The removable direct audio preview reserves space for its cross outside the player and expand control',await directAudio.evaluate(node=>{const close=node.querySelector('.preview-dismiss').getBoundingClientRect(),shell=node.querySelector('.media-player').getBoundingClientRect(),expand=node.querySelector('.media-expand').getBoundingClientRect();return close.left>=shell.right&&close.left>=expand.right&&node.getBoundingClientRect().width-shell.width>=30;}));
+  if(capture){await directVideo.scrollIntoViewIfNeeded();await capture('chat-fr-integrated-direct-media-fixed.png');}
+  await directAudio.locator('.preview-dismiss').click();
+  check('The separate audio cross targets only its actual preview',await page.evaluate(()=>__actions.some(action=>action.action==='dismissPreview'&&action.payload.messageId==='6251'&&action.payload.previewId==='direct-audio')));
+  await vimeo.locator('.media-placeholder').click();await vimeo.locator('iframe').waitFor();
+  check('The first Vimeo click requests autoplay using supported minimal provider chrome parameters',await vimeo.locator('iframe').evaluate(frame=>{const url=new URL(frame.src);return url.hostname==='player.vimeo.com'&&url.searchParams.get('autoplay')==='1'&&url.searchParams.get('playsinline')==='1'&&['title','byline','portrait'].every(key=>url.searchParams.get(key)==='0')&&!url.searchParams.has('background')&&frame.loading==='eager';}));
+  await vimeo.frameLocator('iframe').getByText('Lecteur de test isolé',{exact:true}).waitFor();
+  if(capture)await capture('chat-fr-integrated-linked-media-fixed.png');
+}
+
+async function customPlayerControls(page) {
+  return page.evaluate(()=>{
+    const player=window.__viewerPlayer,shell=AtlasChatMedia.shellFor(player);
+    const visible=node=>{const box=node.getBoundingClientRect(),style=getComputedStyle(node);return !node.hidden&&box.width>0&&box.height>0&&style.visibility!=='hidden'&&style.display!=='none';};
+    const buttons=[...shell.querySelectorAll('button')].filter(visible),sliders=[...shell.querySelectorAll('input[type=range]')].filter(visible);
+    const toggle=buttons.find(node=>node.classList.contains('media-play')),box=toggle?.getBoundingClientRect();
+    return{buttons:buttons.length,sliders:sliders.length,nativeControls:player.controls,playToggle:box?{x:box.left+box.width/2,y:box.top+box.height/2}:null,
+      visibleControls:[...buttons,...sliders].map(node=>({role:node.tagName,name:node.getAttribute('aria-label'),disabled:node.disabled}))};
+  });
 }

@@ -1,6 +1,6 @@
 (function (global) {
   'use strict';
-  const R = global.AtlasChatRender;
+  const R = global.AtlasChatRender, M = global.AtlasChatMedia;
   if (!R) return;
   const $ = name => document.getElementById(name);
   const e = R.element;
@@ -8,6 +8,7 @@
   let fileExtensions = new Set(defaultFileExtensions);
   const strings = {
     mediaPlaybackUnavailable:['Lecture intégrée indisponible.','In-app playback unavailable.'],
+    saveAs:['Enregistrer sous…','Save as…'],
     viewMedia:['Agrandir l’aperçu','Expand preview'],
     mediaOpened:['Aperçu ouvert','Preview open'],
     deletingMessage:['Suppression en cours…','Deleting message…'],
@@ -32,6 +33,7 @@
   const capable = name => (snapshot.state.capabilities || []).includes(name);
   const sessionKey = value => String(value.sessionId || '') + ':' + String(value.ownerAccountId || 0);
   const active = () => !!snapshot.isActive && !document.hidden && !!snapshot.ownerAccountId && !!selectedThread;
+  const playbackActive = (value = snapshot) => !!(value.isMediaActive ?? value.isActive) && !!value.sessionId && value.ownerAccountId > 0;
   const currentThreadId = () => selectedThread && selectedThread.id;
   const hasIdentity = () => !!snapshot.sessionId && snapshot.ownerAccountId > 0;
   const normalizedBody = text => String(text || '').replace(/\r\n/g, '\n').trim();
@@ -282,7 +284,8 @@
     const arrivals = [];
     let cursor = messageList.firstElementChild, previous = null, lastDay = '', unreadAdded = false;
     const keep = (key, node) => { node.dataset.key = key; if (node !== cursor) messageList.insertBefore(node, cursor); cursor = node.nextElementSibling; existing.delete(key); };
-    const context = { ownerAccountId: snapshot.ownerAccountId, locale: snapshot.locale, mediaOrigin: snapshot.mediaOrigin, t, action, profile: resolveProfile, isActive: active, capable, reply: beginReply, copy: copyText, react: showReactions, messageMenu: showMessageMenu, jumpTo, viewImage, viewMedia,
+    const context = { ownerAccountId: snapshot.ownerAccountId, locale: snapshot.locale, mediaOrigin: snapshot.mediaOrigin, t, action, profile: resolveProfile, isActive: active, isMediaActive: playbackActive, capable, reply: beginReply, copy: copyText, react: showReactions, messageMenu: showMessageMenu, jumpTo, viewImage, viewMedia,
+      attachmentMenu: showAttachmentMenu,
       mediaError: player => { if (mediaViewer?.player === player) closeImageViewer(true, true, true); }, dismissPreview };
     for (const message of messages) {
       const day = R.dayKey(message.createdAt);
@@ -317,7 +320,7 @@
       }
       keep(key, node);
     }
-    for (const node of existing.values()) { R.suspendMedia(node); node.remove(); }
+    for (const node of existing.values()) { R.suspendMedia(node, true); node.remove(); }
     $('no-messages').hidden = messages.length > 0 || pending.length > 0 || snapshot.isLoading;
     $('load-earlier-button').hidden = !snapshot.hasEarlier;
     $('load-earlier-button').disabled = snapshot.isLoadingEarlier || !snapshot.isAvailable;
@@ -334,7 +337,7 @@
 
   function renderPending(queued, node = null) {
     if (!node) node = e('article', 'message is-own is-group-start');
-    else { R.suspendMedia(node); node.replaceChildren(); }
+    else { R.suspendMedia(node, true); node.replaceChildren(); }
     node.oncontextmenu = null; node.dataset.clientMessageId = queued.clientMessageId;
     const avatar = e('div', 'message-avatar'); avatar.append(R.avatar(snapshot.state.self, { small: true, presence: true, mediaOrigin: snapshot.mediaOrigin }));
     const main = e('div', 'message-main');
@@ -511,7 +514,7 @@
       name: upload?.fileName || upload?.attachment?.fileName || t(kind === 'file' ? 'attachFiles' : kind) };
   }
   function removeUploadWithMotion(node) {
-    R.suspendMedia(node);
+    R.suspendMedia(node, true);
     if (motionPreference.matches || !active()) { node.remove(); return; }
     const rect = node.getBoundingClientRect();
     node.classList.add('queued-file-exit'); node.inert = true; node.setAttribute('aria-hidden', 'true');
@@ -537,7 +540,7 @@
     const session = sessionKey(snapshot) + ':' + currentThreadId(), changedThread = uploadsSession !== session;
     uploadsSession = session;
     const oldHeight = queue.hidden ? 0 : queue.getBoundingClientRect().height;
-    if (changedThread) { R.suspendMedia(queue); queue.replaceChildren(); }
+    if (changedThread) { R.suspendMedia(queue, true); queue.replaceChildren(); }
     const oldNodes = new Map(Array.from(queue.children).map(node => [node.dataset.key, { node, rect: node.getBoundingClientRect() }]));
     const ids = new Set(uploads.map(upload => String(upload.id || upload.localId)));
     for (const [key, previous] of oldNodes) if (!ids.has(key)) {
@@ -553,7 +556,7 @@
       const node = e('div', 'queued-file is-' + mediaKind);
       const preview = e('div', 'queued-preview');
       node.setAttribute('aria-label', name); node.title = name;
-      let player = null, open = null;
+      let player = null, open = null, mediaShell = null;
       if (url && mediaKind === 'image') {
         const image = e('img'), dimensions = draftImageSizes.get(url);
         if (dimensions) { image.width = dimensions.width; image.height = dimensions.height; }
@@ -562,24 +565,36 @@
         image.addEventListener('error', () => { if (mediaViewer?.origin === node) closeImageViewer(true, true, true); node.dataset.playbackUnavailable = 'true'; preview.replaceChildren(R.icon('file')); preview.setAttribute('aria-label', t('imageUnavailable')); }, { once: true });
         preview.append(image);
       } else if (url && (mediaKind === 'audio' || mediaKind === 'video')) {
-        player = e(mediaKind); player.controls = true; player.preload = 'metadata'; player.src = url;
+        player = e(mediaKind); player.controls = false; player.preload = 'metadata'; player.src = url;
         player.setAttribute('aria-label', name); player.setAttribute('controlsList', 'nodownload');
         if (mediaKind === 'video') { player.playsInline = true; const poster = R.mediaUrl(upload.attachment?.thumbnailUrl, snapshot.mediaOrigin); if (poster) player.poster = poster; }
-        player.addEventListener('error', () => { if (mediaViewer?.origin === node) closeImageViewer(true, true, true); node.dataset.playbackUnavailable = 'true'; preview.replaceChildren(R.icon('file')); updateUploadState(node, node._upload); }, { once: true });
-        preview.append(player);
+        player.addEventListener('error', () => {
+          if (mediaViewer?.origin === node) closeImageViewer(true, true, true);
+          if (mediaShell) M.dispose(mediaShell, { pause: true });
+          node.dataset.playbackUnavailable = 'true'; preview.replaceChildren(R.icon('file')); updateUploadState(node, node._upload);
+        }, { once: true });
+        mediaShell = M.create(player, { kind: mediaKind, fileName: name, locale: snapshot.locale, t, mode: 'draft',
+          onExpand: (_, opener) => viewDraftMedia(node, opener) });
+        preview.append(mediaShell);
       } else preview.append(R.icon('file'));
       if (url && mediaKind !== 'file') {
         node.classList.add('is-previewable');
-        open = R.button('queued-preview-open', t('viewMedia') + ' · ' + name, mediaKind === 'image' ? null : 'expand', event => viewDraftMedia(node, event.currentTarget));
-        open.setAttribute('aria-haspopup', 'dialog'); preview.append(open);
+        if (mediaKind === 'image') {
+          open = R.button('queued-preview-open', t('viewMedia') + ' · ' + name, null, event => viewDraftMedia(node, event.currentTarget));
+          open.setAttribute('aria-haspopup', 'dialog'); preview.append(open);
+        }
       }
+      node.addEventListener('contextmenu', event => {
+        const current = node._upload, info = uploadPresentation(current);
+        showAttachmentMenu({ uploadId: current.id || current.localId, kind: info.kind }, event);
+      });
       const uploadId = upload.id || upload.localId;
       const remove = R.button('icon-button queued-file-remove', t('removeAttachment'), 'close', () => { if (mediaViewer?.origin === node) closeImageViewer(false, true, true); action('removeAttachment', { threadId: currentThreadId(), uploadId }); });
       const progress = e('div', 'queued-progress'), bar = e('span'); progress.append(bar);
       progress.setAttribute('role', 'progressbar'); progress.setAttribute('aria-label', t('uploading')); progress.setAttribute('aria-valuemin', '0'); progress.setAttribute('aria-valuemax', '100');
       const error = e('div', 'queued-file-error'); error.setAttribute('role', 'alert');
       const retry = R.button('queued-file-retry', t('retry'), null, () => action('retryUpload', { threadId: currentThreadId(), uploadId })); retry.textContent = t('retry');
-      node.append(preview, remove, progress, error, retry); node._parts = { preview, player, open, remove, progress, bar, error, retry };
+      node.append(preview, remove, progress, error, retry); node._parts = { preview, player, mediaShell, open, remove, progress, bar, error, retry };
       updateUploadState(node, upload);
       return node;
     }, upload => { const info = uploadPresentation(upload); return JSON.stringify([info.kind, info.url]); });
@@ -590,6 +605,7 @@
       node._parts.remove.setAttribute('aria-label', t('removeAttachment')); node._parts.remove.title = t('removeAttachment');
       node._parts.progress.setAttribute('aria-label', t('uploading'));
       if (node._parts.player) node._parts.player.setAttribute('aria-label', info.name);
+      if (node._parts.mediaShell) M.update(node._parts.mediaShell, { fileName: info.name, locale: snapshot.locale, t });
       const image = node._parts.preview.querySelector('img'); if (image) image.alt = info.name;
     }
     if (mediaViewer && (!mediaViewer.origin.isConnected || !viewerValidFor(snapshot))) closeImageViewer(false, true, true);
@@ -665,14 +681,15 @@
       next.draft = { ...draft, attachments: (next.uploads || []).filter(item => item.threadId === next.selectedThreadId).map(upload => ({ ...upload, id: upload.id || upload.localId, isComplete: !!upload.attachment })) };
     }
     if (!viewerValidFor(next)) closeImageViewer(false, true, true);
-    if (changedThread || !next.isActive) { closeImageViewer(false, true, true); clearMotion(); closeMenus(true); }
+    if (changedThread || !playbackActive(next)) closeImageViewer(false, true, true);
+    if (changedThread || !next.isActive) { clearMotion(); closeMenus(true); }
     if (identityChanged) {
-      R.suspendMedia(document); localDrafts.clear(); inFlightSends.clear(); localSendFailures.clear(); messageFeedback.clear(); requests.clear(); armorySelections.clear(); messageList.replaceChildren();
+      R.suspendMedia(document, true); localDrafts.clear(); inFlightSends.clear(); localSendFailures.clear(); messageFeedback.clear(); requests.clear(); armorySelections.clear(); messageList.replaceChildren();
       clearTimeout(draftTimer); clearTimeout(typingTimer); draftDirty = false; typingActive = false; lastTypingAt = 0; lastReadKey = ''; lastComposerStateKey = ''; unreadBoundary = null;
       closeMenus(true); closeDialog(true); closeArmoryPicker(); armoryRequestPending = false; armorySelection = null; armoryError = ''; editTarget = null; editBackup = null; replyTarget = null; composerCard = null; composer.value = '';
       $('armory-character-list').replaceChildren(); $('armory-picker-status').replaceChildren(); $('armory-picker-status')._signature = null;
     }
-    if (changedThread) { R.suspendMedia(messageList); messageList.replaceChildren(); messageFeedback.clear(); toast(''); closeImageViewer(false, true, true); editTarget = null; editBackup = null; replyTarget = null; composerCard = null; stableAnchor = null; lastReadKey = ''; closeMenus(true); closeArmoryPicker(); armorySelection = null; dragDepth = 0; nativeDropActive = false; }
+    if (changedThread) { R.suspendMedia(messageList, true); messageList.replaceChildren(); messageFeedback.clear(); toast(''); closeImageViewer(false, true, true); editTarget = null; editBackup = null; replyTarget = null; composerCard = null; stableAnchor = null; lastReadKey = ''; closeMenus(true); closeArmoryPicker(); armorySelection = null; dragDepth = 0; nativeDropActive = false; }
     const oldLocale = snapshot.locale;
     snapshot = next;
     if (Array.isArray(next.supportedAttachmentExtensions)) fileExtensions = new Set(next.supportedAttachmentExtensions.map(extension => String(extension).replace(/^\./, '').toLowerCase()).filter(extension => /^[a-z0-9]{1,12}$/.test(extension)));
@@ -687,13 +704,14 @@
       if (local && draftSignature(local) === draftSignature(next.draft)) localDrafts.delete(selectedThread.id);
       if (changedThread || !local) setComposerFromDraft(local || next.draft);
     }
-    if (!selectedThread) { R.suspendMedia(messageList); messageList.replaceChildren(); if (next.selectedThreadId) localDrafts.delete(next.selectedThreadId); composer.value = ''; replyTarget = null; composerCard = null; }
+    if (!selectedThread) { R.suspendMedia(messageList, true); messageList.replaceChildren(); if (next.selectedThreadId) localDrafts.delete(next.selectedThreadId); composer.value = ''; replyTarget = null; composerCard = null; }
     if (replyTarget && next.messages.some(message => message.id === (replyTarget.id || replyTarget.messageId) && message.deletedAt)) { replyTarget = null; saveLocalDraft(); }
     renderConversations(); renderThreadHeader();
     if (selectedThread) renderTimeline(changedThread);
     renderUploads(); updateComposer(); renderTyping(); renderArmoryPicker(); renderDropOverlay();
     if (changedThread && selectedThread) { enter(document.querySelector('.thread-header'), 0, 140); enter(timeline, 0, 140); }
-    if (!active()) { lastReadKey = ''; R.suspendMedia(document); closeImageViewer(false, true, true); stopTyping(); }
+    if (!active()) { lastReadKey = ''; stopTyping(); }
+    if (!playbackActive()) { R.suspendMedia(document); closeImageViewer(false, true, true); }
     if (dialogRefresh) dialogRefresh();
     return true;
   }
@@ -714,7 +732,8 @@
   function showMenu(items, x, y) {
     closeMenus(true); menuReturnFocus = document.activeElement;
     const menu = $('context-menu'); menu.replaceChildren();
-    if ($('app-dialog').open) $('app-dialog').append(menu);
+    if ($('image-dialog').open) $('image-dialog').append(menu);
+    else if ($('app-dialog').open) $('app-dialog').append(menu);
     for (const item of items) {
       if (item === null) { const line = e('div', 'menu-separator'); line.setAttribute('role', 'separator'); menu.append(line); continue; }
       const choice = R.button('menu-item' + (item.danger ? ' is-danger' : ''), item.label, item.icon, () => { closeMenus(); item.run(); });
@@ -743,6 +762,15 @@
     if (!items.length) return;
     showMenu(items, x, y);
     Array.from(messageList.children).find(node => node.dataset.messageId === message.id)?.classList.add('has-menu');
+  }
+  function showAttachmentMenu(attachment, event) {
+    event.preventDefault(); event.stopPropagation();
+    const kind = String(attachment.kind || ''), contentType = String(attachment.contentType || '');
+    if (kind === 'video' || contentType.startsWith('video/')) { closeMenus(true); return; }
+    const payload = attachment.uploadId ? { uploadId: attachment.uploadId }
+      : attachment.id ? { attachmentId: attachment.id } : null;
+    if (!payload || !hasIdentity()) return;
+    showMenu([{ label: t('saveAs'), icon: 'download', run: () => action('downloadAttachment', payload) }], event.clientX, event.clientY);
   }
   function showReactions(message, anchor) {
     if (!capable('reactions') || message.deletedAt) return;
@@ -884,11 +912,11 @@
   }
   function viewImage(attachment, opener) {
     const url = R.mediaUrl(attachment.url, snapshot.mediaOrigin) || (attachment.id ? snapshot.mediaOrigin + 'attachments/' + encodeURIComponent(attachment.id) : '');
-    if (url) openMediaViewer({ kind: 'image', url, name: attachment.fileName, attachmentId: attachment.id, opener: opener || document.activeElement });
+    if (url) openMediaViewer({ kind: 'image', url, name: attachment.fileName, attachmentId: attachment.id, contentType: attachment.contentType, opener: opener || document.activeElement });
   }
   function viewMedia(attachment, player, opener) {
     const url = R.mediaUrl(player?.currentSrc || player?.src, snapshot.mediaOrigin);
-    if (url && player?.isConnected && !player.error) openMediaViewer({ kind: player.tagName.toLowerCase(), url, name: attachment.fileName, attachmentId: attachment.id, player, opener });
+    if (url && player?.isConnected && !player.error) openMediaViewer({ kind: player.tagName.toLowerCase(), url, name: attachment.fileName, attachmentId: attachment.id, previewId: attachment.previewId, contentType: attachment.contentType, player, opener });
   }
   function viewDraftMedia(node, opener) {
     const upload = node._upload, info = uploadPresentation(upload);
@@ -896,15 +924,16 @@
     openMediaViewer({ kind: info.kind, url: info.url, name: info.name, uploadId: upload.id || upload.localId, player: node._parts.player, opener });
   }
   function movePlayer(player, parent, before = null, continuePlayback = true) {
+    const surface = M?.shellFor(player) || player;
     const time = player.currentTime, playing = !player.paused && !player.ended;
     const rate = player.playbackRate, volume = player.volume, muted = player.muted;
     const session = sessionKey(snapshot), threadId = currentThreadId();
     const version = (player._atlasMoveVersion || 0) + 1; player._atlasMoveVersion = version;
     if (player._atlasRestoreMetadata) player.removeEventListener('loadedmetadata', player._atlasRestoreMetadata);
     // A state-preserving move avoids the media reset caused by remove/append.
-    if (typeof parent.moveBefore === 'function' && player.isConnected && parent.isConnected) parent.moveBefore(player, before);
+    if (typeof parent.moveBefore === 'function' && surface.isConnected && parent.isConnected) parent.moveBefore(surface, before);
     else {
-      parent.insertBefore(player, before);
+      parent.insertBefore(surface, before);
       const restore = () => {
         if (player._atlasMoveVersion !== version || !player.isConnected || session !== sessionKey(snapshot) || threadId !== currentThreadId()) return;
         if (Number.isFinite(time) && Math.abs(player.currentTime - time) > .05) { try { player.currentTime = time; } catch (_) {} }
@@ -914,21 +943,15 @@
       if (player.readyState === 0) { player._atlasRestoreMetadata = restore; player.addEventListener('loadedmetadata', restore, { once: true }); }
       // Request resumption only once. A later metadata event must not undo a
       // user's pause while this initial play request was waiting for data.
-      if (continuePlayback && playing && player.paused && active()) player.play().catch(() => {});
+      if (continuePlayback && playing && player.paused && playbackActive()) player.play().catch(() => {});
     }
     if (!continuePlayback) player.pause();
-  }
-  function refreshPlayerControls(player) {
-    // Chromium can preserve stale inert/hidden state in native controls when
-    // moving a player across a modal. Rebuild only controls, without reloading
-    // the media or changing its current time, volume, speed or playback state.
-    if (player?.controls) { player.controls = false; player.controls = true; }
   }
   function openMediaViewer(details) {
     if (!hasIdentity() || !currentThreadId() || !details.opener?.isConnected) return;
     closeImageViewer(false, true, true); closeMenus(); closeArmoryPicker();
     const dialog = $('image-dialog'), image = $('image-dialog-image'), host = $('media-dialog-player-host');
-    const origin = details.opener.closest('.queued-file, .attachment') || details.opener;
+    const origin = details.opener.closest('.queued-file, .attachment, .link-preview') || details.opener;
     const sourceImage = origin.querySelector('img');
     const sourceRect = (sourceImage || details.player || origin).getBoundingClientRect();
     const viewer = { ...details, origin, sourceRect, session: sessionKey(snapshot), threadId: currentThreadId(),
@@ -938,22 +961,23 @@
     dialog.classList.add('is-' + details.kind, 'is-opening');
     dialog.setAttribute('aria-label', details.name || t(details.kind));
     image.hidden = details.kind !== 'image'; host.hidden = details.kind === 'image';
-    $('media-dialog-title').hidden = details.kind !== 'audio'; $('media-dialog-title').textContent = details.name || t(details.kind);
-    if (details.kind === 'image') { image.alt = details.name || t('image'); image.src = details.url; }
+    if (details.kind === 'image') {
+      document.getSelection()?.removeAllRanges();
+      image.alt = details.name || t('image'); image.src = details.url;
+    }
     if (details.player) {
-      const player = details.player, rect = player.getBoundingClientRect();
+      const player = details.player, surface = M?.shellFor(player) || player, rect = surface.getBoundingClientRect();
       const placeholder = e('div', 'queued-player-placeholder'); placeholder.setAttribute('aria-hidden', 'true');
       placeholder.style.width = rect.width + 'px'; placeholder.style.height = rect.height + 'px'; placeholder.append(R.icon('play'));
-      player.before(placeholder); viewer.placeholder = placeholder;
+      surface.before(placeholder); viewer.placeholder = placeholder; viewer.surface = surface;
       movePlayer(player, host);
+      if (surface !== player) M.update(surface, { mode: 'viewer', locale: snapshot.locale, t,
+        onExpand: () => closeImageViewer() });
       // A load failure must never leave detached playback or a dead modal open.
       viewer.onError = () => closeImageViewer(true, true, true);
       player.addEventListener('error', viewer.onError, { once: true });
     }
-    // Move the player before showModal() makes its old parent inert. A preserving
-    // move can carry inert native controls into the viewer in Chromium.
     if (!dialog.open) dialog.showModal();
-    refreshPlayerControls(details.player);
     requestAnimationFrame(() => {
       if (mediaViewer !== viewer || viewer.closing) return;
       dialog.classList.remove('is-opening');
@@ -974,7 +998,7 @@
   function viewerValidFor(value) {
     const viewer = mediaViewer;
     if (!viewer) return true;
-    if (viewer.session !== sessionKey(value) || viewer.threadId !== value.selectedThreadId || !value.isActive) return false;
+    if (viewer.session !== sessionKey(value) || viewer.threadId !== value.selectedThreadId || !playbackActive(value)) return false;
     if (viewer.uploadId) {
       const upload = (value.draft?.attachments || []).find(item => (item.id || item.localId) === viewer.uploadId);
       if (!upload || editTarget) return false;
@@ -982,6 +1006,7 @@
       return info.url === viewer.url && info.kind === viewer.kind;
     }
     const message = (value.messages || []).find(item => item.id === viewer.messageId && !item.deletedAt);
+    if (viewer.previewId) return !!message?.linkPreviews?.some(item => item.id === viewer.previewId && !item.isRemoved);
     return !!message?.attachments?.some(item => item.id === viewer.attachmentId);
   }
   function closeImageViewer(restoreFocus = true, immediate = false, pause = false) {
@@ -995,8 +1020,7 @@
     const finish = () => {
       if (version !== viewerVersion) return;
       mediaViewer = null; imageReturnFocus = null;
-      // Restore the background's interactivity before moving native controls
-      // back into it; the reverse order carries an inert controls subtree.
+      closeMenus(true);
       if (dialog.open) dialog.close();
       if (viewer?.player) {
         const player = viewer.player;
@@ -1004,14 +1028,22 @@
         if (pause || !viewer.origin.isConnected) player.pause();
         if (viewer.placeholder?.isConnected && viewer.origin.isConnected) {
           movePlayer(player, viewer.placeholder.parentElement, viewer.placeholder, !pause);
-          refreshPlayerControls(player);
+          const shell = M?.shellFor(player);
+          if (shell) M.update(shell, { mode: viewer.uploadId ? 'draft' : 'inline', locale: snapshot.locale, t,
+            onExpand: (_, opener) => viewer.uploadId ? viewDraftMedia(viewer.origin, opener)
+              : viewMedia({ id: viewer.attachmentId, previewId: viewer.previewId, fileName: viewer.name }, player, opener) });
         }
-        else { player._atlasMoveVersion = (player._atlasMoveVersion || 0) + 1; player.pause(); player.remove(); }
+        else {
+          player._atlasMoveVersion = (player._atlasMoveVersion || 0) + 1;
+          const shell = M?.shellFor(player);
+          if (shell) M.dispose(shell, { pause: true }); else player.pause();
+          (shell || player).remove();
+        }
         viewer.placeholder?.remove();
       }
       $('image-dialog-image').removeAttribute('src');
       $('image-dialog-image')._atlasMotion?.cancel(); $('media-dialog-player-host')._atlasMotion?.cancel();
-      $('media-dialog-player-host').replaceChildren($('media-dialog-title'));
+      $('media-dialog-player-host').replaceChildren();
       dialog.classList.remove('is-opening', 'is-closing');
       publishComposerState(); renderDropOverlay();
       if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
@@ -1172,7 +1204,14 @@
     if (!event.target.closest('#context-menu, #reaction-picker, .message-actions, #thread-menu-button, .details-member')) closeMenus();
   });
   document.addEventListener('keydown', event => {
-    if ($('image-dialog').open) { if (event.key === 'Escape') { event.preventDefault(); closeImageViewer(); } return; }
+    if ($('image-dialog').open) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        if (!$('context-menu').hidden && !$('context-menu').inert) { closeMenus(); menuReturnFocus?.focus({ preventScroll: true }); }
+        else closeImageViewer();
+      }
+      return;
+    }
     const floating = !$('reaction-picker').hidden && !$('reaction-picker').inert ? $('reaction-picker') : !$('context-menu').hidden && !$('context-menu').inert ? $('context-menu') : null;
     if (event.key === 'Escape') { if (floating) { event.preventDefault(); closeMenus(); menuReturnFocus?.focus({ preventScroll: true }); } else if (armoryPickerOpen) { event.preventDefault(); closeArmoryPicker(true); } else if (editTarget || replyTarget) { event.preventDefault(); cancelContext(); } }
     if (floating && ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
@@ -1188,8 +1227,14 @@
   $('app-dialog').addEventListener('click', event => { if (event.target === $('app-dialog')) { const rect = $('app-dialog').getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeDialog(); } });
   $('image-dialog').addEventListener('cancel', event => { event.preventDefault(); closeImageViewer(); });
   $('image-dialog').addEventListener('click', event => { if (event.target === $('image-dialog')) closeImageViewer(); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { flushDraft(); stopTyping(); closeImageViewer(false, true, true); clearMotion(); R.suspendMedia(document); dragDepth = 0; nativeDropActive = false; renderDropOverlay(); } else requestAnimationFrame(requestRead); });
-  global.addEventListener('pagehide', () => { flushDraft(); stopTyping(); closeImageViewer(false, true, true); clearMotion(); R.suspendMedia(document); });
+  $('image-dialog').addEventListener('contextmenu', event => {
+    if (mediaViewer && (event.target === $('image-dialog-image') || $('media-dialog-player-host').contains(event.target)))
+      showAttachmentMenu({ id: mediaViewer.attachmentId, uploadId: mediaViewer.uploadId, kind: mediaViewer.kind }, event);
+  });
+  $('image-dialog-image').addEventListener('dragstart', event => event.preventDefault());
+  $('image-dialog-image').addEventListener('selectstart', event => event.preventDefault());
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { flushDraft(); stopTyping(); clearMotion(); closeMenus(true); dragDepth = 0; nativeDropActive = false; renderDropOverlay(); } else requestAnimationFrame(requestRead); });
+  global.addEventListener('pagehide', () => { flushDraft(); stopTyping(); closeImageViewer(false, true, true); clearMotion(); R.suspendMedia(document, true); });
   setInterval(renderTyping, 2000);
   if (global.chrome?.webview) chrome.webview.addEventListener('message', event => receiveMessage(event.data));
   global.AtlasChat = Object.freeze({ applySnapshot, receive: receiveMessage, version: 2 });

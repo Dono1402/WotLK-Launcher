@@ -82,8 +82,18 @@
       if (start && /^\d{1,7}$/.test(start)) clean.searchParams.set('start', start);
       return clean.href;
     }
-    if (url.hostname === 'player.vimeo.com' && /^\/video\/\d+$/.test(url.pathname)) return url.origin + url.pathname + '?dnt=1';
+    if (url.hostname === 'player.vimeo.com' && /^\/video\/\d+$/.test(url.pathname)) return url.origin + url.pathname + '?dnt=1&playsinline=1&title=0&byline=0&portrait=0';
     return '';
+  }
+  function playbackEmbedUrl(value) {
+    const clean = embedUrl(value);
+    if (!clean) return '';
+    const url = new URL(clean);
+    // This URL is created only by the explicit poster click. Loading an iframe
+    // without autoplay merely replaces one Play button with the provider's.
+    url.searchParams.set('autoplay', '1');
+    if (url.hostname === 'www.youtube-nocookie.com') url.searchParams.set('origin', global.location.origin);
+    return url.href;
   }
   function linkedMediaUrl(value, origin) {
     const local = mediaUrl(value, origin);
@@ -226,13 +236,59 @@
     footer.append(details, button('icon-button', context.t('download'), 'download', () => context.action('downloadAttachment', { attachmentId: attachment.id, fileName: attachment.fileName })));
     return footer;
   }
-  function handlePlaybackFailure(media, context) {
+  function handlePlaybackFailure(media, getContext, attachment) {
     media.addEventListener('error', () => {
+      const context = typeof getContext === 'function' ? getContext() : getContext;
       context.mediaError?.(media);
       const fallback = element('div', 'media-playback-unavailable'); fallback.setAttribute('role', 'status');
-      fallback.append(icon('alert'), element('span', '', context.t('mediaPlaybackUnavailable')));
-      media.replaceWith(fallback);
+      const message = element('span', '', context.t('mediaPlaybackUnavailable'));
+      fallback.append(icon('alert'), message);
+      const shell = global.AtlasChatMedia?.shellFor(media);
+      if (shell) {
+        shell._playbackFallback = fallback;
+        global.AtlasChatMedia.dispose(shell, { pause: true });
+        shell.replaceWith(fallback);
+      } else media.replaceWith(fallback);
+      let save = null;
+      if (media.tagName === 'AUDIO' && attachment?.id) {
+        save = button('icon-button attachment-save', '', 'download', () => {
+          const latest = typeof getContext === 'function' ? getContext() : getContext;
+          latest.action('downloadAttachment', { attachmentId: attachment.id, fileName: attachment.fileName });
+        });
+        fallback.append(save);
+      }
+      fallback._refreshContext = latest => {
+        message.textContent = latest.t('mediaPlaybackUnavailable');
+        if (save) { save.title = String(latest.locale).startsWith('en') ? 'Save as…' : 'Enregistrer sous…'; save.setAttribute('aria-label', save.title); }
+      };
+      fallback._refreshContext(context);
+      fallback.oncontextmenu = event => {
+        event.preventDefault(); event.stopPropagation();
+        const latest = typeof getContext === 'function' ? getContext() : getContext;
+        latest.attachmentMenu?.(attachment, event);
+      };
     }, { once: true });
+  }
+  function mediaShell(player, attachment, context, message, preview) {
+    let current = context, currentMessage = message;
+    const kind = player.tagName.toLowerCase();
+    player.controls = false;
+    player.setAttribute('controlsList', 'nodownload');
+    const shell = global.AtlasChatMedia.create(player, {
+      kind, fileName: attachment.fileName || context.t(kind), locale: context.locale, t: context.t, mode: 'inline',
+      onExpand: typeof context.viewMedia === 'function' ? (_, opener) => current.viewMedia(attachment, player, opener) : null,
+      onSave: kind === 'audio' && attachment.id ? () => current.action('downloadAttachment', { attachmentId: attachment.id, fileName: attachment.fileName }) : null,
+      onPlay: (_, element) => current.mediaPlay?.(player, element, { attachment: preview ? undefined : attachment, preview, message: currentMessage })
+    });
+    shell.oncontextmenu = event => { event.preventDefault(); event.stopPropagation(); current.attachmentMenu?.(attachment, event); };
+    shell._refreshContext = (value, owner) => {
+      current = value; currentMessage = owner;
+      shell._playbackFallback?._refreshContext(current);
+      // Viewer/dock callbacks and mode belong to the shell's current owner.
+      global.AtlasChatMedia.update(shell, { fileName: attachment.fileName || current.t(kind), locale: current.locale, t: current.t });
+    };
+    handlePlaybackFailure(player, () => current, attachment);
+    return shell;
   }
   function sizeAttachmentImage(host, image, dimensions) {
     if (!dimensions) return;
@@ -251,15 +307,7 @@
     if (imageDimensions.size > MAX_IMAGE_DIMENSIONS) imageDimensions.delete(imageDimensions.keys().next().value);
     return dimensions;
   }
-  function attachmentExpand(attachment, player, context) {
-    const open = button('icon-button attachment-expand', context.t('viewMedia'), 'expand', event => {
-      if (player.isConnected && !player.error) context.viewMedia(attachment, player, event.currentTarget);
-    });
-    open.setAttribute('aria-haspopup', 'dialog');
-    player.addEventListener('error', () => { open.hidden = true; }, { once: true });
-    return open;
-  }
-  function attachmentNode(attachment, context) {
+  function attachmentNode(attachment, context, message) {
     let node = element('div', 'attachment');
     const url = mediaUrl(attachment.url, context.mediaOrigin) || (attachment.id ? MEDIA_ORIGIN + '/attachments/' + encodeURIComponent(attachment.id) : '');
     const contentType = String(attachment.contentType || '');
@@ -275,25 +323,24 @@
       image.addEventListener('error', () => { imageDimensions.delete(url); open.replaceChildren(element('span', 'media-placeholder-label', context.t('imageUnavailable'))); open.style.minHeight = '80px'; }, { once: true });
       image.src = url;
       open.append(image); node = open;
+      open.oncontextmenu = event => { event.preventDefault(); event.stopPropagation(); context.attachmentMenu?.(attachment, event); };
     } else if (kind === 'video' && url) {
       node.classList.add('is-video');
-      const video = element('video'); video.controls = true; video.preload = 'none'; video.playsInline = true; video.src = url;
+      const video = element('video'); video.preload = 'none'; video.playsInline = true; video.src = url;
       video.setAttribute('aria-label', attachment.fileName || context.t('video'));
-      video.setAttribute('controlsList', 'nodownload');
       const thumbnail = mediaUrl(attachment.thumbnailUrl, context.mediaOrigin); if (thumbnail) video.poster = thumbnail;
-      handlePlaybackFailure(video, context);
-      node.append(video);
-      if (typeof context.viewMedia === 'function') node.append(attachmentExpand(attachment, video, context));
+      const shell = mediaShell(video, attachment, context, message);
+      node.append(shell); node._refreshContext = shell._refreshContext;
     } else if (kind === 'audio' && url) {
       node.classList.add('is-audio');
-      const audio = element('audio'); audio.controls = true; audio.preload = 'none'; audio.src = url;
-      audio.setAttribute('aria-label', attachment.fileName || context.t('audio')); audio.setAttribute('controlsList', 'nodownload');
-      handlePlaybackFailure(audio, context);
-      node.append(audio);
-      if (typeof context.viewMedia === 'function') node.append(attachmentExpand(attachment, audio, context));
+      const audio = element('audio'); audio.preload = 'none'; audio.src = url;
+      audio.setAttribute('aria-label', attachment.fileName || context.t('audio'));
+      const shell = mediaShell(audio, attachment, context, message);
+      node.append(shell); node._refreshContext = shell._refreshContext;
     }
     node.dataset.attachmentId = String(attachment.id || '');
-    if (!isImage || !url) node.append(fileFooter(attachment, context));
+    if (!node.oncontextmenu && kind !== 'audio' && kind !== 'video') node.oncontextmenu = event => { event.preventDefault(); event.stopPropagation(); context.attachmentMenu?.(attachment, event); };
+    if ((!isImage && kind !== 'video' && kind !== 'audio') || (isImage && !url)) node.append(fileFooter(attachment, context));
     return node;
   }
   function isVideoPreview(preview) { return ['video', 'youtube', 'vimeo'].includes(String(preview.kind || '').toLowerCase()); }
@@ -302,54 +349,69 @@
     const video = isVideoPreview(preview);
     const url = safeUrl(preview.url);
     const imageUrl = previewImageUrl(preview.imageUrl, context.mediaOrigin);
-    if (!video && preview.canRemove !== false && context.capable('link-previews')) {
-      node.append(button('icon-button preview-dismiss', context.t('removePreviewForEveryone'), 'close', () => context.dismissPreview(message, preview)));
-    }
-    const main = button('link-preview-main', preview.title || url || context.t('openLink'), null, () => { if (url) context.action('openExternal', { url }); });
-    main.append(element('div', 'link-preview-provider', preview.provider || (url ? new URL(url).hostname.replace(/^www\./, '') : '')));
-    main.append(element('div', 'link-preview-title', preview.title || url));
-    if (preview.description) main.append(element('div', 'link-preview-description', preview.description));
-    if (!video && imageUrl) {
-      const image = element('img', 'link-preview-image'); image.alt = ''; image.src = imageUrl; image.loading = 'lazy'; image.decoding = 'async';
-      image.addEventListener('error', () => image.remove(), { once: true }); main.append(image);
-    }
-    node.append(main);
     const embedded = embedUrl(preview.embedUrl);
     const sourceUrl = safeUrl(preview.embedUrl || preview.url);
     const isProviderPage = sourceUrl && /(^|\.)(youtube\.com|youtube-nocookie\.com|youtu\.be|vimeo\.com)$/.test(new URL(sourceUrl).hostname);
     const directMedia = !embedded && !isProviderPage && (video || preview.kind === 'audio') ? linkedMediaUrl(preview.embedUrl || preview.url, context.mediaOrigin) : '';
-    if (video && (embedded || directMedia)) {
+    const audio = preview.kind === 'audio' && !!directMedia;
+    let current = context, currentMessage = message, shell = null;
+    node.classList.toggle('is-video', video); node.classList.toggle('is-audio', audio);
+    if (!video && preview.canRemove !== false && context.capable('link-previews')) {
+      node.append(button('icon-button preview-dismiss', context.t('removePreviewForEveryone'), 'close', () => context.dismissPreview(message, preview)));
+    }
+    if (!video && !audio) {
+      const main = button('link-preview-main', preview.title || url || context.t('openLink'), null, () => { if (url) context.action('openExternal', { url }); });
+      main.append(element('div', 'link-preview-provider', preview.provider || (url ? new URL(url).hostname.replace(/^www\./, '') : '')));
+      main.append(element('div', 'link-preview-title', preview.title || url));
+      if (preview.description) main.append(element('div', 'link-preview-description', preview.description));
+      if (imageUrl) {
+        const image = element('img', 'link-preview-image'); image.alt = ''; image.src = imageUrl; image.loading = 'lazy'; image.decoding = 'async';
+        image.addEventListener('error', () => image.remove(), { once: true }); main.append(image);
+      }
+      node.append(main);
+    }
+    if (video && embedded) {
       const playerHost = element('div', 'preview-player');
       const showPlaceholder = () => {
-        const play = button('media-placeholder', context.t('playVideo'), null, () => {
-          if (!context.isActive()) return;
-          if (embedded) {
-            const frame = element('iframe'); frame.title = preview.title || context.t('video'); frame.src = embedded;
-            frame.loading = 'lazy'; frame.allowFullscreen = true;
-            frame.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture; fullscreen');
-            frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation');
-            frame.referrerPolicy = 'strict-origin-when-cross-origin';
-            playerHost.replaceChildren(frame);
-          } else {
-            const player = element('video'); player.controls = true; player.preload = 'none'; player.playsInline = true; player.src = directMedia;
-            handlePlaybackFailure(player, context);
-            player.setAttribute('aria-label', preview.title || context.t('video')); playerHost.replaceChildren(player);
-            player.play().catch(() => {});
-          }
+        const play = button('media-placeholder', current.t('playVideo'), null, () => {
+          if (!(current.isMediaActive ? current.isMediaActive() : current.isActive())) return;
+          const frame = element('iframe'); frame.title = preview.title || current.t('video');
+          frame.loading = 'eager'; frame.allowFullscreen = true;
+          frame.dataset.provider = new URL(embedded).hostname === 'player.vimeo.com' ? 'vimeo' : 'youtube';
+          frame.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture; fullscreen');
+          frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation');
+          frame.referrerPolicy = 'strict-origin-when-cross-origin';
+          frame.src = playbackEmbedUrl(embedded);
+          playerHost.replaceChildren(frame);
         });
         if (imageUrl) { const image = element('img'); image.alt = ''; image.src = imageUrl; image.loading = 'lazy'; image.addEventListener('error', () => image.remove(), { once: true }); play.append(image); }
-        const circle = element('span', 'media-play'); circle.append(icon('play')); play.append(circle, element('span', 'media-placeholder-label', context.t('playVideo')));
+        const circle = element('span', 'media-play'); circle.append(icon('play')); play.append(circle, element('span', 'media-placeholder-label', current.t('playVideo')));
+        play.append(element('span', 'preview-provider-badge', new URL(embedded).hostname === 'player.vimeo.com' ? 'Vimeo' : 'YouTube'));
         playerHost.replaceChildren(play);
       };
       playerHost._suspendPlayer = showPlaceholder;
       showPlaceholder(); node.append(playerHost);
-    } else if (preview.kind === 'audio' && directMedia) {
-      const audio = element('audio'); audio.controls = true; audio.preload = 'none'; audio.src = directMedia; handlePlaybackFailure(audio, context); node.append(audio);
+    } else if (directMedia) {
+      const kind = video ? 'video' : 'audio', player = element(kind);
+      player.preload = 'none'; player.src = directMedia;
+      player.setAttribute('aria-label', preview.title || context.t(kind));
+      if (video) { player.playsInline = true; if (imageUrl) player.poster = imageUrl; }
+      const attachment = { kind, url: directMedia, fileName: preview.title || context.t(kind), previewId: preview.id, sourceUrl: url };
+      shell = mediaShell(player, attachment, context, message, preview); node.append(shell);
     }
-    if (video && url) {
-      const fallback = button('preview-fallback', context.t('openOnSite'), 'external', () => context.action('openExternal', { url }));
-      fallback.append(element('span', '', context.t('openOnSite'))); node.append(fallback);
+    if (video && !embedded && !directMedia && url) {
+      // A provider that cannot embed still offers an explicit way to open its
+      // page. Usable players need no extra footer outside their own controls.
+      node.append(button('icon-button preview-source-action', context.t('openOnSite'), 'external', () => current.action('openExternal', { url })));
     }
+    node._refreshContext = (value, owner) => {
+      current = value; currentMessage = owner;
+      shell?._refreshContext(current, currentMessage);
+      const external = node.querySelector('.preview-source-action');
+      if (external) { external.title = current.t('openOnSite'); external.setAttribute('aria-label', external.title); }
+      const play = node.querySelector('.media-placeholder');
+      if (play) { play.title = current.t('playVideo'); play.setAttribute('aria-label', play.title); play.querySelector('.media-placeholder-label').textContent = play.title; }
+    };
     return node;
   }
 
@@ -456,14 +518,14 @@
       if (!node || node._signature !== signature) {
         const replacement = render(value);
         replacement.dataset.key = key; replacement._signature = signature;
-        if (node) { suspendMedia(node); node.replaceWith(replacement); if (cursor === node) cursor = replacement; }
+        if (node) { suspendMedia(node, true); node.replaceWith(replacement); if (cursor === node) cursor = replacement; }
         node = replacement;
       }
       if (node !== cursor) container.insertBefore(node, cursor);
       cursor = node.nextElementSibling;
       byKey.delete(key);
     }
-    for (const node of byKey.values()) { suspendMedia(node); node.remove(); }
+    for (const node of byKey.values()) { suspendMedia(node, true); node.remove(); }
   }
 
   function reconcileMessage(node, message, context) {
@@ -471,7 +533,7 @@
     const own = sender && sender.accountId === context.ownerAccountId;
     if (!node || !node._parts) {
       if (node) {
-        suspendMedia(node); node.replaceChildren(); node.className = 'message';
+        suspendMedia(node, true); node.replaceChildren(); node.className = 'message';
         for (const key of ['_signature', '_headerKey', '_bodyKey', '_replyKey', '_cardKey', '_reactionKey', '_readKey', '_actionsKey']) delete node[key];
       } else node = element('article', 'message');
       node.tabIndex = -1;
@@ -535,8 +597,11 @@
     }
     const attachments = message.deletedAt ? [] : (message.attachments || []);
     const previews = message.deletedAt ? [] : (message.linkPreviews || []).filter(preview => !preview.isRemoved);
-    reconcileKeyed(p.attachments, attachments, attachment => attachment.id, attachment => attachmentNode(attachment, context), attachment => JSON.stringify([attachment, context.locale]));
-    reconcileKeyed(p.previews, previews, preview => preview.id, preview => linkPreviewNode(preview, message, context), preview => JSON.stringify([preview, context.locale]));
+    reconcileKeyed(p.attachments, attachments, attachment => attachment.id, attachment => attachmentNode(attachment, context, message),
+      attachment => JSON.stringify([attachment, ['audio', 'video'].includes(attachment.kind) ? null : context.locale]));
+    reconcileKeyed(p.previews, previews, preview => preview.id, preview => linkPreviewNode(preview, message, context),
+      preview => JSON.stringify([preview, isVideoPreview(preview) || preview.kind === 'audio' ? null : context.locale]));
+    for (const child of [...p.attachments.children, ...p.previews.children]) child._refreshContext?.(context, message);
     p.attachments.hidden = !attachments.length; p.previews.hidden = !previews.length;
     p.attachments.classList.toggle('is-media-only', !message.body && (!message.replyTo || message.replyTo.isDeleted));
     const cardKey = JSON.stringify([message.card, message.deletedAt, context.locale]);
@@ -581,9 +646,14 @@
     return node;
   }
 
-  function suspendMedia(root) {
-    for (const media of root.querySelectorAll('audio,video')) { try { media.pause(); } catch (_) {} }
-    for (const host of root.querySelectorAll('.preview-player')) if (host.querySelector('iframe') && host._suspendPlayer) host._suspendPlayer();
+  function suspendMedia(root, dispose = false) {
+    const within = selector => [...(root.matches?.(selector) ? [root] : []), ...root.querySelectorAll(selector)];
+    for (const media of within('audio,video')) { try { media.pause(); } catch (_) {} }
+    for (const shell of within('.media-player')) {
+      if (dispose) global.AtlasChatMedia?.dispose(shell, { pause: true });
+      else global.AtlasChatMedia?.pause(shell);
+    }
+    for (const host of within('.preview-player')) if (host.querySelector('iframe') && host._suspendPlayer) host._suspendPlayer();
   }
 
   global.AtlasChatRender = Object.freeze({ element, icon, button, id, compareIds, safeUrl, mediaUrl, linkedMediaUrl, embedUrl, initials, formatBytes, time, fullDate, dayKey, dayLabel, presenceStatus, presenceText, avatar, renderMarkdown, renderCard: cardNode, isVideoPreview, canGroup, reconcileKeyed, reconcileMessage, suspendMedia });

@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net.Http.Headers;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -49,7 +50,7 @@ internal static class ChatFullShellWpfTests
                     foreach (string locale in new[] { LauncherLocalization.FrenchLocale, LauncherLocalization.EnglishLocale })
                         cases.Add(await ValidateAsync(locale, directory));
                     Dictionary<string, string> assetHashes = new(StringComparer.Ordinal);
-                    foreach (string name in new[] { "index.html", "chat.css", "chat.js", "chat-render.js" })
+                    foreach (string name in new[] { "index.html", "chat.css", "chat.js", "chat-render.js", "chat-media.js", "chat-media.css" })
                     {
                         using Stream embedded = ChatViewV2.OpenRichAsset(new Uri(ChatViewV2.RichOrigin + name)).Stream
                             ?? throw new InvalidOperationException("Missing embedded Messages asset: " + name);
@@ -83,7 +84,11 @@ internal static class ChatFullShellWpfTests
         asset.CopyTo(media);
         byte[] imageBytes = media.ToArray();
         byte[] audioBytes = SilentWave();
-        byte[] videoBytes = Convert.FromBase64String(FixtureVideo);
+        using Stream videoFixture = typeof(ChatFullShellWpfTests).Assembly.GetManifestResourceStream("WotLK.Launcher.IntegrationTests.Runtime.Fixtures.player-video.webm")
+            ?? throw new InvalidOperationException("Missing four-second synthetic VP8 fixture.");
+        using MemoryStream videoBuffer = new();
+        videoFixture.CopyTo(videoBuffer);
+        byte[] videoBytes = videoBuffer.ToArray();
         BitmapSource avatar = Decode(imageBytes);
         ProfileUiState profile = LauncherV2PreviewData.CreateProfile(ProfilePreviewScenario.SignedIn, avatar);
         profile.ApplyAccountIdentity("Aster", true);
@@ -117,8 +122,8 @@ internal static class ChatFullShellWpfTests
             ChatMediaStream? result = key switch
             {
                 "attachments/fixture-image" or "avatars/42/1" or "avatars/91/1" or "uploads/fixture-image" => new(new MemoryStream(imageBytes, writable: false), "image/png", imageBytes.Length),
-                "uploads/fixture-audio" => new(new MemoryStream(audioBytes, writable: false), "audio/wav", audioBytes.Length),
-                "uploads/fixture-video" => new(new MemoryStream(videoBytes, writable: false), "video/webm", videoBytes.Length),
+                "uploads/fixture-audio" => FixtureMedia(audioBytes, "audio/wav", range),
+                "uploads/fixture-video" => FixtureMedia(videoBytes, "video/webm", range),
                 _ => null
             };
             return Task.FromResult(result);
@@ -302,7 +307,8 @@ internal static class ChatFullShellWpfTests
         }, ChatJson.Options);
         view.ApplyRichSnapshot(previews);
         await UntilScript(core, "document.querySelectorAll('.queued-file').length===3&&[...document.querySelectorAll('.queued-preview audio,.queued-preview video')].length===2&&[...document.querySelectorAll('.queued-preview audio,.queued-preview video')].every(m=>m.readyState>=1&&!m.error)", "The real WebView decodes queued WAV audio and WebM video through the local native media resolver.");
-        await UntilScript(core, "[...document.querySelectorAll('.queued-file')].every(n=>n.innerText.trim()==='')&&!document.querySelector('.queued-file-name,.queued-file-status')", "Queued media show their preview and removal control without name, size or Ready metadata.");
+        await UntilScript(core, "[...document.querySelectorAll('.queued-preview audio,.queued-preview video')].every(m=>Math.abs(m.duration-4)<.02)", "Both native playback fixtures have a real four-second duration.");
+        await UntilScript(core, "[...document.querySelectorAll('.queued-file')].every(n=>!n.innerText.includes('privé')&&!n.innerText.includes('privée'))&&!document.querySelector('.queued-file-name,.queued-file-status')", "Queued media show their preview and player times without file name, size or Ready metadata.");
         await Task.Delay(500);
         await Layout(shell);
         await CaptureWebAsync(core, System.IO.Path.Combine(directory, $"chat-{language}-queued-media-webview.png"));
@@ -311,24 +317,40 @@ internal static class ChatFullShellWpfTests
         foreach (string kind in new[] { "audio", "video" })
         {
             await core.ExecuteScriptAsync($"window.atlasNativeViewerProbe=document.querySelector('.queued-file.is-{kind} {kind}');window.atlasNativeViewerProbe.volume=.37;window.atlasNativeViewerProbe.playbackRate=1.25;window.atlasNativeViewerProbe.muted=true");
-            await CaptureNativeControlsAsync(core, directory, $"chat-{language}-{kind}-before-open");
-            await core.ExecuteScriptAsync($"document.querySelector('.queued-file.is-{kind} .queued-preview-open').click()");
-            await UntilScript(core, $"document.querySelector('#image-dialog').open&&document.querySelector('#image-dialog').classList.contains('is-{kind}')&&document.querySelector('#media-dialog-player-host {kind}')===window.atlasNativeViewerProbe&&window.atlasNativeViewerProbe.controls&&window.atlasNativeViewerProbe.readyState>=1&&!window.atlasNativeViewerProbe.error",
-                $"The native {kind} viewer preserves its decoded player and exposes native controls.");
+            await CapturePlayerControlsAsync(core, directory, $"chat-{language}-{kind}-before-open");
+            await core.ExecuteScriptAsync($"document.querySelector('.queued-file.is-{kind} .media-expand').click()");
+            await UntilScript(core, $"document.querySelector('#image-dialog').open&&document.querySelector('#image-dialog').classList.contains('is-{kind}')&&document.querySelector('#media-dialog-player-host {kind}')===window.atlasNativeViewerProbe&&!window.atlasNativeViewerProbe.controls&&window.atlasNativeViewerProbe.readyState>=1&&!window.atlasNativeViewerProbe.error&&!!window.atlasNativeViewerProbe.closest('.media-player')?.querySelector('.media-play')",
+                $"The native {kind} viewer preserves its decoded player and exposes custom controls.");
             await Until(() => !view.IsRichComposerAcceptingFiles, $"The enlarged {kind} viewer blocks native file admission.");
-            await UntilScript(core, "(() => {const r=window.atlasNativeViewerProbe.getBoundingClientRect();return r.width>=480&&r.height>0&&r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight;})()",
+            await UntilScript(core, "(() => {const r=window.atlasNativeViewerProbe.closest('.media-player').getBoundingClientRect();return r.width>=480&&r.height>0&&r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight;})()",
                 $"The enlarged {kind} player stays inside the fixed native Messages viewport.");
             await Task.Delay(500);
             await Layout(shell);
             await CaptureWebAsync(core, System.IO.Path.Combine(directory, $"chat-{language}-{kind}-viewer-webview.png"));
             Capture(content, System.IO.Path.Combine(directory, $"chat-{language}-{kind}-viewer-wpf-direct.png"));
-            await CaptureNativeControlsAsync(core, directory, $"chat-{language}-{kind}-viewer");
+            await CapturePlayerControlsAsync(core, directory, $"chat-{language}-{kind}-viewer");
+            await core.ExecuteScriptAsync("window.atlasNativeViewerProbe.closest('.media-player').querySelector('.media-volume-button').click()");
+            await UntilScript(core, "(() => {const p=window.atlasNativeViewerProbe.closest('.media-player').querySelector('.media-volume-panel'),r=p.getBoundingClientRect();return p.matches(':popover-open')&&r.width>100&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight;})()", "The custom volume popover remains visible inside the native viewport.");
+            await CaptureWebAsync(core, System.IO.Path.Combine(directory, $"chat-{language}-{kind}-volume-webview.png"));
+            await Task.Delay(200);
+            await Layout(shell);
+            Capture(content, System.IO.Path.Combine(directory, $"chat-{language}-{kind}-volume-wpf-direct.png"));
+            await core.ExecuteScriptAsync("window.atlasNativeViewerProbe.closest('.media-player').querySelector('.media-volume-button').click()");
             await core.ExecuteScriptAsync("document.querySelector('#image-dialog').click()");
-            await UntilScript(core, $"!document.querySelector('#image-dialog').open&&document.querySelector('.queued-file.is-{kind} {kind}')===window.atlasNativeViewerProbe&&window.atlasNativeViewerProbe.readyState>=1&&!window.atlasNativeViewerProbe.error&&document.activeElement===document.querySelector('.queued-file.is-{kind} .queued-preview-open')",
+            await UntilScript(core, $"!document.querySelector('#image-dialog').open&&document.querySelector('.queued-file.is-{kind} {kind}')===window.atlasNativeViewerProbe&&window.atlasNativeViewerProbe.readyState>=1&&!window.atlasNativeViewerProbe.error&&document.activeElement===document.querySelector('.queued-file.is-{kind} .media-expand')",
                 $"Closing the native {kind} viewer restores the same decoded inline player and opener focus.");
             await Until(() => view.IsRichComposerAcceptingFiles, $"Closing the {kind} viewer restores native file admission.");
             await Task.Delay(500);
-            await CaptureNativeControlsAsync(core, directory, $"chat-{language}-{kind}-restored");
+            await CapturePlayerControlsAsync(core, directory, $"chat-{language}-{kind}-restored");
+            await core.ExecuteScriptAsync("window.atlasNativePauseCount=0;window.atlasNativeCountPause=()=>window.atlasNativePauseCount++;window.atlasNativeViewerProbe.loop=true;window.atlasNativeViewerProbe.addEventListener('pause',window.atlasNativeCountPause);window.atlasNativeViewerProbe.closest('.media-player').querySelector('.media-play').click()");
+            await UntilScript(core, "!window.atlasNativeViewerProbe.paused&&window.atlasNativeViewerProbe.currentTime>0", "The custom Play command starts decoded muted fixture media.");
+            await core.ExecuteScriptAsync($"document.querySelector('.queued-file.is-{kind} .media-expand').click()");
+            await UntilScript(core, "document.querySelector('#image-dialog').open&&!window.atlasNativeViewerProbe.paused&&window.atlasNativePauseCount===0", "Opening the enlarged player preserves ongoing playback without a pause event.");
+            await core.ExecuteScriptAsync("document.querySelector('#image-dialog').click()");
+            await UntilScript(core, "!document.querySelector('#image-dialog').open&&!window.atlasNativeViewerProbe.paused&&window.atlasNativePauseCount===0", "Closing the enlarged player preserves ongoing playback without a pause event.");
+            await core.ExecuteScriptAsync("window.atlasNativeViewerProbe.closest('.media-player').querySelector('.media-play').click()");
+            await UntilScript(core, "window.atlasNativeViewerProbe.paused&&window.atlasNativePauseCount===1", "Only the explicit custom Pause command stops playback.");
+            await core.ExecuteScriptAsync("window.atlasNativeViewerProbe.removeEventListener('pause',window.atlasNativeCountPause);window.atlasNativeViewerProbe.loop=false;delete window.atlasNativeCountPause;delete window.atlasNativePauseCount");
         }
         await Task.Delay(500);
         await Layout(shell);
@@ -360,15 +382,26 @@ internal static class ChatFullShellWpfTests
         await UntilScript(core, "document.querySelector('.character-card-action')&&document.querySelector('#composer-box').getBoundingClientRect().bottom<=innerHeight&&document.documentElement.scrollWidth===innerWidth", "The character action and composer remain visible at the fixed native size.");
     }
 
-    private const string FixtureVideo = "GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQRChYECGFOAZwEAAAAAAAHzEU2bdLlNu4tTq4QVSalmU6yBbk27i1OrhBZUrmtTrIGTTbuLU6uEH0O2dVOsgcFNu4xTq4QcU7trU6yCAeHsrgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmoCrXsYMPQkBEiYQ/gAAATYCGQ2hyb21lV0GGQ2hyb21lFlSua6mup9eBAXPFh0peW3PKd6aDgQFV7oEBhoVWX1ZQOOCKsIGguoFaU8CBAR9DtnUBAAAAAAABFOeBAKBBDqFAyYEAAADwCgCdASqgAFoACocIhYWImYSIOAIZwzoL4BjwMlAfz9+FKmAgA7X+vGcGPvgZ6X+v9ecY8yssuAzBFsBYbgHUp8eIu8bgRBb2KnEwFnh2aaiSQdcqQkSiGUz3A5BogccA/t/QE3PS9aWhck5pXk0S/iB3pmAsEgGC+9vdCyTgjlOrXinMPEHgHjsJv49flaCcHnkKB3rqcuuv1aR10QFY3z7Rj1kSWY1cvwyneq3AjmYgBJo5F7MwkntpBLZbZjD9KLcFAHWhv6a97oEBpbhQBQCdASqgAFoACocIhYWImYSIOAIABigPCHVUmu4h1VJruIdVSa7iHVUmu4h1VJruIbwA/uuuABxTu2uNu4uzgQC3hveBAfGBwQ==";
 
-    private static byte[] SilentWave()
+    internal static byte[] SilentWave()
     {
         using MemoryStream stream = new();
         using BinaryWriter writer = new(stream);
-        writer.Write("RIFF"u8); writer.Write(16036); writer.Write("WAVEfmt "u8); writer.Write(16); writer.Write((short)1); writer.Write((short)1);
-        writer.Write(8000); writer.Write(16000); writer.Write((short)2); writer.Write((short)16); writer.Write("data"u8); writer.Write(16000); writer.Write(new byte[16000]);
+        writer.Write("RIFF"u8); writer.Write(64036); writer.Write("WAVEfmt "u8); writer.Write(16); writer.Write((short)1); writer.Write((short)1);
+        writer.Write(8000); writer.Write(16000); writer.Write((short)2); writer.Write((short)16); writer.Write("data"u8); writer.Write(64000); writer.Write(new byte[64000]);
         return stream.ToArray();
+    }
+    internal static ChatMediaStream FixtureMedia(byte[] bytes, string contentType, string? range)
+    {
+        if (string.IsNullOrEmpty(range)) return new(new MemoryStream(bytes, writable: false), contentType, bytes.Length);
+        if (!RangeHeaderValue.TryParse(range, out RangeHeaderValue? parsed) || parsed.Unit != "bytes" || parsed.Ranges.Count != 1)
+            throw new InvalidOperationException("Unexpected fixture media range.");
+        RangeItemHeaderValue item = parsed.Ranges.Single();
+        long start = item.From ?? Math.Max(0, bytes.Length - (item.To ?? 0));
+        long end = item.From is null ? bytes.Length - 1 : Math.Min(bytes.Length - 1, item.To ?? bytes.Length - 1);
+        if (start < 0 || start >= bytes.Length || end < start) return new(Stream.Null, contentType, 0, $"bytes */{bytes.Length}", 416);
+        int count = checked((int)(end - start + 1));
+        return new(new MemoryStream(bytes, checked((int)start), count, writable: false), contentType, count, $"bytes {start}-{end}/{bytes.Length}", 206);
     }
     private static void RaiseDrop(ChatViewV2 view, string file)
     {
@@ -397,9 +430,9 @@ internal static class ChatFullShellWpfTests
         await File.WriteAllBytesAsync(path, bytes);
         return bytes;
     }
-    private static async Task CaptureNativeControlsAsync(CoreWebView2 core, string directory, string scenario)
+    private static async Task CapturePlayerControlsAsync(CoreWebView2 core, string directory, string scenario)
     {
-        using JsonDocument remote = JsonDocument.Parse(await core.CallDevToolsProtocolMethodAsync("Runtime.evaluate", "{\"expression\":\"window.atlasNativeViewerProbe\"}"));
+        using JsonDocument remote = JsonDocument.Parse(await core.CallDevToolsProtocolMethodAsync("Runtime.evaluate", "{\"expression\":\"window.atlasNativeViewerProbe.closest('.media-player')\"}"));
         string objectId = remote.RootElement.GetProperty("result").GetProperty("objectId").GetString()!;
         using JsonDocument described = JsonDocument.Parse(await core.CallDevToolsProtocolMethodAsync("DOM.describeNode", JsonSerializer.Serialize(new { objectId })));
         int backendId = described.RootElement.GetProperty("node").GetProperty("backendNodeId").GetInt32();
@@ -420,7 +453,7 @@ internal static class ChatFullShellWpfTests
         }
         JsonElement[] visible = descendants.Where(node => !node.GetProperty("ignored").GetBoolean()).ToArray();
         string Role(JsonElement node) => node.TryGetProperty("role", out JsonElement role) ? role.GetProperty("value").GetString() ?? "" : "";
-        JsonElement state = await Script(core, "(() => {const p=window.atlasNativeViewerProbe;const r=p.getBoundingClientRect();return {tag:p.tagName,currentTime:p.currentTime,duration:p.duration,paused:p.paused,ended:p.ended,rate:p.playbackRate,volume:p.volume,muted:p.muted,readyState:p.readyState,networkState:p.networkState,src:p.currentSrc,controls:p.controls,inDialog:!!p.closest('dialog'),rect:{x:r.x,y:r.y,width:r.width,height:r.height}};})()");
+        JsonElement state = await Script(core, "(() => {const p=window.atlasNativeViewerProbe,s=p.closest('.media-player'),r=s.getBoundingClientRect();return {tag:p.tagName,currentTime:p.currentTime,duration:p.duration,paused:p.paused,ended:p.ended,rate:p.playbackRate,volume:p.volume,muted:p.muted,readyState:p.readyState,networkState:p.networkState,src:p.currentSrc,controls:p.controls,saveVisible:!s.querySelector('.media-save').hidden,inDialog:!!p.closest('dialog'),rect:{x:r.x,y:r.y,width:r.width,height:r.height}};})()");
         await File.WriteAllTextAsync(System.IO.Path.Combine(directory, scenario + "-controls.json"), JsonSerializer.Serialize(new
         {
             scenario, playerState = state, buttons = visible.Count(node => Role(node) == "button"), sliders = visible.Count(node => Role(node) == "slider"),
@@ -429,8 +462,18 @@ internal static class ChatFullShellWpfTests
         }, new JsonSerializerOptions { WriteIndented = true }));
         await File.WriteAllTextAsync(System.IO.Path.Combine(directory, scenario + "-ax-tree.json"), rawTree);
         await core.CallDevToolsProtocolMethodAsync("Runtime.releaseObject", JsonSerializer.Serialize(new { objectId }));
-        Check(visible.Count(node => Role(node) == "button") >= 2 && visible.Any(node => Role(node) == "slider"),
-            $"Native media buttons and timeline remain accessible in {scenario}; a controls attribute alone is insufficient.");
+        Check(visible.Count(node => Role(node) == "button") >= 3 && visible.Any(node => Role(node) == "slider") && !state.GetProperty("controls").GetBoolean(),
+            $"Custom media buttons and timeline remain accessible in the real WebView in {scenario}.");
+        Check(!state.GetProperty("saveVisible").GetBoolean(), $"Draft player keeps saving in the context menu in {scenario}.");
+        await core.ExecuteScriptAsync("window.atlasNativeViewerProbe.closest('.media-player').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:700,clientY:400}))");
+        if (state.GetProperty("tag").GetString() == "AUDIO")
+        {
+            await UntilScript(core, "!document.querySelector('#context-menu').hidden&&document.querySelectorAll('#context-menu .menu-item').length===1&&/Enregistrer sous|Save as/.test(document.querySelector('#context-menu').textContent)",
+                $"The draft audio context menu exposes Save as in {scenario}.");
+            await core.ExecuteScriptAsync("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
+            await UntilScript(core, "document.querySelector('#context-menu').hidden", "Escape closes only the save context menu.");
+        }
+        else Check((await Script(core, "document.querySelector('#context-menu').hidden")).GetBoolean(), $"Video has no save context menu in {scenario}.");
         Check(state.GetProperty("rate").GetDouble() == 1.25 && Math.Abs(state.GetProperty("volume").GetDouble() - .37) < .001
             && state.GetProperty("muted").GetBoolean() && state.GetProperty("paused").GetBoolean(),
             $"The native player preserves the fixture playback rate, volume, mute and paused state in {scenario}.");

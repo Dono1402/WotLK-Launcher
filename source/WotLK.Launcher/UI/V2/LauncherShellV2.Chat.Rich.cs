@@ -267,8 +267,8 @@ public partial class LauncherShellV2
                 case "retrySend": await workspace.RetrySendAsync(payload.GetProperty("clientMessageId").GetGuid()); break;
                 case "openExternal": OpenRichExternal(Text("url")); break;
                 case "openProfile": OpenRichProfile(payload.GetProperty("accountId").GetUInt32()); break;
-                case "downloadAttachment": await SaveRichAttachmentAsync(workspace, request, Text("attachmentId"), false); break;
-                case "openAttachment": await SaveRichAttachmentAsync(workspace, request, Text("attachmentId"), true); break;
+                case "downloadAttachment": await SaveRichAttachmentAsync(workspace, request, payload, false); break;
+                case "openAttachment": await SaveRichAttachmentAsync(workspace, request, payload, true); break;
                 default: throw new ChatWorkspaceException("chat-invalid-request");
             }
             if (ReferenceEquals(workspace, _chatWorkspace) && workspace.AcceptsAction(request.SessionId, request.OwnerAccountId, request.Sequence))
@@ -326,15 +326,52 @@ public partial class LauncherShellV2
         else throw new ChatWorkspaceException("chat-profile-unavailable");
     }
 
-    private async Task SaveRichAttachmentAsync(LauncherChatWorkspace workspace, ChatRichActionEventArgs request, string attachmentId, bool open)
+    internal static ChatAttachmentDto ResolveRichAttachmentForSave(ChatWorkspaceSnapshot snapshot, string? attachmentId, string? uploadId)
     {
-        ChatWorkspaceSnapshot snapshot = workspace.CurrentSnapshot;
-        ChatAttachmentDto attachment = snapshot.Messages.Concat(snapshot.State.Threads.Select(thread => thread.LastMessage).OfType<ChatMessageDto>())
-            .Concat(snapshot.State.Threads.SelectMany(thread => thread.PinnedMessages)).SelectMany(message => message.Attachments)
-            .FirstOrDefault(item => item.Id == attachmentId) ?? throw new ChatWorkspaceException("chat-attachment-not-found");
+        if (string.IsNullOrWhiteSpace(attachmentId) == string.IsNullOrWhiteSpace(uploadId))
+            throw new ChatWorkspaceException("chat-invalid-request");
+        ChatAttachmentDto attachment;
+        if (!string.IsNullOrWhiteSpace(uploadId))
+        {
+            ChatWorkspaceUpload upload = snapshot.Uploads.FirstOrDefault(item => item.LocalId == uploadId
+                && item.ThreadId == snapshot.SelectedThreadId && snapshot.State.Threads.Any(thread => thread.Id == item.ThreadId)
+                && snapshot.Draft?.ThreadId == item.ThreadId && snapshot.Draft.AttachmentIds.Any(id => id == item.LocalId || id == item.Attachment?.Id))
+                ?? throw new ChatWorkspaceException("chat-attachment-not-found");
+            if (upload.Attachment is { } completed) ValidateRichSaveFormat(completed);
+            attachment = new ChatAttachmentDto { Id = upload.LocalId, FileName = upload.FileName, ContentType = upload.ContentType,
+                Size = upload.Size, Kind = ChatAttachmentFormats.TryGetByFileName(upload.FileName, out ChatAttachmentFormat? format) ? format.Kind : "document" };
+        }
+        else
+        {
+            attachment = snapshot.Messages.Concat(snapshot.State.Threads.Select(thread => thread.LastMessage).OfType<ChatMessageDto>())
+                .Concat(snapshot.State.Threads.SelectMany(thread => thread.PinnedMessages)).Where(message => message.DeletedAt is null)
+                .SelectMany(message => message.Attachments).FirstOrDefault(item => item.Id == attachmentId)
+                ?? throw new ChatWorkspaceException("chat-attachment-not-found");
+        }
+        ValidateRichSaveFormat(attachment);
+        return attachment;
+    }
+
+    private static void ValidateRichSaveFormat(ChatAttachmentDto attachment)
+    {
         string name = Path.GetFileName(attachment.FileName);
-        if (name != attachment.FileName || name.Length == 0) throw new ChatWorkspaceException("chat-invalid-file");
-        _ = ChatAttachmentFileSource.ContentTypeForName(name);
+        if (name != attachment.FileName || name.Length is 0 or > 255 || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+            || attachment.Size is <= 0 or > ChatLimits.MaximumAttachmentBytes) throw new ChatWorkspaceException("chat-invalid-file");
+        if (!ChatAttachmentFormats.TryGetByFileName(name, out ChatAttachmentFormat? format))
+            throw new ChatWorkspaceException("chat-file-type-not-supported");
+        if (string.Equals(attachment.Kind, "video", StringComparison.OrdinalIgnoreCase)
+            || attachment.ContentType.TrimStart().StartsWith("video/", StringComparison.OrdinalIgnoreCase) || format.Kind == "video")
+            throw new ChatWorkspaceException("chat-forbidden");
+    }
+
+    private async Task SaveRichAttachmentAsync(LauncherChatWorkspace workspace, ChatRichActionEventArgs request, JsonElement payload, bool open)
+    {
+        string? attachmentId = payload.TryGetProperty("attachmentId", out JsonElement attachmentNode) ? attachmentNode.GetString() : null;
+        string? uploadId = payload.TryGetProperty("uploadId", out JsonElement uploadNode) ? uploadNode.GetString() : null;
+        ChatAttachmentDto attachment = ResolveRichAttachmentForSave(workspace.CurrentSnapshot, attachmentId, uploadId);
+        string name = attachment.FileName;
+        bool SourceStillAvailable() => workspace.AcceptsAction(request.SessionId, request.OwnerAccountId, request.Sequence)
+            && ResolveRichAttachmentForSave(workspace.CurrentSnapshot, attachmentId, uploadId) == attachment;
         string path;
         if (open)
         {
@@ -349,7 +386,7 @@ public partial class LauncherShellV2
             if (dialog.ShowDialog(this) != true) return;
             path = dialog.FileName;
         }
-        if (!workspace.AcceptsAction(request.SessionId, request.OwnerAccountId, request.Sequence)) return;
+        if (!SourceStillAvailable()) return;
         string temporary = path + "." + Guid.NewGuid().ToString("N") + ".partial";
         try
         {
@@ -372,7 +409,7 @@ public partial class LauncherShellV2
                 if (copied != attachment.Size) throw new ChatWorkspaceException("chat-invalid-response");
                 await output.FlushAsync();
             }
-            if (!workspace.AcceptsAction(request.SessionId, request.OwnerAccountId, request.Sequence)) throw new OperationCanceledException();
+            if (!SourceStillAvailable()) throw new OperationCanceledException();
             File.Move(temporary, path, overwrite: !open);
             if (open) Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
         }

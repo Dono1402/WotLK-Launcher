@@ -25,13 +25,14 @@ public partial class ChatViewV2
         + "frame-src https://www.youtube.com/embed/ https://www.youtube-nocookie.com/embed/ https://player.vimeo.com/video/; "
         + "form-action 'none'; frame-ancestors 'none'";
     private WebView2CompositionControl? _richBrowser;
+    private ChatCompositionCadence? _richCadence;
     private CoreWebView2Environment? _richEnvironment;
     private JsonObject? _richSnapshot;
     private CancellationTokenSource _richMediaLifetime = new();
     private readonly CancellationTokenSource _richLifetime = new();
     private readonly ConcurrentDictionary<Guid, OwnedChatResponseStream> _richStreams = new();
     private readonly HashSet<string> _richClipboardFiles = new(StringComparer.OrdinalIgnoreCase);
-    private bool _richMode, _richInitializing, _richReady, _richActive, _richDisposed, _richPickerOpen;
+    private bool _richMode, _richInitializing, _richReady, _richActive, _richMediaActive, _richDisposed, _richPickerOpen;
     private Window? _richWindow;
 
     public event EventHandler<ChatRichActionEventArgs>? RichActionRequested;
@@ -76,10 +77,11 @@ public partial class ChatViewV2
         PublishRichSnapshot();
     }
 
-    public void SetRichActive(bool active)
+    public void SetRichActive(bool active, bool? playbackActive = null)
     {
         Dispatcher.VerifyAccess();
         _richActive = active;
+        _richMediaActive = playbackActive ?? active;
         PublishRichSnapshot();
     }
 
@@ -122,6 +124,9 @@ public partial class ChatViewV2
 
     private bool IsRichActuallyActive => _richMode && _richActive && IsLoaded && IsVisible
         && _richWindow is { IsActive: true, WindowState: not WindowState.Minimized };
+    private bool IsRichMediaActive => _richMode && _richMediaActive && IsLoaded
+        && Guid.TryParse(NodeText(_richSnapshot?["sessionId"]), out Guid session) && session != Guid.Empty
+        && uint.TryParse(NodeText(_richSnapshot?["ownerAccountId"]), out uint owner) && owner != 0;
     private static string? NodeText(JsonNode? value) => value?.ToString();
     private static bool HasRevokedRichThread(JsonObject previous, JsonObject next)
     {
@@ -137,6 +142,7 @@ public partial class ChatViewV2
         JsonObject copy = (JsonObject)_richSnapshot.DeepClone();
         copy["type"] = "snapshot";
         copy["isActive"] = IsRichActuallyActive;
+        copy["isMediaActive"] = IsRichMediaActive;
         copy["mediaOrigin"] = RichMediaOrigin;
         _richBrowser?.CoreWebView2?.PostWebMessageAsJson(copy.ToJsonString(ChatJson.Options));
     }
@@ -170,6 +176,7 @@ public partial class ChatViewV2
             _richEnvironment = environment;
             await browser.EnsureCoreWebView2Async(environment);
             _richLifetime.Token.ThrowIfCancellationRequested();
+            _richCadence = ChatCompositionCadence.Attach(browser);
             CoreWebView2 core = browser.CoreWebView2;
             core.Settings.AreDefaultContextMenusEnabled = false;
             core.Settings.AreDevToolsEnabled = false;
@@ -404,6 +411,8 @@ public partial class ChatViewV2
         _richLifetime.Cancel();
         _richMediaLifetime.Cancel();
         foreach (OwnedChatResponseStream stream in _richStreams.Values) stream.Dispose();
+        _richCadence?.Dispose();
+        _richCadence = null;
         _richBrowser?.Dispose();
         _richBrowser = null;
         _richSnapshot = null;

@@ -6,7 +6,9 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>Messages · Atlas</title>
   <link rel="stylesheet" href="chat.css">
+  <link rel="stylesheet" href="chat-media.css">
   <script defer src="vendor/markdown-it-14.1.0.min.js"></script>
+  <script defer src="chat-media.js"></script>
   <script defer src="chat-render.js"></script>
   <script defer src="chat.js"></script>
 </head>
@@ -85,7 +87,7 @@
   <div id="context-menu" class="context-menu" role="menu" hidden></div>
   <div id="reaction-picker" class="reaction-picker" role="dialog" aria-label="Choisir une réaction" hidden></div>
   <dialog id="app-dialog" class="app-dialog"><form method="dialog" class="dialog-shell"><header class="dialog-heading"><div><h2 id="dialog-title"></h2><p id="dialog-subtitle"></p></div><button class="icon-button" value="cancel" data-title="close"><svg class="icon"><use href="#i-close"/></svg></button></header><div id="dialog-content" class="dialog-content"></div><footer id="dialog-footer" class="dialog-footer"></footer></form></dialog>
-  <dialog id="image-dialog" class="image-dialog" aria-label="Image"><img id="image-dialog-image" alt=""><div id="media-dialog-player-host" hidden><p id="media-dialog-title" hidden></p></div></dialog>
+  <dialog id="image-dialog" class="image-dialog" aria-label="Image"><img id="image-dialog-image" alt="" draggable="false"><div id="media-dialog-player-host" hidden></div></dialog>
   <div id="toast" class="toast" role="status" hidden></div>
 </body>
 </html>

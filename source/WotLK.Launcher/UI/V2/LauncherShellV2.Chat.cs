@@ -216,12 +216,15 @@ public partial class LauncherShellV2
         && !AuthState.IsOpen && !FriendsState.IsOpen && !ProfileState.IsOpen && !AvatarCropState.IsOpen
         && !ActivityState.IsOpen && !PatchNoteState.IsOpen;
 
+    private bool IsChatMediaActive => !_chatPresentationClosed && IsLoaded
+        && CurrentPage == LauncherShellPage.Chat && !AuthState.IsOpen;
+
     private void RefreshChatViewActivation()
     {
         bool active = IsChatActuallyActive;
         bool legacy = _chatWorkspace is null || _chatWorkspace.CurrentSnapshot.IsLegacyFallback;
         _chatCoordinator?.SetViewActive(active && legacy);
         _chatWorkspace?.SetViewActive(active && !legacy);
-        ChatView.SetRichActive(active && !legacy);
+        ChatView.SetRichActive(active && !legacy, IsChatMediaActive && !legacy);
     }
 }

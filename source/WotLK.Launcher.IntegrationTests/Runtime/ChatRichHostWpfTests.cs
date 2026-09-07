@@ -28,6 +28,7 @@ internal static class ChatRichHostWpfTests
             await ValidateAvatarRoutesAsync();
             ValidateOwnCharacterProjection();
             ValidatePresenceProjection();
+            ValidateAttachmentSaveSources();
             TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
             Thread thread = new(() =>
             {
@@ -69,7 +70,7 @@ internal static class ChatRichHostWpfTests
         True(ChatViewV2.IsRichFrame("https://player.vimeo.com/video/123456"), "Vimeo fixed embed accepted.");
         foreach (string source in new[] { "https://youtube.com/watch?v=abcdefghijk", "https://www.youtube.com/redirect", "https://127.0.0.1/video/123", "javascript:alert(1)" })
             True(!ChatViewV2.IsRichFrame(source), "Arbitrary iframe navigation rejected.");
-        foreach (string resource in new[] { "", "chat.css", "chat.js", "chat-render.js", "vendor/markdown-it-14.1.0.min.js", "fonts/Inter-Regular.ttf" })
+        foreach (string resource in new[] { "", "chat.css", "chat.js", "chat-render.js", "chat-media.js", "chat-media.css", "vendor/markdown-it-14.1.0.min.js", "fonts/Inter-Regular.ttf" })
         {
             var asset = ChatViewV2.OpenRichAsset(new Uri(ChatViewV2.RichOrigin + resource));
             using Stream? stream = asset.Stream;
@@ -106,12 +107,17 @@ internal static class ChatRichHostWpfTests
         ChatViewV2 view = new() { RichUserDataFolder = Path.Combine(directory, "webview-data-" + Guid.NewGuid().ToString("N")) };
         List<ChatRichActionEventArgs> actions = [];
         List<string> mediaRequests = [];
+        byte[] activityWave = ChatFullShellWpfTests.SilentWave();
         view.RichActionRequested += (_, args) => actions.Add(args);
         view.MediaResolver = (key, range, ct) =>
         {
             mediaRequests.Add(key);
-            return Task.FromResult<ChatMediaStream?>(key == "attachments/fixture-image"
-                ? new(new MemoryStream(Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aC9sAAAAASUVORK5CYII=")), "image/png") : null);
+            return Task.FromResult<ChatMediaStream?>(key switch
+            {
+                "attachments/fixture-image" => new(new MemoryStream(Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aC9sAAAAASUVORK5CYII=")), "image/png"),
+                "attachments/native-activity-wave" => ChatFullShellWpfTests.FixtureMedia(activityWave, "audio/wav", range),
+                _ => null
+            });
         };
         view.ApplyRichSnapshot(Snapshot());
         view.SetRichMode(true);
@@ -135,6 +141,10 @@ internal static class ChatRichHostWpfTests
             await UntilScript(core, "document.querySelector('#thread-avatar .presence-dot')?.dataset.presence==='away'&&document.querySelector('.message-avatar .presence-dot')?.dataset.presence==='away'", "Native WebView uses current contact presence in both the header and old message avatar.");
             await Until(() => view.IsRichComposerAcceptingFiles, "Real composer publishes its initial native file permission.");
             True(!window.IsActive && window.Left < -10000 && !window.ShowInTaskbar, "Fixture cannot activate or appear on user desktop.");
+            await ValidateMediaActivationAsync(view, window, core, directory);
+            True(mediaRequests.Count > 0 && mediaRequests.All(key => key == "attachments/native-activity-wave"),
+                "Background playback uses only its authorized relative native fixture key.");
+            mediaRequests.Clear();
             ValidateNativeDrops(view, directory);
             BitmapSource decoded = await Task.Run(() =>
             {
@@ -195,6 +205,119 @@ internal static class ChatRichHostWpfTests
             }
         }
         finally { view.DisposeRich(); window.Close(); }
+    }
+
+    private static async Task ValidateMediaActivationAsync(ChatViewV2 view, Window window, CoreWebView2 core, string directory)
+    {
+        List<object> playbackEvidence = [];
+        async Task Record(string stage)
+        {
+            using JsonDocument state = JsonDocument.Parse(await core.ExecuteScriptAsync("({time:window.atlasNativeActivityPlayer.currentTime,paused:window.atlasNativeActivityPlayer.paused,muted:window.atlasNativeActivityPlayer.muted,readyState:window.atlasNativeActivityPlayer.readyState,pauseEvents:window.atlasNativeActivityPauses,scriptPauseCalls:window.atlasNativeActivityPauseCalls,isActive:window.atlasNativeSnapshotProbe?.isActive,isMediaActive:window.atlasNativeSnapshotProbe?.isMediaActive,visibility:document.visibilityState,focused:document.hasFocus()})"));
+            playbackEvidence.Add(new { stage, nativeWindowState = window.WindowState.ToString(), nativeWindowActive = window.IsActive, state = state.RootElement.Clone() });
+            await File.WriteAllTextAsync(Path.Combine(directory, "native-playback-activity.json"), JsonSerializer.Serialize(playbackEvidence, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        await core.ExecuteScriptAsync("window.atlasNativeSnapshotProbe=null;window.atlasNativeSnapshotListener=event=>{if(event.data?.type==='snapshot')window.atlasNativeSnapshotProbe=event.data;};chrome.webview.addEventListener('message',window.atlasNativeSnapshotListener)");
+        view.SetRichActive(false, true);
+        await UntilScript(core, "window.atlasNativeSnapshotProbe?.isActive===false&&window.atlasNativeSnapshotProbe.isMediaActive===true",
+            "Native read activity stays false while background media is allowed in the selected Messages page.");
+        await core.ExecuteScriptAsync("window.atlasNativeActivityPlayer=document.createElement('audio');window.atlasNativeActivityPlayer.muted=true;window.atlasNativeActivityPlayer.preload='auto';window.atlasNativeActivityPlayer.src='https://atlas-chat-media.invalid/attachments/native-activity-wave';window.atlasNativeActivityPauses=0;window.atlasNativeActivityPlayer.addEventListener('pause',()=>window.atlasNativeActivityPauses++);window.atlasNativeActivityShell=AtlasChatMedia.create(window.atlasNativeActivityPlayer);window.atlasNativeActivityShell.style.cssText='position:fixed;left:20px;top:20px;width:250px';document.body.append(window.atlasNativeActivityShell)");
+        // Every PCM sample is zero, so this produces no sound even unmuted.
+        // Muted media behaves differently when the native window is hidden;
+        // use the ordinary audio playback state while the PCM remains silent.
+        await core.ExecuteScriptAsync("window.atlasNativeActivityPlayer.muted=false;window.atlasNativeActivityPauseCalls=[];window.atlasNativeActivityPlayer.pause=function(){window.atlasNativeActivityPauseCalls.push(new Error().stack);return HTMLMediaElement.prototype.pause.call(this)}");
+        await UntilScript(core, "window.atlasNativeActivityPlayer.readyState>=3&&Math.abs(window.atlasNativeActivityPlayer.duration-4)<.02", "The inactive native window decodes real four-second silent audio.");
+        await core.ExecuteScriptAsync("window.atlasNativeActivityShell.querySelector('.media-play').click()");
+        await UntilScript(core, "!window.atlasNativeActivityPlayer.paused&&window.atlasNativeActivityPlayer.currentTime>.03", "Custom Play starts real audio while the native window has no focus.");
+        await Record("playing-inactive");
+        await core.ExecuteScriptAsync("window.atlasNativeActivityBefore=window.atlasNativeActivityPlayer.currentTime");
+        await core.ExecuteScriptAsync("window.atlasNativeSnapshotProbe=null");
+        window.WindowState = WindowState.Minimized;
+        await UntilScript(core, "window.atlasNativeSnapshotProbe?.isActive===false&&window.atlasNativeSnapshotProbe.isMediaActive===true",
+            "Minimizing the inactive fixture does not revoke the separate native media activity signal.");
+        await UntilScript(core, "!window.atlasNativeActivityPlayer.paused&&window.atlasNativeActivityPauses===0&&window.atlasNativeActivityPlayer.currentTime>window.atlasNativeActivityBefore+.08", "Actual native playback time advances while minimized with no pause event.");
+        await Record("playing-minimized");
+        window.WindowState = WindowState.Normal;
+        await core.ExecuteScriptAsync("window.atlasNativeActivityBefore=window.atlasNativeActivityPlayer.currentTime");
+        await core.ExecuteScriptAsync("window.atlasNativeSnapshotProbe=null");
+        window.Hide();
+        await UntilScript(core, "window.atlasNativeSnapshotProbe?.isActive===false&&window.atlasNativeSnapshotProbe.isMediaActive===true",
+            "Hiding the selected Messages window keeps playback eligible without marking messages read.");
+        await Record("after-hide");
+        try { await UntilScript(core, "!window.atlasNativeActivityPlayer.paused&&window.atlasNativeActivityPauses===0&&window.atlasNativeActivityPlayer.currentTime>window.atlasNativeActivityBefore+.08", "Actual native playback time advances while the window is hidden with no pause event."); }
+        catch { await Record("hidden-progress-failed"); throw; }
+        await Record("playing-hidden");
+        window.Show();
+        await UntilScript(core, "!window.atlasNativeActivityPlayer.paused&&window.atlasNativeActivityPauses===0", "Showing the inactive native window preserves ongoing playback.");
+        await Record("playing-restored-inactive");
+        view.SetRichActive(false, false);
+        await UntilScript(core, "window.atlasNativeSnapshotProbe?.isActive===false&&window.atlasNativeSnapshotProbe.isMediaActive===false",
+            "Leaving the selected Messages page revokes native media activity.");
+        await UntilScript(core, "window.atlasNativeActivityPlayer.paused&&window.atlasNativeActivityPauses===1", "Leaving Messages actually stops native playback with one pause event.");
+        await Record("paused-after-leaving-messages");
+        await core.ExecuteScriptAsync("AtlasChatMedia.dispose(window.atlasNativeActivityShell);window.atlasNativeActivityShell.remove();delete window.atlasNativeActivityShell;delete window.atlasNativeActivityPlayer;delete window.atlasNativeActivityPauses;delete window.atlasNativeActivityBefore;delete window.atlasNativeActivityPauseCalls");
+        view.SetRichActive(true);
+        await UntilScript(core, "window.atlasNativeSnapshotProbe?.isActive===false&&window.atlasNativeSnapshotProbe.isMediaActive===true",
+            "The legacy SetRichActive overload retains its media fallback while window focus still gates read activity.");
+        view.ApplyRichSnapshot(Snapshot(Guid.Empty));
+        await UntilScript(core, "window.atlasNativeSnapshotProbe?.sessionId==='00000000-0000-0000-0000-000000000000'&&window.atlasNativeSnapshotProbe.isMediaActive===false",
+            "An invalid native session cannot retain media activity.");
+        JsonObject noOwner = JsonSerializer.SerializeToNode(Snapshot(), ChatJson.Options)!.AsObject();
+        noOwner["ownerAccountId"] = 0;
+        view.ApplyRichSnapshot(noOwner);
+        await UntilScript(core, "String(window.atlasNativeSnapshotProbe?.ownerAccountId)==='0'&&window.atlasNativeSnapshotProbe.isMediaActive===false",
+            "An unauthenticated native owner cannot retain media activity.");
+        view.ApplyRichSnapshot(Snapshot());
+        await UntilScript(core, "window.atlasNativeSnapshotProbe?.isActive===false&&window.atlasNativeSnapshotProbe.isMediaActive===true",
+            "Restoring the valid native identity restores only the permitted background media signal.");
+        True(!window.IsActive && !window.ShowInTaskbar && window.Left < -10000 && window.Top < -10000,
+            "Media-activity checks keep the fixture inactive and outside the desktop.");
+        await core.ExecuteScriptAsync("chrome.webview.removeEventListener('message',window.atlasNativeSnapshotListener);delete window.atlasNativeSnapshotListener;delete window.atlasNativeSnapshotProbe");
+    }
+
+    private static void ValidateAttachmentSaveSources()
+    {
+        ChatAttachmentDto image = new() { Id = "sent-image", FileName = "portrait.png", ContentType = "image/png", Kind = "image", Size = 12 };
+        ChatWorkspaceUpload draft = new() { LocalId = "local-audio", ThreadId = "17", FileName = "note.wav", ContentType = "audio/wav", Size = 20, Status = "uploading" };
+        ChatWorkspaceSnapshot snapshot = new() { SessionId = Session, OwnerAccountId = 42, SelectedThreadId = "17",
+            State = new() { Threads = [new() { Id = "17" }] },
+            Messages = [new() { Id = 1, ThreadId = "17", Attachments = [image] }], Uploads = [draft],
+            Draft = new() { ThreadId = "17", AttachmentIds = [draft.LocalId] } };
+        True(LauncherShellV2.ResolveRichAttachmentForSave(snapshot, image.Id, null) == image, "Sent non-video attachments keep native Save As support.");
+        ChatAttachmentDto local = LauncherShellV2.ResolveRichAttachmentForSave(snapshot, null, draft.LocalId);
+        True(local.Id == draft.LocalId && local.FileName == draft.FileName && local.Size == draft.Size && local.Kind == "audio",
+            "A current local draft resolves by opaque upload ID before upload completion, without exposing its source path.");
+        ChatAttachmentDto completed = new() { Id = "remote-audio", FileName = draft.FileName, ContentType = draft.ContentType, Kind = "audio", Size = draft.Size };
+        True(LauncherShellV2.ResolveRichAttachmentForSave(snapshot with { Uploads = [draft with { Attachment = completed, Status = "complete" }] }, null, draft.LocalId) == local,
+            "Finishing the upload while Save As is open does not change the native local save source.");
+        True(LauncherShellV2.ResolveRichAttachmentForSave(snapshot with { Uploads = [draft with { Attachment = completed }],
+            Draft = snapshot.Draft with { AttachmentIds = [completed.Id] } }, null, draft.LocalId) == local,
+            "A draft using the completed server attachment ID still resolves its authorized local upload.");
+        void Reject(ChatWorkspaceSnapshot current, string? attachmentId, string? uploadId, string expected, string description)
+        {
+            bool rejected = false;
+            try { LauncherShellV2.ResolveRichAttachmentForSave(current, attachmentId, uploadId); }
+            catch (ChatWorkspaceException error) { rejected = error.Message == expected; }
+            True(rejected, description);
+        }
+        Reject(snapshot, image.Id, draft.LocalId, "chat-invalid-request", "A save request cannot combine attachment and upload IDs.");
+        Reject(snapshot, null, null, "chat-invalid-request", "A save request requires one opaque source ID.");
+        Reject(snapshot, "unknown", null, "chat-attachment-not-found", "Unknown sent media cannot open a save dialog.");
+        Reject(snapshot, null, "unknown", "chat-attachment-not-found", "Unknown local media cannot open a save dialog.");
+        Reject(snapshot with { SelectedThreadId = "18" }, null, draft.LocalId, "chat-attachment-not-found", "Draft saving stays within the selected conversation.");
+        Reject(snapshot with { State = new() }, null, draft.LocalId, "chat-attachment-not-found", "A revoked conversation cannot save its former local draft.");
+        Reject(snapshot with { Draft = snapshot.Draft with { AttachmentIds = [] } }, null, draft.LocalId, "chat-attachment-not-found", "Removed uploads cannot be saved from a stale draft menu.");
+        Reject(snapshot with { Messages = [snapshot.Messages[0] with { DeletedAt = DateTimeOffset.UtcNow }] }, image.Id, null,
+            "chat-attachment-not-found", "Deleted messages cannot be saved through a stale menu.");
+        foreach (ChatAttachmentDto video in new[] { image with { Kind = "VIDEO" }, image with { ContentType = " video/unknown; codecs=x" }, image with { FileName = "movie.MKV" } })
+            Reject(snapshot with { Messages = [snapshot.Messages[0] with { Attachments = [video] }] }, image.Id, null,
+                "chat-forbidden", "Native saving and external opening both reject video classified by kind, MIME or registered extension.");
+        Reject(snapshot with { Uploads = [draft with { FileName = "clip.webm", ContentType = "audio/wav" }] }, null, draft.LocalId,
+            "chat-forbidden", "The local draft path cannot bypass the video extension restriction.");
+        Reject(snapshot with { Uploads = [draft with { Attachment = completed with { ContentType = "video/mp4" } }] }, null, draft.LocalId,
+            "chat-forbidden", "Completed draft metadata cannot bypass the video MIME restriction.");
+        foreach (ChatAttachmentDto invalid in new[] { image with { FileName = "../portrait.png" }, image with { FileName = "bad|portrait.png" }, image with { Size = 0 } })
+            Reject(snapshot with { Messages = [snapshot.Messages[0] with { Attachments = [invalid] }] }, image.Id, null,
+                "chat-invalid-file", "Unsafe filenames and invalid lengths never reach a native save dialog.");
     }
 
     private static void ValidateNativeDrops(ChatViewV2 view, string directory)

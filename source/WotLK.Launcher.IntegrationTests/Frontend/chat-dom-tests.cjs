@@ -42,6 +42,7 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   const browser = await chromium.launch({executablePath:edgePath,headless:true,args:['--disable-gpu','--no-first-run','--disable-background-networking']});
   fixtureBrowser = browser;
   const page = await browser.newPage({viewport:fixedViewport,deviceScaleFactor:1});
+  await page.emulateMedia({reducedMotion:'no-preference'});
   const capture = name => page.screenshot({path:path.join(output,name),omitBackground:true});
   const iconOnlySend = expected => page.locator('#send-button').evaluate((node,label)=>{
     const box=node.getBoundingClientRect();
@@ -59,7 +60,15 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   });
   const errors = [];
   page.on('pageerror',error=>errors.push(error.message));
-  await page.route('**/*', async route => {
+  // Match the native resolver's byte ranges so Chromium can seek local media.
+  const fulfillMedia = (route,contentType,bytes) => {
+    const range=/^bytes=(\d+)-(\d*)$/.exec(route.request().headers().range||'');
+    const start=range?Number(range[1]):0,end=range&&range[2]?Math.min(Number(range[2]),bytes.length-1):bytes.length-1;
+    const headers={'Accept-Ranges':'bytes','Content-Length':String(end-start+1)};
+    if(range)headers['Content-Range']=`bytes ${start}-${end}/${bytes.length}`;
+    return route.fulfill({status:range?206:200,contentType,headers,body:bytes.subarray(start,end+1)});
+  };
+  const routeFixture = async route => {
     const url = new URL(route.request().url());
     if (url.origin === 'https://animeclub.fr' && url.pathname.startsWith('/atlas-messages/')) {
       const relative = decodeURIComponent(url.pathname.slice('/atlas-messages/'.length)) || 'index.html';
@@ -69,8 +78,10 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
       return route.fulfill({status:200,contentType:type,headers:{'Content-Security-Policy':policy},body:await fs.readFile(target)});
     }
     if (url.origin === 'https://atlas-chat-media.invalid') {
-      if (url.pathname.endsWith('fixture-video.webm')) return route.fulfill({status:200,contentType:'video/webm',body:fixtures.videoBytes});
-      if (url.pathname.endsWith('fixture-audio.wav')) return route.fulfill({status:200,contentType:'audio/wav',body:fixtures.audioBytes});
+      if (url.pathname.endsWith('viewer-video.webm')) return fulfillMedia(route,'video/webm',fixtures.viewerVideoBytes);
+      if (url.pathname.endsWith('viewer-audio.wav')) return fulfillMedia(route,'audio/wav',fixtures.viewerAudioBytes);
+      if (url.pathname.endsWith('fixture-video.webm')) return fulfillMedia(route,'video/webm',fixtures.videoBytes);
+      if (url.pathname.endsWith('fixture-audio.wav')) return fulfillMedia(route,'audio/wav',fixtures.audioBytes);
       if (url.pathname.endsWith('fixture-broken.mkv')) return route.fulfill({status:200,contentType:'video/x-matroska',body:'Synthetic unreadable media payload.'});
       if (url.pathname.includes('avatar')) return route.fulfill({status:200,contentType:'image/svg+xml',body:svgAvatar(url.pathname.split('/').at(-1))});
       if (url.pathname.includes('landscape')) return route.fulfill({status:200,contentType:'image/svg+xml',body:landscape});
@@ -80,13 +91,11 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
     }
     if (url.origin === 'https://www.youtube-nocookie.com' || url.origin === 'https://player.vimeo.com') return route.fulfill({status:200,contentType:'text/html',body:'<!doctype html><title>Fixture video</title><body style="margin:0;background:#081826;color:#ccddeb;display:grid;place-items:center;height:100vh;font:16px sans-serif">Lecteur de test isolé</body>'});
     return route.abort();
-  });
-  await page.addInitScript(() => {
-    window.__actions=[];
-    window.chrome=window.chrome||{};
-    window.chrome.webview={postMessage:message=>window.__actions.push(message),postMessageWithAdditionalObjects:(message,files)=>window.__actions.push({...message,additionalObjectCount:files.length}),addEventListener:()=>{}};
-  });
+  };
+  await page.route('**/*', routeFixture);
+  await page.addInitScript(installFixtureBridge);
   await page.goto(appUrl); await page.waitForFunction(()=>!!window.AtlasChat);
+  const runtime={node:process.version,browser:browser.version(),moveBefore:await page.evaluate(()=>typeof Element.prototype.moveBefore==='function')};
   check('Boot emits ready without synthetic account content',await page.evaluate(()=>__actions[0].action==='ready'&&document.querySelectorAll('.message').length===0));
   const apply = async value => { value.sequence=String(++sequence); await page.evaluate(value=>AtlasChat.applySnapshot(value),value); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))); };
   let state=clone(fixtures.snapshot); await apply(state); await page.waitForTimeout(80);
@@ -126,8 +135,10 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   check('Global DND snapshots do not recreate a local control or write another preference',await page.locator('#dnd-button,#settings-button,[role=switch]').count()===0&&await page.evaluate(()=>!__actions.some(a=>a.action==='preferences')));
 
 
+  await page.waitForFunction(()=>!document.querySelector('#app-dialog').open);
   await page.locator('#composer-input').fill('Brouillon conservé'); await page.waitForTimeout(310);
   const tabOrder=[];await page.locator('#composer-input').focus();for(let index=0;index<3;index++){await page.keyboard.press('Tab');tabOrder.push(await page.evaluate(()=>document.activeElement.id));}
+  if(tabOrder.join(',')!=='attach-button,share-game-button,send-button')console.error('Focus diagnostics: '+JSON.stringify({tabOrder,errors,...await page.evaluate(()=>({active:document.activeElement?.tagName,composer:document.querySelector('#composer-input').value,dialogs:[...document.querySelectorAll('dialog')].map(node=>({id:node.id,open:node.open,inert:node.inert,className:node.className})),buttons:[...document.querySelectorAll('.composer-toolbar button')].map(node=>({id:node.id,disabled:node.disabled,hidden:node.hidden,tabIndex:node.tabIndex}))}))}));
   check('Keyboard focus follows the right-hand attach, Armory and send order',tabOrder.join(',')==='attach-button,share-game-button,send-button');
   check('Draft text persists through native bridge with thread/session identity',await page.evaluate(()=>__actions.some(a=>a.action==='draft'&&a.payload.body==='Brouillon conservé'&&a.payload.threadId==='d:42:91'&&a.sessionId&&a.ownerAccountId===42)));
   await page.locator('#composer-input').fill(Array.from({length:12},(_,index)=>'Ligne '+index+' '+'.'.repeat(62)).join('\n'));
@@ -243,6 +254,7 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   state.draft={};state.messages=[fixtures.message('4999',fixtures.lyra,'Un fichier reste accessible même si le lecteur ne peut pas le décoder.',1,{attachments:[{id:'fixture-broken.mkv',fileName:'Vidéo non décodable.mkv',kind:'video',contentType:'video/x-matroska',size:'38',url:fixtures.mediaOrigin+'attachments/fixture-broken.mkv'}]})];await apply(state);await page.locator('.attachment video').evaluate(media=>{media.preload='metadata';media.load();});
   await page.locator('.media-playback-unavailable').waitFor({state:'visible'});
   check('An undecodable received media shows local playback feedback while keeping the original file download',await page.locator('.media-playback-unavailable').innerText().then(text=>text.trim().length>0&&!text.includes('mediaPlaybackUnavailable'))&&await page.locator('[data-attachment-id="fixture-broken.mkv"]').getByRole('button',{name:'Télécharger',exact:true}).count()===1&&await page.locator('#composer-error').count()===0);
+  await exerciseDraftMediaViewer(page,apply,capture);
 
   state=clone(fixtures.snapshot);state.sessionId='followup-pending-errors';state.messages=[fixtures.message('5001',fixtures.lyra,'Le message de mon ami reste intact.',1)];
   const failedPending=fixtures.pending(1,{body:'Cet envoi a été refusé.',status:'failed',canCancel:true,errorCode:'chat-forbidden'});
@@ -329,9 +341,9 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   check('The image lightbox closes native file admission and rejects hidden drops or image paste',lightboxFiles.actions.length===0&&lightboxFiles.acceptsFiles===false&&!lightboxFiles.overlay);
   await capture('chat-fr-image-lightbox-fixed.png');
   await page.locator('#image-dialog-image').click();check('Clicking the enlarged image leaves it open and never starts a download',await imageDialog.isVisible()&&await page.evaluate(before=>__actions.filter(action=>action.action==='downloadAttachment').length===before,downloadsBefore));
-  await page.keyboard.press('Escape');check('Escape closes the lightbox and restores focus to its original image',!await imageDialog.isVisible()&&await page.locator('.attachment-image').first().evaluate(node=>node===document.activeElement));
+  await page.keyboard.press('Escape');await imageDialog.waitFor({state:'hidden'});check('Escape closes the lightbox and restores focus to its original image',!await imageDialog.isVisible()&&await page.locator('.attachment-image').first().evaluate(node=>node===document.activeElement));
   check('Closing the lightbox publishes fresh native file admission for the same conversation',await page.evaluate(()=>__actions.filter(action=>action.action==='composerState').at(-1)?.payload.acceptsFiles===true));
-  await page.locator('.attachment-image').first().click();await imageDialog.click({position:{x:5,y:5}});check('Clicking the lightbox background closes it and restores image focus',!await imageDialog.isVisible()&&await page.locator('.attachment-image').first().evaluate(node=>node===document.activeElement));
+  await page.locator('.attachment-image').first().click();await imageDialog.click({position:{x:5,y:5}});await imageDialog.waitFor({state:'hidden'});check('Clicking the lightbox background closes it and restores image focus',!await imageDialog.isVisible()&&await page.locator('.attachment-image').first().evaluate(node=>node===document.activeElement));
 
   const removed=fixtures.message('3003',fixtures.lyra,'Texte effacé',5,{deletedAt:fixtures.at(6)});
   state.messages=[fixtures.message('3001',fixtures.lyra,'Message conservé',1),fixtures.message('3002',fixtures.self,'La réponse reste lisible.',3,{replyTo:{messageId:'3003',senderUsername:'Lyra',body:'Texte effacé',isDeleted:true}}),removed];state.state.threads[0].lastMessage=removed;state.state.threads[0].pinnedMessages=[removed];state.state.threads[0].unreadCount=2;state.state.threads[0].lastReadMessageId='3001';state.sessionId='polish-deleted';await page.evaluate(()=>window.__actions=[]);await apply(state);
@@ -401,6 +413,8 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   check('A new account without a formats declaration starts from legacy support instead of inheriting another account list',!await formatDrop('must-not-inherit.mkv')&&await formatDrop('legacy.png'));
   await apply(state);
 
+  await exerciseTimelineMotion(page,apply);
+  await apply(state);
   const many=[];for(let i=1;i<=80;i++)many.push(fixtures.message(String(1000+i),i%3?fixtures.lyra:fixtures.self,'Message de test '+i+' — une ligne conservée pendant les mises à jour du fil.\nDétail de la conversation pour vérifier le défilement.',i));
   state.messages=many;state.selectedThreadId='d:42:91';state.state.threads[0].lastMessage=many.at(-1);await apply(state);
   await page.locator('#timeline').evaluate(node=>{node.scrollTop=300;});await page.waitForTimeout(50);const before=await page.locator('#timeline').evaluate(node=>node.scrollTop);
@@ -410,7 +424,7 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   state.messages.unshift(...Array.from({length:15},(_,i)=>fixtures.message(String(985+i),fixtures.lyra,'Ancien message '+i+'\nDeuxième ligne',-20+i)));await apply(state);
   const anchorAfter=await page.locator(`[data-message-id="${anchorBefore.id}"]`).evaluate(node=>node.getBoundingClientRect().top-document.querySelector('#timeline').getBoundingClientRect().top);
   check('Prepending history preserves the visible message anchor',Math.abs(anchorAfter-anchorBefore.offset)<2);
-  await page.locator('#jump-latest-button').click();await page.waitForTimeout(60);check('Jump to latest confirms only the actual current last ID',await page.evaluate(()=>__actions.some(a=>a.action==='read'&&a.payload.throughMessageId==='1081')));
+  await page.locator('#jump-latest-button').click();await page.waitForFunction(()=>__actions.some(a=>a.action==='read'&&a.payload.throughMessageId==='1081'));check('Jump to latest confirms only the actual current last ID',await page.evaluate(()=>__actions.some(a=>a.action==='read'&&a.payload.throughMessageId==='1081')));
   const beforeInactive=await page.evaluate(()=>__actions.filter(a=>a.action==='read').length);state.isActive=false;state.messages.push(fixtures.message('1082',fixtures.lyra,'Caché',86));await apply(state);check('Inactive window cannot confirm newly arrived messages',await page.evaluate(()=>__actions.filter(a=>a.action==='read').length)===beforeInactive);
   state.isActive=true;state.locale='en';await apply(state);check('English translation covers composer and thread controls',await page.locator('#composer-input').getAttribute('placeholder')==='Write a message…');await page.locator('#toast').waitFor({state:'hidden'});await capture('chat-en-history-fixed.png');
   check('The English send control remains icon-only with its accessible name and tooltip',await iconOnlySend('Send'));
@@ -422,8 +436,230 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   const rejected=await page.evaluate(value=>AtlasChat.applySnapshot({...value,sequence:'0'}),state);check('Older snapshot sequence is rejected',rejected===false);
   await apply({...state,sessionId:'new-session',ownerAccountId:84,selectedThreadId:null,state:{...state.state,self:{accountId:84,username:'Second'},threads:[],contacts:[]},messages:[],draft:{}});
   check('Account change clears private messages, drafts and selection',await page.locator('.message').count()===0&&await page.locator('#composer-input').inputValue()==='');
+  const fallbackPage=await browser.newPage({viewport:fixedViewport,deviceScaleFactor:1});
+  fallbackPage.on('pageerror',error=>errors.push('Fallback: '+error.message));
+  await fallbackPage.emulateMedia({reducedMotion:'reduce'});await fallbackPage.route('**/*',routeFixture);
+  await fallbackPage.addInitScript(installFixtureBridge,{withoutMoveBefore:true});
+  await fallbackPage.goto(appUrl);await fallbackPage.waitForFunction(()=>!!window.AtlasChat);
+  runtime.fallbackMoveBefore=await fallbackPage.evaluate(()=>typeof Element.prototype.moveBefore==='function');
+  check('The separate older-runtime fixture really lacks the state-preserving DOM move API',runtime.fallbackMoveBefore===false);
+  const fallbackApply=async value=>{value.sequence=String(++sequence);await fallbackPage.evaluate(value=>AtlasChat.applySnapshot(value),value);await fallbackPage.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));};
+  await exerciseDraftMediaViewer(fallbackPage,fallbackApply,null,'fallback');await fallbackPage.close();
   check('No uncaught browser script errors',errors.length===0);
   const assetHashes={};for(const name of ['index.html','chat.css','chat.js','chat-render.js'])assetHashes[name]=createHash('sha256').update(await fs.readFile(path.join(assets,name))).digest('hex');
-  await fs.writeFile(path.join(output,'results.json'),JSON.stringify({passed:checks.length,viewport:fixedViewport,background:'Transparent DOM capture; native Citadel composition is verified separately.',assetHashes,checks,errors},null,2));
+  await fs.writeFile(path.join(output,'results.json'),JSON.stringify({passed:checks.length,viewport:fixedViewport,runtime,background:'Transparent DOM capture; native Citadel composition is verified separately.',assetHashes,checks,errors},null,2));
   await browser.close();console.log('Chat DOM: '+checks.length+' checks passed. Headless isolated Edge, synthetic accounts, no user session.');
 })().catch(async error=>{console.error(error);if(fixtureBrowser)await fixtureBrowser.close();process.exitCode=1;});
+
+function installFixtureBridge(options) {
+  window.__actions=[];window.__motionEvents=[];
+  window.chrome=window.chrome||{};
+  window.chrome.webview={postMessage:message=>window.__actions.push(message),postMessageWithAdditionalObjects:(message,files)=>window.__actions.push({...message,additionalObjectCount:files.length}),addEventListener:()=>{}};
+  if(options?.withoutMoveBefore) Object.defineProperty(Element.prototype,'moveBefore',{configurable:true,value:undefined});
+  const animate=Element.prototype.animate;
+  Element.prototype.animate=function(frames,options){
+    const animation=animate.call(this,frames,options);
+    window.__motionEvents.push({target:this,message:this.closest('.message'),queue:this.matches('.queued-file')?this:null,kind:'waapi',duration:typeof options==='number'?options:options?.duration||0,animation});
+    return animation;
+  };
+  document.addEventListener('animationstart',event=>{
+    const durations=getComputedStyle(event.target).animationDuration.split(',').map(value=>parseFloat(value)*1000);
+    window.__motionEvents.push({target:event.target,message:event.target.closest('.message'),queue:event.target.matches('.queued-file')?event.target:null,kind:'css',name:event.animationName,duration:Math.max(...durations)});
+  });
+}
+
+async function settleMotion(page) {
+  await page.waitForFunction(()=>document.getAnimations().every(animation=>animation.effect?.getTiming().iterations===Infinity||animation.playState!=='running'));
+}
+
+async function exerciseTimelineMotion(page,apply) {
+  await settleMotion(page);await page.emulateMedia({reducedMotion:'no-preference'});
+  let state=clone(fixtures.snapshot);state.sessionId='motion-timeline';state.draft={};state.pending=[];
+  state.messages=Array.from({length:60},(_,index)=>fixtures.message(String(7001+index),fixtures.lyra,'Message conservé '+index+'\nUne deuxième ligne pour une lecture stable.',index));
+  Object.assign(state.state.threads[0],{lastMessage:state.messages.at(-1),pinnedMessages:[],unreadCount:0,lastReadMessageId:'7060'});
+  await page.evaluate(()=>window.__motionEvents=[]);await apply(state);
+  check('Initial conversation history appears without replaying message entrance animations',await page.evaluate(()=>!__motionEvents.some(event=>event.message&&event.duration>0)));
+  await page.evaluate(()=>{window.__motionEvents=[];window.__actions=[];});
+  state.messages.push(fixtures.message('7061',fixtures.lyra,'Une nouvelle arrivée visible.',61));state.state.threads[0].lastMessage=state.messages.at(-1);await apply(state);
+  check('Only the new visible live message receives a short entrance animation',await page.evaluate(()=>{const events=__motionEvents.filter(event=>event.message&&event.duration>0);return events.length>0&&events.every(event=>event.message.dataset.messageId==='7061'&&event.duration<=220);}));
+  const entries=await page.evaluate(()=>__motionEvents.filter(event=>event.message&&event.duration>0).length);
+  await apply(state);state.messages.at(-1).reactions=[{emoji:'❤️',accountIds:[42],count:1}];await apply(state);
+  check('Repeated snapshots and reaction changes do not replay a message entrance',await page.evaluate(before=>__motionEvents.filter(event=>event.message&&event.duration>0).length===before,entries));
+  await settleMotion(page);
+  const pending=fixtures.pending(91,{body:'Un seul article pendant la confirmation.',status:'sending',canCancel:false});state.pending=[pending];await apply(state);
+  await page.locator('[data-client-message-id="'+pending.clientMessageId+'"]').evaluate(node=>window.__motionPending=node);
+  const pendingEntries=await page.evaluate(()=>__motionEvents.filter(event=>event.message===__motionPending&&event.duration>0).length);
+  state.messages.push(fixtures.message('7062',fixtures.self,pending.body,62,{clientMessageId:pending.clientMessageId}));state.pending=[];state.state.threads[0].lastMessage=state.messages.at(-1);await apply(state);
+  check('Server confirmation reuses the pending article and does not replay its entrance',await page.evaluate(before=>document.querySelector('[data-message-id="7062"]')===__motionPending&&!__motionPending.dataset.clientMessageId&&__motionEvents.filter(event=>event.message===__motionPending&&event.duration>0).length===before,pendingEntries));
+  await settleMotion(page);
+  const timeline=page.locator('#timeline');await timeline.evaluate(node=>node.scrollTop=280);await page.waitForTimeout(60);
+  const before=await timeline.evaluate(node=>node.scrollTop);await page.evaluate(()=>{window.__actions=[];window.__motionEvents=[];});
+  state.messages.push(fixtures.message('7063',fixtures.lyra,'Nouvelle arrivée pendant une ancienne lecture.',63));state.state.threads[0].lastMessage=state.messages.at(-1);await apply(state);
+  check('An offscreen arrival neither animates nor steals the current reading position',await page.evaluate(()=>!__motionEvents.some(event=>event.message&&event.duration>0)&&!__actions.some(action=>action.action==='read'))&&Math.abs(await timeline.evaluate(node=>node.scrollTop)-before)<2);
+  const anchor=await page.locator('#message-list').evaluate(node=>{const top=document.querySelector('#timeline').getBoundingClientRect().top,message=[...node.children].find(child=>child.dataset.messageId&&child.getBoundingClientRect().bottom>top+1);return{id:message.dataset.messageId,offset:message.getBoundingClientRect().top-top};});
+  state.messages.unshift(...Array.from({length:12},(_,index)=>fixtures.message(String(6989+index),fixtures.lyra,'Historique antérieur '+index+'\nDeuxième ligne.',index-15)));await apply(state);
+  const retainedOffset=await page.locator('[data-message-id="'+anchor.id+'"]').evaluate(node=>node.getBoundingClientRect().top-document.querySelector('#timeline').getBoundingClientRect().top);
+  check('Prepending old history keeps the visible anchor and never plays entrance animations',Math.abs(retainedOffset-anchor.offset)<2&&await page.evaluate(()=>!__motionEvents.some(event=>event.message&&event.duration>0)));
+  const jumpStart=await timeline.evaluate(node=>node.scrollTop);await page.locator('#jump-latest-button').click();
+  await page.waitForFunction(start=>{const node=document.querySelector('#timeline');return node.scrollTop>start+2&&node.scrollHeight-node.clientHeight-node.scrollTop>5;},jumpStart);
+  check('The explicit jump moves through intermediate positions before acknowledging the last message',await page.evaluate(()=>!__actions.some(action=>action.action==='read'&&action.payload.throughMessageId==='7063')));
+  await page.waitForFunction(()=>{const node=document.querySelector('#timeline');return node.scrollHeight-node.clientHeight-node.scrollTop<=2&&__actions.some(action=>action.action==='read'&&action.payload.throughMessageId==='7063');});
+  check('The smooth user jump ends at the actual bottom with the exact read cursor',await page.evaluate(()=>__actions.filter(action=>action.action==='read').at(-1)?.payload.throughMessageId==='7063'));
+  for(const gesture of ['wheel','pointer','keyboard']) {
+    await timeline.evaluate(node=>node.scrollTop=280);await page.waitForTimeout(60);await page.evaluate(()=>window.__actions=[]);
+    await page.locator('#jump-latest-button').click();
+    await page.waitForFunction(()=>{const node=document.querySelector('#timeline');return node.scrollTop>282&&node.scrollHeight-node.clientHeight-node.scrollTop>5;});
+    if(gesture==='wheel') {const box=await timeline.boundingBox();await page.mouse.move(box.x+box.width/2,box.y+40);await page.mouse.wheel(0,-200);}
+    else if(gesture==='pointer')await timeline.click({position:{x:12,y:40}});
+    else {await timeline.focus();await page.keyboard.press('PageUp');}
+    await page.waitForTimeout(300);
+    check('A '+gesture+' reading gesture cancels the smooth jump without marking unseen messages read',await timeline.evaluate(node=>node.scrollHeight-node.clientHeight-node.scrollTop>10)&&await page.evaluate(()=>!__actions.some(action=>action.action==='read')));
+  }
+  await page.emulateMedia({reducedMotion:'reduce'});await page.evaluate(()=>{window.__actions=[];window.__motionEvents=[];});
+  await page.locator('#jump-latest-button').click();
+  await page.waitForFunction(()=>{const node=document.querySelector('#timeline');return node.scrollHeight-node.clientHeight-node.scrollTop<=2;});
+  state.messages.push(fixtures.message('7064',fixtures.lyra,'Arrivée avec les animations réduites.',64));state.state.threads[0].lastMessage=state.messages.at(-1);
+  state.typing=[{threadId:state.selectedThreadId,accountId:91,username:'Lyra',expiresAt:new Date(Date.now()+60000).toISOString()}];await apply(state);
+  check('Reduced motion disables live-message entrance and typing pulse animations',await page.evaluate(()=>matchMedia('(prefers-reduced-motion: reduce)').matches&&!__motionEvents.some(event=>event.message&&event.duration>0)&&[...document.querySelectorAll('.typing-dots i')].length===3&&[...document.querySelectorAll('.typing-dots i')].every(node=>getComputedStyle(node).animationName==='none')));
+  check('Reduced motion keeps all composer command transitions disabled',await page.locator('.composer-toolbar button,#composer-box').evaluateAll(nodes=>nodes.every(node=>getComputedStyle(node).transitionDuration.split(',').every(duration=>parseFloat(duration)===0))));
+  await page.emulateMedia({reducedMotion:'no-preference'});
+}
+
+async function exerciseDraftMediaViewer(page,apply,capture,mode='native') {
+  const prefix=mode==='fallback'?'Fallback without moveBefore: ':'';
+  const assertViewer=(name,value)=>check(prefix+name,value);
+  const viewer=page.locator('#image-dialog');
+  await page.evaluate(()=>window.__actions=[]);
+  let state=clone(fixtures.snapshot);state.sessionId='motion-viewer-'+mode;
+  state.messages=[fixtures.message('6001',fixtures.lyra,'Un brouillon avec des médias locaux.',1)];
+  state.state.threads[0].pinnedMessages=[];state.state.threads[0].lastMessage=state.messages[0];state.hasEarlier=false;
+  state.draft={body:'Un brouillon qui reste intact.',attachments:clone(fixtures.viewerMediaDraft)};
+  await apply(state);
+  await page.waitForFunction(()=>[...document.querySelectorAll('.queued-preview audio,.queued-preview video')].length===2&&[...document.querySelectorAll('.queued-preview audio,.queued-preview video')].every(media=>media.readyState>=1&&Math.abs(media.duration-4)<.02));
+  assertViewer('The playback fixtures decode a full four-second WAV and VP8 clip',await page.locator('.queued-preview video').evaluate(media=>media.videoWidth===640&&media.videoHeight===360&&!media.error));
+
+  if(mode!=='fallback') {
+    const imageOpen=page.locator('.queued-file.is-image .queued-preview-open');
+    await imageOpen.evaluate(node=>window.__viewerOpener=node);await imageOpen.click();await viewer.waitFor({state:'visible'});
+    assertViewer('A draft image opens its actual local preview without sending or downloading',await viewer.evaluate(node=>node.classList.contains('is-image')&&node.querySelector('#image-dialog-image').src.endsWith('/attachments/tiny'))&&await page.evaluate(()=>!__actions.some(action=>['send','downloadAttachment'].includes(action.action))));
+    assertViewer('The draft image viewer preserves the draft and blocks native file admission',await page.locator('#composer-input').inputValue()==='Un brouillon qui reste intact.'&&await page.evaluate(()=>__actions.filter(action=>action.action==='composerState').at(-1)?.payload.acceptsFiles===false));
+    Object.assign(state.draft.attachments[0],{status:'uploading',isComplete:false,offset:'125'});await apply(state);
+    assertViewer('Image upload progress changes beneath an open viewer without closing or replacing its source',await viewer.isVisible()&&await page.locator('.queued-file.is-image .queued-progress').getAttribute('aria-valuenow')==='25'&&await page.locator('#image-dialog-image').getAttribute('src').then(src=>src.endsWith('/attachments/tiny')));
+    await page.locator('#image-dialog-image').click();assertViewer('Clicking an enlarged draft image keeps the viewer open',await viewer.isVisible());
+    if(capture)await capture('chat-fr-draft-image-viewer-fixed.png');
+    await page.keyboard.press('Escape');await viewer.waitFor({state:'hidden'});
+    assertViewer('Escape returns focus to the exact draft image opener and restores file admission',await page.evaluate(()=>document.activeElement===__viewerOpener&&__actions.filter(action=>action.action==='composerState').at(-1)?.payload.acceptsFiles===true));
+    state.draft.attachments=clone(fixtures.viewerMediaDraft);await apply(state);
+  }
+
+  for(const kind of ['video','audio']) {
+    const index=kind==='video'?1:2;
+    const inline=page.locator('.queued-file.is-'+kind+' '+kind);
+    const opener=page.locator('.queued-file.is-'+kind+' .queued-preview-open');
+    assertViewer('The '+kind+' expand control remains separate from the native player controls',await opener.count()===1&&await opener.evaluate(node=>!node.querySelector('audio,video'))&&await inline.evaluate(media=>media.controls));
+    await inline.evaluate(media=>{window.__viewerPlayer=media;media.muted=true;media.volume=.35;media.playbackRate=1.25;media.pause();media.currentTime=.75;});
+    try { await page.waitForFunction(()=>!__viewerPlayer.seeking&&__viewerPlayer.readyState>=2&&Math.abs(__viewerPlayer.currentTime-.75)<.08); }
+    catch(error){console.error('Media seek diagnostics: '+JSON.stringify(await page.evaluate(()=>{const m=__viewerPlayer;return{src:m.currentSrc,time:m.currentTime,seeking:m.seeking,ready:m.readyState,network:m.networkState,paused:m.paused,duration:m.duration,error:m.error?.message,buffered:Array.from({length:m.buffered.length},(_,i)=>[m.buffered.start(i),m.buffered.end(i)]),seekable:Array.from({length:m.seekable.length},(_,i)=>[m.seekable.start(i),m.seekable.end(i)])};})));throw error;}
+    await opener.evaluate(node=>window.__viewerOpener=node);await opener.click();await viewer.waitFor({state:'visible'});
+    await page.waitForFunction(()=>document.querySelector('#media-dialog-player-host')?.contains(__viewerPlayer)&&__viewerPlayer.paused&&Math.abs(__viewerPlayer.currentTime-.75)<.08);
+    assertViewer('Opening draft '+kind+' enlarges the same paused player with its seek, volume and speed intact',await page.evaluate(kind=>{const media=__viewerPlayer,box=media.getBoundingClientRect();return document.querySelector('#image-dialog').classList.contains('is-'+kind)&&media.volume===.35&&media.playbackRate===1.25&&media.muted&&box.width>(kind==='video'?media.videoWidth:250)&&box.width<=innerWidth*.9+1&&!document.querySelector('.queued-file.is-'+kind+' '+kind);},kind));
+    assertViewer('Only the expanded audio displays its accessible media title',await page.locator('#media-dialog-title').isVisible()===(kind==='audio'));
+    await page.locator('#media-dialog-player-host '+kind).hover();
+    const controls=await nativePlayerControls(page);
+    assertViewer('The expanded '+kind+' exposes its real native playback buttons and seek slider',controls.buttons>=2&&controls.sliders>=1&&!!controls.playToggle);
+    await page.mouse.click(controls.playToggle.x,controls.playToggle.y);
+    await page.waitForFunction(()=>!__viewerPlayer.paused&&__viewerPlayer.currentTime>1);
+    assertViewer('The native '+kind+' play button actually starts playback in the viewer',await page.evaluate(()=>!__viewerPlayer.paused&&__viewerPlayer.currentTime>1));
+    await page.evaluate(()=>{window.__viewerProgressTime=__viewerPlayer.currentTime;window.__queueMotionCount=__motionEvents.filter(event=>event.queue&&event.duration>0).length;});
+    Object.assign(state.draft.attachments[index],{status:'uploading',isComplete:false,offset:String(Math.floor(Number(state.draft.attachments[index].size)/2))});
+    state.locale=state.locale==='fr'?'en':'fr';await apply(state);
+    assertViewer('Progress and locale updates preserve the open '+kind+' player and ongoing playback',await page.evaluate(()=>document.querySelector('#media-dialog-player-host').querySelector('audio,video')===__viewerPlayer&&!__viewerPlayer.paused&&__viewerPlayer.currentTime>=__viewerProgressTime-.04&&__viewerPlayer.currentTime-__viewerProgressTime<1));
+    assertViewer('Progress and locale snapshots do not replay draft preview entrance animations',await page.evaluate(()=>__motionEvents.filter(event=>event.queue&&event.duration>0).length===__queueMotionCount));
+    const upload=state.draft.attachments[index];Object.assign(upload,{status:'ready',isComplete:true,offset:upload.size,attachment:{id:'completed-'+kind,fileName:upload.fileName,contentType:upload.contentType,kind,url:upload.previewUrl}});await apply(state);
+    assertViewer('Completing the same '+kind+' upload keeps its enlarged player instead of rebuilding it',await page.evaluate(()=>document.querySelector('#image-dialog').open&&document.querySelector('#media-dialog-player-host').querySelector('audio,video')===__viewerPlayer&&!__viewerPlayer.paused));
+    if(capture){await page.locator('#media-dialog-player-host '+kind).hover();await page.waitForTimeout(200);await capture('chat-'+state.locale+'-draft-'+kind+'-viewer-fixed.png');}
+    await viewer.click({position:{x:5,y:5}});await viewer.waitFor({state:'hidden'});
+    await page.waitForFunction(kind=>document.querySelector('.queued-file.is-'+kind+' '+kind)===__viewerPlayer&&!__viewerPlayer.paused,kind);
+    assertViewer('Backdrop closure returns the same playing '+kind+' element and restores its opener focus',await page.evaluate(()=>document.activeElement===__viewerOpener&&__viewerPlayer.currentTime>.75&&__viewerPlayer.volume===.35&&__viewerPlayer.playbackRate===1.25));
+    await inline.hover();const returnedControls=await nativePlayerControls(page);
+    if(returnedControls.buttons<2||returnedControls.sliders<1){console.error('Returned native control diagnostics: '+JSON.stringify({kind,...returnedControls}));if(capture)await capture('chat-returned-'+kind+'-controls-diagnostic.png');}
+    assertViewer('The returned inline '+kind+' keeps its native playback controls accessible',returnedControls.buttons>=2&&returnedControls.sliders>=1);
+    const inlineBox=await inline.boundingBox(),pauseButton=returnedControls.playToggle;
+    assertViewer('The returned '+kind+' native control remains positioned inside its preview',!!pauseButton&&pauseButton.x>=inlineBox.x&&pauseButton.x<=inlineBox.x+inlineBox.width&&pauseButton.y>=inlineBox.y&&pauseButton.y<=inlineBox.y+inlineBox.height);
+    await page.mouse.click(pauseButton.x,pauseButton.y);await page.waitForFunction(()=>__viewerPlayer.paused);
+    assertViewer('The returned native '+kind+' pause button remains usable after the player moves',await page.evaluate(()=>__viewerPlayer.paused));
+    if(capture){await page.waitForTimeout(200);await capture('chat-'+state.locale+'-returned-'+kind+'-controls-fixed.png');}
+    await page.evaluate(()=>{__viewerPlayer.pause();__viewerPlayer.currentTime=1.5;});
+    await page.waitForFunction(()=>!__viewerPlayer.seeking&&Math.abs(__viewerPlayer.currentTime-1.5)<.08);
+    await opener.click();await viewer.waitFor({state:'visible'});await page.locator('#media-dialog-player-host '+kind).hover();const reopenedControls=await nativePlayerControls(page);
+    assertViewer('Reopening the '+kind+' viewer keeps the actual native controls accessible',reopenedControls.buttons>=2&&reopenedControls.sliders>=1);
+    if(capture)await capture('chat-'+state.locale+'-reopened-'+kind+'-viewer-fixed.png');
+    await page.keyboard.press('Escape');await viewer.waitFor({state:'hidden'});
+    assertViewer('A paused '+kind+' stays paused at its position after opening and closing again',await page.evaluate(kind=>document.querySelector('.queued-file.is-'+kind+' '+kind)===__viewerPlayer&&__viewerPlayer.paused&&Math.abs(__viewerPlayer.currentTime-1.5)<.08,kind));
+  }
+  if(mode==='fallback')return;
+
+  state.draft.attachments[1]=clone(fixtures.mediaDraft[1]);await apply(state);
+  await page.waitForFunction(()=>document.querySelector('.queued-file.is-video video')?.videoWidth===160);
+  await page.locator('.queued-file.is-video .queued-preview-open').click();await viewer.waitFor({state:'visible'});await settleMotion(page);
+  assertViewer('A low-resolution video opens at a comfortable larger size while retaining its aspect ratio and fitting the viewer',await page.locator('#media-dialog-player-host video').evaluate(media=>{const box=media.getBoundingClientRect();return media.videoWidth===160&&box.width>=320&&Math.abs(box.width/box.height-16/9)<.02&&box.width<=innerWidth*.9+1&&box.height<=innerHeight*.9+1;}));
+  if(capture)await capture('chat-fr-draft-low-resolution-video-viewer-fixed.png');
+  await page.keyboard.press('Escape');await viewer.waitFor({state:'hidden'});state.draft.attachments=clone(fixtures.viewerMediaDraft);await apply(state);
+
+  async function openPlayingVideo() {
+    await page.locator('.queued-file.is-video video').evaluate(media=>{window.__invalidatedPlayer=media;media.muted=true;media.currentTime=.5;});
+    await page.locator('.queued-file.is-video .queued-preview-open').click();await viewer.waitFor({state:'visible'});
+    await page.evaluate(async()=>{await __invalidatedPlayer.play();});
+    await page.waitForFunction(()=>!__invalidatedPlayer.paused);
+  }
+  await openPlayingVideo();state.draft.attachments=state.draft.attachments.filter(upload=>upload.id!=='preview-video');await apply(state);
+  assertViewer('Removing the viewed upload closes immediately, pauses playback and makes any exiting preview inert',await page.evaluate(()=>{const exiting=__invalidatedPlayer.closest('.queued-file-exit');return !document.querySelector('#image-dialog').open&&__invalidatedPlayer.paused&&(!__invalidatedPlayer.isConnected||exiting?.inert&&exiting.getAttribute('aria-hidden')==='true');}));
+  await page.waitForFunction(()=>!__invalidatedPlayer.isConnected);
+  assertViewer('The removed upload player detaches after its short visual exit',await page.evaluate(()=>!__invalidatedPlayer.isConnected));
+  state.draft.attachments=clone(fixtures.viewerMediaDraft);await apply(state);await openPlayingVideo();state.isActive=false;await apply(state);
+  assertViewer('An inactive launcher closes the viewer and pauses its media',await page.evaluate(()=>!document.querySelector('#image-dialog').open&&__invalidatedPlayer.paused));
+  state.isActive=true;await apply(state);await openPlayingVideo();state.selectedThreadId='d:42:92';state.messages=[];state.draft={};await apply(state);
+  assertViewer('Changing conversation closes the viewer, pauses playback and clears the old local source',await page.evaluate(()=>!document.querySelector('#image-dialog').open&&__invalidatedPlayer.paused&&!document.querySelector('#media-dialog-player-host audio,#media-dialog-player-host video')));
+  state.selectedThreadId='d:42:91';state.draft={attachments:clone(fixtures.viewerMediaDraft)};await apply(state);await openPlayingVideo();state.sessionId='motion-viewer-replacement-session';state.ownerAccountId=84;state.selectedThreadId=null;state.messages=[];state.draft={};state.state={...state.state,self:{accountId:84,username:'Second'},contacts:[],threads:[]};await apply(state);
+  assertViewer('Replacing the account session closes the viewer without restoring a private player into the new account',await page.evaluate(()=>!document.querySelector('#image-dialog').open&&__invalidatedPlayer.paused&&!__invalidatedPlayer.isConnected&&!document.querySelector('#media-dialog-player-host audio,#media-dialog-player-host video')));
+
+  state=clone(fixtures.snapshot);state.sessionId='motion-received-viewer';state.draft={};state.state.threads[0].pinnedMessages=[];state.hasEarlier=false;
+  state.messages=[fixtures.message('6101',fixtures.lyra,'Une vidéo reçue.',1,{attachments:[{id:'viewer-video.webm',fileName:'Clip reçu.webm',kind:'video',contentType:'video/webm',size:String(fixtures.viewerVideoBytes.length),url:fixtures.mediaOrigin+'attachments/viewer-video.webm'}]})];await apply(state);
+  const received=page.locator('[data-attachment-id="viewer-video.webm"]');
+  await received.locator('video').evaluate(media=>{window.__receivedPlayer=media;media.muted=true;media.preload='auto';media.load();});
+  await page.waitForFunction(()=>__receivedPlayer.readyState>=2);await received.locator('.attachment-expand').click();await viewer.waitFor({state:'visible'});
+  assertViewer('An already sent video expands through the same viewer using its existing player',await page.evaluate(()=>document.querySelector('#media-dialog-player-host').querySelector('audio,video')===__receivedPlayer));
+  const fullscreen=await page.evaluate(async()=>{try{await __receivedPlayer.requestFullscreen();return document.fullscreenElement===__receivedPlayer;}catch{return false;}});
+  if(fullscreen){
+    await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.fullscreenElement);
+    assertViewer('Escape exits fullscreen video without leaving its player detached or hidden',await page.evaluate(()=>__receivedPlayer.isConnected&&__receivedPlayer.getBoundingClientRect().width>0&&(document.querySelector('#image-dialog').open?document.querySelector('#media-dialog-player-host').contains(__receivedPlayer):!!__receivedPlayer.closest('.attachment'))));
+    if(!await viewer.isVisible()){await received.locator('.attachment-expand').click();await viewer.waitFor({state:'visible'});}
+  }else console.log('SKIP Fullscreen API is unavailable in this headless browser.');
+  await page.evaluate(async()=>{await __receivedPlayer.play();});state.messages[0].deletedAt=fixtures.at(2);await apply(state);
+  assertViewer('Deleting the viewed sent message closes the viewer and pauses its media',await page.evaluate(()=>!document.querySelector('#image-dialog').open&&__receivedPlayer.paused&&!__receivedPlayer.isConnected));
+  state.messages[0].id='6102';state.messages[0].deletedAt=null;await apply(state);
+  await received.locator('video').evaluate(media=>{window.__failedReceivedPlayer=media;media.muted=true;media.preload='auto';media.load();});
+  await page.waitForFunction(()=>__failedReceivedPlayer.readyState>=2);await received.locator('.attachment-expand').click();await viewer.waitFor({state:'visible'});
+  await page.evaluate(async()=>{await __failedReceivedPlayer.play();__failedReceivedPlayer.src='https://atlas-chat-media.invalid/attachments/fixture-broken.mkv';__failedReceivedPlayer.load();});
+  await received.locator('.media-playback-unavailable').waitFor({state:'visible'});
+  assertViewer('A decode error in an open sent-media viewer closes and pauses it while preserving feedback and download in the original attachment',await page.evaluate(()=>!document.querySelector('#image-dialog').open&&__failedReceivedPlayer.paused&&!document.querySelector('#media-dialog-player-host audio,#media-dialog-player-host video,#media-dialog-player-host .media-playback-unavailable'))&&await received.locator('video,.attachment-expand:visible').count()===0&&await received.getByRole('button',{name:'Télécharger',exact:true}).count()===1);
+  assertViewer('Media viewing never triggers a send or download and preserves the transparent Citadel canvas',await page.evaluate(()=>!__actions.some(action=>['send','downloadAttachment'].includes(action.action))&&[document.documentElement,document.body,document.querySelector('#chat-app')].every(node=>getComputedStyle(node).backgroundColor==='rgba(0, 0, 0, 0)')));
+}
+
+async function nativePlayerControls(page) {
+  const session=await page.context().newCDPSession(page);
+  try {
+    const {result}=await session.send('Runtime.evaluate',{expression:'window.__viewerPlayer'});
+    const {node}=await session.send('DOM.describeNode',{objectId:result.objectId});
+    const {nodes}=await session.send('Accessibility.getFullAXTree');
+    const byId=new Map(nodes.map(item=>[item.nodeId,item]));
+    const player=nodes.find(item=>item.backendDOMNodeId===node.backendNodeId);
+    const descendants=[],queue=[...(player?.childIds||[])];
+    while(queue.length){const current=byId.get(queue.shift());if(!current)continue;descendants.push(current);queue.push(...current.childIds||[]);}
+    const visible=descendants.filter(item=>!item.ignored);
+    const toggle=visible.find(item=>item.role?.value==='button'&&/^(lire|play|mettre en pause|pause)$/i.test(item.name?.value||''));
+    let playToggle=null;
+    if(toggle?.backendDOMNodeId){const {model}=await session.send('DOM.getBoxModel',{backendNodeId:toggle.backendDOMNodeId});const q=model.content;playToggle={x:(q[0]+q[2]+q[4]+q[6])/4,y:(q[1]+q[3]+q[5]+q[7])/4};}
+    return{buttons:visible.filter(item=>item.role?.value==='button').length,sliders:visible.filter(item=>item.role?.value==='slider').length,playToggle,visibleControls:visible.map(item=>({role:item.role?.value,name:item.name?.value}))};
+  } finally { await session.detach(); }
+}

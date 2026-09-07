@@ -8,6 +8,8 @@
   let fileExtensions = new Set(defaultFileExtensions);
   const strings = {
     mediaPlaybackUnavailable:['Lecture intégrée indisponible.','In-app playback unavailable.'],
+    viewMedia:['Agrandir l’aperçu','Expand preview'],
+    mediaOpened:['Aperçu ouvert','Preview open'],
     deletingMessage:['Suppression en cours…','Deleting message…'],
     subtitle:['Gardez le contact, en jeu comme ailleurs.','Keep in touch, in game and beyond.'], conversations:['Conversations','Conversations'], unread:['Non lus','Unread'], searchContacts:['Rechercher un contact…','Find a contact…'], newConversation:['Nouvelle conversation','New conversation'], chooseConversation:['Une conversation commence ici','A conversation starts here'], chooseConversationHint:['Retrouvez vos amis ou créez un groupe pour votre prochaine aventure.','Catch up with friends or make a group for your next adventure.'], dnd:['Ne pas déranger','Do not disturb'], online:['En ligne','Online'], offline:['Hors ligne','Offline'], inGame:['En jeu','In game'], playingOn:['En jeu sur','Playing as'], today:['Aujourd’hui','Today'], yesterday:['Hier','Yesterday'], noConversations:['Vos conversations apparaîtront ici.','Your conversations will appear here.'], noResults:['Aucun contact ne correspond à votre recherche.','No contacts match your search.'], pinned:['Épinglées','Pinned'], recent:['Récentes','Recent'], contacts:['Contacts','Contacts'], invitation:['Invitation à un groupe','Group invitation'], invitations:['Invitations','Invitations'], newMessages:['Nouveaux messages','New messages'], loadEarlier:['Afficher les messages précédents','Show earlier messages'], loading:['Chargement…','Loading…'], noMessages:['Écrivez le premier message.','Write the first message.'], details:['Participants et détails','Members and details'], conversationActions:['Actions de la conversation','Conversation actions'], pinnedMessages:['Messages épinglés','Pinned messages'], pinnedMessage:['Message épinglé','Pinned message'], noPinned:['Aucun message épinglé.','No pinned messages.'], composerPlaceholder:['Écrire un message…','Write a message…'], composerName:['Texte du message','Message text'], composerHint:['Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne','Enter to send · Shift + Enter for a new line'], send:['Envoyer','Send'], sending:['Envoi…','Sending…'], save:['Enregistrer','Save'], cancel:['Annuler','Cancel'], close:['Fermer','Close'], draftSaved:['Brouillon conservé','Draft saved'], reply:['Répondre','Reply'], replyingTo:['Réponse à','Replying to'], editingMessage:['Modification du message','Editing message'], edited:['modifié','edited'], edit:['Modifier','Edit'], delete:['Supprimer','Delete'], deleteMessage:['Supprimer ce message ?','Delete this message?'], deleteMessageHint:['Il sera retiré de l’historique du launcher pour tous les participants. Un texte déjà affiché en jeu ne peut pas être effacé.','It will be removed from the launcher history for everyone. Text already shown in game cannot be erased.'], copy:['Copier le texte','Copy text'], copied:['Texte copié','Text copied'], copyFailed:['Impossible de copier le texte.','Could not copy the text.'], react:['Ajouter une réaction','Add a reaction'], addReaction:['Ajouter la réaction','Add reaction'], removeReaction:['Retirer ma réaction','Remove my reaction'], messageActions:['Actions du message','Message actions'], read:['Lu','Read'], pinMessage:['Épingler le message','Pin message'], unpinMessage:['Désépingler le message','Unpin message'], pinConversation:['Épingler la conversation','Pin conversation'], unpinConversation:['Désépingler la conversation','Unpin conversation'], goToMessage:['Revenir au message','Go to message'], messageNotLoaded:['Ce message se trouve plus haut dans la conversation.','This message is further up in the conversation.'], revealSpoiler:['Afficher le texte masqué','Reveal spoiler'], hideSpoiler:['Masquer le texte','Hide spoiler'], attachFiles:['Ajouter des fichiers','Add files'], attachmentHint:['Images, GIF, documents, audio et vidéo · 500 Mo par fichier','Images, GIFs, documents, audio and video · 500 MB per file'], dropFiles:['Déposez vos fichiers ici','Drop your files here'], dropUnavailable:['Utilisez le bouton + pour ajouter ces fichiers.','Use the + button to add these files.'], shareGame:['Partager l’Armory d’un personnage','Share a character’s Armory'], download:['Télécharger','Download'], viewImage:['Afficher l’image','View image'], image:['Image','Image'], imageUnavailable:['Image indisponible','Image unavailable'], video:['Vidéo','Video'], audio:['Audio','Audio'], playVideo:['Lire la vidéo','Play video'], openLink:['Ouvrir le lien','Open link'], openOnSite:['Ouvrir sur le site','Open on website'], removePreviewForEveryone:['Retirer cet aperçu pour tous les participants','Remove this preview for everyone'], previewRemoved:['Aperçu retiré pour tous les participants.','Preview removed for everyone.'], waiting:['En attente','Waiting'], uploading:['Transfert','Uploading'], processing:['Préparation','Preparing'], ready:['Prêt','Ready'], failed:['Échec','Failed'], retry:['Réessayer','Retry'], retrySend:['Réessayer l’envoi','Retry send'], cancelSend:['Annuler l’envoi en attente','Cancel queued message'], cancelUpload:['Annuler le transfert','Cancel upload'], removeAttachment:['Retirer la pièce jointe','Remove attachment'], disconnected:['Connexion interrompue. Vos messages restent en attente.','Connection lost. Your messages remain queued.'], unavailable:['La messagerie est indisponible. Votre brouillon est conservé.','Messaging is unavailable. Your draft is kept.'], accessRevoked:['Vous ne pouvez plus écrire dans cette conversation.','You can no longer send messages in this conversation.'], genericError:['L’action n’a pas abouti. Réessayez dans un instant.','The action could not be completed. Try again shortly.'], group:['Groupe','Group'], direct:['Un ami','One friend'], createGroup:['Créer le groupe','Create group'], groupName:['Nom du groupe','Group name'], groupNamePlaceholder:['Par exemple : Les aventuriers du soir','For example: Evening adventurers'], selectFriends:['Choisissez vos amis','Choose your friends'], newConversationHint:['Échangez avec un ami ou réunissez votre groupe.','Chat with a friend or bring your group together.'], members:['participants','members'], activeMembers:['Participants','Members'], pendingMembers:['Invitations en attente','Pending invitations'], inviteMembers:['Inviter des amis','Invite friends'], invite:['Inviter','Invite'], invited:['Invité','Invited'], accept:['Accepter','Accept'], decline:['Refuser','Decline'], invitationHint:['Vous êtes invité à rejoindre cette conversation.','You’ve been invited to join this conversation.'], manageGroup:['Modifier le groupe','Edit group'], groupImage:['Image du groupe','Group image'], chooseGroupImage:['Choisir une image','Choose an image'], useGroupImage:['Utiliser pour le groupe','Use for the group'], groupImageHint:['Ajoutez une image, puis choisissez-la ci-dessous.','Add an image, then choose it below.'], leaveGroup:['Quitter le groupe','Leave group'], leaveGroupHint:['Vous ne recevrez plus les nouveaux messages de ce groupe.','You will no longer receive new messages from this group.'], removeMember:['Retirer du groupe','Remove from group'], makeAdmin:['Nommer administrateur','Make administrator'], makeMember:['Retirer le rôle administrateur','Remove administrator role'], admin:['Administrateur','Administrator'], owner:['Créateur','Owner'], self:['Vous','You'], openProfile:['Ouvrir le profil','Open profile'], typingOne:['écrit…','is typing…'], typingMany:['sont en train d’écrire…','are typing…'], gameCard:['Carte Atlas','Atlas card'], item:['Objet','Item'], character:['Personnage','Character'], quest:['Quête','Quest'], location:['Lieu','Location'], outing:['Sortie','Outing'], title:['Titre','Title'], description:['Description','Description'], reference:['Identifiant de référence','Reference ID'], optional:['facultatif','optional'], date:['Date','Date'], level:['Niveau','Level'], tank:['Tank','Tank'], healer:['Soigneur','Healer'], damage:['DPS','Damage'], joining:['Participe','Joining'], cardAttached:['Armory joint','Armory attached'], limitReached:['Un message peut contenir jusqu’à 1 000 caractères.','A message can contain up to 1,000 characters.'], attachmentLimit:['Vous pouvez joindre jusqu’à 10 fichiers par message.','You can attach up to 10 files to a message.'], noFriends:['Votre liste d’amis est vide.','Your friends list is empty.'], legacyHint:['Les fonctions avancées seront disponibles après la mise à jour du service.','Advanced features will be available after the service is updated.'],
     away:['Absent','Away'], characterArmory:['Armory du personnage','Character Armory'], openArmory:['Ouvrir l’Armory','Open Armory'], chooseOwnCharacter:['Choisissez l’un de vos personnages.','Choose one of your characters.'], yourCharacters:['Vos personnages','Your characters'], shareCharacter:['Partager l’Armory de','Share the Armory of'], loadingCharacters:['Chargement de vos personnages…','Loading your characters…'], noCharacters:['Vous n’avez pas encore de personnage à partager.','You do not have a character to share yet.'], charactersUnavailable:['Impossible de charger vos personnages. Réessayez dans un instant.','Your characters could not be loaded. Try again shortly.'], addingArmory:['Ajout de l’Armory…','Adding the Armory…'], warrior:['Guerrier','Warrior'], paladin:['Paladin','Paladin'], hunter:['Chasseur','Hunter'], rogue:['Voleur','Rogue'], priest:['Prêtre','Priest'], deathKnight:['Chevalier de la mort','Death Knight'], shaman:['Chaman','Shaman'], mage:['Mage','Mage'], warlock:['Démoniste','Warlock'], druid:['Druide','Druid']
@@ -18,7 +20,10 @@
   let renderVersion = 0, layoutPending = false, followBottom = true, stableAnchor = null, unreadBoundary = null, lastReadKey = '';
   let lastUserScroll = 0, programmaticScroll = false, dialogRefresh = null, toastTimer = 0, menuReturnFocus = null;
   let armoryPickerOpen = false, armoryPickerFocusPending = false, armoryRequestPending = false, armorySelection = null, armoryError = '';
-  let lastComposerStateKey = '', imageReturnFocus = null;
+  let lastComposerStateKey = '', imageReturnFocus = null, mediaViewer = null, viewerVersion = 0;
+  let smoothScroll = null, uploadsSession = '', timelineSession = '', newestRenderedMessageId = null, timelineWasLoading = false;
+  const motionPreference = global.matchMedia('(prefers-reduced-motion: reduce)');
+  const runningMotions = new Set(), exitingUploads = new Set(), draftImageSizes = new Map();
   const requests = new Map(), localDrafts = new Map(), inFlightSends = new Map(), armorySelections = new Map();
   const localSendFailures = new Map(), messageFeedback = new Map();
   const timeline = $('timeline'), messageList = $('message-list'), composer = $('composer-input');
@@ -30,6 +35,40 @@
   const currentThreadId = () => selectedThread && selectedThread.id;
   const hasIdentity = () => !!snapshot.sessionId && snapshot.ownerAccountId > 0;
   const normalizedBody = text => String(text || '').replace(/\r\n/g, '\n').trim();
+
+  function animate(node, frames, duration = 160, options = {}) {
+    if (!node || motionPreference.matches || !active() || typeof node.animate !== 'function') return null;
+    node._atlasMotion?.cancel();
+    const animation = node.animate(frames, { duration, easing: 'cubic-bezier(.2,.8,.2,1)', ...options });
+    node._atlasMotion = animation; runningMotions.add(animation);
+    const finished = () => { runningMotions.delete(animation); if (node._atlasMotion === animation) node._atlasMotion = null; };
+    animation.finished.then(finished, finished);
+    return animation;
+  }
+  function afterAnimation(animation, complete) { if (animation) animation.finished.then(complete, complete); else complete(); }
+  function enter(node, distance = 4, duration = 160) {
+    return animate(node, [{ opacity: 0, transform: 'translateY(' + distance + 'px)' }, { opacity: 1, transform: 'translateY(0)' }], duration);
+  }
+  function revealSurface(node, distance = 4) {
+    node._surfaceVersion = (node._surfaceVersion || 0) + 1;
+    node._atlasMotion?.cancel(); node.inert = false; node.hidden = false; node.removeAttribute('aria-hidden');
+    enter(node, distance, 150);
+  }
+  function hideSurface(node, immediate = false) {
+    if (node.hidden || node.inert && !immediate) return;
+    const version = (node._surfaceVersion || 0) + 1; node._surfaceVersion = version;
+    node.inert = true; node.setAttribute('aria-hidden', 'true');
+    const finish = () => { if (node._surfaceVersion === version) { node.hidden = true; node.inert = false; node.removeAttribute('aria-hidden'); } };
+    if (immediate) { node._atlasMotion?.cancel(); finish(); }
+    else afterAnimation(animate(node, [{ opacity: 1, transform: 'translateY(0)' }, { opacity: 0, transform: 'translateY(3px)' }], 110), finish);
+  }
+  function clearMotion() {
+    cancelSmoothScroll();
+    for (const animation of runningMotions) animation.cancel();
+    for (const node of exitingUploads) node.remove();
+    exitingUploads.clear();
+  }
+  motionPreference.addEventListener('change', () => { if (motionPreference.matches) clearMotion(); });
 
   function post(action, payload, additionalObjects) {
     const envelope = { type: 'action', requestId: uuid(), sessionId: snapshot.sessionId, ownerAccountId: snapshot.ownerAccountId, sequence: String(snapshot.sequence || '0'), action, payload: payload || {} };
@@ -165,9 +204,39 @@
     if (node) timeline.scrollTop += node.getBoundingClientRect().top - timeline.getBoundingClientRect().top - anchor.offset;
   }
   function isAtBottom(threshold) { return timeline.scrollHeight - timeline.clientHeight - timeline.scrollTop <= (threshold === undefined ? 2 : threshold); }
-  function scrollBottom() { programmaticScroll = true; timeline.scrollTop = timeline.scrollHeight; followBottom = true; stableAnchor = null; requestAnimationFrame(() => { programmaticScroll = false; }); }
+  function cancelSmoothScroll() {
+    if (!smoothScroll) return;
+    cancelAnimationFrame(smoothScroll.frame); smoothScroll = null; programmaticScroll = false;
+    followBottom = isAtBottom(36); stableAnchor = followBottom ? null : captureAnchor();
+  }
+  function smoothScrollTo(target, toBottom = false) {
+    cancelSmoothScroll();
+    if (motionPreference.matches || !active()) {
+      programmaticScroll = true; timeline.scrollTop = target(); followBottom = toBottom || isAtBottom(36);
+      stableAnchor = followBottom ? null : captureAnchor();
+      requestAnimationFrame(() => { programmaticScroll = false; updateJumpButton(); requestRead(); }); return;
+    }
+    const operation = { start: timeline.scrollTop, at: performance.now(), frame: 0, session: sessionKey(snapshot) + ':' + currentThreadId() };
+    smoothScroll = operation; programmaticScroll = true;
+    const step = now => {
+      if (smoothScroll !== operation) return;
+      if (operation.session !== sessionKey(snapshot) + ':' + currentThreadId() || !active()) { cancelSmoothScroll(); return; }
+      const progress = Math.min(1, (now - operation.at) / 190), eased = 1 - Math.pow(1 - progress, 3);
+      const end = Math.max(0, Math.min(target(), timeline.scrollHeight - timeline.clientHeight));
+      timeline.scrollTop = operation.start + (end - operation.start) * eased;
+      if (progress < 1) operation.frame = requestAnimationFrame(step);
+      else { smoothScroll = null; programmaticScroll = false; followBottom = toBottom || isAtBottom(36); stableAnchor = followBottom ? null : captureAnchor(); updateJumpButton(); requestRead(); }
+    };
+    operation.frame = requestAnimationFrame(step);
+  }
+  function scrollBottom(smooth = false) {
+    if (smooth) { smoothScrollTo(() => timeline.scrollHeight, true); return; }
+    if (smoothScroll) return;
+    programmaticScroll = true; timeline.scrollTop = timeline.scrollHeight; followBottom = true; stableAnchor = null;
+    requestAnimationFrame(() => { if (!smoothScroll) programmaticScroll = false; });
+  }
   function requestRead() {
-    if (layoutPending || !active() || !isAtBottom(2) || timeline.clientHeight <= 0) return;
+    if (layoutPending || smoothScroll || !active() || !isAtBottom(2) || timeline.clientHeight <= 0) return;
     const messages = (snapshot.messages || []).filter(message => R.id(message.id)).sort((a, b) => R.compareIds(a.id, b.id));
     const last = messages.at(-1);
     if (!last) return;
@@ -188,6 +257,7 @@
     const version = ++renderVersion; layoutPending = true;
     requestAnimationFrame(() => {
       if (version !== renderVersion) return;
+      if (smoothScroll) { layoutPending = false; return; }
       if (toBottom) scrollBottom(); else restoreAnchor(anchor);
       requestAnimationFrame(() => {
         if (version !== renderVersion) return;
@@ -200,12 +270,20 @@
   function renderTimeline(changedThread) {
     const oldAnchor = changedThread ? null : captureAnchor();
     const toBottom = changedThread || followBottom || isAtBottom(36);
+    const session = sessionKey(snapshot) + ':' + currentThreadId();
+    const animateNew = !changedThread && timelineSession === session && !timelineWasLoading && !snapshot.isLoading && active();
+    timelineWasLoading = !!snapshot.isLoading;
+    const previousNewest = timelineSession === session ? newestRenderedMessageId : null;
+    timelineSession = session;
     const allMessages = (snapshot.messages || []).filter(message => R.id(message.id)).slice().sort((a, b) => R.compareIds(a.id, b.id));
+    if (changedThread || previousNewest === null || allMessages.length && R.compareIds(allMessages.at(-1).id, previousNewest) > 0) newestRenderedMessageId = allMessages.at(-1)?.id || null;
     const messages = allMessages.filter(message => !message.deletedAt);
     const existing = new Map(Array.from(messageList.children).map(node => [node.dataset.key, node]));
+    const arrivals = [];
     let cursor = messageList.firstElementChild, previous = null, lastDay = '', unreadAdded = false;
     const keep = (key, node) => { node.dataset.key = key; if (node !== cursor) messageList.insertBefore(node, cursor); cursor = node.nextElementSibling; existing.delete(key); };
-    const context = { ownerAccountId: snapshot.ownerAccountId, locale: snapshot.locale, mediaOrigin: snapshot.mediaOrigin, t, action, profile: resolveProfile, isActive: active, capable, reply: beginReply, copy: copyText, react: showReactions, messageMenu: showMessageMenu, jumpTo, viewImage, dismissPreview };
+    const context = { ownerAccountId: snapshot.ownerAccountId, locale: snapshot.locale, mediaOrigin: snapshot.mediaOrigin, t, action, profile: resolveProfile, isActive: active, capable, reply: beginReply, copy: copyText, react: showReactions, messageMenu: showMessageMenu, jumpTo, viewImage, viewMedia,
+      mediaError: player => { if (mediaViewer?.player === player) closeImageViewer(true, true, true); }, dismissPreview };
     for (const message of messages) {
       const day = R.dayKey(message.createdAt);
       if (day !== lastDay) {
@@ -217,7 +295,12 @@
       if (beginsUnread) { unreadAdded = true; const key = 'unread', divider = existing.get(key) || e('div', 'unread-divider'); divider.textContent = t('newMessages'); keep(key, divider); }
       context.grouped = !beginsUnread && R.canGroup(previous, message);
       const key = 'message:' + message.id;
-      const node = R.reconcileMessage(existing.get(key), message, { ...context, messageError: errorText(messageFeedback.get(key)?.error) });
+      const pendingKey = message.clientMessageId ? 'pending:' + message.clientMessageId : null;
+      const pendingNode = pendingKey ? existing.get(pendingKey) : null;
+      const previousNode = existing.get(key) || pendingNode;
+      const node = R.reconcileMessage(previousNode, message, { ...context, messageError: errorText(messageFeedback.get(key)?.error) });
+      if (pendingNode === node) existing.delete(pendingKey);
+      if (!previousNode && animateNew && (previousNewest === null || R.compareIds(message.id, previousNewest) > 0) && !snapshot.isLoadingEarlier) arrivals.push(node);
       keep(key, node); previous = message;
     }
     const nativePending = snapshot.pending || [];
@@ -228,9 +311,9 @@
       let node = existing.get(key);
       const signature = JSON.stringify([queued, snapshot.state.self, snapshot.isAvailable, messageFeedback.get(key), snapshot.locale]);
       if (!node || node._signature !== signature) {
-        const replacement = renderPending(queued); replacement._signature = signature;
-        if (node) { R.suspendMedia(node); node.replaceWith(replacement); if (cursor === node) cursor = replacement; }
-        node = replacement;
+        if (!node) { node = renderPending(queued); if (animateNew) arrivals.push(node); }
+        else renderPending(queued, node);
+        node._signature = signature;
       }
       keep(key, node);
     }
@@ -241,10 +324,18 @@
     $('load-earlier-button').textContent = t(snapshot.isLoadingEarlier ? 'loading' : 'loadEarlier');
     if (changedThread) followBottom = true;
     settleLayout(oldAnchor, toBottom);
+    const version = renderVersion;
+    if (arrivals.length) requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (version !== renderVersion || session !== sessionKey(snapshot) + ':' + currentThreadId()) return;
+      const viewport = timeline.getBoundingClientRect();
+      for (const node of arrivals) { const rect = node.getBoundingClientRect(); if (node.isConnected && rect.bottom > viewport.top && rect.top < viewport.bottom) enter(node, 5, 150); }
+    }));
   }
 
-  function renderPending(queued) {
-    const node = e('article', 'message is-own is-group-start'); node.dataset.clientMessageId = queued.clientMessageId;
+  function renderPending(queued, node = null) {
+    if (!node) node = e('article', 'message is-own is-group-start');
+    else { R.suspendMedia(node); node.replaceChildren(); }
+    node.oncontextmenu = null; node.dataset.clientMessageId = queued.clientMessageId;
     const avatar = e('div', 'message-avatar'); avatar.append(R.avatar(snapshot.state.self, { small: true, presence: true, mediaOrigin: snapshot.mediaOrigin }));
     const main = e('div', 'message-main');
     const heading = e('div', 'message-heading'); heading.append(e('span', 'message-author', snapshot.state.self?.username || t('self')), e('span', 'message-time', R.time(queued.createdAt, snapshot.locale)));
@@ -268,7 +359,7 @@
         else action(deleteAction ? 'deleteFailedSend' : 'cancelSend', { clientMessageId: queued.clientMessageId });
       };
       const cancel = R.button('', t(deleteLabel ? 'delete' : 'cancelSend'), null, remove); cancel.textContent = t(deleteLabel ? 'delete' : 'cancel'); status.append(cancel);
-      node.addEventListener('contextmenu', event => { event.preventDefault(); showMenu([{ label: t(deleteLabel ? 'delete' : 'cancel'), icon: 'trash', danger: true, run: remove }], event.clientX, event.clientY); });
+      node.oncontextmenu = event => { event.preventDefault(); showMenu([{ label: t(deleteLabel ? 'delete' : 'cancel'), icon: 'trash', danger: true, run: remove }], event.clientX, event.clientY); };
     }
     main.append(status); node.append(avatar, main); return node;
   }
@@ -405,45 +496,123 @@
   function stopTyping() { clearTimeout(typingTimer); if (typingActive && currentThreadId()) action('typing', { threadId: currentThreadId(), isTyping: false }, { silent: true }); typingActive = false; lastTypingAt = 0; }
   function renderTyping() {
     const names = (snapshot.typing || []).filter(item => item.threadId === currentThreadId() && item.accountId !== snapshot.ownerAccountId && new Date(item.expiresAt).getTime() > Date.now()).map(item => item.username);
-    const host = $('typing-indicator'); host.replaceChildren();
+    const host = $('typing-indicator'), signature = JSON.stringify([sessionKey(snapshot), currentThreadId(), names, snapshot.locale]);
+    if (host._signature === signature) return;
+    host._signature = signature; host.replaceChildren();
     if (names.length) { const dots = e('span', 'typing-dots'); dots.append(e('i'), e('i'), e('i')); host.append(dots, document.createTextNode(names.join(', ') + ' ' + t(names.length > 1 ? 'typingMany' : 'typingOne'))); }
   }
 
+  function uploadPresentation(upload, value = snapshot) {
+    const contentType = String(upload?.contentType || upload?.attachment?.contentType || '').toLowerCase();
+    const type = String(upload?.kind || upload?.attachment?.kind || '');
+    const kind = contentType.startsWith('image/') || ['image', 'animated-image', 'animation'].includes(type) ? 'image'
+      : contentType.startsWith('video/') || type === 'video' ? 'video' : contentType.startsWith('audio/') || type === 'audio' ? 'audio' : 'file';
+    return { kind, url: R.mediaUrl(upload?.previewUrl || upload?.attachment?.url, value.mediaOrigin),
+      name: upload?.fileName || upload?.attachment?.fileName || t(kind === 'file' ? 'attachFiles' : kind) };
+  }
+  function removeUploadWithMotion(node) {
+    R.suspendMedia(node);
+    if (motionPreference.matches || !active()) { node.remove(); return; }
+    const rect = node.getBoundingClientRect();
+    node.classList.add('queued-file-exit'); node.inert = true; node.setAttribute('aria-hidden', 'true');
+    Object.assign(node.style, { position: 'fixed', left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px', height: rect.height + 'px' });
+    document.body.append(node); exitingUploads.add(node);
+    afterAnimation(animate(node, [{ opacity: 1, transform: 'translateY(0)' }, { opacity: 0, transform: 'translateY(4px)' }], 130), () => { node.remove(); exitingUploads.delete(node); });
+  }
+  function rememberDraftImage(image, url) {
+    if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+      draftImageSizes.delete(url); draftImageSizes.set(url, { width: image.naturalWidth, height: image.naturalHeight });
+      if (draftImageSizes.size > 128) draftImageSizes.delete(draftImageSizes.keys().next().value);
+    }
+    const queue = $('attachment-queue'); if (!queue.contains(image)) return;
+    const previous = queue._imagePositions;
+    for (const node of queue.children) {
+      const old = previous?.get(node), current = node.getBoundingClientRect();
+      if (old && !mediaViewer && Math.abs(old.left - current.left) > .5) animate(node, [{ transform: 'translateX(' + (old.left - current.left) + 'px)' }, { transform: 'translateX(0)' }], 180);
+    }
+    queue._imagePositions = new Map(Array.from(queue.children).map(node => [node, node.getBoundingClientRect()]));
+  }
   function renderUploads() {
-    const uploads = snapshot.draft?.attachments || [];
-    $('attachment-queue').hidden = !uploads.length || !!editTarget;
-    R.reconcileKeyed($('attachment-queue'), uploads, upload => upload.id || upload.localId, upload => {
-      const contentType = String(upload.contentType || upload.attachment?.contentType || '').toLowerCase();
-      const kind = String(upload.kind || upload.attachment?.kind || '');
-      const mediaKind = contentType.startsWith('image/') || ['image', 'animated-image', 'animation'].includes(kind) ? 'image'
-        : contentType.startsWith('video/') || kind === 'video' ? 'video' : contentType.startsWith('audio/') || kind === 'audio' ? 'audio' : 'file';
+    const uploads = snapshot.draft?.attachments || [], queue = $('attachment-queue');
+    const session = sessionKey(snapshot) + ':' + currentThreadId(), changedThread = uploadsSession !== session;
+    uploadsSession = session;
+    const oldHeight = queue.hidden ? 0 : queue.getBoundingClientRect().height;
+    if (changedThread) { R.suspendMedia(queue); queue.replaceChildren(); }
+    const oldNodes = new Map(Array.from(queue.children).map(node => [node.dataset.key, { node, rect: node.getBoundingClientRect() }]));
+    const ids = new Set(uploads.map(upload => String(upload.id || upload.localId)));
+    for (const [key, previous] of oldNodes) if (!ids.has(key)) {
+      if (!changedThread && !editTarget) removeUploadWithMotion(previous.node);
+    }
+    const oldKeys = Array.from(oldNodes.keys()).join('|'), nextKeys = Array.from(ids).join('|');
+    const structureChanged = oldKeys !== nextKeys || queue.hidden !== (!uploads.length || !!editTarget);
+    if (structureChanged || changedThread) { queue._layoutVersion = (queue._layoutVersion || 0) + 1; queue._atlasMotion?.cancel(); queue.style.height = ''; queue.style.minHeight = ''; queue.style.paddingTop = ''; queue.style.paddingBottom = ''; queue.style.overflow = ''; }
+    queue.hidden = !uploads.length || !!editTarget;
+    queue.classList.toggle('has-visual-media', !queue.hidden && uploads.some(upload => ['image', 'video'].includes(uploadPresentation(upload).kind)));
+    R.reconcileKeyed(queue, uploads, upload => upload.id || upload.localId, upload => {
+      const { kind: mediaKind, url, name } = uploadPresentation(upload);
       const node = e('div', 'queued-file is-' + mediaKind);
       const preview = e('div', 'queued-preview');
-      const name = upload.fileName || upload.attachment?.fileName || t(mediaKind === 'file' ? 'attachFiles' : mediaKind);
       node.setAttribute('aria-label', name); node.title = name;
-      const url = R.mediaUrl(upload.previewUrl || upload.attachment?.url, snapshot.mediaOrigin);
+      let player = null, open = null;
       if (url && mediaKind === 'image') {
-        const image = e('img'); image.src = url; image.alt = name; image.decoding = 'async'; image.draggable = false;
-        image.addEventListener('error', () => { preview.replaceChildren(R.icon('file')); preview.setAttribute('aria-label', t('imageUnavailable')); }, { once: true });
+        const image = e('img'), dimensions = draftImageSizes.get(url);
+        if (dimensions) { image.width = dimensions.width; image.height = dimensions.height; }
+        image.alt = name; image.decoding = 'async'; image.draggable = false;
+        image.addEventListener('load', () => rememberDraftImage(image, url), { once: true }); image.src = url;
+        image.addEventListener('error', () => { if (mediaViewer?.origin === node) closeImageViewer(true, true, true); node.dataset.playbackUnavailable = 'true'; preview.replaceChildren(R.icon('file')); preview.setAttribute('aria-label', t('imageUnavailable')); }, { once: true });
         preview.append(image);
       } else if (url && (mediaKind === 'audio' || mediaKind === 'video')) {
-        const player = e(mediaKind); player.controls = true; player.preload = 'metadata'; player.src = url;
+        player = e(mediaKind); player.controls = true; player.preload = 'metadata'; player.src = url;
         player.setAttribute('aria-label', name); player.setAttribute('controlsList', 'nodownload');
         if (mediaKind === 'video') { player.playsInline = true; const poster = R.mediaUrl(upload.attachment?.thumbnailUrl, snapshot.mediaOrigin); if (poster) player.poster = poster; }
-        player.addEventListener('error', () => { node.dataset.playbackUnavailable = 'true'; preview.replaceChildren(R.icon('file')); updateUploadState(node, node._upload); }, { once: true });
+        player.addEventListener('error', () => { if (mediaViewer?.origin === node) closeImageViewer(true, true, true); node.dataset.playbackUnavailable = 'true'; preview.replaceChildren(R.icon('file')); updateUploadState(node, node._upload); }, { once: true });
         preview.append(player);
       } else preview.append(R.icon('file'));
+      if (url && mediaKind !== 'file') {
+        node.classList.add('is-previewable');
+        open = R.button('queued-preview-open', t('viewMedia') + ' · ' + name, mediaKind === 'image' ? null : 'expand', event => viewDraftMedia(node, event.currentTarget));
+        open.setAttribute('aria-haspopup', 'dialog'); preview.append(open);
+      }
       const uploadId = upload.id || upload.localId;
-      const remove = R.button('icon-button queued-file-remove', t('removeAttachment'), 'close', () => action('removeAttachment', { threadId: currentThreadId(), uploadId }));
+      const remove = R.button('icon-button queued-file-remove', t('removeAttachment'), 'close', () => { if (mediaViewer?.origin === node) closeImageViewer(false, true, true); action('removeAttachment', { threadId: currentThreadId(), uploadId }); });
       const progress = e('div', 'queued-progress'), bar = e('span'); progress.append(bar);
       progress.setAttribute('role', 'progressbar'); progress.setAttribute('aria-label', t('uploading')); progress.setAttribute('aria-valuemin', '0'); progress.setAttribute('aria-valuemax', '100');
       const error = e('div', 'queued-file-error'); error.setAttribute('role', 'alert');
       const retry = R.button('queued-file-retry', t('retry'), null, () => action('retryUpload', { threadId: currentThreadId(), uploadId })); retry.textContent = t('retry');
-      node.append(preview, remove, progress, error, retry); node._parts = { remove, progress, bar, error, retry };
+      node.append(preview, remove, progress, error, retry); node._parts = { preview, player, open, remove, progress, bar, error, retry };
       updateUploadState(node, upload);
       return node;
-    }, upload => JSON.stringify([upload.id || upload.localId, upload.fileName, upload.contentType, upload.kind, upload.previewUrl, upload.attachment?.url, upload.attachment?.thumbnailUrl, upload.attachment?.contentType, upload.attachment?.kind, snapshot.locale]));
-    for (let index = 0; index < uploads.length; index++) updateUploadState($('attachment-queue').children[index], uploads[index]);
+    }, upload => { const info = uploadPresentation(upload); return JSON.stringify([info.kind, info.url]); });
+    for (let index = 0; index < uploads.length; index++) {
+      const node = queue.children[index], info = uploadPresentation(uploads[index]);
+      updateUploadState(node, uploads[index]); node.setAttribute('aria-label', info.name); node.title = info.name;
+      node._parts.open?.setAttribute('aria-label', t('viewMedia') + ' · ' + info.name);
+      node._parts.remove.setAttribute('aria-label', t('removeAttachment')); node._parts.remove.title = t('removeAttachment');
+      node._parts.progress.setAttribute('aria-label', t('uploading'));
+      if (node._parts.player) node._parts.player.setAttribute('aria-label', info.name);
+      const image = node._parts.preview.querySelector('img'); if (image) image.alt = info.name;
+    }
+    if (mediaViewer && (!mediaViewer.origin.isConnected || !viewerValidFor(snapshot))) closeImageViewer(false, true, true);
+    if (!changedThread && structureChanged && !editTarget) {
+      for (const node of queue.children) {
+        const previous = oldNodes.get(node.dataset.key);
+        if (!previous) enter(node);
+        else { const delta = previous.rect.left - node.getBoundingClientRect().left; if (Math.abs(delta) > .5) animate(node, [{ transform: 'translateX(' + delta + 'px)' }, { transform: 'translateX(0)' }], 180); }
+      }
+      const newHeight = queue.hidden ? 0 : queue.getBoundingClientRect().height;
+      if (Math.abs(newHeight - oldHeight) > .5 && !motionPreference.matches && active()) {
+        const hidden = queue.hidden, version = (queue._layoutVersion || 0) + 1; queue._layoutVersion = version;
+        queue.hidden = false; queue.style.overflow = 'hidden'; queue.style.minHeight = '0';
+        queue.style.height = newHeight + 'px';
+        if (!newHeight) { queue.style.paddingTop = '0'; queue.style.paddingBottom = '0'; }
+        const animation = animate(queue, [
+          { height: oldHeight + 'px', paddingTop: oldHeight ? '7px' : '0px', paddingBottom: oldHeight ? '12px' : '0px' },
+          { height: newHeight + 'px', paddingTop: newHeight ? '7px' : '0px', paddingBottom: newHeight ? '12px' : '0px' }
+        ], 180);
+        afterAnimation(animation, () => { if (queue._layoutVersion !== version) return; queue.hidden = hidden; queue.style.height = ''; queue.style.minHeight = ''; queue.style.paddingTop = ''; queue.style.paddingBottom = ''; queue.style.overflow = ''; });
+      }
+    }
+    queue._imagePositions = new Map(Array.from(queue.children).map(node => [node, node.getBoundingClientRect()]));
   }
   function updateUploadState(node, upload) {
     if (!node || !upload) return;
@@ -495,13 +664,15 @@
       const draft = (next.drafts || []).find(item => item.threadId === next.selectedThreadId) || {};
       next.draft = { ...draft, attachments: (next.uploads || []).filter(item => item.threadId === next.selectedThreadId).map(upload => ({ ...upload, id: upload.id || upload.localId, isComplete: !!upload.attachment })) };
     }
+    if (!viewerValidFor(next)) closeImageViewer(false, true, true);
+    if (changedThread || !next.isActive) { closeImageViewer(false, true, true); clearMotion(); closeMenus(true); }
     if (identityChanged) {
       R.suspendMedia(document); localDrafts.clear(); inFlightSends.clear(); localSendFailures.clear(); messageFeedback.clear(); requests.clear(); armorySelections.clear(); messageList.replaceChildren();
       clearTimeout(draftTimer); clearTimeout(typingTimer); draftDirty = false; typingActive = false; lastTypingAt = 0; lastReadKey = ''; lastComposerStateKey = ''; unreadBoundary = null;
-      closeMenus(); closeDialog(); closeArmoryPicker(); armoryRequestPending = false; armorySelection = null; armoryError = ''; editTarget = null; editBackup = null; replyTarget = null; composerCard = null; composer.value = '';
+      closeMenus(true); closeDialog(true); closeArmoryPicker(); armoryRequestPending = false; armorySelection = null; armoryError = ''; editTarget = null; editBackup = null; replyTarget = null; composerCard = null; composer.value = '';
       $('armory-character-list').replaceChildren(); $('armory-picker-status').replaceChildren(); $('armory-picker-status')._signature = null;
     }
-    if (changedThread) { R.suspendMedia(messageList); messageList.replaceChildren(); messageFeedback.clear(); toast(''); closeImageViewer(false); editTarget = null; editBackup = null; replyTarget = null; composerCard = null; stableAnchor = null; lastReadKey = ''; closeMenus(); closeArmoryPicker(); armorySelection = null; dragDepth = 0; nativeDropActive = false; }
+    if (changedThread) { R.suspendMedia(messageList); messageList.replaceChildren(); messageFeedback.clear(); toast(''); closeImageViewer(false, true, true); editTarget = null; editBackup = null; replyTarget = null; composerCard = null; stableAnchor = null; lastReadKey = ''; closeMenus(true); closeArmoryPicker(); armorySelection = null; dragDepth = 0; nativeDropActive = false; }
     const oldLocale = snapshot.locale;
     snapshot = next;
     if (Array.isArray(next.supportedAttachmentExtensions)) fileExtensions = new Set(next.supportedAttachmentExtensions.map(extension => String(extension).replace(/^\./, '').toLowerCase()).filter(extension => /^[a-z0-9]{1,12}$/.test(extension)));
@@ -521,13 +692,14 @@
     renderConversations(); renderThreadHeader();
     if (selectedThread) renderTimeline(changedThread);
     renderUploads(); updateComposer(); renderTyping(); renderArmoryPicker(); renderDropOverlay();
-    if (!active()) { lastReadKey = ''; R.suspendMedia(document); closeImageViewer(false); stopTyping(); }
+    if (changedThread && selectedThread) { enter(document.querySelector('.thread-header'), 0, 140); enter(timeline, 0, 140); }
+    if (!active()) { lastReadKey = ''; R.suspendMedia(document); closeImageViewer(false, true, true); stopTyping(); }
     if (dialogRefresh) dialogRefresh();
     return true;
   }
 
-  function closeMenus() {
-    $('context-menu').hidden = true; $('reaction-picker').hidden = true;
+  function closeMenus(immediate = false) {
+    hideSurface($('context-menu'), immediate); hideSurface($('reaction-picker'), immediate);
     if ($('context-menu').parentElement !== document.body) document.body.append($('context-menu'));
     if ($('reaction-picker').parentElement !== document.body) document.body.append($('reaction-picker'));
     document.querySelectorAll('.message.has-menu').forEach(node => node.classList.remove('has-menu'));
@@ -537,9 +709,10 @@
     const width = node.offsetWidth, height = node.offsetHeight;
     node.style.left = Math.max(9, Math.min(x - width, innerWidth - width - 9)) + 'px';
     node.style.top = Math.max(9, Math.min(y + 4, innerHeight - height - 9)) + 'px';
+    revealSurface(node);
   }
   function showMenu(items, x, y) {
-    closeMenus(); menuReturnFocus = document.activeElement;
+    closeMenus(true); menuReturnFocus = document.activeElement;
     const menu = $('context-menu'); menu.replaceChildren();
     if ($('app-dialog').open) $('app-dialog').append(menu);
     for (const item of items) {
@@ -573,7 +746,7 @@
   }
   function showReactions(message, anchor) {
     if (!capable('reactions') || message.deletedAt) return;
-    closeMenus(); menuReturnFocus = document.activeElement;
+    closeMenus(true); menuReturnFocus = document.activeElement;
     const picker = $('reaction-picker'); picker.replaceChildren();
     for (const emoji of ['👍', '❤️', '😂', '🎉', '🔥', '👀', '✅', '🙏', '😮', '😢', '💪', '⚔️', '🛡️', '✨', '👋', '🤔', '💀', '💯']) {
       const mine = message.reactions?.some(reaction => reaction.emoji === emoji && reaction.accountIds?.includes(snapshot.ownerAccountId));
@@ -596,7 +769,9 @@
   function jumpTo(messageId) {
     const node = Array.from(messageList.children).find(item => item.dataset.messageId === messageId);
     if (!node) { toast(t('messageNotLoaded')); return; }
-    closeDialog(); followBottom = false; node.scrollIntoView({ block: 'center', behavior: 'auto' }); node.classList.remove('flash'); requestAnimationFrame(() => node.classList.add('flash')); node.focus({ preventScroll: true }); stableAnchor = captureAnchor(); updateJumpButton();
+    closeDialog(); followBottom = false;
+    smoothScrollTo(() => node.isConnected ? timeline.scrollTop + node.getBoundingClientRect().top - timeline.getBoundingClientRect().top - (timeline.clientHeight - node.offsetHeight) / 2 : timeline.scrollTop);
+    node.classList.remove('flash'); requestAnimationFrame(() => node.classList.add('flash')); node.focus({ preventScroll: true }); stableAnchor = captureAnchor(); updateJumpButton();
   }
   function dismissPreview(message, preview) {
     if (R.isVideoPreview(preview) || preview.canRemove === false || !capable('link-previews')) return;
@@ -604,11 +779,21 @@
   }
 
   function openDialog(title, subtitle) {
-    closeMenus(); dialogRefresh = null; $('dialog-title').textContent = title; $('dialog-subtitle').textContent = subtitle || ''; $('dialog-content').replaceChildren(); $('dialog-footer').replaceChildren();
-    if (!$('app-dialog').open) $('app-dialog').showModal();
+    closeMenus(true); dialogRefresh = null; $('dialog-title').textContent = title; $('dialog-subtitle').textContent = subtitle || ''; $('dialog-content').replaceChildren(); $('dialog-footer').replaceChildren();
+    const dialog = $('app-dialog'); dialog._dialogVersion = (dialog._dialogVersion || 0) + 1;
+    dialog._atlasMotion?.cancel(); dialog.inert = false; dialog.classList.remove('is-closing');
+    if (!dialog.open) { dialog.classList.add('is-opening'); dialog.showModal(); requestAnimationFrame(() => dialog.classList.remove('is-opening')); }
+    enter(dialog, 5, 160);
     return { content: $('dialog-content'), footer: $('dialog-footer') };
   }
-  function closeDialog() { dialogRefresh = null; if ($('app-dialog').open) $('app-dialog').close(); }
+  function closeDialog(immediate = false) {
+    dialogRefresh = null; const dialog = $('app-dialog'); if (!dialog.open) return;
+    const version = (dialog._dialogVersion || 0) + 1; dialog._dialogVersion = version;
+    dialog.inert = true; dialog.classList.add('is-closing');
+    const finish = () => { if (dialog._dialogVersion === version) { dialog.close(); dialog.inert = false; dialog.classList.remove('is-opening', 'is-closing'); } };
+    if (immediate === true) { dialog._atlasMotion?.cancel(); finish(); }
+    else afterAnimation(animate(dialog, [{ opacity: 1, transform: 'translateY(0)' }, { opacity: 0, transform: 'translateY(4px)' }], 110), finish);
+  }
   function footerButton(footer, label, handler, primary, danger) { const node = R.button((primary ? 'primary-button' : 'secondary-button') + (danger ? ' danger-button' : ''), label, null, handler); node.textContent = label; footer.append(node); return node; }
   function confirmAction(title, hint, label, run) { const dialog = openDialog(title, hint); footerButton(dialog.footer, t('cancel'), closeDialog); footerButton(dialog.footer, label, () => { closeDialog(); run(); }, true, true); }
   function searchInput(placeholder) { const label = e('label', 'search-field'); label.append(R.icon('search')); const input = e('input'); input.type = 'search'; input.placeholder = placeholder; input.setAttribute('aria-label', placeholder); label.append(input); return { label, input }; }
@@ -697,22 +882,144 @@
       }
     }; dialogRefresh(); footerButton(dialog.footer, t('close'), closeDialog);
   }
-  function viewImage(attachment) {
-    const url = R.mediaUrl(attachment.url, snapshot.mediaOrigin) || (attachment.id ? snapshot.mediaOrigin + 'attachments/' + encodeURIComponent(attachment.id) : ''); if (!url) return;
-    closeMenus(); closeArmoryPicker();
-    imageReturnFocus = document.activeElement;
-    const dialog = $('image-dialog'), image = $('image-dialog-image');
-    dialog.setAttribute('aria-label', t('viewImage')); image.alt = attachment.fileName || t('image'); image.src = url;
-    if (!dialog.open) dialog.showModal();
-    publishComposerState();
+  function viewImage(attachment, opener) {
+    const url = R.mediaUrl(attachment.url, snapshot.mediaOrigin) || (attachment.id ? snapshot.mediaOrigin + 'attachments/' + encodeURIComponent(attachment.id) : '');
+    if (url) openMediaViewer({ kind: 'image', url, name: attachment.fileName, attachmentId: attachment.id, opener: opener || document.activeElement });
   }
-  function closeImageViewer(restoreFocus = true) {
-    const dialog = $('image-dialog');
-    if (!dialog.open) return;
-    const returnFocus = imageReturnFocus; imageReturnFocus = null;
-    dialog.close(); $('image-dialog-image').removeAttribute('src');
-    publishComposerState();
-    if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+  function viewMedia(attachment, player, opener) {
+    const url = R.mediaUrl(player?.currentSrc || player?.src, snapshot.mediaOrigin);
+    if (url && player?.isConnected && !player.error) openMediaViewer({ kind: player.tagName.toLowerCase(), url, name: attachment.fileName, attachmentId: attachment.id, player, opener });
+  }
+  function viewDraftMedia(node, opener) {
+    const upload = node._upload, info = uploadPresentation(upload);
+    if (!info.url || !['image', 'video', 'audio'].includes(info.kind) || node.dataset.playbackUnavailable === 'true') return;
+    openMediaViewer({ kind: info.kind, url: info.url, name: info.name, uploadId: upload.id || upload.localId, player: node._parts.player, opener });
+  }
+  function movePlayer(player, parent, before = null, continuePlayback = true) {
+    const time = player.currentTime, playing = !player.paused && !player.ended;
+    const rate = player.playbackRate, volume = player.volume, muted = player.muted;
+    const session = sessionKey(snapshot), threadId = currentThreadId();
+    const version = (player._atlasMoveVersion || 0) + 1; player._atlasMoveVersion = version;
+    if (player._atlasRestoreMetadata) player.removeEventListener('loadedmetadata', player._atlasRestoreMetadata);
+    // A state-preserving move avoids the media reset caused by remove/append.
+    if (typeof parent.moveBefore === 'function' && player.isConnected && parent.isConnected) parent.moveBefore(player, before);
+    else {
+      parent.insertBefore(player, before);
+      const restore = () => {
+        if (player._atlasMoveVersion !== version || !player.isConnected || session !== sessionKey(snapshot) || threadId !== currentThreadId()) return;
+        if (Number.isFinite(time) && Math.abs(player.currentTime - time) > .05) { try { player.currentTime = time; } catch (_) {} }
+      };
+      player.playbackRate = rate; player.volume = volume; player.muted = muted;
+      restore();
+      if (player.readyState === 0) { player._atlasRestoreMetadata = restore; player.addEventListener('loadedmetadata', restore, { once: true }); }
+      // Request resumption only once. A later metadata event must not undo a
+      // user's pause while this initial play request was waiting for data.
+      if (continuePlayback && playing && player.paused && active()) player.play().catch(() => {});
+    }
+    if (!continuePlayback) player.pause();
+  }
+  function refreshPlayerControls(player) {
+    // Chromium can preserve stale inert/hidden state in native controls when
+    // moving a player across a modal. Rebuild only controls, without reloading
+    // the media or changing its current time, volume, speed or playback state.
+    if (player?.controls) { player.controls = false; player.controls = true; }
+  }
+  function openMediaViewer(details) {
+    if (!hasIdentity() || !currentThreadId() || !details.opener?.isConnected) return;
+    closeImageViewer(false, true, true); closeMenus(); closeArmoryPicker();
+    const dialog = $('image-dialog'), image = $('image-dialog-image'), host = $('media-dialog-player-host');
+    const origin = details.opener.closest('.queued-file, .attachment') || details.opener;
+    const sourceImage = origin.querySelector('img');
+    const sourceRect = (sourceImage || details.player || origin).getBoundingClientRect();
+    const viewer = { ...details, origin, sourceRect, session: sessionKey(snapshot), threadId: currentThreadId(),
+      messageId: origin.closest('.message')?.dataset.messageId, version: ++viewerVersion, closing: false };
+    mediaViewer = viewer; imageReturnFocus = details.opener;
+    dialog.classList.remove('is-image', 'is-video', 'is-audio', 'is-closing');
+    dialog.classList.add('is-' + details.kind, 'is-opening');
+    dialog.setAttribute('aria-label', details.name || t(details.kind));
+    image.hidden = details.kind !== 'image'; host.hidden = details.kind === 'image';
+    $('media-dialog-title').hidden = details.kind !== 'audio'; $('media-dialog-title').textContent = details.name || t(details.kind);
+    if (details.kind === 'image') { image.alt = details.name || t('image'); image.src = details.url; }
+    if (details.player) {
+      const player = details.player, rect = player.getBoundingClientRect();
+      const placeholder = e('div', 'queued-player-placeholder'); placeholder.setAttribute('aria-hidden', 'true');
+      placeholder.style.width = rect.width + 'px'; placeholder.style.height = rect.height + 'px'; placeholder.append(R.icon('play'));
+      player.before(placeholder); viewer.placeholder = placeholder;
+      movePlayer(player, host);
+      // A load failure must never leave detached playback or a dead modal open.
+      viewer.onError = () => closeImageViewer(true, true, true);
+      player.addEventListener('error', viewer.onError, { once: true });
+    }
+    // Move the player before showModal() makes its old parent inert. A preserving
+    // move can carry inert native controls into the viewer in Chromium.
+    if (!dialog.open) dialog.showModal();
+    refreshPlayerControls(details.player);
+    requestAnimationFrame(() => {
+      if (mediaViewer !== viewer || viewer.closing) return;
+      dialog.classList.remove('is-opening');
+      const target = details.kind === 'image' ? image : host;
+      const reveal = () => {
+        if (mediaViewer !== viewer || viewer.closing) return;
+        const rect = target.getBoundingClientRect();
+        const fromThumbnail = details.kind === 'image' && rect.width > 0 && sourceRect.width > 0;
+        const scale = fromThumbnail ? Math.min(1, sourceRect.width / rect.width) : .97;
+        const dx = fromThumbnail ? sourceRect.left + sourceRect.width / 2 - rect.left - rect.width / 2 : 0;
+        const dy = fromThumbnail ? sourceRect.top + sourceRect.height / 2 - rect.top - rect.height / 2 : 0;
+        animate(target, [{ opacity: 0, transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + scale + ')' }, { opacity: 1, transform: 'translate(0,0) scale(1)' }], 200);
+      };
+      if (details.kind === 'image' && !image.complete) image.addEventListener('load', reveal, { once: true }); else reveal();
+    });
+    dialog.focus({ preventScroll: true }); publishComposerState(); renderDropOverlay();
+  }
+  function viewerValidFor(value) {
+    const viewer = mediaViewer;
+    if (!viewer) return true;
+    if (viewer.session !== sessionKey(value) || viewer.threadId !== value.selectedThreadId || !value.isActive) return false;
+    if (viewer.uploadId) {
+      const upload = (value.draft?.attachments || []).find(item => (item.id || item.localId) === viewer.uploadId);
+      if (!upload || editTarget) return false;
+      const info = uploadPresentation(upload, value);
+      return info.url === viewer.url && info.kind === viewer.kind;
+    }
+    const message = (value.messages || []).find(item => item.id === viewer.messageId && !item.deletedAt);
+    return !!message?.attachments?.some(item => item.id === viewer.attachmentId);
+  }
+  function closeImageViewer(restoreFocus = true, immediate = false, pause = false) {
+    const dialog = $('image-dialog'), viewer = mediaViewer;
+    if (!dialog.open && !viewer) return;
+    if (viewer?.closing && !immediate) return;
+    if (viewer) viewer.closing = true;
+    if (viewer?.player && pause) viewer.player.pause();
+    if (document.fullscreenElement && dialog.contains(document.fullscreenElement)) document.exitFullscreen().catch(() => {});
+    const version = ++viewerVersion, returnFocus = imageReturnFocus;
+    const finish = () => {
+      if (version !== viewerVersion) return;
+      mediaViewer = null; imageReturnFocus = null;
+      // Restore the background's interactivity before moving native controls
+      // back into it; the reverse order carries an inert controls subtree.
+      if (dialog.open) dialog.close();
+      if (viewer?.player) {
+        const player = viewer.player;
+        player.removeEventListener('error', viewer.onError);
+        if (pause || !viewer.origin.isConnected) player.pause();
+        if (viewer.placeholder?.isConnected && viewer.origin.isConnected) {
+          movePlayer(player, viewer.placeholder.parentElement, viewer.placeholder, !pause);
+          refreshPlayerControls(player);
+        }
+        else { player._atlasMoveVersion = (player._atlasMoveVersion || 0) + 1; player.pause(); player.remove(); }
+        viewer.placeholder?.remove();
+      }
+      $('image-dialog-image').removeAttribute('src');
+      $('image-dialog-image')._atlasMotion?.cancel(); $('media-dialog-player-host')._atlasMotion?.cancel();
+      $('media-dialog-player-host').replaceChildren($('media-dialog-title'));
+      dialog.classList.remove('is-opening', 'is-closing');
+      publishComposerState(); renderDropOverlay();
+      if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+    };
+    if (immediate || !viewer || motionPreference.matches || !active()) { finish(); return; }
+    dialog.classList.add('is-closing');
+    const target = viewer.kind === 'image' ? $('image-dialog-image') : $('media-dialog-player-host');
+    afterAnimation(animate(target, [{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(.98)' }], 130), finish);
   }
   function closeArmoryPicker(restoreFocus) {
     armoryPickerOpen = false; armoryPickerFocusPending = false;
@@ -807,7 +1114,7 @@
   $('thread-menu-button').addEventListener('click', event => { if (!selectedThread) return; const rect = event.currentTarget.getBoundingClientRect(); showThreadMenu(selectedThread, rect.right, rect.bottom); });
   $('pinned-strip').addEventListener('click', showPinned);
   $('load-earlier-button').addEventListener('click', () => { const first = snapshot.messages.filter(message => R.id(message.id)).sort((a, b) => R.compareIds(a.id, b.id))[0]; if (selectedThread && first) action('loadEarlier', { threadId: selectedThread.id, beforeId: first.id }); });
-  $('jump-latest-button').addEventListener('click', () => { scrollBottom(); updateJumpButton(); requestAnimationFrame(requestRead); });
+  $('jump-latest-button').addEventListener('click', () => { scrollBottom(true); updateJumpButton(); requestAnimationFrame(requestRead); });
   $('send-button').addEventListener('click', sendMessage); $('cancel-context-button').addEventListener('click', cancelContext);
   $('attach-button').addEventListener('click', () => { if (currentThreadId()) action('pickFiles', { threadId: currentThreadId() }); });
   $('share-game-button').addEventListener('click', showCardComposer); $('close-armory-picker').addEventListener('click', () => closeArmoryPicker(true));
@@ -848,13 +1155,17 @@
     if (!programmaticScroll && !layoutPending) { followBottom = isAtBottom(36); stableAnchor = followBottom ? null : captureAnchor(); lastUserScroll = performance.now(); }
     updateJumpButton(); requestAnimationFrame(requestRead);
   }, { passive: true });
-  timeline.addEventListener('wheel', () => { if (layoutPending) { layoutPending = false; ++renderVersion; } programmaticScroll = false; }, { passive: true });
-  if (global.ResizeObserver) new ResizeObserver(() => {
-    if (!selectedThread || layoutPending || timeline.clientHeight <= 0) return;
+  const interruptScroll = () => { cancelSmoothScroll(); if (layoutPending) { layoutPending = false; ++renderVersion; } programmaticScroll = false; };
+  timeline.addEventListener('wheel', interruptScroll, { passive: true });
+  timeline.addEventListener('pointerdown', interruptScroll, { passive: true });
+  timeline.addEventListener('touchstart', interruptScroll, { passive: true });
+  timeline.addEventListener('keydown', event => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) interruptScroll(); });
+  if (global.ResizeObserver) { const observer = new ResizeObserver(() => {
+    if (!selectedThread || layoutPending || smoothScroll || timeline.clientHeight <= 0) return;
     if (followBottom) scrollBottom(); else if (stableAnchor && performance.now() - lastUserScroll > 40) restoreAnchor(stableAnchor);
     updateJumpButton(); requestAnimationFrame(requestRead);
-  }).observe(messageList);
-  global.addEventListener('resize', () => { if (selectedThread) settleLayout(stableAnchor, followBottom); resizeComposer(); });
+  }); observer.observe(messageList); observer.observe(timeline); }
+  global.addEventListener('resize', () => { cancelSmoothScroll(); if (selectedThread) settleLayout(stableAnchor, followBottom); resizeComposer(); });
   document.addEventListener('click', event => {
     const link = event.target.closest('a[data-external-link]');
     if (link) { event.preventDefault(); const url = R.safeUrl(link.getAttribute('href')); if (url) action('openExternal', { url }); }
@@ -862,7 +1173,7 @@
   });
   document.addEventListener('keydown', event => {
     if ($('image-dialog').open) { if (event.key === 'Escape') { event.preventDefault(); closeImageViewer(); } return; }
-    const floating = !$('reaction-picker').hidden ? $('reaction-picker') : !$('context-menu').hidden ? $('context-menu') : null;
+    const floating = !$('reaction-picker').hidden && !$('reaction-picker').inert ? $('reaction-picker') : !$('context-menu').hidden && !$('context-menu').inert ? $('context-menu') : null;
     if (event.key === 'Escape') { if (floating) { event.preventDefault(); closeMenus(); menuReturnFocus?.focus({ preventScroll: true }); } else if (armoryPickerOpen) { event.preventDefault(); closeArmoryPicker(true); } else if (editTarget || replyTarget) { event.preventDefault(); cancelContext(); } }
     if (floating && ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
       event.preventDefault(); const buttons = Array.from(floating.querySelectorAll('button')), index = buttons.indexOf(document.activeElement);
@@ -871,12 +1182,14 @@
     }
     if ((event.key === 'ContextMenu' || event.key === 'F10' && event.shiftKey) && document.activeElement?.classList.contains('message')) { event.preventDefault(); const node = document.activeElement, rect = node.getBoundingClientRect(); showMessageMenu(node._message, rect.right - 25, rect.top + 15); }
   });
-  $('app-dialog').addEventListener('close', () => { dialogRefresh = null; closeMenus(); });
+  $('app-dialog').addEventListener('close', () => { dialogRefresh = null; closeMenus(true); });
+  $('app-dialog').addEventListener('cancel', event => { event.preventDefault(); closeDialog(); });
+  $('app-dialog').querySelector('form').addEventListener('submit', event => { event.preventDefault(); closeDialog(); });
   $('app-dialog').addEventListener('click', event => { if (event.target === $('app-dialog')) { const rect = $('app-dialog').getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeDialog(); } });
   $('image-dialog').addEventListener('cancel', event => { event.preventDefault(); closeImageViewer(); });
   $('image-dialog').addEventListener('click', event => { if (event.target === $('image-dialog')) closeImageViewer(); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { flushDraft(); stopTyping(); closeImageViewer(false); R.suspendMedia(document); dragDepth = 0; nativeDropActive = false; renderDropOverlay(); } else requestAnimationFrame(requestRead); });
-  global.addEventListener('pagehide', () => { flushDraft(); stopTyping(); closeImageViewer(false); R.suspendMedia(document); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { flushDraft(); stopTyping(); closeImageViewer(false, true, true); clearMotion(); R.suspendMedia(document); dragDepth = 0; nativeDropActive = false; renderDropOverlay(); } else requestAnimationFrame(requestRead); });
+  global.addEventListener('pagehide', () => { flushDraft(); stopTyping(); closeImageViewer(false, true, true); clearMotion(); R.suspendMedia(document); });
   setInterval(renderTyping, 2000);
   if (global.chrome?.webview) chrome.webview.addEventListener('message', event => receiveMessage(event.data));
   global.AtlasChat = Object.freeze({ applySnapshot, receive: receiveMessage, version: 2 });

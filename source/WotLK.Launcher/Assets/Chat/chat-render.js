@@ -5,6 +5,8 @@
   const MAX_BODY = 1000;
   const DECIMAL_ID = /^(0|[1-9][0-9]*)$/;
   const MEDIA_ORIGIN = 'https://atlas-chat-media.invalid';
+  const imageDimensions = new Map();
+  const MAX_IMAGE_DIMENSIONS = 128;
 
   function element(tag, className, text) {
     const node = document.createElement(tag);
@@ -226,10 +228,36 @@
   }
   function handlePlaybackFailure(media, context) {
     media.addEventListener('error', () => {
+      context.mediaError?.(media);
       const fallback = element('div', 'media-playback-unavailable'); fallback.setAttribute('role', 'status');
       fallback.append(icon('alert'), element('span', '', context.t('mediaPlaybackUnavailable')));
       media.replaceWith(fallback);
     }, { once: true });
+  }
+  function sizeAttachmentImage(host, image, dimensions) {
+    if (!dimensions) return;
+    const { width, height } = dimensions;
+    image.width = width; image.height = height;
+    // Real dimensions reserve the next layout without upscaling small images
+    // or adding a wide empty card around portrait images.
+    host.style.width = Math.min(width, 420, width * 350 / height) + 'px';
+  }
+  function rememberImageDimensions(url, image) {
+    const width = image.naturalWidth, height = image.naturalHeight;
+    if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0) return null;
+    const dimensions = { width, height };
+    imageDimensions.delete(url);
+    imageDimensions.set(url, dimensions);
+    if (imageDimensions.size > MAX_IMAGE_DIMENSIONS) imageDimensions.delete(imageDimensions.keys().next().value);
+    return dimensions;
+  }
+  function attachmentExpand(attachment, player, context) {
+    const open = button('icon-button attachment-expand', context.t('viewMedia'), 'expand', event => {
+      if (player.isConnected && !player.error) context.viewMedia(attachment, player, event.currentTarget);
+    });
+    open.setAttribute('aria-haspopup', 'dialog');
+    player.addEventListener('error', () => { open.hidden = true; }, { once: true });
+    return open;
   }
   function attachmentNode(attachment, context) {
     let node = element('div', 'attachment');
@@ -238,28 +266,31 @@
     const kind = String(attachment.kind || 'document');
     const isImage = kind === 'image' || kind === 'animated-image' || kind === 'animation' || /^image\//.test(contentType);
     if (isImage && url) {
-      const open = button('attachment attachment-image', context.t('viewImage'), null, () => context.viewImage(attachment));
-      const image = element('img'); image.alt = attachment.fileName || context.t('image'); image.loading = 'lazy'; image.decoding = 'async'; image.draggable = false; image.src = url;
+      const open = button('attachment attachment-image', context.t('viewImage'), null, event => context.viewImage(attachment, event.currentTarget));
+      const image = element('img'); image.alt = attachment.fileName || context.t('image'); image.loading = 'lazy'; image.decoding = 'async'; image.draggable = false;
+      sizeAttachmentImage(open, image, imageDimensions.get(url));
       image.addEventListener('load', () => {
-        if (!image.naturalWidth || !image.naturalHeight) return;
-        // Never upscale small images. Bound either dimension without a wide,
-        // empty card around portrait images or a file-information footer.
-        open.style.width = Math.min(image.naturalWidth, 420, image.naturalWidth * 350 / image.naturalHeight) + 'px';
+        sizeAttachmentImage(open, image, rememberImageDimensions(url, image));
       }, { once: true });
-      image.addEventListener('error', () => { open.replaceChildren(element('span', 'media-placeholder-label', context.t('imageUnavailable'))); open.style.minHeight = '80px'; }, { once: true });
+      image.addEventListener('error', () => { imageDimensions.delete(url); open.replaceChildren(element('span', 'media-placeholder-label', context.t('imageUnavailable'))); open.style.minHeight = '80px'; }, { once: true });
+      image.src = url;
       open.append(image); node = open;
     } else if (kind === 'video' && url) {
+      node.classList.add('is-video');
       const video = element('video'); video.controls = true; video.preload = 'none'; video.playsInline = true; video.src = url;
       video.setAttribute('aria-label', attachment.fileName || context.t('video'));
       video.setAttribute('controlsList', 'nodownload');
       const thumbnail = mediaUrl(attachment.thumbnailUrl, context.mediaOrigin); if (thumbnail) video.poster = thumbnail;
       handlePlaybackFailure(video, context);
       node.append(video);
+      if (typeof context.viewMedia === 'function') node.append(attachmentExpand(attachment, video, context));
     } else if (kind === 'audio' && url) {
+      node.classList.add('is-audio');
       const audio = element('audio'); audio.controls = true; audio.preload = 'none'; audio.src = url;
       audio.setAttribute('aria-label', attachment.fileName || context.t('audio')); audio.setAttribute('controlsList', 'nodownload');
       handlePlaybackFailure(audio, context);
       node.append(audio);
+      if (typeof context.viewMedia === 'function') node.append(attachmentExpand(attachment, audio, context));
     }
     node.dataset.attachmentId = String(attachment.id || '');
     if (!isImage || !url) node.append(fileFooter(attachment, context));
@@ -438,8 +469,12 @@
   function reconcileMessage(node, message, context) {
     const sender = context.profile ? context.profile(message.sender) : message.sender;
     const own = sender && sender.accountId === context.ownerAccountId;
-    if (!node) {
-      node = element('article', 'message'); node.dataset.messageId = message.id; node.tabIndex = -1;
+    if (!node || !node._parts) {
+      if (node) {
+        suspendMedia(node); node.replaceChildren(); node.className = 'message';
+        for (const key of ['_signature', '_headerKey', '_bodyKey', '_replyKey', '_cardKey', '_reactionKey', '_readKey', '_actionsKey']) delete node[key];
+      } else node = element('article', 'message');
+      node.tabIndex = -1;
       const avatarHost = element('div', 'message-avatar');
       const main = element('div', 'message-main');
       const heading = element('div', 'message-heading');
@@ -456,8 +491,10 @@
       const hoverTime = element('span', 'message-hover-time');
       node.append(avatarHost, main, actions, hoverTime);
       node._parts = { avatarHost, main, heading, pin, reply, body, attachments, previews, cards, reactions, status, actions, hoverTime };
-      node.addEventListener('contextmenu', event => { event.preventDefault(); context.messageMenu(node._message, event.clientX, event.clientY); });
     }
+    node.dataset.messageId = message.id;
+    delete node.dataset.clientMessageId;
+    node.oncontextmenu = event => { event.preventDefault(); context.messageMenu(node._message, event.clientX, event.clientY); };
     node._message = message;
     node.classList.toggle('is-own', !!own);
     node.classList.toggle('is-continuation', !!context.grouped);

@@ -308,6 +308,34 @@ internal static class ChatFullShellWpfTests
         await CaptureWebAsync(core, System.IO.Path.Combine(directory, $"chat-{language}-queued-media-webview.png"));
         Capture(content, System.IO.Path.Combine(directory, $"chat-{language}-queued-media-wpf-direct.png"));
 
+        foreach (string kind in new[] { "audio", "video" })
+        {
+            await core.ExecuteScriptAsync($"window.atlasNativeViewerProbe=document.querySelector('.queued-file.is-{kind} {kind}');window.atlasNativeViewerProbe.volume=.37;window.atlasNativeViewerProbe.playbackRate=1.25;window.atlasNativeViewerProbe.muted=true");
+            await CaptureNativeControlsAsync(core, directory, $"chat-{language}-{kind}-before-open");
+            await core.ExecuteScriptAsync($"document.querySelector('.queued-file.is-{kind} .queued-preview-open').click()");
+            await UntilScript(core, $"document.querySelector('#image-dialog').open&&document.querySelector('#image-dialog').classList.contains('is-{kind}')&&document.querySelector('#media-dialog-player-host {kind}')===window.atlasNativeViewerProbe&&window.atlasNativeViewerProbe.controls&&window.atlasNativeViewerProbe.readyState>=1&&!window.atlasNativeViewerProbe.error",
+                $"The native {kind} viewer preserves its decoded player and exposes native controls.");
+            await Until(() => !view.IsRichComposerAcceptingFiles, $"The enlarged {kind} viewer blocks native file admission.");
+            await UntilScript(core, "(() => {const r=window.atlasNativeViewerProbe.getBoundingClientRect();return r.width>=480&&r.height>0&&r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight;})()",
+                $"The enlarged {kind} player stays inside the fixed native Messages viewport.");
+            await Task.Delay(500);
+            await Layout(shell);
+            await CaptureWebAsync(core, System.IO.Path.Combine(directory, $"chat-{language}-{kind}-viewer-webview.png"));
+            Capture(content, System.IO.Path.Combine(directory, $"chat-{language}-{kind}-viewer-wpf-direct.png"));
+            await CaptureNativeControlsAsync(core, directory, $"chat-{language}-{kind}-viewer");
+            await core.ExecuteScriptAsync("document.querySelector('#image-dialog').click()");
+            await UntilScript(core, $"!document.querySelector('#image-dialog').open&&document.querySelector('.queued-file.is-{kind} {kind}')===window.atlasNativeViewerProbe&&window.atlasNativeViewerProbe.readyState>=1&&!window.atlasNativeViewerProbe.error&&document.activeElement===document.querySelector('.queued-file.is-{kind} .queued-preview-open')",
+                $"Closing the native {kind} viewer restores the same decoded inline player and opener focus.");
+            await Until(() => view.IsRichComposerAcceptingFiles, $"Closing the {kind} viewer restores native file admission.");
+            await Task.Delay(500);
+            await CaptureNativeControlsAsync(core, directory, $"chat-{language}-{kind}-restored");
+        }
+        await Task.Delay(500);
+        await Layout(shell);
+        await CaptureWebAsync(core, System.IO.Path.Combine(directory, $"chat-{language}-restored-media-webview.png"));
+        Capture(content, System.IO.Path.Combine(directory, $"chat-{language}-restored-media-wpf-direct.png"));
+        await core.ExecuteScriptAsync("delete window.atlasNativeViewerProbe");
+
         JsonObject cards = JsonSerializer.SerializeToNode(Snapshot(language, imageLength), ChatJson.Options)!.AsObject();
         cards["sequence"] = "12";
         cards["messages"] = JsonSerializer.SerializeToNode(new[]
@@ -368,6 +396,44 @@ internal static class ChatFullShellWpfTests
         byte[] bytes = stream.ToArray();
         await File.WriteAllBytesAsync(path, bytes);
         return bytes;
+    }
+    private static async Task CaptureNativeControlsAsync(CoreWebView2 core, string directory, string scenario)
+    {
+        using JsonDocument remote = JsonDocument.Parse(await core.CallDevToolsProtocolMethodAsync("Runtime.evaluate", "{\"expression\":\"window.atlasNativeViewerProbe\"}"));
+        string objectId = remote.RootElement.GetProperty("result").GetProperty("objectId").GetString()!;
+        using JsonDocument described = JsonDocument.Parse(await core.CallDevToolsProtocolMethodAsync("DOM.describeNode", JsonSerializer.Serialize(new { objectId })));
+        int backendId = described.RootElement.GetProperty("node").GetProperty("backendNodeId").GetInt32();
+        string rawTree = await core.CallDevToolsProtocolMethodAsync("Accessibility.getFullAXTree", "{}");
+        using JsonDocument tree = JsonDocument.Parse(rawTree);
+        Dictionary<string, JsonElement> byId = tree.RootElement.GetProperty("nodes").EnumerateArray().ToDictionary(node => node.GetProperty("nodeId").GetString()!);
+        JsonElement playerNode = byId.Values.FirstOrDefault(node => node.TryGetProperty("backendDOMNodeId", out JsonElement id) && id.GetInt32() == backendId);
+        List<JsonElement> descendants = [];
+        Queue<string> queue = new();
+        if (playerNode.ValueKind != JsonValueKind.Undefined && playerNode.TryGetProperty("childIds", out JsonElement childIds))
+            foreach (JsonElement child in childIds.EnumerateArray()) queue.Enqueue(child.GetString()!);
+        while (queue.TryDequeue(out string? id))
+        {
+            if (!byId.TryGetValue(id, out JsonElement current)) continue;
+            descendants.Add(current);
+            if (current.TryGetProperty("childIds", out JsonElement children))
+                foreach (JsonElement child in children.EnumerateArray()) queue.Enqueue(child.GetString()!);
+        }
+        JsonElement[] visible = descendants.Where(node => !node.GetProperty("ignored").GetBoolean()).ToArray();
+        string Role(JsonElement node) => node.TryGetProperty("role", out JsonElement role) ? role.GetProperty("value").GetString() ?? "" : "";
+        JsonElement state = await Script(core, "(() => {const p=window.atlasNativeViewerProbe;const r=p.getBoundingClientRect();return {tag:p.tagName,currentTime:p.currentTime,duration:p.duration,paused:p.paused,ended:p.ended,rate:p.playbackRate,volume:p.volume,muted:p.muted,readyState:p.readyState,networkState:p.networkState,src:p.currentSrc,controls:p.controls,inDialog:!!p.closest('dialog'),rect:{x:r.x,y:r.y,width:r.width,height:r.height}};})()");
+        await File.WriteAllTextAsync(System.IO.Path.Combine(directory, scenario + "-controls.json"), JsonSerializer.Serialize(new
+        {
+            scenario, playerState = state, buttons = visible.Count(node => Role(node) == "button"), sliders = visible.Count(node => Role(node) == "slider"),
+            playerNode = playerNode.ValueKind == JsonValueKind.Undefined ? (JsonElement?)null : playerNode,
+            descendants
+        }, new JsonSerializerOptions { WriteIndented = true }));
+        await File.WriteAllTextAsync(System.IO.Path.Combine(directory, scenario + "-ax-tree.json"), rawTree);
+        await core.CallDevToolsProtocolMethodAsync("Runtime.releaseObject", JsonSerializer.Serialize(new { objectId }));
+        Check(visible.Count(node => Role(node) == "button") >= 2 && visible.Any(node => Role(node) == "slider"),
+            $"Native media buttons and timeline remain accessible in {scenario}; a controls attribute alone is insufficient.");
+        Check(state.GetProperty("rate").GetDouble() == 1.25 && Math.Abs(state.GetProperty("volume").GetDouble() - .37) < .001
+            && state.GetProperty("muted").GetBoolean() && state.GetProperty("paused").GetBoolean(),
+            $"The native player preserves the fixture playback rate, volume, mute and paused state in {scenario}.");
     }
     private static BitmapSource Capture(FrameworkElement content, string path)
     {

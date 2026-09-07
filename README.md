@@ -23,6 +23,11 @@ gh auth login --web --git-protocol ssh
 gh auth setup-git
 ```
 
+Les releases GitHub utilisent le compte connecté à `gh`. Les commits et les tags
+utilisent l’identité Git configurée sur le dépôt (`user.name` et `user.email`) ;
+le script de release la conserve. Une adresse GitHub `noreply` permet de rattacher
+les commits au compte sans publier son adresse personnelle.
+
 Si le repo `Dono1402/WotLK-Launcher` n'existe pas encore, le script de release peut le creer automatiquement quand `gh` est connecte.
 
 Workflow:

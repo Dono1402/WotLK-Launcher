@@ -202,8 +202,9 @@ if [ ! -d .git ]; then
   git init -b main
 fi
 
-git config user.name "WotLK Launcher Release Bot"
-git config user.email "wotlk-launcher@atlas.local"
+# Keep the configured author and committer instead of overriding their identity.
+git var GIT_AUTHOR_IDENT >/dev/null
+git var GIT_COMMITTER_IDENT >/dev/null
 
 git add .gitignore README.md scripts/release-launcher.sh current releases server caddy source
 

@@ -12,7 +12,7 @@ internal static class AccountSecuritySessionTests
     private const string CurrentSessionId = "session-current";
     private const string OtherSessionId = "session-other";
 
-    internal static async Task<int> RunAsync(string? captureDirectory)
+    internal static async Task<int> RunAsync(string? captureDirectory, bool includeWpf = true)
     {
         ValidateDeviceNamePolicy();
         await ValidateSnapshotAndSessionsAsync();
@@ -21,8 +21,10 @@ internal static class AccountSecuritySessionTests
         await ValidatePasswordMutationsAsync();
         await ValidateSessionRevocationAsync();
         await ValidateCompatibilityAndLifecycleAsync();
-        await AccountSecuritySessionWpfTests.RunAsync(captureDirectory);
-        Console.WriteLine("Account security and sessions OK: runtime, errors, lifecycle and WPF.");
+        if (includeWpf) await AccountSecuritySessionWpfTests.RunAsync(captureDirectory);
+        Console.WriteLine(includeWpf
+            ? "Account security and sessions OK: runtime, errors, lifecycle and WPF."
+            : "Account security and sessions OK: runtime, errors and lifecycle (headless).");
         return 0;
     }
 

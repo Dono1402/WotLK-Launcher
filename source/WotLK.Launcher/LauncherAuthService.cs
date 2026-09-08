@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 
 namespace WotLK.Launcher;
@@ -14,24 +15,66 @@ internal sealed class LauncherAuthService : ILauncherAuthService
         PropertyNameCaseInsensitive = true
     };
 
-    private readonly HttpClient _http = new(AtlasNetwork.CreateHandler())
-    {
-        BaseAddress = ApiBaseUri,
-        Timeout = TimeSpan.FromSeconds(20)
-    };
+    private readonly HttpClient _http;
+    private readonly Func<StoredLauncherSession?> _loadSession;
+    private readonly Action<StoredLauncherSession> _saveSession;
+    private readonly Action _clearSession;
+    private readonly Action _clearGameSingleSignOn;
+    private readonly object _stateSync = new();
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
+    private LauncherAuthSession? _session;
+    private long _generation;
+    private bool _restoreSuppressed;
+    private bool _disposed;
 
-    public LauncherAuthSession? Session { get; private set; }
+    public LauncherAuthService() : this(
+        new HttpClient(AtlasNetwork.CreateHandler())
+        {
+            BaseAddress = ApiBaseUri,
+            Timeout = TimeSpan.FromSeconds(20)
+        },
+        SecureSessionStore.Load,
+        SecureSessionStore.Save,
+        SecureSessionStore.Clear,
+        GameSingleSignOn.Clear)
+    {
+    }
+
+    internal LauncherAuthService(
+        HttpClient http,
+        Func<StoredLauncherSession?> loadSession,
+        Action<StoredLauncherSession> saveSession,
+        Action clearSession,
+        Action clearGameSingleSignOn)
+    {
+        _http = http;
+        _loadSession = loadSession;
+        _saveSession = saveSession;
+        _clearSession = clearSession;
+        _clearGameSingleSignOn = clearGameSingleSignOn;
+    }
+
+    public LauncherAuthSession? Session
+    {
+        get { lock (_stateSync) return _session; }
+    }
 
     public string? AccessToken => Session?.AccessToken;
 
     public bool IsAuthenticated =>
-        Session is not null && Session.AccessExpiresAt > DateTimeOffset.UtcNow;
+        Session is { } session && session.AccessExpiresAt > DateTimeOffset.UtcNow;
 
     public async Task<LauncherAuthRestoreAttempt> PrepareRestoreAsync(
         CancellationToken cancellationToken = default)
     {
-        StoredLauncherSession? stored = SecureSessionStore.Load();
+        long generation;
+        StoredLauncherSession? stored;
+        lock (_stateSync)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            generation = _generation;
+            stored = _restoreSuppressed ? null : _loadSession();
+        }
         if (stored is null)
         {
             return new LauncherAuthRestoreAttempt(
@@ -41,7 +84,7 @@ internal sealed class LauncherAuthService : ILauncherAuthService
 
         if (stored.RefreshExpiresAt <= DateTimeOffset.UtcNow)
         {
-            InvalidateLocalSession();
+            InvalidateLocalSession(generation, cancellationToken);
             return new LauncherAuthRestoreAttempt(
                 LauncherAuthRestoreOutcome.Rejected,
                 null);
@@ -53,7 +96,7 @@ internal sealed class LauncherAuthService : ILauncherAuthService
             cancellationToken).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
-            InvalidateLocalSession();
+            InvalidateLocalSession(generation, cancellationToken);
             return new LauncherAuthRestoreAttempt(
                 LauncherAuthRestoreOutcome.Rejected,
                 null);
@@ -62,6 +105,11 @@ internal sealed class LauncherAuthService : ILauncherAuthService
         LauncherAuthSession session = await ReadAuthSessionAsync(
             response,
             cancellationToken).ConfigureAwait(false);
+        if (!IsCurrentGeneration(generation))
+        {
+            return new LauncherAuthRestoreAttempt(LauncherAuthRestoreOutcome.NoSession, null);
+        }
+
         return new LauncherAuthRestoreAttempt(
             LauncherAuthRestoreOutcome.Restored,
             session);
@@ -69,6 +117,7 @@ internal sealed class LauncherAuthService : ILauncherAuthService
 
     public async Task<bool> RestoreAsync(CancellationToken cancellationToken = default)
     {
+        long generation = GetGeneration();
         LauncherAuthRestoreAttempt attempt = await PrepareRestoreAsync(
             cancellationToken).ConfigureAwait(false);
         if (attempt.Outcome != LauncherAuthRestoreOutcome.Restored
@@ -77,40 +126,52 @@ internal sealed class LauncherAuthService : ILauncherAuthService
             return false;
         }
 
-        CommitSession(attempt.Session, clearGameSingleSignOn: false);
-        return true;
+        return TryCommitSession(attempt.Session, generation, clearGameSingleSignOn: false,
+            replaceSession: true, cancellationToken);
     }
 
     public async Task<bool> EnsureFreshAsync(CancellationToken cancellationToken = default)
     {
-        if (Session is null)
-            return false;
-        if (Session.AccessExpiresAt > DateTimeOffset.UtcNow.AddMinutes(2))
-            return true;
+        long generation;
+        lock (_stateSync)
+        {
+            if (_disposed || _session is null) return false;
+            generation = _generation;
+            if (_session.AccessExpiresAt > DateTimeOffset.UtcNow.AddMinutes(2)) return true;
+        }
 
-        await _refreshLock.WaitAsync(cancellationToken);
+        await _refreshLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (Session is null)
-                return false;
-            if (Session.AccessExpiresAt > DateTimeOffset.UtcNow.AddMinutes(2))
-                return true;
+            LauncherAuthSession current;
+            lock (_stateSync)
+            {
+                if (_disposed || _generation != generation || _session is null) return false;
+                current = _session;
+                if (current.AccessExpiresAt > DateTimeOffset.UtcNow.AddMinutes(2)) return true;
+            }
 
             using HttpResponseMessage response = await _http.PostAsJsonAsync(
                 "auth/refresh",
-                new { refreshToken = Session.RefreshToken },
-                cancellationToken);
+                new { refreshToken = current.RefreshToken },
+                cancellationToken).ConfigureAwait(false);
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
-                Session = null;
-                SecureSessionStore.Clear();
-                GameSingleSignOn.Clear();
+                InvalidateLocalSession(generation, cancellationToken);
                 return false;
             }
 
-            LauncherAuthSession session = await ReadAuthSessionAsync(response, cancellationToken);
-            CommitSession(session, clearGameSingleSignOn: false);
-            return true;
+            if (!IsCurrentGeneration(generation)) return false;
+            LauncherAuthSession session = await ReadAuthSessionAsync(response, cancellationToken)
+                .ConfigureAwait(false);
+            return TryCommitSession(session, generation, clearGameSingleSignOn: false,
+                replaceSession: false, cancellationToken);
+        }
+        catch (ObjectDisposedException) when (IsDisposed())
+        {
+            // HttpClient may dispose its pending-request cancellation source while a
+            // handler is completing. Shutdown must not revive or fault the old refresh.
+            return false;
         }
         finally
         {
@@ -126,14 +187,12 @@ internal sealed class LauncherAuthService : ILauncherAuthService
         return await SendLoginAsync(
             username,
             password,
-            clearGameSingleSignOnBeforeReadingResponse: false,
             cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<LauncherAuthSession> SendLoginAsync(
         string username,
         string password,
-        bool clearGameSingleSignOnBeforeReadingResponse,
         CancellationToken cancellationToken)
     {
         using HttpResponseMessage response = await _http.PostAsJsonAsync(
@@ -150,11 +209,6 @@ internal sealed class LauncherAuthService : ILauncherAuthService
                 "Nom d'utilisateur ou mot de passe incorrect.",
                 response.StatusCode);
 
-        if (clearGameSingleSignOnBeforeReadingResponse)
-        {
-            GameSingleSignOn.Clear();
-        }
-
         return await ReadAuthSessionAsync(response, cancellationToken).ConfigureAwait(false);
     }
 
@@ -163,12 +217,14 @@ internal sealed class LauncherAuthService : ILauncherAuthService
         string password,
         CancellationToken cancellationToken = default)
     {
+        long generation = GetGeneration();
         LauncherAuthSession session = await SendLoginAsync(
             username,
             password,
-            clearGameSingleSignOnBeforeReadingResponse: true,
             cancellationToken).ConfigureAwait(false);
-        CommitSession(session, clearGameSingleSignOn: false);
+        if (!TryCommitSession(session, generation, clearGameSingleSignOn: true,
+                replaceSession: true, cancellationToken))
+            throw new OperationCanceledException("La tentative de connexion n'est plus actuelle.");
     }
 
     public async Task<LauncherAuthSession> PrepareRegistrationAsync(
@@ -181,7 +237,6 @@ internal sealed class LauncherAuthService : ILauncherAuthService
             username,
             email,
             password,
-            clearGameSingleSignOnBeforeReadingResponse: false,
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -189,7 +244,6 @@ internal sealed class LauncherAuthService : ILauncherAuthService
         string username,
         string email,
         string password,
-        bool clearGameSingleSignOnBeforeReadingResponse,
         CancellationToken cancellationToken)
     {
         using HttpRequestMessage request = new(HttpMethod.Post, "accounts")
@@ -200,11 +254,6 @@ internal sealed class LauncherAuthService : ILauncherAuthService
         using HttpResponseMessage response = await _http
             .SendAsync(request, cancellationToken)
             .ConfigureAwait(false);
-        if (clearGameSingleSignOnBeforeReadingResponse)
-        {
-            GameSingleSignOn.Clear();
-        }
-
         return await ReadAuthSessionAsync(response, cancellationToken).ConfigureAwait(false);
     }
 
@@ -214,13 +263,15 @@ internal sealed class LauncherAuthService : ILauncherAuthService
         string password,
         CancellationToken cancellationToken = default)
     {
+        long generation = GetGeneration();
         LauncherAuthSession session = await SendRegistrationAsync(
             username,
             email,
             password,
-            clearGameSingleSignOnBeforeReadingResponse: true,
             cancellationToken).ConfigureAwait(false);
-        CommitSession(session, clearGameSingleSignOn: false);
+        if (!TryCommitSession(session, generation, clearGameSingleSignOn: true,
+                replaceSession: true, cancellationToken))
+            throw new OperationCanceledException("La tentative d'inscription n'est plus actuelle.");
     }
 
     public async Task<GameTicket> CreateGameTicketAsync(
@@ -228,10 +279,10 @@ internal sealed class LauncherAuthService : ILauncherAuthService
     {
         using HttpRequestMessage request = CreateAuthorizedRequest(
             HttpMethod.Post,
-            "game-ticket");
+            "game-ticket", out long generation);
         request.Content = JsonContent.Create(new { });
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureAuthorizedSuccessAsync(response, generation, cancellationToken);
         return await response.Content.ReadFromJsonAsync<GameTicket>(
             JsonOptions,
             cancellationToken)
@@ -244,16 +295,16 @@ internal sealed class LauncherAuthService : ILauncherAuthService
     {
         using HttpRequestMessage request = CreateAuthorizedRequest(
             HttpMethod.Patch,
-            "me/email");
+            "me/email", out long generation);
         request.Content = JsonContent.Create(new { email });
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureAuthorizedSuccessAsync(response, generation, cancellationToken);
         EmailChangeResponse result =
             await response.Content.ReadFromJsonAsync<EmailChangeResponse>(
                 JsonOptions,
                 cancellationToken)
             ?? throw new LauncherAuthException("Le profil renvoyé est invalide.");
-        Session = Session! with { Profile = result.Profile };
+        UpdateProfile(result.Profile, generation, cancellationToken);
         return new EmailChangeResult(
             result.Profile,
             result.VerificationEmailSent,
@@ -265,14 +316,14 @@ internal sealed class LauncherAuthService : ILauncherAuthService
     {
         using HttpRequestMessage request = CreateAuthorizedRequest(
             HttpMethod.Get,
-            "me");
+            "me", out long generation);
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureAuthorizedSuccessAsync(response, generation, cancellationToken);
         LauncherProfile profile = await response.Content.ReadFromJsonAsync<LauncherProfile>(
             JsonOptions,
             cancellationToken)
             ?? throw new LauncherAuthException("Le profil renvoyé est invalide.");
-        Session = Session! with { Profile = profile };
+        UpdateProfile(profile, generation, cancellationToken);
         return profile;
     }
 
@@ -283,15 +334,15 @@ internal sealed class LauncherAuthService : ILauncherAuthService
     {
         using HttpRequestMessage request = CreateAuthorizedRequest(
             HttpMethod.Patch,
-            "me/social-profile");
+            "me/social-profile", out long generation);
         request.Content = JsonContent.Create(new { statusMessage, bio });
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureAuthorizedSuccessAsync(response, generation, cancellationToken);
         LauncherProfile profile = await response.Content.ReadFromJsonAsync<LauncherProfile>(
             JsonOptions,
             cancellationToken)
             ?? throw new LauncherAuthException("Le profil renvoyé est invalide.");
-        Session = Session! with { Profile = profile };
+        UpdateProfile(profile, generation, cancellationToken);
         return profile;
     }
 
@@ -301,15 +352,15 @@ internal sealed class LauncherAuthService : ILauncherAuthService
     {
         using HttpRequestMessage request = CreateAuthorizedRequest(
             HttpMethod.Patch,
-            "me/avatar");
+            "me/avatar", out long generation);
         request.Content = JsonContent.Create(new { avatarKey });
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureAuthorizedSuccessAsync(response, generation, cancellationToken);
         LauncherProfile profile = await response.Content.ReadFromJsonAsync<LauncherProfile>(
             JsonOptions,
             cancellationToken)
             ?? throw new LauncherAuthException("Le profil renvoyé est invalide.");
-        Session = Session! with { Profile = profile };
+        UpdateProfile(profile, generation, cancellationToken);
         return profile;
     }
 
@@ -320,10 +371,10 @@ internal sealed class LauncherAuthService : ILauncherAuthService
     {
         using HttpRequestMessage request = CreateAuthorizedRequest(
             HttpMethod.Post,
-            "me/password");
+            "me/password", out long generation);
         request.Content = JsonContent.Create(new { currentPassword, newPassword });
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureAuthorizedSuccessAsync(response, generation, cancellationToken);
     }
 
     public async Task<IReadOnlyList<LauncherDeviceSession>> GetSessionsAsync(
@@ -331,9 +382,9 @@ internal sealed class LauncherAuthService : ILauncherAuthService
     {
         using HttpRequestMessage request = CreateAuthorizedRequest(
             HttpMethod.Get,
-            "me/sessions");
+            "me/sessions", out long generation);
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureAuthorizedSuccessAsync(response, generation, cancellationToken);
         return await response.Content.ReadFromJsonAsync<List<LauncherDeviceSession>>(
             JsonOptions,
             cancellationToken)
@@ -346,9 +397,9 @@ internal sealed class LauncherAuthService : ILauncherAuthService
     {
         using HttpRequestMessage request = CreateAuthorizedRequest(
             HttpMethod.Delete,
-            "me/sessions/" + Uri.EscapeDataString(sessionId));
+            "me/sessions/" + Uri.EscapeDataString(sessionId), out long generation);
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureAuthorizedSuccessAsync(response, generation, cancellationToken);
     }
 
     public async Task<IReadOnlyList<LauncherFriend>> GetFriendsAsync(
@@ -356,9 +407,9 @@ internal sealed class LauncherAuthService : ILauncherAuthService
     {
         using HttpRequestMessage request = CreateAuthorizedRequest(
             HttpMethod.Get,
-            "friends");
+            "friends", out long generation);
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureAuthorizedSuccessAsync(response, generation, cancellationToken);
         return await response.Content.ReadFromJsonAsync<List<LauncherFriend>>(
             JsonOptions,
             cancellationToken)
@@ -371,10 +422,10 @@ internal sealed class LauncherAuthService : ILauncherAuthService
     {
         using HttpRequestMessage request = CreateAuthorizedRequest(
             HttpMethod.Post,
-            "friends/requests");
+            "friends/requests", out long generation);
         request.Content = JsonContent.Create(new { username });
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureAuthorizedSuccessAsync(response, generation, cancellationToken);
         ApiMessage? result = await response.Content.ReadFromJsonAsync<ApiMessage>(
             JsonOptions,
             cancellationToken);
@@ -389,10 +440,10 @@ internal sealed class LauncherAuthService : ILauncherAuthService
     {
         using HttpRequestMessage request = CreateAuthorizedRequest(
             HttpMethod.Post,
-            $"friends/{accountId}/accept");
+            $"friends/{accountId}/accept", out long generation);
         request.Content = JsonContent.Create(new { });
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureAuthorizedSuccessAsync(response, generation, cancellationToken);
     }
 
     public async Task RemoveFriendAsync(
@@ -401,9 +452,9 @@ internal sealed class LauncherAuthService : ILauncherAuthService
     {
         using HttpRequestMessage request = CreateAuthorizedRequest(
             HttpMethod.Delete,
-            $"friends/{accountId}");
+            $"friends/{accountId}", out long generation);
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureAuthorizedSuccessAsync(response, generation, cancellationToken);
     }
 
     public async Task<LauncherServerStatus> GetStatusAsync(
@@ -411,9 +462,9 @@ internal sealed class LauncherAuthService : ILauncherAuthService
     {
         using HttpRequestMessage request = CreateAuthorizedRequest(
             HttpMethod.Get,
-            "status");
+            "status", out long generation);
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureAuthorizedSuccessAsync(response, generation, cancellationToken);
         return await response.Content.ReadFromJsonAsync<LauncherServerStatus>(
             JsonOptions,
             cancellationToken)
@@ -425,9 +476,9 @@ internal sealed class LauncherAuthService : ILauncherAuthService
     {
         using HttpRequestMessage request = CreateAuthorizedRequest(
             HttpMethod.Get,
-            "news");
+            "news", out long generation);
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureAuthorizedSuccessAsync(response, generation, cancellationToken);
         return await response.Content.ReadFromJsonAsync<List<LauncherNews>>(
             JsonOptions,
             cancellationToken)
@@ -438,10 +489,10 @@ internal sealed class LauncherAuthService : ILauncherAuthService
     {
         using HttpRequestMessage request = CreateAuthorizedRequest(
             HttpMethod.Post,
-            "me/email/resend");
+            "me/email/resend", out long generation);
         request.Content = JsonContent.Create(new { });
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureAuthorizedSuccessAsync(response, generation, cancellationToken);
         ApiMessage? result = await response.Content.ReadFromJsonAsync<ApiMessage>(
             JsonOptions,
             cancellationToken);
@@ -452,24 +503,39 @@ internal sealed class LauncherAuthService : ILauncherAuthService
 
     public async Task LogoutAsync(CancellationToken cancellationToken = default)
     {
-        if (Session is not null)
+        LauncherAuthSession? previous;
+        Exception? cleanupFailure = null;
+        lock (_stateSync)
         {
-            try
-            {
-                using HttpRequestMessage request = CreateAuthorizedRequest(
-                    HttpMethod.Post,
-                    "auth/logout");
-                request.Content = JsonContent.Create(new { });
-                using HttpResponseMessage response =
-                    await _http.SendAsync(request, cancellationToken);
-            }
-            catch (HttpRequestException)
-            {
-                // Local logout must remain possible while Atlas is unavailable.
-            }
+            previous = _session;
+            try { InvalidateLocalSessionUnsafe(); }
+            catch (Exception exception) { cleanupFailure = exception; }
         }
 
-        InvalidateLocalSession();
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (previous is not null)
+            {
+                using HttpRequestMessage request = new(HttpMethod.Post, "auth/logout");
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", previous.AccessToken);
+                request.Content = JsonContent.Create(new { });
+                using HttpResponseMessage response =
+                    await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (HttpRequestException)
+        {
+            // Remote revocation is best effort; local credentials are already invalidated.
+        }
+        catch (OperationCanceledException)
+        {
+            // A timeout or cancelled request must not leave a local session behind.
+        }
+        finally
+        {
+            if (cleanupFailure is not null) ExceptionDispatchInfo.Capture(cleanupFailure).Throw();
+        }
     }
 
     public void CommitSession(
@@ -477,33 +543,123 @@ internal sealed class LauncherAuthService : ILauncherAuthService
         bool clearGameSingleSignOn)
     {
         ArgumentNullException.ThrowIfNull(session);
-        if (clearGameSingleSignOn)
+        lock (_stateSync)
         {
-            GameSingleSignOn.Clear();
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            CommitSessionUnsafe(session, clearGameSingleSignOn, replaceSession: true);
         }
+    }
 
-        SecureSessionStore.Save(new StoredLauncherSession(
-            session.RefreshToken,
-            session.RefreshExpiresAt));
-        Session = session;
+    private bool TryCommitSession(LauncherAuthSession session, long generation,
+        bool clearGameSingleSignOn, bool replaceSession, CancellationToken cancellationToken)
+    {
+        lock (_stateSync)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_disposed || _generation != generation) return false;
+            CommitSessionUnsafe(session, clearGameSingleSignOn, replaceSession);
+            return true;
+        }
+    }
+
+    private void CommitSessionUnsafe(LauncherAuthSession session, bool clearGameSingleSignOn,
+        bool replaceSession)
+    {
+        // The generation check and persistence share the logout lock. Checking only before
+        // Save would allow logout to delete the file and a late refresh to recreate it.
+        if (clearGameSingleSignOn) _clearGameSingleSignOn();
+        _saveSession(new StoredLauncherSession(session.RefreshToken, session.RefreshExpiresAt));
+        if (replaceSession) _generation++;
+        _session = session;
+        _restoreSuppressed = false;
     }
 
     public void Dispose()
     {
-        _refreshLock.Dispose();
+        lock (_stateSync)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _generation++;
+            _session = null;
+        }
+
+        // An in-flight refresh still owns its lease and must be able to release it.
+        // No wait handle is allocated for this managed semaphore.
         _http.Dispose();
     }
 
-    private HttpRequestMessage CreateAuthorizedRequest(HttpMethod method, string path)
+    private HttpRequestMessage CreateAuthorizedRequest(HttpMethod method, string path, out long generation)
     {
-        if (Session is null)
-            throw new LauncherAuthException("Connecte-toi au launcher pour continuer.");
+        lock (_stateSync)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_session is null)
+                throw new LauncherAuthException("Connecte-toi au launcher pour continuer.");
 
-        HttpRequestMessage request = new(method, path);
-        request.Headers.Authorization = new AuthenticationHeaderValue(
-            "Bearer",
-            Session.AccessToken);
-        return request;
+            generation = _generation;
+            HttpRequestMessage request = new(method, path);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _session.AccessToken);
+            return request;
+        }
+    }
+
+    private void UpdateProfile(LauncherProfile profile, long generation, CancellationToken cancellationToken)
+    {
+        lock (_stateSync)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_disposed || _generation != generation || _session is null)
+                throw new OperationCanceledException("La session du profil n'est plus actuelle.");
+            if (_session.Profile.AccountId != profile.AccountId)
+                throw new LauncherAuthException("Le profil renvoyé ne correspond pas à la session.");
+            _session = _session with { Profile = profile };
+        }
+    }
+
+    private async Task EnsureAuthorizedSuccessAsync(HttpResponseMessage response, long generation,
+        CancellationToken cancellationToken)
+    {
+        ThrowIfSessionChanged(generation, cancellationToken);
+        try
+        {
+            await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            // Parsing an error body can also await. Never let an old 401 escape to
+            // a caller that would interpret it as a rejection of the new account.
+            ThrowIfSessionChanged(generation, cancellationToken);
+        }
+    }
+
+    private void ThrowIfSessionChanged(long generation, CancellationToken cancellationToken)
+    {
+        lock (_stateSync)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_disposed || _generation != generation || _session is null)
+                throw new OperationCanceledException("La session de la requête n'est plus actuelle.");
+        }
+    }
+
+    private long GetGeneration()
+    {
+        lock (_stateSync)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return _generation;
+        }
+    }
+
+    private bool IsCurrentGeneration(long generation)
+    {
+        lock (_stateSync) return !_disposed && _generation == generation;
+    }
+
+    private bool IsDisposed()
+    {
+        lock (_stateSync) return _disposed;
     }
 
     private async Task<LauncherAuthSession> ReadAuthSessionAsync(
@@ -520,9 +676,26 @@ internal sealed class LauncherAuthService : ILauncherAuthService
 
     public void InvalidateLocalSession()
     {
-        Session = null;
-        SecureSessionStore.Clear();
-        GameSingleSignOn.Clear();
+        lock (_stateSync) InvalidateLocalSessionUnsafe();
+    }
+
+    private void InvalidateLocalSession(long generation, CancellationToken cancellationToken)
+    {
+        lock (_stateSync)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!_disposed && _generation == generation) InvalidateLocalSessionUnsafe();
+        }
+    }
+
+    private void InvalidateLocalSessionUnsafe()
+    {
+        _generation++;
+        _session = null;
+        // Even if the file cannot be cleared, this service must not restore it again.
+        _restoreSuppressed = true;
+        try { _clearSession(); }
+        finally { _clearGameSingleSignOn(); }
     }
 
     internal static async Task EnsureSuccessAsync(

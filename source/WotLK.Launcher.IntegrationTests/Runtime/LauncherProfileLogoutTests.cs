@@ -19,7 +19,7 @@ using WotLK.Launcher.UI.V2.Views;
 
 internal static class LauncherProfileLogoutTests
 {
-    internal static async Task<int> RunAsync()
+    internal static async Task<int> RunAsync(bool includeWpf = true)
     {
         CharacterizeSecretFreeProfileModels();
         CharacterizeProfilePreviewIsolation();
@@ -29,7 +29,7 @@ internal static class LauncherProfileLogoutTests
         await EnforceOperationCompatibilityAsync();
         await CancelPendingPlayBeforeLogoutAsync();
         await ApplySuccessfulLogoutAcrossRuntimeAsync();
-        await CharacterizeRealWpfProfileMenuAsync();
+        if (includeWpf) await CharacterizeRealWpfProfileMenuAsync();
         Console.WriteLine("Profile and logout V2 integration OK (02F.4).");
         return 0;
     }

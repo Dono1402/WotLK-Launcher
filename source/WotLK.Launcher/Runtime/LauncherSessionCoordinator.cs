@@ -260,8 +260,13 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
                     GameTicketAcquisitionStatus.Cancelled);
             }
 
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return new GameTicketAcquisitionResult(GameTicketAcquisitionStatus.Cancelled);
+            }
+
             sessionSnapshot = _currentSnapshot;
-            if (!_authentication.IsAuthenticated)
+            if (!sessionSnapshot.IsAuthenticated || !_authentication.IsAuthenticated)
             {
                 return new GameTicketAcquisitionResult(
                     sessionSnapshot.State == LauncherSessionState.Unavailable
@@ -275,17 +280,33 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
             bool refreshed = await _authentication
                 .EnsureFreshAsync(cancellationToken)
                 .ConfigureAwait(false);
+            if (!IsAuthenticatedRequestCurrent(sessionSnapshot.Sequence, cancellationToken))
+            {
+                return new GameTicketAcquisitionResult(GameTicketAcquisitionStatus.Cancelled);
+            }
             if (!refreshed)
             {
-                InvalidateSessionAfterGameTicketFailure(
-                    LauncherSessionFailureCategory.SessionExpired);
+                NotifyAuthenticatedRequestUnauthorized(sessionSnapshot.Sequence, cancellationToken);
                 return new GameTicketAcquisitionResult(
                     GameTicketAcquisitionStatus.AuthenticationRequired);
             }
 
-            GameTicket ticket = await _authentication
-                .CreateGameTicketAsync(cancellationToken)
-                .ConfigureAwait(false);
+            Task<GameTicket> ticketRequest;
+            lock (_sync)
+            {
+                // Starting the request shares the logout/login transition lock;
+                // no ticket for a later session can replace this operation's ticket.
+                if (!IsAuthenticatedRequestCurrentUnsafe(sessionSnapshot.Sequence, cancellationToken))
+                {
+                    return new GameTicketAcquisitionResult(GameTicketAcquisitionStatus.Cancelled);
+                }
+                ticketRequest = _authentication.CreateGameTicketAsync(cancellationToken);
+            }
+            GameTicket ticket = await ticketRequest.ConfigureAwait(false);
+            if (!IsAuthenticatedRequestCurrent(sessionSnapshot.Sequence, cancellationToken))
+            {
+                return new GameTicketAcquisitionResult(GameTicketAcquisitionStatus.Cancelled);
+            }
             return GameTicketAcquisitionResult.Success(ticket);
         }
         catch (OperationCanceledException exception) when (
@@ -297,14 +318,17 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
         }
         catch (Exception exception)
         {
+            if (!IsAuthenticatedRequestCurrent(sessionSnapshot.Sequence, cancellationToken))
+            {
+                return new GameTicketAcquisitionResult(GameTicketAcquisitionStatus.Cancelled);
+            }
             LauncherSessionFailureCategory category = ClassifyFailure(
                 exception,
                 LauncherSessionOperationKind.Restore);
             WriteGameTicketFailureSafely(category, exception);
             if (category == LauncherSessionFailureCategory.Unauthorized)
             {
-                InvalidateSessionAfterGameTicketFailure(
-                    LauncherSessionFailureCategory.SessionExpired);
+                NotifyAuthenticatedRequestUnauthorized(sessionSnapshot.Sequence, cancellationToken);
                 return new GameTicketAcquisitionResult(
                     GameTicketAcquisitionStatus.AuthenticationRequired,
                     Failure: exception);
@@ -327,6 +351,7 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
     internal async Task<AtlasRequestPreparationStatus> PrepareAuthenticatedRequestAsync(
         CancellationToken cancellationToken)
     {
+        AuthSessionSnapshot sessionSnapshot;
         lock (_sync)
         {
             if (IsStoppingUnsafe())
@@ -334,7 +359,13 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
                 return AtlasRequestPreparationStatus.ShuttingDown;
             }
 
-            if (!_authentication.IsAuthenticated)
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return AtlasRequestPreparationStatus.Cancelled;
+            }
+
+            sessionSnapshot = _currentSnapshot;
+            if (!sessionSnapshot.IsAuthenticated || !_authentication.IsAuthenticated)
             {
                 return AtlasRequestPreparationStatus.AuthenticationRequired;
             }
@@ -345,14 +376,18 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
             bool refreshed = await _authentication
                 .EnsureFreshAsync(cancellationToken)
                 .ConfigureAwait(false);
+            if (!IsAuthenticatedRequestCurrent(sessionSnapshot.Sequence, cancellationToken))
+            {
+                return AtlasRequestPreparationStatus.Cancelled;
+            }
             if (!refreshed)
             {
-                InvalidateSessionAfterGameTicketFailure(
-                    LauncherSessionFailureCategory.SessionExpired);
+                NotifyAuthenticatedRequestUnauthorized(sessionSnapshot.Sequence, cancellationToken);
                 return AtlasRequestPreparationStatus.AuthenticationRequired;
             }
 
-            return AtlasRequestPreparationStatus.Ready;
+            return IsAuthenticatedRequestCurrent(sessionSnapshot.Sequence, cancellationToken)
+                ? AtlasRequestPreparationStatus.Ready : AtlasRequestPreparationStatus.Cancelled;
         }
         catch (OperationCanceledException) when (
             cancellationToken.IsCancellationRequested || _lifetimeToken.IsCancellationRequested)
@@ -361,14 +396,17 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
         }
         catch (Exception exception)
         {
+            if (!IsAuthenticatedRequestCurrent(sessionSnapshot.Sequence, cancellationToken))
+            {
+                return AtlasRequestPreparationStatus.Cancelled;
+            }
             LauncherSessionFailureCategory category = ClassifyFailure(
                 exception,
                 LauncherSessionOperationKind.Restore);
             WriteGameTicketFailureSafely(category, exception);
             if (category == LauncherSessionFailureCategory.Unauthorized)
             {
-                InvalidateSessionAfterGameTicketFailure(
-                    LauncherSessionFailureCategory.SessionExpired);
+                NotifyAuthenticatedRequestUnauthorized(sessionSnapshot.Sequence, cancellationToken);
                 return AtlasRequestPreparationStatus.AuthenticationRequired;
             }
 
@@ -378,11 +416,7 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
 
     internal void NotifyAuthenticatedRequestUnauthorized()
     {
-        if (!IsStoppingUnsafe())
-        {
-            InvalidateSessionAfterGameTicketFailure(
-                LauncherSessionFailureCategory.SessionExpired);
-        }
+        NotifyAuthenticatedRequestUnauthorized(CurrentSnapshot.Sequence);
     }
 
     internal void NotifyAuthenticatedRequestUnauthorized(long expectedSequence, CancellationToken cancellationToken = default)
@@ -405,6 +439,18 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
         }
         RaiseSnapshotChanged(snapshot);
     }
+
+    private bool IsAuthenticatedRequestCurrent(long expectedSequence, CancellationToken cancellationToken)
+    {
+        lock (_sync)
+        {
+            return IsAuthenticatedRequestCurrentUnsafe(expectedSequence, cancellationToken);
+        }
+    }
+
+    private bool IsAuthenticatedRequestCurrentUnsafe(long expectedSequence, CancellationToken cancellationToken)
+        => !IsStoppingUnsafe() && !cancellationToken.IsCancellationRequested
+            && _currentSnapshot.IsAuthenticated && _currentSnapshot.Sequence == expectedSequence;
 
     internal void BeginShutdown()
     {
@@ -652,15 +698,17 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
         try
         {
             await _authentication.LogoutAsync(cancellation.Token).ConfigureAwait(false);
-            if (IsCancelledOrSuperseded(attemptId, cancellation.Token))
+            // A cancelled remote revocation does not undo a successful local logout.
+            // Completion still rejects a superseded attempt or application shutdown.
+            if (_authentication.Session is null)
+            {
+                result = CompleteLogoutSuccess(attemptId);
+            }
+            else if (IsCancelledOrSuperseded(attemptId, cancellation.Token))
             {
                 result = new LauncherSessionCompletion(
                     LauncherSessionCompletionStatus.Superseded,
                     CurrentSnapshot);
-            }
-            else if (_authentication.Session is null)
-            {
-                result = CompleteLogoutSuccess(attemptId);
             }
             else
             {
@@ -1046,36 +1094,6 @@ internal sealed class LauncherSessionCoordinator : IGameLaunchSession, IDisposab
         {
             // Logging cannot prevent local session cleanup.
         }
-    }
-
-    private void InvalidateSessionAfterGameTicketFailure(
-        LauncherSessionFailureCategory category)
-    {
-        AuthSessionSnapshot? snapshot = null;
-        try
-        {
-            _authentication.InvalidateLocalSession();
-        }
-        catch (Exception exception)
-        {
-            WriteGameTicketFailureSafely(category, exception);
-        }
-
-        lock (_sync)
-        {
-            if (!IsStoppingUnsafe())
-            {
-                snapshot = SetSnapshotUnsafe(
-                    attemptId: null,
-                    LauncherSessionState.SignedOut,
-                    operationKind: null,
-                    string.Empty,
-                    isEmailVerified: true,
-                    category);
-            }
-        }
-
-        RaiseSnapshotChanged(snapshot);
     }
 
     private void WriteGameTicketFailureSafely(

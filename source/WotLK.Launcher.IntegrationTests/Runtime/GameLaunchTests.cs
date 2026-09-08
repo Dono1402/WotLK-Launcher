@@ -25,7 +25,7 @@ internal static class GameLaunchTests
 {
     private const string SecretTicket = "HP-0123456789ABCDEF0123456789ABCDEF01234567";
 
-    internal static async Task<int> RunAsync()
+    internal static async Task<int> RunAsync(bool includeWpf = true)
     {
         await GameServerAvailabilityTests.RunAsync();
         await PreserveLegacyLaunchOrderAndArgumentsAsync();
@@ -38,7 +38,7 @@ internal static class GameLaunchTests
         await EnforceOperationCompatibilityAsync();
         await CancelPlayForShutdownWithoutLateCallbacksAsync();
         KeepLaunchingPreviewIsolated();
-        await ValidateWpfPlayAndAuthenticationFlowAsync();
+        if (includeWpf) await ValidateWpfPlayAndAuthenticationFlowAsync();
         Console.WriteLine("V2 Play ticket, SSO and process coordination OK (02F.3 simulated).");
         return 0;
     }

@@ -7,6 +7,22 @@ using System.Text.RegularExpressions;
 using WotLK.Launcher;
 using WotLK.Launcher.Server;
 
+if (args.Length == 1 && string.Equals(args[0], "--session-hardening", StringComparison.OrdinalIgnoreCase))
+{
+    int serviceResult = await LauncherAuthServiceConcurrencyTests.RunAsync();
+    if (serviceResult != 0) return serviceResult;
+    int coordinatorResult = await LauncherSessionGenerationTests.RunAsync();
+    if (coordinatorResult != 0) return coordinatorResult;
+    int storageResult = await SecureSessionStoreLogoutTests.RunAsync();
+    if (storageResult != 0) return storageResult;
+    await LauncherAuthenticationTests.RunAsync(includeWpf: false);
+    await LauncherProfileLogoutTests.RunAsync(includeWpf: false);
+    await GameLaunchTests.RunAsync(includeWpf: false);
+    await AccountSecuritySessionTests.RunAsync(captureDirectory: null, includeWpf: false);
+    Console.WriteLine("Session hardening regressions PASS (headless; simulated game launch only).");
+    return 0;
+}
+
 if (args.Length == 1 && string.Equals(args[0], "--friend-cache", StringComparison.OrdinalIgnoreCase))
     return ArmoryFriendCacheTests.Run();
 

@@ -16,14 +16,14 @@ using WotLK.Launcher.UI.V2.Views;
 
 internal static class LauncherAuthenticationTests
 {
-    internal static async Task<int> RunAsync()
+    internal static async Task<int> RunAsync(bool includeWpf = true)
     {
         CharacterizeSecretFreePresentationModels();
         await CharacterizeRestorationAsync();
         await CharacterizeLoginAsync();
         await CharacterizeRegistrationAsync();
         await CharacterizeRuntimeIntegrationAsync();
-        await CharacterizeRealWpfOverlayAsync();
+        if (includeWpf) await CharacterizeRealWpfOverlayAsync();
         Console.WriteLine("Launcher authentication and session OK (02F.2).");
         return 0;
     }

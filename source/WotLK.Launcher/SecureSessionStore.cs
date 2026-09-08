@@ -15,13 +15,19 @@ internal static class SecureSessionStore
     public static void Save(StoredLauncherSession session)
     {
         byte[] plaintext = JsonSerializer.SerializeToUtf8Bytes(session);
-        byte[] protectedData = ProtectedData.Protect(
-            plaintext,
-            Entropy,
-            DataProtectionScope.CurrentUser);
-        Directory.CreateDirectory(LauncherSettings.SettingsDirectory);
-        File.WriteAllBytes(SessionPath, protectedData);
-        CryptographicOperations.ZeroMemory(plaintext);
+        try
+        {
+            byte[] protectedData = ProtectedData.Protect(
+                plaintext,
+                Entropy,
+                DataProtectionScope.CurrentUser);
+            Directory.CreateDirectory(LauncherSettings.SettingsDirectory);
+            File.WriteAllBytes(SessionPath, protectedData);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plaintext);
+        }
     }
 
     public static StoredLauncherSession? Load()
@@ -57,18 +63,38 @@ internal static class SecureSessionStore
         }
     }
 
-    public static void Clear()
+    public static void Clear() => Clear(SessionPath);
+
+    internal static void Clear(string sessionPath)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionPath);
         try
         {
-            File.Delete(SessionPath);
+            File.Delete(sessionPath);
         }
-        catch (IOException)
+        catch (Exception deleteFailure) when (deleteFailure is IOException or UnauthorizedAccessException)
         {
+            try
+            {
+                // A reader can forbid deletion while still allowing writes. Leave an
+                // empty tombstone so the stored session cannot be restored later.
+                using FileStream tombstone = new(sessionPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+                tombstone.Flush(flushToDisk: true);
+            }
+            catch (Exception truncateFailure) when (truncateFailure is IOException or UnauthorizedAccessException)
+            {
+                throw new SecureSessionStoreClearException(deleteFailure, truncateFailure);
+            }
         }
-        catch (UnauthorizedAccessException)
-        {
-        }
+    }
+}
+
+internal sealed class SecureSessionStoreClearException : IOException
+{
+    internal SecureSessionStoreClearException(Exception deleteFailure, Exception truncateFailure)
+        : base("Impossible d’effacer la session enregistrée sur cet ordinateur.",
+            new AggregateException(deleteFailure, truncateFailure))
+    {
     }
 }
 

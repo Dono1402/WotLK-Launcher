@@ -503,6 +503,7 @@ internal sealed class LauncherAccountCoordinator : IDisposable
         bool fromCancellation,
         long sessionGeneration)
     {
+        long sessionSequence = _session.CurrentSnapshot.Sequence;
         AtlasRequestPreparationStatus preparation = await _session
             .PrepareAuthenticatedRequestAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -570,7 +571,7 @@ internal sealed class LauncherAccountCoordinator : IDisposable
                     exception);
                 if (category == AccountErrorCategory.SessionExpired)
                 {
-                    HandleUnauthorized(category);
+                    _session.NotifyAuthenticatedRequestUnauthorized(sessionSequence, cancellationToken);
                     return new AccountActionCompletion(
                         AccountActionCompletionStatus.Failed,
                         CurrentSnapshot);
@@ -699,7 +700,7 @@ internal sealed class LauncherAccountCoordinator : IDisposable
             }
             if (exception.Category == AvatarMediaFailureCategory.Unauthorized)
             {
-                _session.NotifyAuthenticatedRequestUnauthorized();
+                _session.NotifyAuthenticatedRequestUnauthorized(sessionSequence, cancellationToken);
                 AccountAvatarErrorCategory unauthorizedError = fromCancellation
                     ? AccountAvatarErrorCategory.CancellationAmbiguous
                     : AccountAvatarErrorCategory.Unauthorized;

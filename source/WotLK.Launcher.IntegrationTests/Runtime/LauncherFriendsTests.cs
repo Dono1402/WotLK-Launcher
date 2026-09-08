@@ -21,6 +21,7 @@ internal static class LauncherFriendsTests
         await RestoreAndLoadRealRelationshipsAsync();
         await ProjectLauncherPresenceAndSortAsync();
         await RefreshFromOneSessionAwareTimerAsync();
+        await AdaptRefreshToForegroundAsync();
         await CoalesceTimerAndManualRefreshAsync();
         await PreserveKnownDataAfterAutomaticFailureAsync();
         await InvalidateSessionAfterAutomaticUnauthorizedAsync();
@@ -503,6 +504,29 @@ internal static class LauncherFriendsTests
         time.Timer.Fire();
         Equal(2, environment.Authentication.GetFriendsCalls,
             "La fermeture ne doit produire aucun tick tardif.");
+    }
+
+    private static async Task AdaptRefreshToForegroundAsync()
+    {
+        ManualFriendsTimeProvider time = new();
+        await using FriendsEnvironment environment = await FriendsEnvironment.CreateAsync(timeProvider: time);
+        environment.Friends.SetForeground(false);
+        Equal(LauncherFriendsCoordinator.BackgroundRefreshInterval, time.Timer.Period,
+            "Un launcher en arrière-plan doit conserver un seul timer social à cadence réduite.");
+        time.Timer.Fire();
+        True(await environment.Friends.WaitForIdleAsync(TimeSpan.FromSeconds(1)), "Le rafraîchissement reste actif en arrière-plan.");
+        int backgroundCalls = environment.Authentication.GetFriendsCalls;
+        environment.Friends.SetForeground(true);
+        True(await environment.Friends.WaitForIdleAsync(TimeSpan.FromSeconds(1)), "La reprise actualise immédiatement les amis.");
+        Equal(backgroundCalls + 1, environment.Authentication.GetFriendsCalls, "La reprise produit un seul rafraîchissement.");
+        Equal(LauncherFriendsCoordinator.AutomaticRefreshInterval, time.Timer.Period, "La cadence normale est restaurée.");
+        environment.Friends.SetForeground(true);
+        Equal(backgroundCalls + 1, environment.Authentication.GetFriendsCalls, "Les notifications de visibilité répétées ne relancent pas le réseau.");
+        Equal(1, time.CreateTimerCalls, "Le changement de cadence ne crée pas de timer supplémentaire.");
+        environment.Friends.BeginShutdown();
+        environment.Friends.SetForeground(false);
+        environment.Friends.SetForeground(true);
+        True(!time.Timer.IsEnabled, "Une reprise tardive ne réactive pas le timer après fermeture.");
     }
 
     private static async Task CoalesceTimerAndManualRefreshAsync()

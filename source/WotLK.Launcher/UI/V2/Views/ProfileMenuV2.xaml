@@ -14,9 +14,11 @@
                 <ResourceDictionary Source="../Resources/AtlasV2.OverlaysPilot.xaml"/>
             </ResourceDictionary.MergedDictionaries>
             <Style x:Key="PresenceOption" TargetType="Button" BasedOn="{StaticResource AtlasV2.Overlay.Button}">
-                <Setter Property="Height" Value="34"/>
-                <Setter Property="HorizontalContentAlignment" Value="Left"/>
-                <Setter Property="Padding" Value="10,8"/>
+                <Setter Property="Height" Value="36"/>
+                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                <Setter Property="Padding" Value="10,0"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="Margin" Value="0,2"/>
             </Style>
         </ResourceDictionary>
@@ -172,22 +174,28 @@
                 </Border>
 
                 <StackPanel Margin="0,10,0,12">
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,7">
-                        <Ellipse Width="9" Height="9" Fill="{Binding PresenceBrush}" Margin="0,0,8,0"/>
-                        <TextBlock Text="{Binding PresenceLabel}" Foreground="{StaticResource AtlasV2.Brush.Text}" FontWeight="SemiBold"/>
-                        <TextBlock Text="{Binding PresenceProgress}" Margin="8,0,0,0" Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
-                    </StackPanel>
-                    <StackPanel IsEnabled="{Binding CanChangePresence}">
-                        <Button Tag="online" Click="PresenceButton_Click" Style="{StaticResource PresenceOption}" AutomationProperties.Name="En ligne" ToolTip="Disponible. Passage automatique à Absent après 20 minutes sans activité.">
+                    <Button x:Name="PresenceToggleButton" Height="40" Padding="10,0"
+                            Style="{StaticResource AtlasV2.Overlay.Button}" HorizontalContentAlignment="Stretch"
+                            AutomationProperties.Name="Modifier mon statut" KeyboardNavigation.TabIndex="1"
+                            Click="PresenceToggleButton_Click">
+                        <DockPanel LastChildFill="True">
+                            <TextBlock x:Name="PresenceChevron" DockPanel.Dock="Right" Text="⌄" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            <Ellipse Width="9" Height="9" Fill="{Binding PresenceBrush}" Margin="0,0,8,0"/>
+                            <TextBlock Text="{Binding PresenceLabel}" VerticalAlignment="Center" Foreground="{StaticResource AtlasV2.Brush.Text}" FontWeight="SemiBold"/>
+                        </DockPanel>
+                    </Button>
+                    <TextBlock Text="{Binding PresenceProgress}" Margin="10,4,0,0" Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+                    <StackPanel x:Name="PresenceChoicesPanel" Visibility="Collapsed" IsEnabled="{Binding CanChangePresence}">
+                        <Button KeyboardNavigation.TabIndex="2" Tag="online" Click="PresenceButton_Click" Style="{StaticResource PresenceOption}" AutomationProperties.Name="En ligne" ToolTip="Disponible. Passage automatique à Absent après 20 minutes sans activité.">
                             <StackPanel Orientation="Horizontal"><Ellipse Fill="#48C78E" Width="9" Height="9" Margin="0,0,10,0"/><TextBlock Text="En ligne"/><TextBlock Text=" ✓" Visibility="{Binding IsPresenceOnline, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/></StackPanel>
                         </Button>
-                        <Button Tag="away" Click="PresenceButton_Click" Style="{StaticResource PresenceOption}" AutomationProperties.Name="Absent" ToolTip="Rester absent jusqu’à votre prochain choix de statut.">
+                        <Button KeyboardNavigation.TabIndex="3" Tag="away" Click="PresenceButton_Click" Style="{StaticResource PresenceOption}" AutomationProperties.Name="Absent" ToolTip="Rester absent jusqu’à votre prochain choix de statut.">
                             <StackPanel Orientation="Horizontal"><Ellipse Fill="#E9B44C" Width="9" Height="9" Margin="0,0,10,0"/><TextBlock Text="Absent"/><TextBlock Text=" ✓" Visibility="{Binding IsPresenceAway, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/></StackPanel>
                         </Button>
-                        <Button Tag="dnd" Click="PresenceButton_Click" Style="{StaticResource PresenceOption}" AutomationProperties.Name="Ne pas déranger" ToolTip="Désactiver les notifications de messages.">
+                        <Button KeyboardNavigation.TabIndex="4" Tag="dnd" Click="PresenceButton_Click" Style="{StaticResource PresenceOption}" AutomationProperties.Name="Ne pas déranger" ToolTip="Désactiver les notifications de messages.">
                             <StackPanel Orientation="Horizontal"><Ellipse Fill="#EE6873" Width="9" Height="9" Margin="0,0,10,0"/><TextBlock Text="Ne pas déranger"/><TextBlock Text=" ✓" Visibility="{Binding IsPresenceDnd, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/></StackPanel>
                         </Button>
-                        <Button Tag="offline" Click="PresenceButton_Click" Style="{StaticResource PresenceOption}" AutomationProperties.Name="Apparaître hors ligne" ToolTip="Apparaître hors ligne auprès de vos contacts, même pendant le jeu.">
+                        <Button KeyboardNavigation.TabIndex="5" Tag="offline" Click="PresenceButton_Click" Style="{StaticResource PresenceOption}" AutomationProperties.Name="Apparaître hors ligne" ToolTip="Apparaître hors ligne auprès de vos contacts, même pendant le jeu.">
                             <StackPanel Orientation="Horizontal"><Ellipse Fill="#8995A8" Width="9" Height="9" Margin="0,0,10,0"/><TextBlock Text="Apparaître hors ligne"/><TextBlock Text=" ✓" Visibility="{Binding IsPresenceOffline, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/></StackPanel>
                         </Button>
                     </StackPanel>
@@ -202,7 +210,7 @@
                         IsEnabled="{Binding IsManageProfileEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:ProfileMenuV2}}}"
                         ToolTipService.ShowOnDisabled="True"
                         AutomationProperties.Name="Gérer mon profil"
-                        KeyboardNavigation.TabIndex="1"
+                        KeyboardNavigation.TabIndex="6"
                         Click="ManageProfileButton_Click">
                     <Button.Style>
                         <Style TargetType="{x:Type Button}"
@@ -246,7 +254,7 @@
                         IsEnabled="{Binding IsManageAccountEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:ProfileMenuV2}}}"
                         ToolTipService.ShowOnDisabled="True"
                         AutomationProperties.Name="Gérer mon compte"
-                        KeyboardNavigation.TabIndex="2"
+                        KeyboardNavigation.TabIndex="7"
                         Click="ManageAccountButton_Click">
                     <Button.Style>
                         <Style TargetType="{x:Type Button}"
@@ -291,7 +299,7 @@
                         Command="{Binding LogoutCommand}"
                         ToolTip="{Binding Current.LogoutToolTip}"
                         AutomationProperties.Name="Déconnexion"
-                        KeyboardNavigation.TabIndex="3">
+                        KeyboardNavigation.TabIndex="8">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="22"/>

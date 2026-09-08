@@ -9,7 +9,7 @@ using WotLK.Launcher.UI.V2;
 using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Preview;
 
-internal static class ShellNavigationWpfTests
+internal static partial class ShellNavigationWpfTests
 {
     private static int _checks;
     private static readonly (string Button, LauncherShellPage Page)[] Pages =
@@ -23,7 +23,7 @@ internal static class ShellNavigationWpfTests
     private static readonly ShellOverlayKind[] Panels =
         [ShellOverlayKind.Friends, ShellOverlayKind.Activity, ShellOverlayKind.Profile, ShellOverlayKind.PatchNote];
 
-    internal static async Task<int> RunAsync()
+    internal static async Task<int> RunAsync(bool optimizationsOnly = false)
     {
         TaskCompletionSource<int> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         Thread thread = new(() =>
@@ -41,8 +41,10 @@ internal static class ShellNavigationWpfTests
                     foreach (string resource in new[] { "UI/V2/Resources/AtlasV2.Tokens.xaml", "Assets/Icons/AtlasV2.Icons.xaml", "UI/V2/Resources/AtlasV2.Controls.xaml" })
                         app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/WotLK.Launcher;component/" + resource, UriKind.Relative) });
                     foreach (Size size in new[] { new Size(1440, 860), new Size(1080, 680) })
-                        await ValidateAsync(size);
-                    Console.WriteLine($"Shell navigation WPF PASS: {_checks} assertions; panel/page matrix, direct and pointer activation, header focus routing, rapid switching, outside click and modal guards. Inactive offscreen fixtures; no backend, real session or desktop input.");
+                        await ValidateAsync(size, optimizationsOnly);
+                    Console.WriteLine(optimizationsOnly
+                        ? $"Optimization UI PASS: {_checks} assertions; 600 releases, 500 addons, 1000 friends; bounded generated rows, selection, scrolling and refresh persistence at 1440x860 and 1080x680. Inactive offscreen fixtures; no backend or desktop input."
+                        : $"Shell navigation WPF PASS: {_checks} assertions; panel/page matrix, direct and pointer activation, header focus routing, rapid switching, outside click, modal guards, virtualized lists and preserved navigation. Inactive offscreen fixtures; no backend, real session or desktop input.");
                     completion.TrySetResult(0);
                 }
                 catch (Exception error) { Console.Error.WriteLine(error); completion.TrySetResult(1); }
@@ -54,7 +56,7 @@ internal static class ShellNavigationWpfTests
         return await completion.Task.WaitAsync(TimeSpan.FromMinutes(3));
     }
 
-    private static async Task ValidateAsync(Size size)
+    private static async Task ValidateAsync(Size size, bool optimizationsOnly)
     {
         ProfileUiState profile = LauncherV2PreviewData.CreateProfile(ProfilePreviewScenario.SignedIn);
         ActivityUiState activity = new(ActivityUiState.EmptyView with
@@ -91,6 +93,7 @@ internal static class ShellNavigationWpfTests
         try
         {
             await Settle();
+            if (optimizationsOnly) { await ValidatePreservedNavigationAsync(shell); return; }
             // Direct activation covers keyboard and automation; pointer activation also exercises PreviewMouseDown.
             foreach (bool pointer in new[] { false, true })
                 foreach (ShellOverlayKind panel in Panels)
@@ -209,6 +212,7 @@ internal static class ShellNavigationWpfTests
                 shell.AvatarCropState.IsOpen = false;
                 await Settle();
             }
+            await ValidatePreservedNavigationAsync(shell);
             Check(!shell.IsActive && !shell.IsKeyboardFocusWithin && shell.Left < -10000 && !shell.ShowInTaskbar,
                 "Fixture remains offscreen and never acquires desktop focus.");
         }

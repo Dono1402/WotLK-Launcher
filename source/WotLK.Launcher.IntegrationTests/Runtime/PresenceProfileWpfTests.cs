@@ -104,6 +104,11 @@ internal static class PresenceProfileWpfTests
             await Task.Delay(180);
             await Layout(shell);
             Check(menu.IsOpen && menu.IsVisible, "Avatar opens the real profile menu.");
+            Check(!menu.IsPresenceExpanded, "Presence choices stay collapsed when the menu opens.");
+            Button presenceToggle = (Button)menu.FindName("PresenceToggleButton");
+            presenceToggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Layout(shell);
+            Check(menu.IsPresenceExpanded, "Current status expands the four choices.");
             Check(!shell.IsActive && !shell.ShowActivated && !shell.ShowInTaskbar && shell.Left < -10000 && shell.Top < -10000,
                 "Fixture remains inactive and outside the desktop.");
             Check((GetWindowLong(new WindowInteropHelper(shell).Handle, -20) & 0x08000000) != 0, "Native no-activation flag remains set.");
@@ -122,12 +127,16 @@ internal static class PresenceProfileWpfTests
             for (int index = 0; index < Statuses.Length; index++)
             {
                 profile.ApplyPresence(new(++sequence, 42, Statuses[index], Statuses[index], false, true, false, null));
+                if (!menu.IsPresenceExpanded) presenceToggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await Layout(shell);
                 ValidateVisibleState(Statuses[index], Colors[index], Statuses[index] == "offline" ? "Hors ligne" : FrenchLabels[index], enabled: true);
                 Button choice = choices.Single(button => Equals(button.Tag, Statuses[index]));
                 int before = requests.Count;
                 choice.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, choice));
                 Check(requests.Count == before + 1 && requests[^1] == Statuses[index], "Choice emits the exact canonical status without a backend.");
+                Check(!menu.IsPresenceExpanded && menu.IsOpen, "Choosing presence collapses the choices and retains the profile menu.");
+                presenceToggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await Layout(shell);
                 states.Add(MeasureState(Statuses[index]));
                 if (index == 2) Capture(content, captures, $"presence-{Language()}-{(int)Math.Round(size.Width)}-dnd.png");
             }
@@ -166,6 +175,8 @@ internal static class PresenceProfileWpfTests
             ValidateVisibleState("online", Colors[1], "Absent · inactivité", enabled: true);
             states.Add(MeasureState("automatic-away"));
             Capture(content, captures, $"presence-{Language()}-{(int)Math.Round(size.Width)}-automatic-away.png");
+            menu.IsOpen = false;
+            Check(!menu.IsPresenceExpanded, "Closing the profile also collapses the presence choices.");
             return new { locale, width = size.Width, height = size.Height, states };
 
             string Language() => locale == LauncherLocalization.FrenchLocale ? "fr" : "en";

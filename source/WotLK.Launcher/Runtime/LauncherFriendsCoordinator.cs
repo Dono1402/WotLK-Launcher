@@ -7,6 +7,7 @@ namespace WotLK.Launcher.Runtime;
 internal sealed class LauncherFriendsCoordinator : IDisposable
 {
     internal static readonly TimeSpan AutomaticRefreshInterval = TimeSpan.FromSeconds(15);
+    internal static readonly TimeSpan BackgroundRefreshInterval = TimeSpan.FromSeconds(60);
 
     private readonly object _sync = new();
     private readonly LauncherSessionCoordinator _session;
@@ -24,6 +25,8 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
     private long _sequence;
     private bool _isShuttingDown;
     private bool _isAutomaticRefreshEnabled;
+    private bool _isForeground = true;
+    private TimeSpan _scheduledRefreshInterval;
     private int _disposeState;
 
     internal LauncherFriendsCoordinator(
@@ -70,6 +73,17 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
             null,
             string.Empty,
             isAutomaticRefresh: false);
+    }
+
+    internal void SetForeground(bool foreground)
+    {
+        lock (_sync)
+        {
+            if (IsStoppingUnsafe() || _isForeground == foreground) return;
+            _isForeground = foreground;
+        }
+        UpdateAutomaticRefreshState();
+        if (foreground) AutomaticRefreshTimer_Tick();
     }
 
     internal FriendsActionStartResult TrySendRequest(string username)
@@ -948,17 +962,19 @@ internal sealed class LauncherFriendsCoordinator : IDisposable
         lock (_sync)
         {
             bool enabled = _currentSnapshot.IsAuthenticated && !IsStoppingUnsafe();
-            if (_isAutomaticRefreshEnabled == enabled)
+            TimeSpan interval = _isForeground ? AutomaticRefreshInterval : BackgroundRefreshInterval;
+            if (_isAutomaticRefreshEnabled == enabled && _scheduledRefreshInterval == interval)
             {
                 return;
             }
 
             _isAutomaticRefreshEnabled = enabled;
+            _scheduledRefreshInterval = interval;
             try
             {
                 _automaticRefreshTimer.Change(
-                    enabled ? AutomaticRefreshInterval : Timeout.InfiniteTimeSpan,
-                    enabled ? AutomaticRefreshInterval : Timeout.InfiniteTimeSpan);
+                    enabled ? interval : Timeout.InfiniteTimeSpan,
+                    enabled ? interval : Timeout.InfiniteTimeSpan);
             }
             catch (ObjectDisposedException)
             {

@@ -52,7 +52,8 @@ internal sealed record LauncherSettingsSnapshot(
     bool CanChangeBehavior,
     bool CanChangeInstantQuestText,
     LauncherSettingsSaveStatus SaveStatus,
-    string? StatusMessage);
+    string? StatusMessage,
+    string? RecoveryNotice = null);
 
 internal sealed class LauncherSettingsSnapshotEventArgs(LauncherSettingsSnapshot snapshot) : EventArgs
 {
@@ -120,7 +121,7 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
         _readInstantQuestText = readInstantQuestText ?? GameInstallServices.ReadInstantQuestText;
         _writeInstantQuestText = writeInstantQuestText ?? GameInstallServices.SetInstantQuestText;
         _instantQuestText = ReadInstantQuestTextSafely(_settings.InstallPath);
-        _currentSnapshot = CreateSnapshotUnsafe(LauncherSettingsSaveStatus.Idle, null);
+        _currentSnapshot = CreateSnapshotUnsafe(LauncherSettingsSaveStatus.Idle, settings.RecoveryNotice);
         _operations.StateChanged += Operations_StateChanged;
     }
 
@@ -448,7 +449,8 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             CanChangeBehavior: available,
             CanChangeInstantQuestText: available,
             SaveStatus: saveStatus,
-            StatusMessage: statusMessage);
+            StatusMessage: statusMessage,
+            RecoveryNotice: _settings.RecoveryNotice);
     }
 
     private void Operations_StateChanged(object? sender, EventArgs e)

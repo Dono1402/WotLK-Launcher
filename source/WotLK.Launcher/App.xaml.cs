@@ -639,6 +639,7 @@ public partial class App : Application
             shutdownStarted = true;
             runtime.BeginShutdown();
             await runtime.WaitForShutdownAsync(TimeSpan.FromSeconds(18));
+            await window.StopEmbeddedViewsAsync();
             DisposePresentation();
             allowClose = true;
             await window.Dispatcher.InvokeAsync(window.Close, DispatcherPriority.Send);

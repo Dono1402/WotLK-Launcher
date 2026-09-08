@@ -29,7 +29,7 @@ public partial class FriendsDrawerV2 : UserControl
         nameof(State),
         typeof(FriendsUiState),
         typeof(FriendsDrawerV2),
-        new PropertyMetadata(null));
+        new PropertyMetadata(null, FriendsStateChanged));
 
     public static readonly DependencyProperty IsOpenProperty = DependencyProperty.Register(
         nameof(IsOpen),
@@ -40,6 +40,7 @@ public partial class FriendsDrawerV2 : UserControl
     public FriendsDrawerV2()
     {
         InitializeComponent();
+        FriendsList.ItemsSource = _visibleRows;
         Loaded += FriendsDrawer_Loaded;
         Unloaded += (_, _) => LauncherLocalization.LocaleChanged -= LauncherLocaleChanged;
     }
@@ -72,7 +73,14 @@ public partial class FriendsDrawerV2 : UserControl
 
     internal TextBox FilterInput => FriendsFilterBox;
 
-    internal ScrollViewer ScrollHost => FriendsScrollViewer;
+    internal ScrollViewer ScrollHost
+    {
+        get
+        {
+            FriendsList.ApplyTemplate();
+            return (ScrollViewer)FriendsList.Template.FindName("PART_ScrollViewer", FriendsList);
+        }
+    }
 
     internal bool IsAddFriendEditorOpen => _isAddFriendExpanded;
 

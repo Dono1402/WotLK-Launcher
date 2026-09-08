@@ -15,7 +15,7 @@ internal static partial class ArmoryLauncherTests
 {
     private static async Task ValidateFriendProfileAsync(ArmoryFixture fixture, string? captures)
     {
-        ValidateFriendCacheLifecycle(fixture);
+        await ValidateFriendCacheLifecycleAsync(fixture);
         AccountUiState state = ConnectedAccount("ViewerAtlas");
         state.ApplyAvatarImage(AvatarWpfImageDecoder.DecodePng(CreateProfileAvatarPng(256, 42)), descriptorPresent: true);
         ProfileAvatarMediaClient avatarMedia = new();
@@ -138,7 +138,7 @@ internal static partial class ArmoryLauncherTests
         Console.WriteLine("Friend profile WPF OK: event navigation, real RPC helper, viewer/target isolation, readonly native bridge, FR/EN, message identity, friend removal, own profile and logout/reconnect.");
     }
 
-    private static void ValidateFriendCacheLifecycle(ArmoryFixture fixture)
+    private static async Task ValidateFriendCacheLifecycleAsync(ArmoryFixture fixture)
     {
         string root = fixture.AuthenticatedConfiguration.DataRoot!;
         AccountUiState state = ConnectedAccount("CacheViewer");
@@ -160,25 +160,36 @@ internal static partial class ArmoryLauncherTests
         using (ArmoryViewV2 initial = new())
         {
             Configure(initial);
+            await initial.PendingCleanup;
             True(File.Exists(first) && File.Exists(removed), "La configuration initiale doit préserver les modèles du lancement précédent.");
             initial.RetainFriendCaches(new HashSet<uint> { 91 });
+            await initial.PendingCleanup;
             True(File.Exists(first) && !File.Exists(removed), "Le roster doit purger un ami retiré même sans rouvrir son profil.");
+            initial.Dispose();
+            await initial.PendingCleanup;
         }
         True(File.Exists(first), "La fermeture normale de la vue doit conserver son cache sur disque.");
         using (ArmoryViewV2 restarted = new())
         {
             Configure(restarted);
+            await restarted.PendingCleanup;
             True(File.ReadAllText(first) == "persisted fixture", "Une nouvelle vue doit retrouver le cache du lancement précédent.");
             state.ApplyRuntimeView(AccountUiState.Empty.Current);
+            await restarted.PendingCleanup;
             True(!File.Exists(first), "Une déconnexion explicite doit purger aussi le cache non ouvert depuis le redémarrage.");
             state.ApplyRuntimeView(ConnectedAccount("SecondCacheViewer").Current);
+            await restarted.PendingCleanup;
             string previousAccount = Seed(84, 91);
             state.ApplyRuntimeView(ConnectedAccount("ThirdCacheViewer").Current);
+            await restarted.PendingCleanup;
             True(!File.Exists(previousAccount), "Un changement explicite de compte doit purger le précédent sans dépendre d'une WebView ouverte.");
             string previousConfiguration = Seed(126, 91);
             Configure(restarted);
+            await restarted.PendingCleanup;
             True(!File.Exists(previousConfiguration), "Remplacer une configuration active doit invalider l'ancien périmètre.");
             True(restarted.Browser is null, "Le test de cycle de vie ne doit créer aucune WebView.");
+            restarted.Dispose();
+            await restarted.PendingCleanup;
         }
         Equal(0, accountReads, "L'entretien du cache au login ne doit ajouter aucun appel d'authentification/API.");
         Console.WriteLine("Friend cache WPF lifecycle OK: initial configure and dispose preserve, new view reuses, unopened removal/logout/account/configuration changes purge, zero helper and zero extra account requests.");

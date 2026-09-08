@@ -72,7 +72,7 @@ public partial class ChatViewV2
         _richMode = enabled;
         PageGrid.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
         RichHost.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
-        if (!enabled) RichStatus.Visibility = Visibility.Collapsed;
+        if (!enabled) { RichStatus.Visibility = Visibility.Collapsed; RichRetryButton.Visibility = Visibility.Collapsed; }
         if (enabled && IsLoaded) _ = EnsureRichBrowserAsync();
         PublishRichSnapshot();
     }
@@ -151,6 +151,7 @@ public partial class ChatViewV2
     {
         if (_richDisposed || _richInitializing || _richBrowser is not null) return;
         _richInitializing = true;
+        RichRetryButton.Visibility = Visibility.Collapsed;
         RichStatus.Text = LauncherLocalization.IsEnglish ? "Loading messages…" : "Chargement des messages…";
         RichStatus.Visibility = Visibility.Visible;
         try
@@ -198,23 +199,52 @@ public partial class ChatViewV2
             core.WebMessageReceived += RichWebMessageReceived;
             core.NavigationCompleted += (_, args) =>
             {
-                if (_richDisposed) return;
+                if (_richDisposed || !ReferenceEquals(browser, _richBrowser)) return;
                 if (!args.IsSuccess) ShowRichFailure();
             };
-            core.ProcessFailed += (_, _) => { if (!_richDisposed) { _richReady = false; ShowRichFailure(); } };
+            core.ProcessFailed += (_, _) => { if (!_richDisposed && ReferenceEquals(browser, _richBrowser)) ShowRichFailure(); };
             core.Navigate(RichOrigin);
         }
         catch (OperationCanceledException) { }
         catch (Exception) { if (!_richDisposed) ShowRichFailure(); }
-        finally { _richInitializing = false; }
+        finally { _richInitializing = false; if (!_richDisposed) RichRetryButton.IsEnabled = true; }
     }
 
     private void ShowRichFailure()
     {
+        _richReady = false;
         RichStatus.Text = LauncherLocalization.IsEnglish
-            ? "Messages could not be loaded. Reopen the launcher to try again."
-            : "La page Messages n’a pas pu être chargée. Rouvrez le launcher pour réessayer.";
+            ? "Messages could not be loaded. Try loading the page again."
+            : "La page Messages n’a pas pu être chargée. Réessayez de la charger.";
         RichStatus.Visibility = _richMode ? Visibility.Visible : Visibility.Collapsed;
+        RichRetryButton.Visibility = RichStatus.Visibility;
+        RichRetryButton.IsEnabled = !_richInitializing;
+    }
+
+    private async void RichRetryButton_Click(object sender, RoutedEventArgs args)
+    {
+        if (_richDisposed || _richInitializing || !_richMode) return;
+        ReleaseRichBrowser();
+        // Workspace snapshots own the session, selected conversation, draft and outbox.
+        // Recreating only the renderer republishes their latest confirmed state.
+        await EnsureRichBrowserAsync();
+    }
+
+    private void ReleaseRichBrowser()
+    {
+        _richReady = false;
+        ResetRichComposerState();
+        _richMediaLifetime.Cancel();
+        _richMediaLifetime.Dispose();
+        _richMediaLifetime = new();
+        foreach (OwnedChatResponseStream stream in _richStreams.Values) stream.Dispose();
+        _richCadence?.Dispose();
+        _richCadence = null;
+        WebView2CompositionControl? browser = _richBrowser;
+        _richBrowser = null;
+        _richEnvironment = null;
+        browser?.Dispose();
+        RichHost.Children.Clear();
     }
 
     internal static bool IsRichDocument(string source) => Uri.TryCreate(source, UriKind.Absolute, out Uri? uri)
@@ -232,6 +262,7 @@ public partial class ChatViewV2
 
     private async void RichWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs args)
     {
+        if (!ReferenceEquals(sender, _richBrowser?.CoreWebView2)) return;
         if (_richEnvironment is not { } environment) return;
         if (!Uri.TryCreate(args.Request.Uri, UriKind.Absolute, out Uri? uri))
         { args.Response = environment.CreateWebResourceResponse(null, 403, "Forbidden", ""); return; }
@@ -292,7 +323,8 @@ public partial class ChatViewV2
 
     private void RichWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs args)
     {
-        if (_richDisposed || !IsRichDocument(args.Source) || args.WebMessageAsJson.Length > 65536) return;
+        if (_richDisposed || !ReferenceEquals(sender, _richBrowser?.CoreWebView2)
+            || !IsRichDocument(args.Source) || args.WebMessageAsJson.Length > 65536) return;
         try
         {
             using JsonDocument document = JsonDocument.Parse(args.WebMessageAsJson, new JsonDocumentOptions { MaxDepth = 24 });
@@ -305,6 +337,7 @@ public partial class ChatViewV2
                 _richReady = true;
                 ResetRichComposerState();
                 RichStatus.Visibility = Visibility.Collapsed;
+                RichRetryButton.Visibility = Visibility.Collapsed;
                 PublishRichSnapshot();
                 return;
             }

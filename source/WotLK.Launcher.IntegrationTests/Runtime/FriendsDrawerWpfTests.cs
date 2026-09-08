@@ -322,9 +322,9 @@ internal static class FriendsDrawerWpfTests
                 .First(text => text.Text.StartsWith("nerya-", StringComparison.Ordinal));
             Equal(TextTrimming.CharacterEllipsis, longName.TextTrimming,
                 "Les noms longs doivent utiliser une ellipse.");
-            Equal(Visibility.Visible, Required<StackPanel>(drawer, "OnlineFriendsSection").Visibility,
+            True(drawer.VisibleRows.Any(row => row.Kind == "online-header"),
                 "Les amis en jeu doivent avoir leur propre section.");
-            Equal(Visibility.Visible, Required<StackPanel>(drawer, "OfflineFriendsSection").Visibility,
+            True(drawer.VisibleRows.Any(row => row.Kind == "offline-header"),
                 "Les amis hors ligne doivent avoir leur propre section.");
             Border card = Descendants<Border>(drawer).First(border => border.Name == "FriendCard");
             Button target = Descendants<Button>(card).Single(button => button.Name == "OpenFriendProfileButton");
@@ -338,7 +338,7 @@ internal static class FriendsDrawerWpfTests
             Button remove = menuItems.Single(button => button.Name == "RemoveFriendMenuItem");
             True(string.Equals(
                     AutomationProperties.GetName(remove),
-                    "Supprimer des amis",
+                    "Retirer cet ami",
                     StringComparison.Ordinal),
                 "La suppression doit rester identifiable dans le menu contextuel.");
             popup.IsOpen = false;
@@ -361,7 +361,7 @@ internal static class FriendsDrawerWpfTests
         }
         if (scenario == FriendsPreviewScenario.IncomingRequests)
         {
-            Equal(Visibility.Visible, Required<StackPanel>(drawer, "IncomingRequestsSection").Visibility,
+            True(drawer.VisibleRows.Any(row => row.Kind == "incoming-header"),
                 "Les demandes reçues doivent avoir leur section.");
             True(Descendants<Button>(drawer).Any(button =>
                     string.Equals(AutomationProperties.GetName(button), "Accepter la demande", StringComparison.Ordinal)

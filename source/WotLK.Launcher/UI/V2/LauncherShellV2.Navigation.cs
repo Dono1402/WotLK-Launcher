@@ -9,6 +9,12 @@ public partial class LauncherShellV2
 {
     private bool _suppressActivityFocusRestore;
 
+    private void UpdateBackgroundCadence(object? sender, EventArgs e) =>
+        _friendsCommands?.SetForeground(IsVisible && IsActive && WindowState != WindowState.Minimized);
+
+    private void ShellVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e) =>
+        UpdateBackgroundCadence(sender, EventArgs.Empty);
+
     private bool IsShellNavigationTarget(DependencyObject? target) =>
         FindAncestor<Button>(target) is { IsEnabled: true, IsVisible: true } button
         && TitleBar.IsAncestorOf(button);

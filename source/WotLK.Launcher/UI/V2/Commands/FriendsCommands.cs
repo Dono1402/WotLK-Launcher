@@ -53,6 +53,11 @@ internal sealed class FriendsCommands : IDisposable
         }
     }
 
+    internal void SetForeground(bool foreground)
+    {
+        if (Volatile.Read(ref _disposeState) == 0) _runtime.SetForeground(foreground);
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposeState, 1) != 0)

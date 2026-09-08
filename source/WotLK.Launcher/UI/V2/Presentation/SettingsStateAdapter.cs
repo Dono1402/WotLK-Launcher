@@ -73,7 +73,7 @@ internal sealed class SettingsStateAdapter : IDisposable
                     : "Client prêt · non vérifié";
         string? runtimeNotice = settings.SaveStatus == LauncherSettingsSaveStatus.Error
             ? settings.StatusMessage
-            : null;
+            : settings.RecoveryNotice;
         string availableLauncherVersion = selfUpdate is null
             ? "Non vérifiée"
             : selfUpdate.AvailableVersion

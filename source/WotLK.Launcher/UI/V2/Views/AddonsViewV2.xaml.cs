@@ -76,9 +76,9 @@ public partial class AddonsViewV2 : UserControl
 
     internal void OnNavigatedAway()
     {
+        if (AddonList.SelectedItem is AddonUiItem selected) _focusedAddonId = selected.Id;
         State?.OnNavigatedAway();
         if (State is not null) State.IsLibraryOpen = false;
-        AddonList.SelectedItem = null;
     }
 
     internal bool TryCloseTopLayer()
@@ -235,8 +235,8 @@ public partial class AddonsViewV2 : UserControl
                 ? current.SelectedAddon
                 : current.VisibleAddons.FirstOrDefault(addon => addon.Id == _focusedAddonId);
             DeleteConfirmationTitle.Text = current.SelectedAddon is null
-                ? "Supprimer cet addon ?"
-                : $"Supprimer {current.SelectedAddon.Name} ?";
+                ? "Désinstaller cet addon ?"
+                : $"Désinstaller {current.SelectedAddon.Name} ?";
 
             bool openedDeleteConfirmation = current.IsDeleteConfirmationOpen && !_wasDeleteConfirmationOpen;
             bool closedDeleteConfirmation = !current.IsDeleteConfirmationOpen && _wasDeleteConfirmationOpen;

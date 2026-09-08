@@ -36,7 +36,14 @@ public partial class PatchNotesViewV2 : UserControl
         set => SetValue(LayoutModeProperty, value);
     }
 
-    internal ScrollViewer ScrollHost => PatchNotesScrollViewer;
+    internal ScrollViewer ScrollHost
+    {
+        get
+        {
+            PatchNotesList.ApplyTemplate();
+            return (ScrollViewer)PatchNotesList.Template.FindName("PART_ScrollViewer", PatchNotesList);
+        }
+    }
 
     internal ItemsControl ListHost => PatchNotesList;
 

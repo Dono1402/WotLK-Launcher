@@ -382,6 +382,10 @@ public partial class LauncherShellV2 : Window
 
         SizeChanged += LauncherShellV2_SizeChanged;
         StateChanged += LauncherShellV2_StateChanged;
+        Activated += UpdateBackgroundCadence;
+        Deactivated += UpdateBackgroundCadence;
+        StateChanged += UpdateBackgroundCadence;
+        IsVisibleChanged += ShellVisibilityChanged;
         PreviewKeyDown += LauncherShellV2_PreviewKeyDown;
         PreviewMouseDown += LauncherShellV2_PreviewMouseDown;
         PreviewGotKeyboardFocus += LauncherShellV2_PreviewGotKeyboardFocus;
@@ -499,6 +503,7 @@ public partial class LauncherShellV2 : Window
         }
 
         _friendsCommands = commands ?? throw new ArgumentNullException(nameof(commands));
+        UpdateBackgroundCadence(this, EventArgs.Empty);
     }
 
     internal void AttachAddons(AddonsCommands commands)
@@ -661,6 +666,10 @@ public partial class LauncherShellV2 : Window
         Loaded -= LauncherShellV2_Loaded;
         SizeChanged -= LauncherShellV2_SizeChanged;
         StateChanged -= LauncherShellV2_StateChanged;
+        Activated -= UpdateBackgroundCadence;
+        Deactivated -= UpdateBackgroundCadence;
+        StateChanged -= UpdateBackgroundCadence;
+        IsVisibleChanged -= ShellVisibilityChanged;
         PreviewKeyDown -= LauncherShellV2_PreviewKeyDown;
         PreviewMouseDown -= LauncherShellV2_PreviewMouseDown;
         PreviewGotKeyboardFocus -= LauncherShellV2_PreviewGotKeyboardFocus;
@@ -708,6 +717,12 @@ public partial class LauncherShellV2 : Window
         AccountView.State = null;
         DataContext = null;
         AuthState.Dispose();
+    }
+
+    internal Task StopEmbeddedViewsAsync()
+    {
+        ArmoryView.Dispose();
+        return ArmoryView.PendingCleanup;
     }
 
     private void ApplyAdaptiveLayout()
@@ -1497,7 +1512,7 @@ public partial class LauncherShellV2 : Window
 
         if (e.Key == Key.Escape && ProfileState.IsOpen)
         {
-            _overlayCoordinator.CloseProfile();
+            if (!ProfileOverlay.CollapsePresenceChoices()) _overlayCoordinator.CloseProfile();
             e.Handled = true;
         }
     }
@@ -1745,25 +1760,6 @@ public partial class LauncherShellV2 : Window
         MessagesNavigationButton.Tag = page == LauncherShellPage.Chat ? "Active" : null;
         SettingsButton.Tag = showSettings ? "Active" : null;
         RefreshChatViewActivation();
-        if (showAddons)
-        {
-            if (AddonsView.ListHost.Items.Count > 0)
-            {
-                AddonsView.ListHost.ScrollIntoView(AddonsView.ListHost.Items[0]);
-            }
-        }
-        else if (showSettings)
-        {
-            SettingsView.ScrollHost.ScrollToTop();
-        }
-        else if (showPatchNotes)
-        {
-            PatchNotesView.ScrollHost.ScrollToTop();
-        }
-        else if (showAccount)
-        {
-            AccountView.ScrollHost.ScrollToTop();
-        }
     }
 
     private void AccountState_PropertyChanged(object? sender, PropertyChangedEventArgs e)

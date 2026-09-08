@@ -21,6 +21,13 @@ internal static class LauncherLocalization
             ["Supprimer le profil"] = "Delete profile",
             ["Cocher les résultats"] = "Select results",
             ["Vider"] = "Clear",
+            ["Tout désélectionner"] = "Deselect all",
+            ["Désinstaller"] = "Uninstall",
+            ["Désinstaller cet addon ?"] = "Uninstall this addon?",
+            ["Désinstaller Questie ?"] = "Uninstall Questie?",
+            ["Retirer cet ami"] = "Remove this friend",
+            ["Modifier mon statut"] = "Change my status",
+            ["Les réglages ont été récupérés depuis leur sauvegarde locale. Vérifiez vos préférences."] = "Settings were recovered from their local backup. Please check your preferences.",
             ["Installer la sélection"] = "Install selection",
             ["Nom du profil"] = "Profile name",
             ["Nom du profil de sélection"] = "Selection profile name",
@@ -740,6 +747,7 @@ internal static class LauncherLocalization
 
     private static readonly (string French, string English)[] EnglishFragments =
     [
+        ("Désinstaller ", "Uninstall "),
         ("Favoris  ", "Favourites  "),
         ("Manuels  ", "Manual  "),
         ("Vérification de ", "Verifying "),

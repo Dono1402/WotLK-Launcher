@@ -7,6 +7,15 @@ using System.Text.RegularExpressions;
 using WotLK.Launcher;
 using WotLK.Launcher.Server;
 
+if (args.Length == 1 && string.Equals(args[0], "--optimization-ui", StringComparison.OrdinalIgnoreCase))
+    return await ShellNavigationWpfTests.RunAsync(optimizationsOnly: true);
+
+if (args.Length == 1 && string.Equals(args[0], "--optimization-storage", StringComparison.OrdinalIgnoreCase))
+    return await OptimizationStorageTests.RunAsync();
+
+if (args.Length == 1 && string.Equals(args[0], "--optimization-memory", StringComparison.OrdinalIgnoreCase))
+    return await OptimizationMemoryTests.RunAsync();
+
 if (args.Length == 1 && string.Equals(args[0], "--shell-navigation-wpf", StringComparison.OrdinalIgnoreCase))
     return await ShellNavigationWpfTests.RunAsync();
 

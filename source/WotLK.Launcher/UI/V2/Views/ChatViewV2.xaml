@@ -219,7 +219,11 @@
         </Border>
     </Grid>
         <Grid x:Name="RichHost" Visibility="Collapsed" ClipToBounds="True"/>
-        <TextBlock x:Name="RichStatus" Visibility="Collapsed" Margin="36" VerticalAlignment="Center" HorizontalAlignment="Center"
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+        <TextBlock x:Name="RichStatus" Visibility="Collapsed" Margin="36,12" HorizontalAlignment="Center"
                    TextWrapping="Wrap" Foreground="{StaticResource AtlasV2.Brush.TextSecondary}" FontSize="14"/>
+        <Button x:Name="RichRetryButton" Content="Réessayer" Visibility="Collapsed" HorizontalAlignment="Center"
+                Style="{StaticResource AtlasV2.Button.Secondary}" Padding="20,10" Click="RichRetryButton_Click"/>
+        </StackPanel>
     </Grid>
 </UserControl>

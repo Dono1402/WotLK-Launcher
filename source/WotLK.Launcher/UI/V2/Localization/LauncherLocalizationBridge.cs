@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -23,11 +24,14 @@ internal sealed class LauncherLocalizationBridge : IDisposable
 
     private readonly Window _window;
     private readonly HashSet<DependencyObject> _knownObjects = [];
-    private readonly Dictionary<PropertyKey, string> _originalValues = [];
+    private readonly ConditionalWeakTable<DependencyObject, Dictionary<DependencyProperty, string>> _originalValues = new();
+    private readonly ConditionalWeakTable<FrameworkElement, object> _lifecycleObjects = new();
+    private readonly List<WeakReference<FrameworkElement>> _lifecycleSubscriptions = [];
     private readonly List<PropertySubscription> _propertySubscriptions = [];
     private readonly List<GeneratorSubscription> _generatorSubscriptions = [];
     private int _translationDepth;
     private int _disposeState;
+    private bool _prunePending;
 
     internal LauncherLocalizationBridge(Window window)
     {
@@ -61,13 +65,25 @@ internal sealed class LauncherLocalizationBridge : IDisposable
             subscription.Generator.StatusChanged -= subscription.Handler;
         }
 
+        foreach (WeakReference<FrameworkElement> reference in _lifecycleSubscriptions)
+        {
+            if (!reference.TryGetTarget(out FrameworkElement? element)) continue;
+            WeakEventManager<FrameworkElement, RoutedEventArgs>.RemoveHandler(element, nameof(FrameworkElement.Loaded), TrackedElement_Loaded);
+            WeakEventManager<FrameworkElement, RoutedEventArgs>.RemoveHandler(element, nameof(FrameworkElement.Unloaded), TrackedElement_Unloaded);
+        }
+        _lifecycleSubscriptions.Clear();
+
         _propertySubscriptions.Clear();
         _generatorSubscriptions.Clear();
         _knownObjects.Clear();
         _originalValues.Clear();
     }
 
-    internal void Refresh() => DiscoverAndTranslate(_window);
+    internal void Refresh()
+    {
+        DiscoverAndTranslate(_window);
+        PruneDetachedObjects();
+    }
 
     private void Window_Loaded(object sender, RoutedEventArgs e) =>
         DiscoverAndTranslate(_window);
@@ -113,6 +129,7 @@ internal sealed class LauncherLocalizationBridge : IDisposable
             bool isNew = _knownObjects.Add(current);
             if (isNew)
             {
+                TrackLifecycle(current);
                 TrackProperties(current);
                 TrackGeneratedItems(current);
             }
@@ -120,6 +137,75 @@ internal sealed class LauncherLocalizationBridge : IDisposable
             TranslateObject(current);
             PushChildren(current, pending);
         }
+    }
+
+    private void TrackLifecycle(DependencyObject target)
+    {
+        if (target is not FrameworkElement element || _lifecycleObjects.TryGetValue(element, out _)) return;
+        _lifecycleObjects.Add(element, new object());
+        _lifecycleSubscriptions.Add(new WeakReference<FrameworkElement>(element));
+        WeakEventManager<FrameworkElement, RoutedEventArgs>.AddHandler(element, nameof(FrameworkElement.Loaded), TrackedElement_Loaded);
+        WeakEventManager<FrameworkElement, RoutedEventArgs>.AddHandler(element, nameof(FrameworkElement.Unloaded), TrackedElement_Unloaded);
+    }
+
+    private void TrackedElement_Loaded(object? sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement element && Volatile.Read(ref _disposeState) == 0
+            && (Window.GetWindow(element) is not Window owner || ReferenceEquals(owner, _window)))
+            DiscoverAndTranslate(element);
+    }
+
+    private void TrackedElement_Unloaded(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not DependencyObject target || Volatile.Read(ref _disposeState) != 0) return;
+        HashSet<DependencyObject> removed = CollectTree(target);
+        ForgetObjects(removed);
+    }
+
+    private void SchedulePrune()
+    {
+        if (_prunePending || Volatile.Read(ref _disposeState) != 0 || _window.Dispatcher.HasShutdownStarted) return;
+        _prunePending = true;
+        _ = _window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
+        {
+            _prunePending = false;
+            if (Volatile.Read(ref _disposeState) == 0) PruneDetachedObjects();
+        });
+    }
+
+    private void PruneDetachedObjects()
+    {
+        _lifecycleSubscriptions.RemoveAll(reference => !reference.TryGetTarget(out _));
+        HashSet<DependencyObject> reachable = CollectTree(_window);
+        ForgetObjects(_knownObjects.Where(target => !reachable.Contains(target)).ToHashSet());
+    }
+
+    private void ForgetObjects(HashSet<DependencyObject> removed)
+    {
+        if (removed.Count == 0) return;
+        foreach (PropertySubscription subscription in _propertySubscriptions.Where(s => removed.Contains(s.Target)).ToArray())
+        {
+            subscription.Descriptor.RemoveValueChanged(subscription.Target, subscription.Handler);
+            _propertySubscriptions.Remove(subscription);
+        }
+        foreach (GeneratorSubscription subscription in _generatorSubscriptions.Where(s => removed.Contains(s.Target)).ToArray())
+        {
+            subscription.Generator.StatusChanged -= subscription.Handler;
+            _generatorSubscriptions.Remove(subscription);
+        }
+        _knownObjects.ExceptWith(removed);
+        // Original strings are weakly attached to each control so recycling can
+        // restore French without keeping old containers alive.
+    }
+
+    private static HashSet<DependencyObject> CollectTree(DependencyObject root)
+    {
+        HashSet<DependencyObject> result = [];
+        Stack<DependencyObject> pending = new();
+        pending.Push(root);
+        while (pending.TryPop(out DependencyObject? target))
+            if (result.Add(target)) PushChildren(target, pending);
+        return result;
     }
 
     private void TrackProperties(DependencyObject target)
@@ -150,7 +236,7 @@ internal sealed class LauncherLocalizationBridge : IDisposable
             };
             descriptor.AddValueChanged(target, handler);
             _propertySubscriptions.Add(new PropertySubscription(target, descriptor, handler));
-            CaptureOriginalValue(target, property);
+            if (!IsCurrentTranslation(target, property, allowOtherLocale: true)) CaptureOriginalValue(target, property);
         }
     }
 
@@ -169,16 +255,11 @@ internal sealed class LauncherLocalizationBridge : IDisposable
                 return;
             }
 
-            foreach (object item in itemsControl.Items)
-            {
-                if (generator.ContainerFromItem(item) is DependencyObject container)
-                {
-                    DiscoverAndTranslate(container);
-                }
-            }
+            DiscoverAndTranslate(itemsControl);
+            SchedulePrune();
         };
         generator.StatusChanged += handler;
-        _generatorSubscriptions.Add(new GeneratorSubscription(generator, handler));
+        _generatorSubscriptions.Add(new GeneratorSubscription(itemsControl, generator, handler));
     }
 
     private void TranslateKnownObjects()
@@ -209,8 +290,8 @@ internal sealed class LauncherLocalizationBridge : IDisposable
             return;
         }
 
-        PropertyKey key = new(target, property);
-        string original = _originalValues.TryGetValue(key, out string? captured)
+        Dictionary<DependencyProperty, string> originals = _originalValues.GetOrCreateValue(target);
+        string original = originals.TryGetValue(property, out string? captured)
             ? captured
             : source;
         string translated = LauncherLocalization.IsEnglish
@@ -234,15 +315,19 @@ internal sealed class LauncherLocalizationBridge : IDisposable
 
     private bool IsCurrentTranslation(
         DependencyObject target,
-        DependencyProperty property)
+        DependencyProperty property,
+        bool allowOtherLocale = false)
     {
-        PropertyKey key = new(target, property);
-        if (!_originalValues.TryGetValue(key, out string? original)
+        if (!_originalValues.TryGetValue(target, out Dictionary<DependencyProperty, string>? originals)
+            || !originals.TryGetValue(property, out string? original)
             || target.GetValue(property) is not string current)
         {
             return false;
         }
 
+        if (allowOtherLocale)
+            return string.Equals(current, original, StringComparison.Ordinal)
+                || string.Equals(current, LauncherLocalization.TranslateFromFrench(original), StringComparison.Ordinal);
         string expected = LauncherLocalization.IsEnglish
             ? LauncherLocalization.TranslateFromFrench(original)
             : original;
@@ -255,7 +340,7 @@ internal sealed class LauncherLocalizationBridge : IDisposable
     {
         if (target.GetValue(property) is string source)
         {
-            _originalValues[new PropertyKey(target, property)] = source;
+            _originalValues.GetOrCreateValue(target)[property] = source;
         }
     }
 
@@ -324,10 +409,7 @@ internal sealed class LauncherLocalizationBridge : IDisposable
         EventHandler Handler);
 
     private sealed record GeneratorSubscription(
+        ItemsControl Target,
         ItemContainerGenerator Generator,
         EventHandler Handler);
-
-    private readonly record struct PropertyKey(
-        DependencyObject Target,
-        DependencyProperty Property);
 }

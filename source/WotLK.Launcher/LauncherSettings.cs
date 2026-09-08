@@ -1,10 +1,14 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace WotLK.Launcher;
 
 public sealed class LauncherSettings
 {
+    private static readonly object StorageLock = new();
+    [JsonIgnore]
+    internal string? RecoveryNotice { get; private set; }
     public string InstallPath { get; set; } = GetDefaultInstallPath();
 
     public string ManifestUrl { get; set; } = GetDefaultManifestUrl();
@@ -31,35 +35,80 @@ public sealed class LauncherSettings
 
     public static string LauncherLogPath => Path.Combine(SettingsDirectory, "launcher.log");
 
-    public static LauncherSettings Load()
-    {
-        LauncherSettings settings;
-        if (!File.Exists(SettingsPath))
-        {
-            settings = new LauncherSettings();
-        }
-        else
-        {
-            var json = File.ReadAllText(SettingsPath);
-            settings = JsonSerializer.Deserialize<LauncherSettings>(json) ?? new LauncherSettings();
-        }
+    public static LauncherSettings Load() => LoadFrom(SettingsPath);
 
-        settings.InstallPath = NormalizeInstallPath(settings.InstallPath);
-        settings.ManifestUrl = GetDefaultManifestUrl();
-        settings.GameLocale = NormalizeGameLocale(settings.GameLocale);
-        settings.InterfaceLocale = NormalizeInterfaceLocale(settings.InterfaceLocale);
-        return settings;
+    internal static LauncherSettings LoadFrom(string path)
+    {
+        lock (StorageLock)
+        {
+            LauncherSettings settings;
+            try
+            {
+                settings = Read(path) ?? (File.Exists(path + ".bak")
+                    ? throw new JsonException("Primary settings are missing.") : new LauncherSettings());
+            }
+            catch (Exception error) when (error is JsonException or IOException or UnauthorizedAccessException)
+            {
+                settings = Read(path + ".bak") ?? throw new IOException(
+                    "Les réglages sont illisibles et aucune sauvegarde valide n’est disponible.", error);
+                settings.RecoveryNotice = "Les réglages ont été récupérés depuis leur sauvegarde locale. Vérifiez vos préférences.";
+            }
+            settings.Normalize();
+            return settings;
+        }
     }
 
-    public void Save()
+    private static LauncherSettings? Read(string path) => !File.Exists(path) ? null
+        : JsonSerializer.Deserialize<LauncherSettings>(File.ReadAllText(path))
+            ?? throw new JsonException("Settings must contain an object.");
+
+    private void Normalize()
     {
         InstallPath = NormalizeInstallPath(InstallPath);
         ManifestUrl = GetDefaultManifestUrl();
         GameLocale = NormalizeGameLocale(GameLocale);
         InterfaceLocale = NormalizeInterfaceLocale(InterfaceLocale);
-        Directory.CreateDirectory(SettingsDirectory);
-        var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(SettingsPath, json);
+    }
+
+    public void Save() => SaveTo(SettingsPath);
+
+    internal void SaveTo(string path)
+    {
+        lock (StorageLock)
+        {
+            Normalize();
+            path = Path.GetFullPath(path);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                using (FileStream stream = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    JsonSerializer.Serialize(stream, this, new JsonSerializerOptions { WriteIndented = true });
+                    stream.Flush(flushToDisk: true);
+                }
+                if (File.Exists(path))
+                {
+                    bool valid;
+                    try { valid = Read(path) is not null; }
+                    catch (JsonException) { valid = false; }
+                    // Preserve damaged bytes separately; never rotate them over the last good backup.
+                    string backup = valid ? path + ".bak" : path + ".corrupt-" + Guid.NewGuid().ToString("N");
+                    File.Replace(temporary, path, backup);
+                }
+                else
+                {
+                    if (!File.Exists(path + ".bak")) File.Copy(temporary, path + ".bak");
+                    File.Move(temporary, path);
+                }
+            }
+            finally
+            {
+                try { File.Delete(temporary); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
     }
 
     public static string GetDefaultManifestUrl()

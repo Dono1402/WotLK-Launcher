@@ -428,12 +428,12 @@
                                     </Button>
                                     <Button x:Name="RemoveFriendMenuItem" IsEnabled="{Binding CanRemove}"
                                             Style="{StaticResource FriendActionMenuButton}"
-                                            Click="RemoveFriendMenuItem_Click" AutomationProperties.Name="Supprimer des amis">
+                                            Click="RemoveFriendMenuItem_Click" AutomationProperties.Name="Retirer cet ami">
                                         <StackPanel Orientation="Horizontal">
                                             <Path Width="15" Height="15" Margin="0,0,10,0"
                                                   Data="{StaticResource AtlasV2.Icon.Trash}" Style="{StaticResource AtlasV2.Icon.Stroke}"
                                                   Stroke="{StaticResource AtlasV2.Brush.Danger}"/>
-                                            <TextBlock Text="Supprimer des amis" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Retirer cet ami" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
                                 </StackPanel>
@@ -654,85 +654,65 @@
                                Style="{StaticResource AtlasV2.Text.Caption}"/>
                 </StackPanel>
 
-                <ScrollViewer x:Name="FriendsScrollViewer"
-                              Grid.Row="5"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled">
-                    <ScrollViewer.Resources>
-                        <Style TargetType="{x:Type ScrollBar}"
-                               BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/>
-                    </ScrollViewer.Resources>
-                    <StackPanel Margin="0,0,5,0">
-                        <StackPanel x:Name="IncomingRequestsSection"
-                                    Margin="0,2,0,12"
-                                    Visibility="{Binding State.Current.HasIncomingRequests, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
-                            <TextBlock Margin="0,0,0,7"
-                                       Text="DEMANDES REÇUES"
-                                       Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
-                            <ItemsControl ItemsSource="{Binding State.Current.IncomingRequests, ElementName=Root}"
-                                          ItemTemplate="{StaticResource AtlasV2.Friends.IncomingItem}"/>
-                        </StackPanel>
-
-                        <StackPanel x:Name="OutgoingRequestsSection"
-                                    Margin="0,0,0,12"
-                                    Visibility="{Binding State.Current.HasOutgoingRequests, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
-                            <TextBlock Margin="0,0,0,7"
-                                       Text="DEMANDES ENVOYÉES"
-                                       Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
-                            <ItemsControl ItemsSource="{Binding State.Current.OutgoingRequests, ElementName=Root}"
-                                          ItemTemplate="{StaticResource AtlasV2.Friends.OutgoingItem}"/>
-                        </StackPanel>
-
-                        <StackPanel x:Name="OnlineFriendsSection"
-                                    Margin="0,0,0,6"
-                                    Visibility="{Binding State.HasFilteredOnlineFriends, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
-                            <ToggleButton x:Name="OnlineFriendsToggle" Style="{StaticResource AtlasV2.Friends.GroupToggle}"
-                                          Content="{Binding State.OnlineGroupLabel, ElementName=Root}"
-                                          AutomationProperties.Name="{Binding State.OnlineGroupLabel, ElementName=Root}"
-                                          IsChecked="{Binding State.IsOnlineGroupExpanded, ElementName=Root, Mode=TwoWay}"/>
-                            <ItemsControl x:Name="OnlineFriendsItemsControl"
-                                          Visibility="{Binding State.IsOnlineGroupExpanded, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
-                                          ItemsSource="{Binding State.FilteredOnlineFriends, ElementName=Root}"
-                                          ItemTemplate="{StaticResource AtlasV2.Friends.FriendItem}"/>
-                        </StackPanel>
-
-                        <StackPanel x:Name="OfflineFriendsSection"
-                                    Visibility="{Binding State.HasFilteredOfflineFriends, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
-                            <ToggleButton x:Name="OfflineFriendsToggle" Style="{StaticResource AtlasV2.Friends.GroupToggle}"
-                                          Foreground="{StaticResource AtlasV2.Brush.TextMuted}"
-                                          Content="{Binding State.OfflineGroupLabel, ElementName=Root}"
-                                          AutomationProperties.Name="{Binding State.OfflineGroupLabel, ElementName=Root}"
-                                          IsChecked="{Binding State.IsOfflineGroupExpanded, ElementName=Root, Mode=TwoWay}"/>
-                            <ItemsControl x:Name="OfflineFriendsItemsControl"
-                                          Visibility="{Binding State.IsOfflineGroupExpanded, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
-                                          ItemsSource="{Binding State.FilteredOfflineFriends, ElementName=Root}"
-                                          ItemTemplate="{StaticResource AtlasV2.Friends.FriendItem}"/>
-                        </StackPanel>
-
+                <Grid Grid.Row="5">
+                    <ItemsControl x:Name="FriendsList" Margin="0,0,5,0" VirtualizingPanel.IsVirtualizing="True"
+                                  VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel" VirtualizingPanel.CacheLength="1">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.Template>
+                            <ControlTemplate TargetType="ItemsControl">
+                                <ScrollViewer x:Name="PART_ScrollViewer" CanContentScroll="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ScrollChanged="FriendsList_ScrollChanged">
+                                    <ScrollViewer.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/></ScrollViewer.Resources>
+                                    <ItemsPresenter/>
+                                </ScrollViewer>
+                            </ControlTemplate>
+                        </ItemsControl.Template>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <ContentControl Content="{Binding Friend}" HorizontalContentAlignment="Stretch">
+                                    <ContentControl.Style>
+                                        <Style TargetType="ContentControl">
+                                            <Setter Property="ContentTemplate" Value="{StaticResource AtlasV2.Friends.FriendItem}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Kind}" Value="incoming"><Setter Property="ContentTemplate" Value="{StaticResource AtlasV2.Friends.IncomingItem}"/></DataTrigger>
+                                                <DataTrigger Binding="{Binding Kind}" Value="outgoing"><Setter Property="ContentTemplate" Value="{StaticResource AtlasV2.Friends.OutgoingItem}"/></DataTrigger>
+                                                <DataTrigger Binding="{Binding Kind}" Value="incoming-header"><Setter Property="ContentTemplate"><Setter.Value><DataTemplate>
+                                                    <TextBlock Text="DEMANDES REÇUES" Margin="0,7,0,7" Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
+                                                </DataTemplate></Setter.Value></Setter></DataTrigger>
+                                                <DataTrigger Binding="{Binding Kind}" Value="outgoing-header"><Setter Property="ContentTemplate"><Setter.Value><DataTemplate>
+                                                    <TextBlock Text="DEMANDES ENVOYÉES" Margin="0,7,0,7" Style="{StaticResource AtlasV2.Overlay.Eyebrow}"/>
+                                                </DataTemplate></Setter.Value></Setter></DataTrigger>
+                                                <DataTrigger Binding="{Binding Kind}" Value="online-header"><Setter Property="ContentTemplate"><Setter.Value><DataTemplate>
+                                                    <ToggleButton Tag="online-header" Style="{StaticResource AtlasV2.Friends.GroupToggle}"
+                                                        Content="{Binding State.OnlineGroupLabel, RelativeSource={RelativeSource AncestorType={x:Type views:FriendsDrawerV2}}}"
+                                                        AutomationProperties.Name="{Binding Content, RelativeSource={RelativeSource Self}}"
+                                                        IsChecked="{Binding State.IsOnlineGroupExpanded, RelativeSource={RelativeSource AncestorType={x:Type views:FriendsDrawerV2}}, Mode=TwoWay}"/>
+                                                </DataTemplate></Setter.Value></Setter></DataTrigger>
+                                                <DataTrigger Binding="{Binding Kind}" Value="offline-header"><Setter Property="ContentTemplate"><Setter.Value><DataTemplate>
+                                                    <ToggleButton Tag="offline-header" Style="{StaticResource AtlasV2.Friends.GroupToggle}" Foreground="{StaticResource AtlasV2.Brush.TextMuted}"
+                                                        Content="{Binding State.OfflineGroupLabel, RelativeSource={RelativeSource AncestorType={x:Type views:FriendsDrawerV2}}}"
+                                                        AutomationProperties.Name="{Binding Content, RelativeSource={RelativeSource Self}}"
+                                                        IsChecked="{Binding State.IsOfflineGroupExpanded, RelativeSource={RelativeSource AncestorType={x:Type views:FriendsDrawerV2}}, Mode=TwoWay}"/>
+                                                </DataTemplate></Setter.Value></Setter></DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ContentControl.Style>
+                                </ContentControl>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                         <StackPanel x:Name="FriendsFilterEmptyState" Margin="12,20" HorizontalAlignment="Center"
                                     Visibility="{Binding State.ShowsFilterEmpty, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                             <TextBlock Text="{Binding State.NoFilterResultsLabel, ElementName=Root}" TextWrapping="Wrap"
                                        TextAlignment="Center" FontSize="12" Style="{StaticResource AtlasV2.Text.Caption}"/>
                         </StackPanel>
-
-                        <StackPanel x:Name="FriendsEmptyState"
-                                    Margin="12,42"
-                                    HorizontalAlignment="Center"
-                                    Visibility="{Binding State.ShowsGlobalEmpty, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
-                            <Path Width="28"
-                                  Height="28"
-                                  Margin="0,0,0,10"
-                                  Data="{StaticResource AtlasV2.Icon.Users}"
-                                  Style="{StaticResource AtlasV2.Icon.Stroke}"
-                                  Stroke="{StaticResource AtlasV2.Brush.TextMuted}"/>
-                            <TextBlock HorizontalAlignment="Center"
-                                       Text="Aucun ami pour le moment"
-                                       Style="{StaticResource AtlasV2.Text.Body}"
-                                       FontWeight="SemiBold"
+                        <StackPanel x:Name="FriendsEmptyState" Margin="12,42" HorizontalAlignment="Center"
+                            Visibility="{Binding State.ShowsGlobalEmpty, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                            <Path Width="28" Height="28" Margin="0,0,0,10" Data="{StaticResource AtlasV2.Icon.Users}"
+                                  Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="{StaticResource AtlasV2.Brush.TextMuted}"/>
+                            <TextBlock Text="Aucun ami pour le moment" Style="{StaticResource AtlasV2.Text.Body}" FontWeight="SemiBold"
                                        Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
                         </StackPanel>
-                    </StackPanel>
-                </ScrollViewer>
+                    </Grid>
 
                 <Grid x:Name="FriendProfilePanel"
                       Grid.RowSpan="6"

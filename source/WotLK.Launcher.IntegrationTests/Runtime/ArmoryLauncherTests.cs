@@ -290,6 +290,16 @@ internal static partial class ArmoryLauncherTests
             await WaitForScriptAsync(armory, "document.querySelector('.character[data-id=\"12\"]')?.getAttribute('aria-pressed')==='true' && document.getElementById('character-view').contentWindow.armory?.data?.name==='Alt42'",
                 "Après échec puis Réessayer, le GUID partagé demandé avant le roster doit ouvrir le personnage exact, et non le premier personnage.");
             origin = new Uri(armory.Browser!.CoreWebView2.Source);
+            CoreWebView2 crashed = armory.Browser.CoreWebView2;
+            _ = crashed.CallDevToolsProtocolMethodAsync("Page.crash", "{}").ContinueWith(task => { _ = task.Exception; }, TaskScheduler.Default);
+            await WaitUntilAsync(() => Required<Button>(armory, "RetryButton").IsVisible && armory.Browser is null,
+                "Un crash du moteur isolé doit libérer la vue et proposer Réessayer.");
+            await armory.PendingCleanup;
+            await AssertStoppedAsync(origin);
+            Required<Button>(armory, "RetryButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitForScriptAsync(armory, "document.querySelector('.character[data-id=\"12\"]')?.getAttribute('aria-pressed')==='true' && document.getElementById('character-view').contentWindow.armory?.data?.name==='Alt42'",
+                "La recréation après crash doit conserver le compte et le personnage partagé exact.");
+            origin = new Uri(armory.Browser!.CoreWebView2.Source);
             AssertOffscreen(window);
             armory.SelectSharedCharacter(42, 999999);
             await WaitForScriptAsync(armory, "!document.querySelector('.character[aria-pressed=\"true\"]') && document.body.textContent.includes('Le personnage partagé est indisponible.')",

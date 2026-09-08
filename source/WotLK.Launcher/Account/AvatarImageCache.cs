@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -9,6 +8,8 @@ namespace WotLK.Launcher.Account;
 internal sealed class AvatarImageCache : IDisposable
 {
     internal const long MaximumDiskBytes = 64L * 1024 * 1024;
+    internal const long MaximumMemoryBytes = 16L * 1024 * 1024;
+    internal const int MaximumMemoryEntries = 256;
     private static readonly TimeSpan[] PublicationRetryDelays =
     [
         TimeSpan.FromMilliseconds(90),
@@ -20,7 +21,7 @@ internal sealed class AvatarImageCache : IDisposable
     private readonly string _root;
     private readonly CancellationToken _lifetimeToken;
     private readonly Action _onUnauthorized;
-    private readonly ConcurrentDictionary<AvatarImageCacheKey, BitmapSource> _memory = new();
+    private readonly AvatarBitmapMemoryCache<AvatarImageCacheKey> _memory = new(MaximumMemoryBytes, MaximumMemoryEntries);
     private readonly Dictionary<AvatarImageCacheKey, Task<BitmapSource?>> _inFlight = [];
     private int _disposeState;
 
@@ -47,7 +48,6 @@ internal sealed class AvatarImageCache : IDisposable
         AvatarImageCacheKey key = AvatarImageCacheKey.Create(descriptor, size);
         if (_memory.TryGetValue(key, out BitmapSource? cached))
         {
-            Touch(GetPath(key));
             return cached;
         }
 
@@ -92,7 +92,7 @@ internal sealed class AvatarImageCache : IDisposable
         foreach (int size in new[] { 32, 64, 128, 256 })
         {
             AvatarImageCacheKey key = AvatarImageCacheKey.Create(descriptor, size);
-            _memory.TryRemove(key, out _);
+            _memory.Remove(key);
             TryDelete(GetPath(key));
         }
     }
@@ -104,7 +104,7 @@ internal sealed class AvatarImageCache : IDisposable
             return;
         }
 
-        _memory.Clear();
+        _memory.Dispose();
         lock (_inFlightSync)
         {
             _inFlight.Clear();
@@ -122,7 +122,7 @@ internal sealed class AvatarImageCache : IDisposable
             BitmapSource? disk = await TryLoadDiskAsync(path, _lifetimeToken).ConfigureAwait(false);
             if (disk is not null)
             {
-                _memory[key] = disk;
+                _memory.Store(key, disk);
                 Touch(path);
                 return disk;
             }
@@ -155,7 +155,7 @@ internal sealed class AvatarImageCache : IDisposable
             }
 
             await PublishAsync(path, download.Bytes, _lifetimeToken).ConfigureAwait(false);
-            _memory[key] = image;
+            _memory.Store(key, image);
             await TrimDiskAsync(_lifetimeToken).ConfigureAwait(false);
             return image;
         }

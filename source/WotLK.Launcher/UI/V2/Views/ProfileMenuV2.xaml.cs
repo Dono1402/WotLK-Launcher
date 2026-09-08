@@ -58,8 +58,27 @@ public partial class ProfileMenuV2 : UserControl
 
     private void PresenceButton_Click(object sender, RoutedEventArgs args)
     {
-        if(sender is Button { Tag: string status } && State?.CanChangePresence==true)
-            PresenceRequested?.Invoke(this,status);
+        if (sender is Button { Tag: string status } && State?.CanChangePresence == true)
+        {
+            CollapsePresenceChoices();
+            PresenceRequested?.Invoke(this, status);
+        }
+    }
+
+    internal bool IsPresenceExpanded => PresenceChoicesPanel.Visibility == Visibility.Visible;
+
+    private void PresenceToggleButton_Click(object sender, RoutedEventArgs args)
+    {
+        PresenceChoicesPanel.Visibility = IsPresenceExpanded ? Visibility.Collapsed : Visibility.Visible;
+        PresenceChevron.Text = IsPresenceExpanded ? "⌃" : "⌄";
+    }
+
+    internal bool CollapsePresenceChoices()
+    {
+        bool wasExpanded = IsPresenceExpanded;
+        PresenceChoicesPanel.Visibility = Visibility.Collapsed;
+        PresenceChevron.Text = "⌄";
+        return wasExpanded;
     }
 
     public ProfileUiState? State
@@ -113,6 +132,7 @@ public partial class ProfileMenuV2 : UserControl
 
     internal void DetachFromShell()
     {
+        CollapsePresenceChoices();
         ++_transitionVersion;
         MenuPanel.BeginAnimation(OpacityProperty, null);
         MenuTranslate.BeginAnimation(TranslateTransform.YProperty, null);
@@ -125,6 +145,7 @@ public partial class ProfileMenuV2 : UserControl
     private static void IsOpenChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)
     {
         ProfileMenuV2 menu = (ProfileMenuV2)dependencyObject;
+        if (!(bool)args.NewValue) menu.CollapsePresenceChoices();
         if (menu.IsLoaded)
         {
             menu.ApplyOpenState((bool)args.NewValue, animate: true);

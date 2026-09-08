@@ -47,6 +47,9 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
     private Func<uint, uint, LauncherArmoryDataRequest, CancellationToken, Task<JsonElement>>? _readFriendData;
     private FriendUiItem? _friendProfile;
     private readonly LauncherArmoryFriendCache _friendCaches = new();
+    private readonly LauncherBackgroundWorkQueue _cacheWork = new();
+    private Task _helperCleanup = Task.CompletedTask;
+    private HashSet<uint>? _retainedFriendIds;
     private string? _friendCacheUsername;
     private string? _userDataFolder;
     private string? _sessionUsername;
@@ -173,7 +176,8 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
     {
         if (_friendProfile?.AccountId == accountId) ResetSession();
         StartFriendCacheSession();
-        _friendCaches.Remove(accountId);
+        _retainedFriendIds = null;
+        _ = _cacheWork.RunAsync(() => _friendCaches.Remove(accountId), _helperCleanup);
     }
 
     internal void RetainFriendCaches(IReadOnlySet<uint> friends)
@@ -181,29 +185,30 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
         if (_friendProfile is FriendUiItem current && !friends.Contains(current.AccountId)) ResetSession();
         if (_state?.IsNavigationEnabled != true) return;
         StartFriendCacheSession();
-        _friendCaches.Retain(friends);
+        if (_retainedFriendIds?.SetEquals(friends) == true) return;
+        HashSet<uint> retained = _retainedFriendIds = friends.ToHashSet();
+        _ = _cacheWork.RunAsync(() => _friendCaches.Retain(retained), _helperCleanup);
     }
 
     private void StartFriendCacheSession()
     {
         if (_disposed || _friendCacheUsername is not null || _getAccount is null
             || _readFriendData is null || _state?.IsNavigationEnabled != true) return;
-        try
-        {
-            // Discover the disk scope without an additional API request. The viewer
-            // is bound later by OpenAsync after its normal authenticated account read.
-            // Logout/removal can already purge old files not reopened this run.
-            _friendCaches.ConfigureRoot(_loadFriendCacheRoot());
-            _friendCacheUsername = _state.Current.Username;
-        }
-        catch (Exception) { } // The profile's normal retry path reports unavailable resources.
+        // Capture the source now; old queued work must never use a new session's source.
+        Func<string> loadRoot = _loadFriendCacheRoot;
+        _friendCacheUsername = _state.Current.Username;
+        _ = _cacheWork.RunAsync(() => _friendCaches.ConfigureRoot(loadRoot()), _helperCleanup);
     }
 
     private void StopFriendCacheSession(bool purge)
     {
         _friendCacheUsername = null;
-        if (purge) _friendCaches.Clear();
-        else _friendCaches.Dispose();
+        _retainedFriendIds = null;
+        _ = _cacheWork.RunAsync(() =>
+        {
+            if (purge) _friendCaches.Clear();
+            else _friendCaches.Dispose();
+        }, _helperCleanup);
     }
 
     private async Task OpenAsync()
@@ -223,6 +228,8 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
         CustomizeButton.Visibility = Visibility.Collapsed;
         try
         {
+            await _helperCleanup;
+            token.ThrowIfCancellationRequested();
             uint? account = await _getAccount(token);
             token.ThrowIfCancellationRequested();
             if (account is null || _state?.IsNavigationEnabled != true) throw new InvalidOperationException("Session unavailable.");
@@ -250,7 +257,13 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
                 configuration = LauncherArmoryLocalHost.RequireAuthenticatedSource(configuration);
                 // Cached geometry survives navigation and restarts, but cached friend data must
                 // never appear before a new API authorization and current roster read.
-                string friendDirectory = _friendCaches.GetDirectory(configuration.DataRoot!, account.Value, friend.AccountId);
+                string cacheRoot = configuration.DataRoot!;
+                string friendDirectory = await _cacheWork.RunAsync(() =>
+                {
+                    token.ThrowIfCancellationRequested();
+                    return _friendCaches.GetDirectory(cacheRoot, account.Value, friend.AccountId);
+                });
+                token.ThrowIfCancellationRequested();
                 configuration = configuration with { DataRoot = friendDirectory, RequireFreshRoster = true };
             }
             await LauncherWebViewRuntime.EnsureAvailableAsync(configuration, token,
@@ -307,12 +320,23 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
                 if (args.IsSuccess) PublishProfile();
                 else ShowFailure();
             };
+            core.ProcessFailed += (_, _) =>
+            {
+                if (token.IsCancellationRequested || !ReferenceEquals(browser, _browser)) return;
+                // WebView forbids disposing its controller from inside a browser callback.
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (token.IsCancellationRequested || !ReferenceEquals(browser, _browser)) return;
+                    ResetSession(preserveSharedCharacter: true, preserveDraft: true);
+                    ShowFailure();
+                }));
+            };
             core.Navigate(new Uri(host.Origin!, "?lang=" + (LauncherLocalization.IsEnglish ? "en" : "fr")).AbsoluteUri);
         }
         catch (OperationCanceledException) { }
         catch (Exception)
         {
-            if (ReferenceEquals(_lifetime, lifetime)) { ResetSession(preserveSharedCharacter: true); ShowFailure(); }
+            if (ReferenceEquals(_lifetime, lifetime)) { ResetSession(preserveSharedCharacter: true, preserveDraft: true); ShowFailure(); }
         }
     }
 
@@ -719,13 +743,13 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
         else AutomationProperties.SetName(ProfileLoadingIndicator, LocalText("Chargement du profil", "Loading profile"));
         PublishProfile();
     }
-    private void RetryButton_Click(object sender, RoutedEventArgs args) { ResetSession(preserveSharedCharacter: true); _ = OpenAsync(); }
+    private void RetryButton_Click(object sender, RoutedEventArgs args) { ResetSession(preserveSharedCharacter: true, preserveDraft: true); _ = OpenAsync(); }
     private void CustomizeButton_Click(object sender, RoutedEventArgs args)
     {
         if (!IsReadOnlyProfile) CustomizeRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    internal void ResetSession(bool preserveSharedCharacter = false)
+    internal void ResetSession(bool preserveSharedCharacter = false, bool preserveDraft = false)
     {
         // An opening failure/retry still targets the same profile and shared
         // character. Navigation, account changes and disposal clear the target.
@@ -745,14 +769,15 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
         _bannerChoiceLifetime?.Cancel();
         _bannerChoiceLifetime = null;
         _banner = null;
-        _bannerDraft = null;
+        if (!preserveDraft) _bannerDraft = null;
         _bannerData = null;
         _bannerError = null;
         _bannerBusy = false;
         _sessionAccountId = null;
         lifetime?.Cancel();
         _browser?.Dispose(); _browser = null; BrowserHost.Children.Clear();
-        _host?.Dispose(); _host = null;
+        if (_host is { } host) _helperCleanup = Task.WhenAll(_helperCleanup, host.StopAsync());
+        _host = null;
         lifetime?.Dispose();
     }
 
@@ -766,4 +791,6 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
         LauncherLocalization.LocaleChanged -= LocaleChanged;
         _getAccount = null; _state = null;
     }
+
+    internal Task PendingCleanup => Task.WhenAll(_helperCleanup, _cacheWork.Pending);
 }

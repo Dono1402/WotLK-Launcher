@@ -194,6 +194,19 @@ internal static class ChatRichHostWpfTests
             await Post("draft", new { threadId = "17", body = "Stale page" });
             await Task.Delay(100);
             True(actions.Count == 2, "Old session cannot mutate after native account switch.");
+            JsonObject recovery = JsonSerializer.SerializeToNode(Snapshot(replacement, sequence: 12), ChatJson.Options)!.AsObject();
+            recovery["draft"]!["body"] = "Brouillon conservé après incident";
+            view.ApplyRichSnapshot(recovery);
+            await UntilScript(core, "document.querySelector('#composer-input')?.value==='Brouillon conservé après incident'", "Draft is present before renderer recovery.");
+            // Crash only the renderer owned by this isolated offscreen fixture.
+            _ = core.CallDevToolsProtocolMethodAsync("Page.crash", "{}").ContinueWith(task => { _ = task.Exception; }, TaskScheduler.Default);
+            System.Windows.Controls.Button retry = (System.Windows.Controls.Button)view.FindName("RichRetryButton");
+            await Until(() => retry.IsVisible, "Renderer failure offers an in-place retry.");
+            retry.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+            await Until(() => view.RichBrowser?.CoreWebView2 is { } current && !ReferenceEquals(current, core), "Retry recreates a fresh browser control.");
+            core = view.RichBrowser!.CoreWebView2;
+            await UntilScript(core, "document.querySelector('#thread-title')?.textContent==='Lyra'&&document.querySelector('#composer-input')?.value==='Brouillon conservé après incident'", "Recreated renderer restores the conversation and saved draft.");
+            True(!retry.IsVisible && actions.Count == 2, "Recovery clears its notice and does not replay business actions.");
             view.SetRichMode(false);
             True(((FrameworkElement)view.FindName("PageGrid")).Visibility == Visibility.Visible, "Legacy compatibility view restored explicitly.");
 

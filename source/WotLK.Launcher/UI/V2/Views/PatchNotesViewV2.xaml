@@ -62,16 +62,6 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <ScrollViewer x:Name="PatchNotesScrollViewer"
-                  VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled"
-                  HorizontalContentAlignment="Stretch"
-                  PanningMode="VerticalOnly">
-        <ScrollViewer.Resources>
-            <Style TargetType="{x:Type ScrollBar}"
-                   BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/>
-        </ScrollViewer.Resources>
-
         <Grid x:Name="ContentFrame"
               MaxWidth="1520"
               Margin="92,0,76,36"
@@ -79,7 +69,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
             <Grid>
@@ -143,8 +133,19 @@
                     </StackPanel>
                 </Border>
 
-                <ItemsControl x:Name="PatchNotesList"
+                <ItemsControl x:Name="PatchNotesList" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel" VirtualizingPanel.CacheLength="1"
                               ItemsSource="{Binding State.Current.PatchNotes, ElementName=PatchNotesRoot}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><VirtualizingStackPanel/></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.Template>
+                        <ControlTemplate TargetType="ItemsControl">
+                            <ScrollViewer x:Name="PART_ScrollViewer" CanContentScroll="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly">
+                                <ScrollViewer.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/></ScrollViewer.Resources>
+                                <ItemsPresenter/>
+                            </ScrollViewer>
+                        </ControlTemplate>
+                    </ItemsControl.Template>
                     <ItemsControl.Style>
                         <Style TargetType="{x:Type ItemsControl}">
                             <Setter Property="Visibility" Value="Visible"/>
@@ -281,5 +282,5 @@
                 </ItemsControl>
             </Grid>
         </Grid>
-    </ScrollViewer>
+
 </UserControl>

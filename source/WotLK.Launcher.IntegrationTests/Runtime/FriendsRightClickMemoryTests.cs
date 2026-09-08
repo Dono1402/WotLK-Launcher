@@ -212,11 +212,11 @@ internal static class FriendsRightClickMemoryTests
             True(state.Current.Friends.Length == 2 && state.SearchText == "PseudoPourUneDemande"
                 && Visuals<Border>(drawer).Count(value => value.Name == "FriendCard") == 1,
                 "Le filtre doit rester local, distinct du champ de demande et visible dans le rendu.");
-            ToggleButton offlineToggle = (ToggleButton)drawer.FindName("OfflineFriendsToggle");
+            ToggleButton offlineToggle = Visuals<ToggleButton>(drawer).Single(button => Equals(button.Tag, "offline-header"));
             offlineToggle.SetCurrentValue(ToggleButton.IsCheckedProperty, false);
             await LayoutAsync(host);
             True(!state.IsOfflineGroupExpanded
-                && ((ItemsControl)drawer.FindName("OfflineFriendsItemsControl")).Visibility == Visibility.Collapsed,
+                && !drawer.VisibleRows.Any(row => row.Kind == "offline"),
                 "Replier un groupe doit masquer ses cartes en conservant les amis et son compteur.");
             state.FilterText = "mIRA";
             await LayoutAsync(host);
@@ -247,7 +247,7 @@ internal static class FriendsRightClickMemoryTests
             LauncherLocalization.SetLocale("en-US");
             typeof(FriendsDrawerV2).GetMethod("LauncherLocaleChanged", PrivateInstance)!.Invoke(drawer, [null, EventArgs.Empty]);
             await LayoutAsync(host);
-            True(Equals(((ToggleButton)drawer.FindName("OfflineFriendsToggle")).Content, "Offline (1)")
+            True(Equals((Visuals<ToggleButton>(drawer).Single(button => Equals(button.Tag, "offline-header"))).Content, "Offline (1)")
                 && AutomationProperties.GetName(drawer.FilterInput) == "Find a friend or character"
                 && AutomationProperties.GetName(Action(Card(offline.AccountId), "QuickMessageButton")) == "Send a message"
                 && offline.IdentityHint.Contains("Last character played", StringComparison.Ordinal),
@@ -255,7 +255,7 @@ internal static class FriendsRightClickMemoryTests
             LauncherLocalization.SetLocale("fr-FR");
             typeof(FriendsDrawerV2).GetMethod("LauncherLocaleChanged", PrivateInstance)!.Invoke(drawer, [null, EventArgs.Empty]);
             await LayoutAsync(host);
-            True(Equals(((ToggleButton)drawer.FindName("OfflineFriendsToggle")).Content, "Hors ligne (1)"),
+            True(Equals((Visuals<ToggleButton>(drawer).Single(button => Equals(button.Tag, "offline-header"))).Content, "Hors ligne (1)"),
                 "Le retour au français doit conserver la traduction locale des groupes.");
             Button oldAction = Action(Card(offline.AccountId), "QuickMessageButton");
             state.ApplyRuntimeView(state.Current with { Friends = [online] });

@@ -139,7 +139,7 @@ internal sealed class LauncherArmoryLocalHost : IDisposable
             int port = await _ready.Task.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken);
             Origin = new Uri($"http://127.0.0.1:{port}/");
         }
-        catch { Dispose(); throw; }
+        catch { await StopAsync().ConfigureAwait(false); throw; }
     }
 
     private async Task HandleRequestAsync(string message,
@@ -188,26 +188,48 @@ internal sealed class LauncherArmoryLocalHost : IDisposable
            && uri.Port == Origin.Port && string.IsNullOrEmpty(uri.UserInfo);
 
     public void Dispose()
+        => StopAsync().GetAwaiter().GetResult();
+
+    internal Task StopAsync()
     {
         _requestsLifetime?.Cancel();
         Process? process = Interlocked.Exchange(ref _process, null);
         Origin = null;
-        if (process is null) return;
+        if (process is null) return Task.CompletedTask;
+        return Task.Run(() => StopProcessAsync(process));
+    }
+
+    private async Task StopProcessAsync(Process process)
+    {
         try
         {
             if (!process.HasExited)
             {
                 // Serialize shutdown with data replies; no response can be sent to a later session.
-                if (_inputGate.Wait(100))
+                if (await _inputGate.WaitAsync(100).ConfigureAwait(false))
                 {
-                    try { process.StandardInput.WriteLine("shutdown"); process.StandardInput.Close(); }
+                    try
+                    {
+                        using CancellationTokenSource writeTimeout = new(TimeSpan.FromMilliseconds(250));
+                        await process.StandardInput.WriteLineAsync("shutdown".AsMemory(), writeTimeout.Token).ConfigureAwait(false);
+                        await process.StandardInput.FlushAsync(writeTimeout.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) { }
+                    catch (IOException) { }
                     finally { _inputGate.Release(); }
                 }
-                if (!process.WaitForExit(1500)) process.Kill(entireProcessTree: true);
+                using CancellationTokenSource exitTimeout = new(TimeSpan.FromMilliseconds(1500));
+                try { await process.WaitForExitAsync(exitTimeout.Token).ConfigureAwait(false); }
+                catch (OperationCanceledException)
+                {
+                    process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync().ConfigureAwait(false);
+                }
             }
         }
         catch (InvalidOperationException) { }
         catch (IOException) { }
+        catch (System.ComponentModel.Win32Exception) { }
         finally { process.Dispose(); }
     }
 }

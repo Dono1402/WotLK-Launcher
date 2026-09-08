@@ -547,7 +547,7 @@
                         <Button x:Name="SaveProfileButton" Content="Enregistrer" Margin="0,0,14,6" Style="{StaticResource AtlasV2.Addons.LibraryButton}"
                                 IsEnabled="{Binding State.CanSaveProfile, ElementName=AddonsRoot}" Click="SaveProfileButton_Click"/>
                         <Button Content="Cocher les résultats" Margin="0,0,8,6" Style="{StaticResource AtlasV2.Addons.LibraryButton}" Click="SelectVisibleButton_Click"/>
-                        <Button Content="Vider" Margin="0,0,14,6" Style="{StaticResource AtlasV2.Addons.LibraryButton}"
+                        <Button Content="Tout désélectionner" Margin="0,0,14,6" Style="{StaticResource AtlasV2.Addons.LibraryButton}"
                                 IsEnabled="{Binding State.HasSelection, ElementName=AddonsRoot}" Click="ClearSelectionButton_Click"/>
                         <Button x:Name="InstallSelectionButton" Content="Installer la sélection" Height="32" Margin="0,0,0,6"
                                 Style="{StaticResource AtlasV2.Addons.PrimaryCompact}"
@@ -930,7 +930,7 @@
                                 Style="{StaticResource AtlasV2.Button.GhostCompact}"
                                 Foreground="{StaticResource AtlasV2.Brush.Danger}"
                                 BorderBrush="{StaticResource AtlasV2.Brush.DangerBorder}"
-                                Content="Supprimer"
+                                Content="Désinstaller"
                                 IsEnabled="{Binding State.Current.SelectedAddon.CanRemove, ElementName=AddonsRoot}"
                                 Click="RemoveSelectedAddonButton_Click"/>
                         <Button x:Name="DetailPrimaryButton"
@@ -964,7 +964,7 @@
                     Style="{StaticResource AtlasV2.Card}">
                 <StackPanel>
                     <TextBlock x:Name="DeleteConfirmationTitle"
-                               Text="Supprimer Questie ?"
+                               Text="Désinstaller Questie ?"
                                Style="{StaticResource AtlasV2.Text.SectionTitle}"
                                FontSize="19"/>
                     <TextBlock Margin="0,9,0,0"
@@ -980,7 +980,7 @@
                         <Button x:Name="ConfirmDeleteButton"
                                 MinWidth="132"
                                 Margin="10,0,0,0"
-                                Content="Supprimer"
+                                Content="Désinstaller"
                                 Style="{StaticResource AtlasV2.Button.Primary}"
                                 Background="{StaticResource AtlasV2.Brush.Danger}"
                                 BorderBrush="{StaticResource AtlasV2.Brush.Danger}"

@@ -133,7 +133,7 @@ public partial class LauncherShellV2
 
     private void MessagesNavigationButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!ShellState.IsNavigationEnabled || _overlayCoordinator.Current != ShellOverlayKind.None) return;
+        if (!ShellState.IsNavigationEnabled || !_overlayCoordinator.CanNavigate) return;
         if (!IsPreviewMode && !ShellState.IsAuthenticated) return;
         OpenChatPage();
         if (_chatWorkspace is { } workspace && !workspace.CurrentSnapshot.IsLegacyFallback) _ = workspace.RefreshAsync();

@@ -415,8 +415,8 @@ internal static class ActivityCenterPreviewTests
 
             profileButton.Focus();
             await PumpAsync(DispatcherPriority.Input);
-            True(panel.ContainsKeyboardFocusTarget(Keyboard.FocusedElement as DependencyObject),
-                "Le focus clavier ne doit pas passer derrière le panneau.");
+            Equal(profileButton, Keyboard.FocusedElement,
+                "La navigation du bandeau doit rester accessible lorsque le panneau est ouvert.");
 
             RaisePreviewKey(window, Key.Escape);
             await DelayAndPumpAsync(220);

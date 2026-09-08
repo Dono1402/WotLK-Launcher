@@ -98,13 +98,17 @@ public partial class ProfileMenuV2 : UserControl
     {
         Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
-            () => Keyboard.Focus(ManageProfileButton.IsEnabled
-                ? ManageProfileButton
-                : ManageAccountButton.IsEnabled
-                    ? ManageAccountButton
-                : LogoutButton.IsEnabled
-                    ? LogoutButton
-                    : CloseProfileButton));
+            () =>
+            {
+                if (IsOpen && IsVisible)
+                    Keyboard.Focus(ManageProfileButton.IsEnabled
+                        ? ManageProfileButton
+                        : ManageAccountButton.IsEnabled
+                            ? ManageAccountButton
+                        : LogoutButton.IsEnabled
+                            ? LogoutButton
+                            : CloseProfileButton);
+            });
     }
 
     internal void DetachFromShell()

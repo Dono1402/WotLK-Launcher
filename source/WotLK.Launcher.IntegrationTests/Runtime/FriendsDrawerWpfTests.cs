@@ -578,8 +578,8 @@ internal static class FriendsDrawerWpfTests
 
             profileButton.Focus();
             await PumpAsync(DispatcherPriority.Input);
-            True(drawer.ContainsKeyboardFocusTarget(Keyboard.FocusedElement as DependencyObject),
-                "Le focus clavier ne doit pas passer derrière le drawer.");
+            Equal(profileButton, Keyboard.FocusedElement,
+                "La navigation du bandeau doit rester accessible lorsque le drawer est ouvert.");
 
             FriendUiItem friend = window.FriendsState.Current.Friends.First(item => item.HasCharacters);
             window.FriendsState.OpenFriendProfile(friend);

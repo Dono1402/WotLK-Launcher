@@ -938,6 +938,8 @@ public partial class LauncherShellV2 : Window
 
     private void FriendsButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!_overlayCoordinator.CanNavigate) return;
+        PreparePanelTransition(ShellOverlayKind.Friends);
         if (_overlayCoordinator.TryToggleFriends())
         {
             _restoreFriendsFocusAfterClose = true;
@@ -951,17 +953,14 @@ public partial class LauncherShellV2 : Window
 
     private void ActivityButton_Click(object sender, RoutedEventArgs e)
     {
-        bool friendsWasOpen = FriendsState.IsOpen;
+        if (!_overlayCoordinator.CanNavigate) return;
+        PreparePanelTransition(ShellOverlayKind.Activity);
         if (_overlayCoordinator.TryToggleActivity())
         {
-            if (friendsWasOpen)
-            {
-                _restoreFriendsFocusAfterClose = false;
-                FriendsButton.Focusable = true;
-            }
             ActivityButton.Focusable = !ActivityState.IsOpen;
             if (ActivityState.IsOpen)
             {
+                _suppressActivityFocusRestore = false;
                 ActivityCenter.FocusFirstControl();
             }
         }
@@ -969,7 +968,7 @@ public partial class LauncherShellV2 : Window
 
     private void GameNavigationButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_overlayCoordinator.Current == ShellOverlayKind.None
+        if (_overlayCoordinator.CanNavigate
             && (IsPreviewMode || SettingsState.Current.IsRuntimeConnected))
         {
             NavigateTo(LauncherShellPage.Game);
@@ -979,17 +978,11 @@ public partial class LauncherShellV2 : Window
 
     private void GameView_PatchNoteRequested(object? sender, EventArgs e)
     {
-        bool friendsWasOpen = FriendsState.IsOpen;
-        if (!DashboardState.Current.CanOpenLatestPatchNote
-            || !_overlayCoordinator.TryOpenPatchNote())
+        if (!DashboardState.Current.CanOpenLatestPatchNote || !_overlayCoordinator.CanNavigate) return;
+        PreparePanelTransition(ShellOverlayKind.PatchNote);
+        if (!_overlayCoordinator.TryOpenPatchNote())
         {
             return;
-        }
-
-        if (friendsWasOpen)
-        {
-            _restoreFriendsFocusAfterClose = false;
-            FriendsButton.Focusable = true;
         }
 
         _patchNoteFocusReturnTarget = GameView.PatchNoteActionFocusTarget;
@@ -999,7 +992,7 @@ public partial class LauncherShellV2 : Window
     private void AddonsNavigationButton_Click(object sender, RoutedEventArgs e)
     {
         if (!ShellState.IsNavigationEnabled
-            || _overlayCoordinator.Current != ShellOverlayKind.None)
+            || !_overlayCoordinator.CanNavigate)
         {
             return;
         }
@@ -1022,7 +1015,7 @@ public partial class LauncherShellV2 : Window
     private void PatchNotesNavigationButton_Click(object sender, RoutedEventArgs e)
     {
         if (!ShellState.IsNavigationEnabled
-            || _overlayCoordinator.Current != ShellOverlayKind.None)
+            || !_overlayCoordinator.CanNavigate)
         {
             return;
         }
@@ -1051,7 +1044,7 @@ public partial class LauncherShellV2 : Window
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        if (IsSettingsNavigationEnabled && _overlayCoordinator.Current == ShellOverlayKind.None)
+        if (IsSettingsNavigationEnabled && _overlayCoordinator.CanNavigate)
         {
             NavigateTo(LauncherShellPage.Settings);
         }
@@ -1090,6 +1083,7 @@ public partial class LauncherShellV2 : Window
         object? sender,
         ActivityNavigationRequestedEventArgs e)
     {
+        PreparePanelTransition(ShellOverlayKind.None);
         _overlayCoordinator.CloseActivity();
         if (e.Target == ActivityNavigationTarget.Game)
         {
@@ -1113,16 +1107,12 @@ public partial class LauncherShellV2 : Window
 
     private void ProfileButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!_overlayCoordinator.CanNavigate) return;
+        PreparePanelTransition(ShellOverlayKind.Profile);
         if (ShellState.IsAuthenticated)
         {
-            bool friendsWasOpen = FriendsState.IsOpen;
             if (_overlayCoordinator.TryToggleProfile())
             {
-                if (friendsWasOpen)
-                {
-                    _restoreFriendsFocusAfterClose = false;
-                    FriendsButton.Focusable = true;
-                }
                 ProfileButton.Focusable = !ProfileState.IsOpen;
                 if (ProfileState.IsOpen)
                 {
@@ -1386,7 +1376,9 @@ public partial class LauncherShellV2 : Window
     private void ActivityCenter_Closed(object? sender, EventArgs e)
     {
         ActivityButton.Focusable = true;
-        if (ActivityState.IsOpen || _overlayCoordinator.Current != ShellOverlayKind.None)
+        bool shouldRestoreFocus = !_suppressActivityFocusRestore;
+        _suppressActivityFocusRestore = false;
+        if (!shouldRestoreFocus || ActivityState.IsOpen || _overlayCoordinator.Current != ShellOverlayKind.None)
         {
             return;
         }
@@ -1438,19 +1430,22 @@ public partial class LauncherShellV2 : Window
 
         if (e.Key == Key.Escape
             && CurrentPage == LauncherShellPage.Addons
+            && _overlayCoordinator.Current == ShellOverlayKind.None
             && AddonsView.TryCloseTopLayer())
         {
             e.Handled = true;
             return;
         }
 
-        if (e.Key == Key.Escape && AccountView.TryCloseSensitiveEditor())
+        if (e.Key == Key.Escape && CurrentPage == LauncherShellPage.Account
+            && _overlayCoordinator.Current == ShellOverlayKind.None && AccountView.TryCloseSensitiveEditor())
         {
             e.Handled = true;
             return;
         }
 
-        if (e.Key == Key.Escape && AccountView.TryCancelDeleteConfirmation())
+        if (e.Key == Key.Escape && CurrentPage == LauncherShellPage.Account
+            && _overlayCoordinator.Current == ShellOverlayKind.None && AccountView.TryCancelDeleteConfirmation())
         {
             _accountCommands?.CancelDeleteConfirmation();
             e.Handled = true;
@@ -1509,20 +1504,19 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (!ProfileState.IsOpen)
-        {
-            return;
-        }
-
+        if (!_overlayCoordinator.CanNavigate) return;
         DependencyObject? source = e.OriginalSource as DependencyObject;
-        if (ProfileMenu.ContainsTarget(source)
-            || FindAncestor<Button>(source) is Button button && ReferenceEquals(button, ProfileButton))
+        if (IsShellNavigationTarget(source))
         {
+            // Leave the current opener to its toggle handler, otherwise the same
+            // click would close the panel here and immediately reopen it on Click.
+            if (!ReferenceEquals(FindAncestor<Button>(source), CurrentPanelButton))
+                DismissNavigationPanels();
             return;
         }
 
-        _suppressProfileFocusRestore = true;
-        _overlayCoordinator.CloseProfile();
+        if (!IsCurrentPanelTarget(source))
+            DismissNavigationPanels();
     }
 
     private void LauncherShellV2_PreviewGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
@@ -1539,7 +1533,13 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
-        if (AccountView.IsSensitiveEditorOpen)
+        // Non-modal panels keep their local Tab cycle, while the visible shell
+        // navigation remains reachable by mouse and keyboard.
+        if (_overlayCoordinator.CanNavigate && IsShellNavigationTarget(e.NewFocus as DependencyObject))
+            return;
+
+        if (CurrentPage == LauncherShellPage.Account && _overlayCoordinator.Current == ShellOverlayKind.None
+            && AccountView.IsSensitiveEditorOpen)
         {
             if (!AccountView.ContainsSensitiveEditorFocus(e.NewFocus as DependencyObject))
             {
@@ -1550,7 +1550,8 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
-        if (AccountView.IsDeleteConfirmationOpen)
+        if (CurrentPage == LauncherShellPage.Account && _overlayCoordinator.Current == ShellOverlayKind.None
+            && AccountView.IsDeleteConfirmationOpen)
         {
             if (!AccountView.ContainsDeleteConfirmationFocus(e.NewFocus as DependencyObject))
             {
@@ -1606,7 +1607,7 @@ public partial class LauncherShellV2 : Window
         }
 
         if (CurrentPage == LauncherShellPage.Addons && AddonsView.IsDeleteConfirmationOpen
-            && !FriendsState.IsOpen)
+            && _overlayCoordinator.Current == ShellOverlayKind.None)
         {
             if (!AddonsView.ContainsDeleteConfirmationFocus(e.NewFocus as DependencyObject))
             {
@@ -1710,6 +1711,8 @@ public partial class LauncherShellV2 : Window
         {
             return;
         }
+
+        DismissNavigationPanels();
 
         if (CurrentPage == LauncherShellPage.Account && page != LauncherShellPage.Account)
         {

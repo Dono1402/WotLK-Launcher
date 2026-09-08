@@ -50,6 +50,18 @@ internal sealed class ShellOverlayCoordinator
                         ? ShellOverlayKind.Profile
                         : ShellOverlayKind.None;
 
+    internal bool CanNavigate => !_avatarCrop.IsOpen
+        && !_authentication.IsOpen
+        && !_profile.Current.IsLoggingOut;
+
+    internal void CloseNavigationPanels()
+    {
+        _activity.IsOpen = false;
+        _friends.IsOpen = false;
+        _profile.IsOpen = false;
+        _patchNote.IsOpen = false;
+    }
+
     internal void OpenAuthentication()
     {
         _avatarCrop.IsOpen = false;

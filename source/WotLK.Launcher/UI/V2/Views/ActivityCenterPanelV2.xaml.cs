@@ -76,7 +76,10 @@ public partial class ActivityCenterPanelV2 : UserControl
     {
         Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
-            () => Keyboard.Focus(CloseButton));
+            () =>
+            {
+                if (IsOpen && IsVisible) Keyboard.Focus(CloseButton);
+            });
     }
 
     private static void IsOpenChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)

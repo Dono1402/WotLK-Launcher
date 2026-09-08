@@ -7,6 +7,9 @@ using System.Text.RegularExpressions;
 using WotLK.Launcher;
 using WotLK.Launcher.Server;
 
+if (args.Length == 1 && string.Equals(args[0], "--shell-navigation-wpf", StringComparison.OrdinalIgnoreCase))
+    return await ShellNavigationWpfTests.RunAsync();
+
 if (args.Length == 1 && string.Equals(args[0], "--session-hardening", StringComparison.OrdinalIgnoreCase))
 {
     int serviceResult = await LauncherAuthServiceConcurrencyTests.RunAsync();

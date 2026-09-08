@@ -99,6 +99,8 @@ public partial class AccountViewV2 : UserControl
         ClearPasswordFields();
         NewEmailBox.Clear();
         State?.CloseSensitiveEditors();
+        State?.CloseDeleteConfirmation();
+        SetAvatarActionsVisible(false, animate: false);
     }
 
     internal bool ContainsDeleteConfirmationFocus(DependencyObject? target)

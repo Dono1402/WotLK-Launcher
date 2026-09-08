@@ -64,7 +64,10 @@ public partial class PatchNoteOverlayV2 : UserControl
     {
         Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
-            () => Keyboard.Focus(CloseButton));
+            () =>
+            {
+                if (IsOpen && IsVisible) Keyboard.Focus(CloseButton);
+            });
     }
 
     internal void DetachFromShell()

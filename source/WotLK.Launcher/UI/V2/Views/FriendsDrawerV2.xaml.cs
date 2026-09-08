@@ -116,9 +116,13 @@ public partial class FriendsDrawerV2 : UserControl
     {
         Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
-            () => Keyboard.Focus(IsRemoveFriendConfirmationOpen
-                ? CancelRemoveFriendButton
-                : IsFriendProfileOpen ? BackToFriendsButton : AddFriendToggleButton));
+            () =>
+            {
+                if (IsOpen && IsVisible)
+                    Keyboard.Focus(IsRemoveFriendConfirmationOpen
+                        ? CancelRemoveFriendButton
+                        : IsFriendProfileOpen ? BackToFriendsButton : AddFriendToggleButton);
+            });
     }
 
     internal bool TryCloseTransientPanel()

@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-09-09",
+  "purpose": "Leeviathan HD characters and humanoid NPCs only; no terrain, UI, race substitution, or game launch.",
+  "client": {
+    "version": "3.4.3.54261",
+    "bytes": 50589832,
+    "storage": "CASC",
+    "fileInspected": "_classic_/WowClassic.exe"
+  },
+  "launcher": {
+    "file": "Arctium Game Launcher Atlas.exe",
+    "bytes": 6771712,
+    "productVersion": "1.0.0+9bf58f92b5879c4707e9869027ab0f5c92f914ec",
+    "sha256": "aacc00d145c091bcfec2033cddf4e8323ff2bdba3c720a2a77dc129e2a96287d",
+    "sourceCommitClaimedByMetadata": "9bf58f92b5879c4707e9869027ab0f5c92f914ec",
+    "reproducibleBuildVerified": false,
+    "upstreamReadme": "https://github.com/Burralis/Game-Launcher/blob/9bf58f92b5879c4707e9869027ab0f5c92f914ec/README.md",
+    "upstreamIncludesModLoading": false
+  },
+  "selectedPackage": {
+    "catalogPage": "https://www.wowmodding.net/files/file/372-leeviathans-hd-character-models/",
+    "declaredClient": "3.3.5a",
+    "baseEntry": "patch-H.MPQ",
+    "excludedOptionalEntries": [
+      "OPTIONAL - Boneless Undead/patch-I.MPQ",
+      "OPTIONAL - The Broken/BrokenNPC_patch-J.MPQ",
+      "OPTIONAL - The Broken/BrokenPlayer_patch-J.MPQ"
+    ],
+    "sourcePage": "https://www.mediafire.com/file/nkdszrg8nsh9t76/Leeviathan-s_WoD_Character_Models_%25283.3.5a%2529.zip/file",
+    "archiveBytes": 2934500949,
+    "archiveFullSha256": null,
+    "httpBytesRead": 1336,
+    "rangeRequests": 6,
+    "etagAvailable": false,
+    "files": [
+      {
+        "path": "info.txt",
+        "bytes": 1385,
+        "compressedBytes": 593,
+        "compression": 9,
+        "crc32": "3184e8c5",
+        "directory": false
+      },
+      {
+        "path": "Leeviathan-s_WoD_Character_Models.jpg",
+        "bytes": 2417857,
+        "compressedBytes": 2375479,
+        "compression": 9,
+        "crc32": "13eaa132",
+        "directory": false
+      },
+      {
+        "path": "OPTIONAL - Boneless Undead/Optional_Boneless_Scourge.jpg",
+        "bytes": 199352,
+        "compressedBytes": 189999,
+        "compression": 9,
+        "crc32": "f8390d14",
+        "directory": false
+      },
+      {
+        "path": "OPTIONAL - Boneless Undead/patch-I.MPQ",
+        "bytes": 19610128,
+        "compressedBytes": 19524061,
+        "compression": 9,
+        "crc32": "07300ea8",
+        "directory": false
+      },
+      {
+        "path": "OPTIONAL - The Broken/BrokenNPC_patch-J.MPQ",
+        "bytes": 211766911,
+        "compressedBytes": 211349387,
+        "compression": 9,
+        "crc32": "a0fa8c09",
+        "directory": false
+      },
+      {
+        "path": "OPTIONAL - The Broken/BrokenPlayer_patch-J.MPQ",
+        "bytes": 211930495,
+        "compressedBytes": 211512013,
+        "compression": 9,
+        "crc32": "8372dce9",
+        "directory": false
+      },
+      {
+        "path": "OPTIONAL - The Broken/Leeviathan-s_Broken---Overview.jpg",
+        "bytes": 8287299,
+        "compressedBytes": 7768354,
+        "compression": 9,
+        "crc32": "0ed24b1d",
+        "directory": false
+      },
+      {
+        "path": "patch-H.MPQ",
+        "bytes": 2504852362,
+        "compressedBytes": 2481779843,
+        "compression": 9,
+        "crc32": "835dfc50",
+        "directory": false
+      }
+    ],
+    "textFiles": [
+      {
+        "path": "info.txt",
+        "sha256": "431d9106553a6b42cd4aba4a2b4d27d82147d91ad1db0b17296d1543488acaf6",
+        "zipCrcVerified": true
+      }
+    ],
+    "archiveExtracted": false,
+    "archiveContentsExecuted": false,
+    "clientOrLauncherOpened": false,
+    "installed": false,
+    "compatibilityValidated": false
+  },
+  "status": {
+    "downloadedFullArchive": false,
+    "inspectedInsideMpq": false,
+    "preparedCompatibleMod": false,
+    "installed": false,
+    "gameLaunched": false,
+    "launcherLaunched": false,
+    "productionChanged": false,
+    "nextMilestone": "Authorize and validate an isolated Classic 3.4.3 loader/model-format pilot; a full installation is not ready."
+  }
+}

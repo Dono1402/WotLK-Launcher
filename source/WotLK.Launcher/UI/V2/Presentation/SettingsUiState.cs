@@ -98,12 +98,12 @@ public sealed class SettingsUiState : BindableUiState
     private ICommand _verifyRepairCommand = DisabledCommand.Instance;
     private ICommand _checkLauncherUpdateCommand = DisabledCommand.Instance;
     private ICommand _startLauncherUpdateCommand = DisabledCommand.Instance;
-    private Func<string, bool> _changeInterfaceLocale = static _ => false;
-    private Func<bool, bool> _changeStartWithWindows = static _ => false;
-    private Func<bool, bool> _changeMinimizeToTrayOnClose = static _ => false;
-    private Func<bool, bool> _changeFriendPresenceNotifications = static _ => false;
-    private Func<string, bool> _changeGameLocale = static _ => false;
-    private Func<bool, bool> _changeInstantQuestText = static _ => false;
+    private Func<string, Task<bool>> _changeInterfaceLocale = static _ => Task.FromResult(false);
+    private Func<bool, Task<bool>> _changeStartWithWindows = static _ => Task.FromResult(false);
+    private Func<bool, Task<bool>> _changeMinimizeToTrayOnClose = static _ => Task.FromResult(false);
+    private Func<bool, Task<bool>> _changeFriendPresenceNotifications = static _ => Task.FromResult(false);
+    private Func<string, Task<bool>> _changeGameLocale = static _ => Task.FromResult(false);
+    private Func<bool, Task<bool>> _changeInstantQuestText = static _ => Task.FromResult(false);
     private Action _showGameForRepair = static () => { };
 
     internal static SettingsUiState Empty { get; } = new(new SettingsViewState(
@@ -181,12 +181,12 @@ public sealed class SettingsUiState : BindableUiState
         ICommand checkLauncherUpdateCommand,
         ICommand startLauncherUpdateCommand,
         Action showGameForRepair,
-        Func<string, bool> changeInterfaceLocale,
-        Func<bool, bool> changeStartWithWindows,
-        Func<bool, bool> changeMinimizeToTrayOnClose,
-        Func<bool, bool> changeFriendPresenceNotifications,
-        Func<string, bool> changeGameLocale,
-        Func<bool, bool> changeInstantQuestText)
+        Func<string, Task<bool>> changeInterfaceLocale,
+        Func<bool, Task<bool>> changeStartWithWindows,
+        Func<bool, Task<bool>> changeMinimizeToTrayOnClose,
+        Func<bool, Task<bool>> changeFriendPresenceNotifications,
+        Func<string, Task<bool>> changeGameLocale,
+        Func<bool, Task<bool>> changeInstantQuestText)
     {
         BrowseInstallPathCommand = browseInstallPathCommand
             ?? throw new ArgumentNullException(nameof(browseInstallPathCommand));
@@ -225,54 +225,54 @@ public sealed class SettingsUiState : BindableUiState
         CheckLauncherUpdateCommand = PreviewCommand.Instance;
         StartLauncherUpdateCommand = PreviewCommand.Instance;
         _showGameForRepair = static () => { };
-        _changeInterfaceLocale = static _ => false;
-        _changeStartWithWindows = static _ => false;
-        _changeMinimizeToTrayOnClose = static _ => false;
-        _changeFriendPresenceNotifications = static _ => false;
-        _changeGameLocale = static _ => false;
-        _changeInstantQuestText = static _ => false;
+        _changeInterfaceLocale = static _ => Task.FromResult(false);
+        _changeStartWithWindows = static _ => Task.FromResult(false);
+        _changeMinimizeToTrayOnClose = static _ => Task.FromResult(false);
+        _changeFriendPresenceNotifications = static _ => Task.FromResult(false);
+        _changeGameLocale = static _ => Task.FromResult(false);
+        _changeInstantQuestText = static _ => Task.FromResult(false);
     }
 
-    internal bool TryChangeInterfaceLocale(string locale)
+    internal async Task<bool> TryChangeInterfaceLocaleAsync(string locale)
     {
         return Current.IsRuntimeConnected
             && Current.CanChangeInterfaceLocale
-            && _changeInterfaceLocale(locale);
+            && await _changeInterfaceLocale(locale);
     }
 
-    internal bool TryChangeStartWithWindows(bool enabled)
+    internal async Task<bool> TryChangeStartWithWindowsAsync(bool enabled)
     {
         return Current.IsRuntimeConnected
             && Current.CanChangeStartWithWindows
-            && _changeStartWithWindows(enabled);
+            && await _changeStartWithWindows(enabled);
     }
 
-    internal bool TryChangeMinimizeToTrayOnClose(bool enabled)
+    internal async Task<bool> TryChangeMinimizeToTrayOnCloseAsync(bool enabled)
     {
         return Current.IsRuntimeConnected
             && Current.CanChangeBehavior
-            && _changeMinimizeToTrayOnClose(enabled);
+            && await _changeMinimizeToTrayOnClose(enabled);
     }
 
-    internal bool TryChangeFriendPresenceNotifications(bool enabled)
+    internal async Task<bool> TryChangeFriendPresenceNotificationsAsync(bool enabled)
     {
         return Current.IsRuntimeConnected
             && Current.CanChangeFriendPresenceNotifications
-            && _changeFriendPresenceNotifications(enabled);
+            && await _changeFriendPresenceNotifications(enabled);
     }
 
-    internal bool TryChangeGameLocale(string locale)
+    internal async Task<bool> TryChangeGameLocaleAsync(string locale)
     {
         return Current.IsRuntimeConnected
             && Current.CanChangeGameLocale
-            && _changeGameLocale(locale);
+            && await _changeGameLocale(locale);
     }
 
-    internal bool TryChangeInstantQuestText(bool enabled)
+    internal async Task<bool> TryChangeInstantQuestTextAsync(bool enabled)
     {
         return Current.IsRuntimeConnected
             && Current.CanChangeInstantQuestText
-            && _changeInstantQuestText(enabled);
+            && await _changeInstantQuestText(enabled);
     }
 
     internal void ShowGameForRepair()

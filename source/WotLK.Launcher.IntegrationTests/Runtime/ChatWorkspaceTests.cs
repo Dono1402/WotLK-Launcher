@@ -18,6 +18,7 @@ internal static class ChatWorkspaceTests
     {
         _checks = 0;
         await ProtectedStoreAndStaging();
+        await InitialStorageRecovery();
         await BoundedChunks();
         await DraftsAndCancellation();
         await CharacterCardDuringDraftSave();
@@ -105,6 +106,40 @@ internal static class ChatWorkspaceTests
         LauncherChatV2ApiClient client = new(http, new Uri("https://fixture.invalid/api/v1/"));
         await Fails<ArgumentException>(() => client.StartUploadAsync(new("large.txt", "text/plain", ChatLimits.MaximumAttachmentBytes + 1), None));
         Check(handler.Requests.Count == 0, "Over-limit transfer rejected before HTTP.");
+    }
+
+    private static async Task InitialStorageRecovery()
+    {
+        MemoryStore store = new();
+        await store.SaveAsync(1, new ChatWorkspaceLocalState
+        {
+            Drafts = [new() { ThreadId = ThreadId, Body = "brouillon avant incident" }],
+            Outbox = [new() { ClientMessageId = Guid.NewGuid(), ThreadId = ThreadId, Body = "envoi en echec conserve", Status = "failed" }]
+        }, None);
+        store.FailLoad = true;
+        await using Environment env = await Environment.Create(store, expectStorageFailure: true);
+        Check(!env.Workspace.CurrentSnapshot.IsAvailable, "Unreadable local state does not start workers or discard drafts.");
+        await env.Workspace.RefreshAsync();
+        Check(env.Workspace.CurrentSnapshot.ErrorCode == "chat-local-storage", "Retry retains the storage error while the fault remains.");
+        store.FailLoad = false;
+        await Task.WhenAll(env.Workspace.RefreshAsync(), env.Workspace.RefreshAsync());
+        Check(env.Workspace.CurrentSnapshot.IsAvailable && env.Workspace.CurrentSnapshot.ErrorCode == "", "Concurrent refreshes recover initial storage without a new session.");
+        await env.Workspace.OpenThreadAsync(ThreadId);
+        Check(env.Workspace.CurrentSnapshot.Drafts.Single().Body == "brouillon avant incident", "Recovery preserves the existing private draft.");
+        Check(env.Workspace.CurrentSnapshot.Outbox is [{ Status: "failed", Body: "envoi en echec conserve" }],
+            "Recovery preserves pending messages and their previous retry state.");
+        store.FailLoad = true;
+        await env.Workspace.SaveDraftAsync(new() { ThreadId = ThreadId, Body = "brouillon apres reprise" });
+        await env.Workspace.RefreshAsync();
+        Check(env.Workspace.CurrentSnapshot.IsAvailable && env.Workspace.CurrentSnapshot.Drafts.Single().Body == "brouillon apres reprise",
+            "Polling and refresh never reload old disk state over an initialized workspace.");
+
+        MemoryStore automatic = new();
+        automatic.CorruptDocument(1);
+        await using Environment second = await Environment.Create(automatic, expectStorageFailure: true);
+        await automatic.SaveAsync(1, new ChatWorkspaceLocalState(), None);
+        await Until(() => second.Workspace.CurrentSnapshot.IsAvailable, "The polling loop retries initial storage automatically.");
+        Check(second.Workspace.CurrentSnapshot.ErrorCode == "", "Automatic recovery clears the previous failure.");
     }
 
     private static async Task DraftsAndCancellation()
@@ -521,6 +556,8 @@ internal static class ChatWorkspaceTests
 
     private sealed class MemoryStore : IChatWorkspaceStore
     {
+        internal volatile bool FailLoad;
+        internal void CorruptDocument(uint owner) => _states[owner] = "invalid synthetic JSON"u8.ToArray();
         private readonly ConcurrentDictionary<uint, byte[]> _states = new();
         private DraftSaveGate? _draftSaveGate;
         internal sealed class DraftSaveGate(string body)
@@ -531,7 +568,7 @@ internal static class ChatWorkspaceTests
         }
         internal DraftSaveGate BlockDraftSave(string body) => _draftSaveGate = new(body);
         public Task<T?> LoadAsync<T>(uint owner, CancellationToken token) where T : class
-        { token.ThrowIfCancellationRequested(); return Task.FromResult(_states.TryGetValue(owner, out byte[]? bytes) ? JsonSerializer.Deserialize<T>(bytes, ChatJson.Options) : null); }
+        { token.ThrowIfCancellationRequested(); if (FailLoad) throw new IOException("Synthetic initial storage failure."); return Task.FromResult(_states.TryGetValue(owner, out byte[]? bytes) ? JsonSerializer.Deserialize<T>(bytes, ChatJson.Options) : null); }
         public async Task SaveAsync<T>(uint owner, T state, CancellationToken token) where T : class
         {
             token.ThrowIfCancellationRequested();
@@ -564,11 +601,11 @@ internal static class ChatWorkspaceTests
         internal LauncherChatWorkspace Workspace { get; }
         internal FixtureApi Api { get; }
         internal static async Task<Environment> Create(MemoryStore store, uint owner = 1, FixtureServer? server = null, FakeFiles? files = null,
-            HttpStatusCode? rejectSendStatus = null, TimeProvider? time = null)
+            HttpStatusCode? rejectSendStatus = null, TimeProvider? time = null, bool expectStorageFailure = false)
         {
             Environment env = new(store, owner, server, files, time); env.Api.RejectSendStatus = rejectSendStatus;
             await env.Session.RestoreOnceAsync(); env.Workspace.Start();
-            await Until(() => env.Workspace.CurrentSnapshot.IsAvailable, "Workspace initial state must load."); return env;
+            await Until(() => expectStorageFailure ? env.Workspace.CurrentSnapshot.ErrorCode == "chat-local-storage" : env.Workspace.CurrentSnapshot.IsAvailable, "Workspace initial state must load."); return env;
         }
         public async ValueTask DisposeAsync()
         {

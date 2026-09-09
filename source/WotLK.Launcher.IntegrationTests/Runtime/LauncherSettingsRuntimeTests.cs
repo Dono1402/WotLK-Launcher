@@ -22,19 +22,51 @@ internal static class LauncherSettingsRuntimeTests
 {
     internal static async Task<int> RunAsync(string? captureDirectory)
     {
-        CharacterizeImmediatePersistence();
-        CharacterizePersistenceRollback();
+        await CharacterizeImmediatePersistenceAsync();
+        await CharacterizePersistenceRollbackAsync();
+        await CharacterizePendingSaveShutdownAsync();
         CharacterizeStartupRegistration();
-        CharacterizeLegacyAvailabilityRules();
-        CharacterizeGameProjectionRefresh();
+        await CharacterizeLegacyAvailabilityRulesAsync();
+        await CharacterizeGameProjectionRefreshAsync();
         CharacterizeInstantQuestTextConfigFile();
-        CharacterizeInstantQuestTextRuntimePersistence();
+        await CharacterizeInstantQuestTextRuntimePersistenceAsync();
         await ValidateConnectedWpfSettingsAsync(captureDirectory);
         Console.WriteLine("Settings runtime integration OK (02G.2.1 + 04B.3b).");
         return 0;
     }
 
-    private static void CharacterizeImmediatePersistence()
+    private static async Task CharacterizePendingSaveShutdownAsync()
+    {
+        using TemporarySettingsRoot root = new();
+        LauncherSettings settings = root.CreateSettings();
+        using LauncherOperationCoordinator operations = new();
+        using ManualResetEventSlim release = new(false);
+        TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LauncherSettingsCoordinator coordinator = new(settings, operations,
+            _ => { entered.TrySetResult(); if (!release.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException(); },
+            static _ => { }, static _ => { });
+        Task<LauncherSettingsChangeResult> save = coordinator.TrySetInterfaceLocaleAsync("en-US");
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            True(!save.IsCompleted && coordinator.CurrentSnapshot.SaveStatus == LauncherSettingsSaveStatus.Saving,
+                "La sauvegarde rend la main pendant une ecriture disque bloquee.");
+            Equal(LauncherSettingsChangeStatus.Busy, (await coordinator.TrySetGameLocaleAsync("enUS")).Status,
+                "Une deuxieme ecriture doit etre refusee pendant la sauvegarde.");
+            coordinator.BeginShutdown();
+            True(!await coordinator.WaitForIdleAsync(TimeSpan.FromMilliseconds(30)),
+                "La fermeture doit attendre une sauvegarde encore en cours.");
+            Equal(LauncherSettingsChangeStatus.ShuttingDown, (await coordinator.TrySetGameLocaleAsync("enUS")).Status,
+                "La fermeture refuse les nouveaux changements.");
+        }
+        finally { release.Set(); }
+        Equal(LauncherSettingsChangeStatus.Saved, (await save).Status,
+            "La fermeture laisse terminer le changement deja accepte.");
+        True(await coordinator.WaitForIdleAsync(TimeSpan.FromSeconds(2)), "La sauvegarde terminee libere la fermeture.");
+        Equal("en-US", settings.InterfaceLocale, "La valeur persistee survit a la fermeture.");
+    }
+
+    private static async Task CharacterizeImmediatePersistenceAsync()
     {
         using TemporarySettingsRoot root = new();
         LauncherSettings settings = root.CreateSettings();
@@ -53,17 +85,17 @@ internal static class LauncherSettingsRuntimeTests
             static _ => { });
 
         string selectedPath = Path.Combine(root.Root, "client", "..");
-        LauncherSettingsChangeResult path = coordinator.TrySetInstallPath(selectedPath);
-        LauncherSettingsChangeResult locale = coordinator.TrySetGameLocale("ENus");
+        LauncherSettingsChangeResult path = (await coordinator.TrySetInstallPathAsync(selectedPath));
+        LauncherSettingsChangeResult locale = (await coordinator.TrySetGameLocaleAsync("ENus"));
         LauncherSettingsChangeResult interfaceLocale =
-            coordinator.TrySetInterfaceLocale("en-GB");
-        LauncherSettingsChangeResult startup = coordinator.TrySetStartWithWindows(true);
+            (await coordinator.TrySetInterfaceLocaleAsync("en-GB"));
+        LauncherSettingsChangeResult startup = (await coordinator.TrySetStartWithWindowsAsync(true));
         LauncherSettingsChangeResult minimize =
-            coordinator.TrySetMinimizeToTrayOnClose(false);
+            (await coordinator.TrySetMinimizeToTrayOnCloseAsync(false));
         LauncherSettingsChangeResult notifications =
-            coordinator.TrySetFriendPresenceNotifications(false);
+            (await coordinator.TrySetFriendPresenceNotificationsAsync(false));
         LauncherSettingsChangeResult close =
-            coordinator.TrySetCloseLauncherOnGameStart(true);
+            (await coordinator.TrySetCloseLauncherOnGameStartAsync(true));
 
         Equal(LauncherSettingsChangeStatus.Saved, path.Status, "Le dossier doit être enregistré immédiatement.");
         Equal(LauncherSettingsChangeStatus.Saved, locale.Status, "La langue doit être enregistrée immédiatement.");
@@ -97,7 +129,7 @@ internal static class LauncherSettingsRuntimeTests
 
         int beforeUnchanged = saveCalls;
         LauncherSettingsChangeResult unchanged =
-            coordinator.TrySetCloseLauncherOnGameStart(true);
+            (await coordinator.TrySetCloseLauncherOnGameStartAsync(true));
         Equal(LauncherSettingsChangeStatus.Unchanged, unchanged.Status, "Une valeur identique ne doit pas être réécrite.");
         Equal(beforeUnchanged, saveCalls, "Une valeur identique ne doit toucher aucun fichier.");
     }
@@ -143,7 +175,7 @@ internal static class LauncherSettingsRuntimeTests
             "La désactivation doit retirer une ancienne cible portant le nom exact.");
     }
 
-    private static void CharacterizePersistenceRollback()
+    private static async Task CharacterizePersistenceRollbackAsync()
     {
         using TemporarySettingsRoot root = new();
         LauncherSettings settings = root.CreateSettings();
@@ -157,8 +189,8 @@ internal static class LauncherSettingsRuntimeTests
             static _ => { },
             logs.Add);
 
-        LauncherSettingsChangeResult result = coordinator.TrySetInstallPath(
-            Path.Combine(root.Root, "private-client-token"));
+        LauncherSettingsChangeResult result = (await coordinator.TrySetInstallPathAsync(
+            Path.Combine(root.Root, "private-client-token")));
 
         Equal(LauncherSettingsChangeStatus.Failed, result.Status, "Une erreur disque doit être signalée.");
         Equal(previousPath, settings.InstallPath, "L'échec doit restaurer la valeur précédente.");
@@ -169,7 +201,7 @@ internal static class LauncherSettingsRuntimeTests
         True(!logs[0].Contains("private-client-token", StringComparison.Ordinal), "Le chemin choisi ne doit pas être journalisé.");
     }
 
-    private static void CharacterizeLegacyAvailabilityRules()
+    private static async Task CharacterizeLegacyAvailabilityRulesAsync()
     {
         using TemporarySettingsRoot root = new();
         LauncherSettings settings = root.CreateSettings();
@@ -188,35 +220,35 @@ internal static class LauncherSettingsRuntimeTests
         True(start.IsStarted, "Le test doit posséder un bail de maintenance.");
         Equal(
             LauncherSettingsChangeStatus.Busy,
-            coordinator.TrySetInstallPath(Path.Combine(root.Root, "other")).Status,
+            (await coordinator.TrySetInstallPathAsync(Path.Combine(root.Root, "other"))).Status,
             "Parcourir doit conserver le refus legacy pendant une opération annulable.");
         Equal(
             LauncherSettingsChangeStatus.Saved,
-            coordinator.TrySetGameLocale("enUS").Status,
+            (await coordinator.TrySetGameLocaleAsync("enUS")).Status,
             "La langue reste enregistrable comme dans le legacy.");
         Equal(
             LauncherSettingsChangeStatus.Saved,
-            coordinator.TrySetCloseLauncherOnGameStart(true).Status,
+            (await coordinator.TrySetCloseLauncherOnGameStartAsync(true)).Status,
             "Le comportement reste enregistrable comme dans le legacy.");
 
         start.Lease!.Complete();
         using LauncherOperationLease play = operations.TryBeginPlay(clientIsPlayable: true).Lease!;
-        Equal(LauncherSettingsChangeStatus.Saved, coordinator.TrySetGameLocale("frFR").Status,
+        Equal(LauncherSettingsChangeStatus.Saved, (await coordinator.TrySetGameLocaleAsync("frFR")).Status,
             "La langue doit rester enregistrable pendant Play.");
-        Equal(LauncherSettingsChangeStatus.Saved, coordinator.TrySetCloseLauncherOnGameStart(false).Status,
+        Equal(LauncherSettingsChangeStatus.Saved, (await coordinator.TrySetCloseLauncherOnGameStartAsync(false)).Status,
             "Le comportement doit rester enregistrable pendant Play.");
         Equal(
             LauncherSettingsChangeStatus.Saved,
-            coordinator.TrySetInstallPath(Path.Combine(root.Root, "other")).Status,
+            (await coordinator.TrySetInstallPathAsync(Path.Combine(root.Root, "other"))).Status,
             "Le dossier doit redevenir modifiable dès la libération du bail.");
         coordinator.BeginShutdown();
         Equal(
             LauncherSettingsChangeStatus.ShuttingDown,
-            coordinator.TrySetGameLocale("frFR").Status,
+            (await coordinator.TrySetGameLocaleAsync("frFR")).Status,
             "Aucune écriture ne doit commencer pendant la fermeture.");
     }
 
-    private static void CharacterizeGameProjectionRefresh()
+    private static async Task CharacterizeGameProjectionRefreshAsync()
     {
         using TemporarySettingsRoot root = new();
         string playablePath = Path.Combine(root.Root, "playable");
@@ -245,7 +277,7 @@ internal static class LauncherSettingsRuntimeTests
         Equal(GameAction.Install, game.CurrentSnapshot.Action, "Le client initial doit être absent.");
         Equal(
             LauncherSettingsChangeStatus.Saved,
-            coordinator.TrySetInstallPath(playablePath).Status,
+            (await coordinator.TrySetInstallPathAsync(playablePath)).Status,
             "Le nouveau dossier doit être accepté.");
         Equal(playablePath, game.CurrentSnapshot.InstallPath, "La page Jeu doit recevoir le nouveau dossier.");
         Equal(GameAction.Play, game.CurrentSnapshot.Action, "Le nouvel état local jouable doit être publié.");
@@ -298,7 +330,7 @@ internal static class LauncherSettingsRuntimeTests
             "Une réécriture legacy de Config.wtf ne doit plus réactiver le texte instantané.");
     }
 
-    private static void CharacterizeInstantQuestTextRuntimePersistence()
+    private static async Task CharacterizeInstantQuestTextRuntimePersistenceAsync()
     {
         using TemporarySettingsRoot root = new();
         LauncherSettings settings = root.CreateSettings();
@@ -321,13 +353,13 @@ internal static class LauncherSettingsRuntimeTests
                 return true;
             });
 
-        LauncherSettingsChangeResult disabled = coordinator.TrySetInstantQuestText(false);
+        LauncherSettingsChangeResult disabled = (await coordinator.TrySetInstantQuestTextAsync(false));
         Equal(LauncherSettingsChangeStatus.Saved, disabled.Status, "Le réglage doit être enregistré immédiatement.");
         True(!coordinator.CurrentSnapshot.InstantQuestText, "Le snapshot doit refléter immédiatement la valeur écrite.");
         Equal(1, configWriteCalls, "Une seule écriture Config.wtf doit être effectuée.");
         Equal(0, settingsSaveCalls, "Le réglage du jeu ne doit pas réécrire les paramètres JSON du launcher.");
 
-        LauncherSettingsChangeResult unchanged = coordinator.TrySetInstantQuestText(false);
+        LauncherSettingsChangeResult unchanged = (await coordinator.TrySetInstantQuestTextAsync(false));
         Equal(LauncherSettingsChangeStatus.Unchanged, unchanged.Status, "Une valeur identique doit être ignorée.");
         Equal(1, configWriteCalls, "La valeur identique ne doit pas toucher Config.wtf.");
 
@@ -339,7 +371,7 @@ internal static class LauncherSettingsRuntimeTests
             logs.Add,
             static _ => true,
             static (_, _) => throw new UnauthorizedAccessException("secret-config-content"));
-        LauncherSettingsChangeResult failure = denied.TrySetInstantQuestText(false);
+        LauncherSettingsChangeResult failure = (await denied.TrySetInstantQuestTextAsync(false));
         Equal(LauncherSettingsChangeStatus.Failed, failure.Status, "Un accès refusé doit être traduit en échec contrôlé.");
         True(denied.CurrentSnapshot.InstantQuestText, "L'échec doit restaurer la valeur précédente.");
         True(logs.Any(line => line.Contains("UnauthorizedAccessException", StringComparison.Ordinal)), "Seule la catégorie d'accès doit être journalisée.");
@@ -418,10 +450,20 @@ internal static class LauncherSettingsRuntimeTests
         };
         using LauncherOperationCoordinator operations = new();
         bool instantQuestText = true;
+        using ManualResetEventSlim saveRelease = new(true);
+        TaskCompletionSource? saveEntered = null;
+        int saveThread = 0;
+        bool failSave = false;
         using LauncherSettingsCoordinator settingsRuntime = new(
             settings,
             operations,
-            static _ => { },
+            _ =>
+            {
+                saveThread = System.Environment.CurrentManagedThreadId;
+                saveEntered?.TrySetResult();
+                if (!saveRelease.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException();
+                if (failSave) throw new IOException("Synthetic settings disk failure.");
+            },
             static _ => { },
             static _ => { },
             _ => instantQuestText,
@@ -505,6 +547,12 @@ internal static class LauncherSettingsRuntimeTests
             @"C:\Users\Dono\AppData\Local\WotLK Launcher\launcher.log",
             window.Dispatcher,
             selfUpdateRuntime);
+
+        async Task SettingsSettledAsync()
+        {
+            True(await settingsRuntime.WaitForIdleAsync(TimeSpan.FromSeconds(5)), "La sauvegarde doit se terminer.");
+            await PumpAsync(DispatcherPriority.ApplicationIdle);
+        }
 
         window.Show();
         try
@@ -701,9 +749,11 @@ internal static class LauncherSettingsRuntimeTests
             True(instantToggle.IsHitTestVisible && instantToggle.IsEnabled, "Le texte instantané doit être réellement modifiable.");
             instantToggle.IsChecked = false;
             instantToggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, instantToggle));
+            await SettingsSettledAsync();
             True(!instantQuestText && !settingsRuntime.CurrentSnapshot.InstantQuestText, "Le toggle désactivé doit être écrit et publié immédiatement.");
             instantToggle.IsChecked = true;
             instantToggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, instantToggle));
+            await SettingsSettledAsync();
             True(instantQuestText && settingsRuntime.CurrentSnapshot.InstantQuestText, "Le toggle activé doit être écrit et publié immédiatement.");
             Equal(Visibility.Collapsed, Required<Border>(view, "SettingsActionBar").Visibility, "Aucun bouton Enregistrer ne doit apparaître après une écriture immédiate.");
 
@@ -712,22 +762,41 @@ internal static class LauncherSettingsRuntimeTests
                 nameof(UnauthorizedAccessException));
             instantToggle.IsChecked = false;
             instantToggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, instantToggle));
+            await SettingsSettledAsync();
             await PumpAsync(DispatcherPriority.DataBind);
             True(instantQuestText && instantToggle.IsChecked == true, "Un accès refusé doit conserver et réafficher la valeur enregistrée.");
             Equal(Visibility.Visible, Required<Border>(view, "RuntimeNotice").Visibility, "L'accès refusé doit afficher une notification intégrée courte.");
             True(!Required<TextBlock>(view, "RuntimeNoticeText").Text.Contains("UnauthorizedAccessException", StringComparison.Ordinal), "L'interface ne doit afficher aucune exception brute.");
 
             commands.BrowseInstallPathCommand.Execute(null);
+            await SettingsSettledAsync();
             Equal(@"C:\Games\WotLK", settings.InstallPath, "Parcourir doit enregistrer le dossier sélectionné.");
             ComboBox language = Required<ComboBox>(view, "GameLanguageComboBox");
             language.SelectedValue = "enUS";
+            await SettingsSettledAsync();
             await PumpAsync(DispatcherPriority.DataBind);
             Equal("enUS", settings.GameLocale, "Le ComboBox doit enregistrer la langue legacy.");
             Equal(1, localeApplier.Calls, "La configuration du jeu doit être appliquée une fois après l'écriture.");
 
             view.SelectCategory(SettingsCategory.General);
             ComboBox interfaceLanguage = Required<ComboBox>(view, "InterfaceLanguageComboBox");
-            interfaceLanguage.SelectedValue = "en-US";
+            saveRelease.Reset();
+            saveEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            try
+            {
+                interfaceLanguage.SelectedValue = "en-US";
+                await saveEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                await PumpAsync(DispatcherPriority.ApplicationIdle);
+                True(saveThread != System.Environment.CurrentManagedThreadId,
+                    "Le disque doit etre ecrit hors du thread WPF.");
+                True(settingsRuntime.CurrentSnapshot.SaveStatus == LauncherSettingsSaveStatus.Saving && !interfaceLanguage.IsEnabled,
+                    "Le dispatcher reste reactif pendant que la sauvegarde verrouille les controles de reglage.");
+                view.SelectCategory(SettingsCategory.Diagnostic);
+                await PumpAsync(DispatcherPriority.ApplicationIdle);
+                view.SelectCategory(SettingsCategory.General);
+            }
+            finally { saveRelease.Set(); saveEntered = null; }
+            await SettingsSettledAsync();
             await PumpAsync(DispatcherPriority.ApplicationIdle);
             Equal("en-US", settings.InterfaceLocale,
                 "Le choix anglais doit être persisté immédiatement.");
@@ -742,15 +811,26 @@ internal static class LauncherSettingsRuntimeTests
                     TextBlock.TextProperty),
                 "La traduction ne doit pas détacher les bindings WPF.");
             interfaceLanguage.SelectedValue = "fr-FR";
+            await SettingsSettledAsync();
             await PumpAsync(DispatcherPriority.ApplicationIdle);
             Equal("Paramètres", Required<TextBlock>(view, "PageTitle").Text,
                 "Le retour au français doit restaurer les libellés exacts.");
             Equal("Mettre à jour Atlas Launcher", updateButton.ToolTip as string,
                 "L'infobulle doit revenir en français sans redémarrage.");
 
+            failSave = true;
+            interfaceLanguage.SelectedValue = "en-US";
+            await SettingsSettledAsync();
+            Equal("fr-FR", settings.InterfaceLocale, "Un echec asynchrone restaure la preference precedente.");
+            Equal("fr-FR", interfaceLanguage.SelectedValue as string, "Le controle retrouve la valeur effectivement conservee.");
+            True(interfaceLanguage.IsEnabled && Required<Border>(view, "RuntimeNotice").IsVisible,
+                "Le reglage redevient modifiable et son erreur reste visible.");
+            failSave = false;
+
             ToggleButton startupToggle = Required<ToggleButton>(view, "StartWithWindowsToggle");
             startupToggle.IsChecked = true;
             startupToggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, startupToggle));
+            await SettingsSettledAsync();
             True(settings.StartWithWindows && startupRegistration.IsEnabled,
                 "Le toggle doit écrire la préférence et l'inscription de démarrage.");
             Equal(1, startupRegistration.SetCalls,
@@ -759,6 +839,7 @@ internal static class LauncherSettingsRuntimeTests
             ToggleButton trayToggle = Required<ToggleButton>(view, "MinimizeToTrayOnCloseToggle");
             trayToggle.IsChecked = false;
             trayToggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, trayToggle));
+            await SettingsSettledAsync();
             True(!settings.MinimizeToTrayOnClose,
                 "La préférence de fermeture doit être enregistrée immédiatement.");
 
@@ -768,6 +849,7 @@ internal static class LauncherSettingsRuntimeTests
                 "FriendPresenceNotificationsToggle");
             presenceToggle.IsChecked = false;
             presenceToggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, presenceToggle));
+            await SettingsSettledAsync();
             True(!settings.FriendPresenceNotifications,
                 "La notification de connexion d'amis doit être désactivable.");
 

@@ -10,6 +10,7 @@ internal sealed class AvatarImageCache : IDisposable
     internal const long MaximumDiskBytes = 64L * 1024 * 1024;
     internal const long MaximumMemoryBytes = 16L * 1024 * 1024;
     internal const int MaximumMemoryEntries = 256;
+    private const int MaximumPendingDiskBytes = 4 * 1024 * 1024;
     private static readonly TimeSpan[] PublicationRetryDelays =
     [
         TimeSpan.FromMilliseconds(90),
@@ -23,6 +24,11 @@ internal sealed class AvatarImageCache : IDisposable
     private readonly Action _onUnauthorized;
     private readonly AvatarBitmapMemoryCache<AvatarImageCacheKey> _memory = new(MaximumMemoryBytes, MaximumMemoryEntries);
     private readonly Dictionary<AvatarImageCacheKey, Task<BitmapSource?>> _inFlight = [];
+    private readonly Dictionary<string, byte[]> _diskWrites = new(StringComparer.OrdinalIgnoreCase);
+    private readonly CancellationTokenSource _diskCancellation;
+    private readonly CancellationToken _diskToken;
+    private Task _diskTask = Task.CompletedTask;
+    private int _pendingDiskBytes;
     private int _disposeState;
 
     internal AvatarImageCache(
@@ -34,10 +40,17 @@ internal sealed class AvatarImageCache : IDisposable
         _mediaClient = mediaClient ?? throw new ArgumentNullException(nameof(mediaClient));
         _root = Path.GetFullPath(root ?? throw new ArgumentNullException(nameof(root)));
         _lifetimeToken = lifetimeToken;
+        _diskCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetimeToken);
+        _diskToken = _diskCancellation.Token;
         _onUnauthorized = onUnauthorized ?? (() => { });
     }
 
     internal string Root => _root;
+
+    internal Task WaitForDiskIdleAsync()
+    {
+        lock (_inFlightSync) return _diskTask;
+    }
 
     internal async Task<BitmapSource?> GetAsync(
         AvatarDescriptor descriptor,
@@ -93,6 +106,8 @@ internal sealed class AvatarImageCache : IDisposable
         {
             AvatarImageCacheKey key = AvatarImageCacheKey.Create(descriptor, size);
             _memory.Remove(key);
+            lock (_inFlightSync)
+                if (_diskWrites.Remove(GetPath(key), out byte[]? pending)) _pendingDiskBytes -= pending.Length;
             TryDelete(GetPath(key));
         }
     }
@@ -105,10 +120,14 @@ internal sealed class AvatarImageCache : IDisposable
         }
 
         _memory.Dispose();
+        _diskCancellation.Cancel();
         lock (_inFlightSync)
         {
             _inFlight.Clear();
+            _diskWrites.Clear();
+            _pendingDiskBytes = 0;
         }
+        _diskCancellation.Dispose();
     }
 
     private async Task<BitmapSource?> LoadSharedAsync(
@@ -154,9 +173,8 @@ internal sealed class AvatarImageCache : IDisposable
                 return null;
             }
 
-            await PublishAsync(path, download.Bytes, _lifetimeToken).ConfigureAwait(false);
             _memory.Store(key, image);
-            await TrimDiskAsync(_lifetimeToken).ConfigureAwait(false);
+            QueueDiskWrite(path, download.Bytes);
             return image;
         }
         catch (OperationCanceledException) when (_lifetimeToken.IsCancellationRequested)
@@ -178,6 +196,50 @@ internal sealed class AvatarImageCache : IDisposable
                 _inFlight.Remove(key);
             }
         }
+    }
+
+    private void QueueDiskWrite(string path, byte[] bytes)
+    {
+        lock (_inFlightSync)
+        {
+            // A slow/unwritable cache must neither delay display nor retain an
+            // unbounded collection of downloaded images waiting for the disk.
+            if (Volatile.Read(ref _disposeState) != 0 || _diskToken.IsCancellationRequested || _diskWrites.Count >= 32) return;
+            int previousBytes = _diskWrites.TryGetValue(path, out byte[]? previous) ? previous.Length : 0;
+            if ((long)_pendingDiskBytes - previousBytes + bytes.Length > MaximumPendingDiskBytes) return;
+            _diskWrites[path] = bytes;
+            _pendingDiskBytes += bytes.Length - previousBytes;
+            if (_diskTask.IsCompleted) _diskTask = Task.Run(PersistDiskBatchAsync);
+        }
+    }
+
+    private async Task PersistDiskBatchAsync()
+    {
+        try
+        {
+            while (true)
+            {
+                await Task.Delay(250, _diskToken).ConfigureAwait(false);
+                KeyValuePair<string, byte[]>[] batch;
+                lock (_inFlightSync) { batch = _diskWrites.ToArray(); _diskWrites.Clear(); _pendingDiskBytes = 0; }
+                foreach ((string path, byte[] bytes) in batch)
+                {
+                    try { await PublishAsync(path, bytes, _diskToken).ConfigureAwait(false); }
+                    catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+                }
+                try { await TrimDiskAsync(_diskToken).ConfigureAwait(false); }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+                lock (_inFlightSync)
+                {
+                    if (_diskWrites.Count > 0) continue;
+                    // Mark idle under the same lock as enqueueing, so a write
+                    // arriving as this worker ends always starts another batch.
+                    _diskTask = Task.CompletedTask;
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (_diskToken.IsCancellationRequested) { }
     }
 
     private async Task<AvatarMediaDownloadResult> DownloadPublishedVariantAsync(
@@ -248,6 +310,7 @@ internal sealed class AvatarImageCache : IDisposable
         try
         {
             await File.WriteAllBytesAsync(temporary, bytes, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             File.Move(temporary, path, overwrite: true);
         }
         finally

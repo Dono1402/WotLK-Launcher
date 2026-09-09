@@ -16,7 +16,7 @@ internal static class LauncherFriendsTests
     {
         CharacterizeSecretFreeImmutableState();
         CharacterizeSocialAvatarContractAndQueryShape();
-        CharacterizeDesktopNotifications();
+        await CharacterizeDesktopNotificationsAsync();
         CharacterizeLauncherPresenceNotifications();
         await RestoreAndLoadRealRelationshipsAsync();
         await ProjectLauncherPresenceAndSortAsync();
@@ -34,7 +34,7 @@ internal static class LauncherFriendsTests
         return 0;
     }
 
-    private static void CharacterizeDesktopNotifications()
+    private static async Task CharacterizeDesktopNotificationsAsync()
     {
         LauncherLocalization.SetLocale(LauncherLocalization.FrenchLocale);
         LauncherSettings settings = new()
@@ -83,7 +83,7 @@ internal static class LauncherFriendsTests
             1,
             friends: [NotificationFriend(2, "Alice", online: false)],
             incoming: [NotificationRequest(8, "Initiale")]));
-        _ = settingsRuntime.TrySetFriendPresenceNotifications(false);
+        _ = await settingsRuntime.TrySetFriendPresenceNotificationsAsync(false);
         coordinator.Observe(NotificationSnapshot(
             1,
             friends: [NotificationFriend(2, "Alice", online: true)],

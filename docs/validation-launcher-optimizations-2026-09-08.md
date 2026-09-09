@@ -34,7 +34,7 @@ Compilation de l’application et des tests : zéro avertissement, zéro erreur.
 
 Les tests graphiques utilisent des fixtures sans fenêtre native ou des fenêtres inactives hors écran avec interdiction d’activation. Les données et comptes sont synthétiques ; aucun service de production ni client de jeu n’est utilisé. Le cas de lien symbolique de `--friend-cache` est ignoré lorsque Windows refuse sa création.
 
-La récupération de Messages restaure le brouillon déjà transmis au workspace. Le texte qui n’avait pas encore quitté le renderer au moment de son crash n’est pas garanti ; la saisie utilise déjà une temporisation de sauvegarde de 250 ms.
+La récupération de Messages restaure le brouillon déjà transmis au workspace. Le texte qui n’avait pas encore quitté le renderer au moment de son crash n’est pas garanti. La temporisation de sauvegarde de 250 ms a depuis été complétée par un point périodique pendant la frappe continue et une gestion des échecs ; voir la [validation du 9 septembre](validation-launcher-reliability-2026-09-09.md).
 
 ## Reproduire
 

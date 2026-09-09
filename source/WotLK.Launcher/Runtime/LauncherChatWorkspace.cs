@@ -177,7 +177,6 @@ internal sealed partial class LauncherChatWorkspace : IDisposable
     {
         try
         {
-            await LoadLocalStateAsync(guard).ConfigureAwait(false);
             bool initialized = false;
             int failures = 0;
             DateTimeOffset lastDirectoryRefresh = default;
@@ -185,6 +184,7 @@ internal sealed partial class LauncherChatWorkspace : IDisposable
             {
                 try
                 {
+                    await LoadLocalStateAsync(guard).ConfigureAwait(false);
                     if (!initialized)
                     {
                         await RefreshStateCoreAsync(guard, initializeCursor: true).ConfigureAwait(false);
@@ -234,10 +234,21 @@ internal sealed partial class LauncherChatWorkspace : IDisposable
 
     private async Task LoadLocalStateAsync(Guard guard)
     {
+        lock (_sync)
+        {
+            EnsureCurrentUnsafe(guard);
+            if (_storageReady) return;
+        }
         await _localGate.WaitAsync(guard.Token).ConfigureAwait(false);
         try
         {
-            EnsureCurrent(guard);
+            lock (_sync)
+            {
+                EnsureCurrentUnsafe(guard);
+                // Refresh and the polling loop share this gate. Never reload an
+                // initialized workspace over drafts created during recovery.
+                if (_storageReady) return;
+            }
             ChatWorkspaceLocalState loaded = await _store.LoadAsync<ChatWorkspaceLocalState>(guard.OwnerAccountId, guard.Token)
                 .ConfigureAwait(false) ?? new();
             ValidateLocalState(loaded);
@@ -274,10 +285,10 @@ internal sealed partial class LauncherChatWorkspace : IDisposable
     {
         try
         {
-            bool storageReady;
-            lock (_sync) storageReady = _storageReady;
-            if (!storageReady) return;
-            await RefreshStateCoreAsync(guard, initializeCursor: false).ConfigureAwait(false);
+            bool wasReady;
+            lock (_sync) wasReady = _storageReady;
+            await LoadLocalStateAsync(guard).ConfigureAwait(false);
+            await RefreshStateCoreAsync(guard, initializeCursor: !wasReady).ConfigureAwait(false);
             lock (_sync) if (IsCurrentUnsafe(guard)) StartSessionLoopUnsafe();
             KickWorkers(guard);
         }

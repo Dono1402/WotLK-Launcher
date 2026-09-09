@@ -7,6 +7,7 @@
   const defaultFileExtensions = ['png','jpg','jpeg','gif','webp','pdf','txt','md','docx','xlsx','pptx','odt','ods','odp','mp3','ogg','wav','mp4','webm'];
   let fileExtensions = new Set(defaultFileExtensions);
   const strings = {
+    draftSaveFailed:['Le brouillon n’a pas pu être enregistré sur cet ordinateur. Nouvelle tentative automatique.','Your draft could not be saved on this computer. Retrying automatically.'],
     mediaPlaybackUnavailable:['Lecture intégrée indisponible.','In-app playback unavailable.'],
     saveAs:['Enregistrer sous…','Save as…'],
     viewMedia:['Agrandir l’aperçu','Expand preview'],
@@ -17,7 +18,8 @@
   };
   let snapshot = { sessionId: '', ownerAccountId: 0, sequence: '0', locale: 'fr', isActive: false, isAvailable: false, state: { threads: [], contacts: [], preferences: {}, capabilities: [] }, messages: [], selectedThreadId: null, draft: {}, pending: [], typing: [], mediaOrigin: 'https://atlas-chat-media.invalid/' };
   let selectedThread = null, editTarget = null, editBackup = null;
-  let replyTarget = null, composerCard = null, draftDirty = false, draftTimer = 0, typingTimer = 0, lastTypingAt = 0, typingActive = false;
+  let replyTarget = null, composerCard = null, draftDirty = false, draftTimer = 0, draftCheckpointTimer = 0, typingTimer = 0, lastTypingAt = 0, typingActive = false;
+  const draftSaveFailures = new Set();
   let renderVersion = 0, layoutPending = false, followBottom = true, stableAnchor = null, unreadBoundary = null, lastReadKey = '';
   let lastUserScroll = 0, programmaticScroll = false, dialogRefresh = null, toastTimer = 0, menuReturnFocus = null;
   let armoryPickerOpen = false, armoryPickerFocusPending = false, armoryRequestPending = false, armorySelection = null, armoryError = '';
@@ -399,8 +401,23 @@
     if (!currentThreadId() || editTarget) return;
     const draft = currentDraft(); localDrafts.set(currentThreadId(), draft); draftDirty = true;
     clearTimeout(draftTimer); draftTimer = setTimeout(flushDraft, 250);
+    if (!draftCheckpointTimer) draftCheckpointTimer = setTimeout(flushDraft, 1000);
   }
-  function flushDraft() { clearTimeout(draftTimer); if (!draftDirty || !currentThreadId() || editTarget) return; draftDirty = false; action('draft', { threadId: currentThreadId(), ...currentDraft() }, { silent: true }); }
+  function flushDraft() {
+    clearTimeout(draftTimer); clearTimeout(draftCheckpointTimer); draftTimer = draftCheckpointTimer = 0;
+    if (!draftDirty || !currentThreadId() || editTarget) return;
+    const threadId = currentThreadId(), draft = currentDraft(), signature = draftSignature(draft);
+    draftDirty = false;
+    action('draft', { threadId, ...draft }, { silent: true, result: (_, error) => {
+      if (threadId !== currentThreadId() || editTarget || draftSignature(currentDraft()) !== signature) return;
+      if (!error) { draftSaveFailures.delete(threadId); return; }
+      // Retain the current text and retry quietly. An old acknowledgement must
+      // never restore text already changed, sent, or owned by another session.
+      draftDirty = true;
+      if (!draftSaveFailures.has(threadId)) { draftSaveFailures.add(threadId); toast(t('draftSaveFailed')); }
+      if (!draftTimer) draftTimer = setTimeout(flushDraft, 3000);
+    } });
+  }
   function setComposerFromDraft(draft) {
     composer.value = draft?.body || ''; composerCard = draft?.card || null;
     const replyId = draft?.replyToMessageId;
@@ -703,6 +720,7 @@
     const identityChanged = sessionKey(next) !== sessionKey(snapshot);
     if (!identityChanged && R.compareIds(next.sequence, String(snapshot.sequence || '0')) < 0) return false;
     const changedThread = identityChanged || next.selectedThreadId !== snapshot.selectedThreadId;
+    if (changedThread && !identityChanged) flushDraft();
     if (changedThread) { conversationSearch?.close(false); searchReadSuppressed = false; }
     if (!next.draft) {
       const draft = (next.drafts || []).find(item => item.threadId === next.selectedThreadId) || {};
@@ -713,7 +731,7 @@
     if (changedThread || !next.isActive) { clearMotion(); closeMenus(true); }
     if (identityChanged) {
       R.suspendMedia(document, true); localDrafts.clear(); inFlightSends.clear(); localSendFailures.clear(); messageFeedback.clear(); requests.clear(); armorySelections.clear(); messageList.replaceChildren();
-      clearTimeout(draftTimer); clearTimeout(typingTimer); draftDirty = false; typingActive = false; lastTypingAt = 0; lastReadKey = ''; lastComposerStateKey = ''; unreadBoundary = null;
+      clearTimeout(draftTimer); clearTimeout(draftCheckpointTimer); draftTimer = draftCheckpointTimer = 0; draftSaveFailures.clear(); clearTimeout(typingTimer); draftDirty = false; typingActive = false; lastTypingAt = 0; lastReadKey = ''; lastComposerStateKey = ''; unreadBoundary = null;
       closeMenus(true); closeDialog(true); closeArmoryPicker(); armoryRequestPending = false; armorySelection = null; armoryError = ''; editTarget = null; editBackup = null; replyTarget = null; composerCard = null; composer.value = '';
       $('armory-character-list').replaceChildren(); $('armory-picker-status').replaceChildren(); $('armory-picker-status')._signature = null;
     }
@@ -731,6 +749,7 @@
       const local = localDrafts.get(selectedThread.id);
       if (local && draftSignature(local) === draftSignature(next.draft)) localDrafts.delete(selectedThread.id);
       if (changedThread || !local) setComposerFromDraft(local || next.draft);
+      if (changedThread && local && draftSignature(local) !== draftSignature(next.draft)) saveLocalDraft();
     }
     if (!selectedThread) { R.suspendMedia(messageList, true); messageList.replaceChildren(); if (next.selectedThreadId) localDrafts.delete(next.selectedThreadId); composer.value = ''; replyTarget = null; composerCard = null; }
     if (replyTarget && next.messages.some(message => message.id === (replyTarget.id || replyTarget.messageId) && message.deletedAt)) { replyTarget = null; saveLocalDraft(); }

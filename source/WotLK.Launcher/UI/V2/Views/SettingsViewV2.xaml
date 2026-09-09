@@ -265,6 +265,7 @@
                                                   SelectedValuePath="Tag"
                                                   SelectedValue="{Binding State.Current.General.InterfaceLocale, ElementName=SettingsRoot, Mode=OneWay}"
                                                   IsHitTestVisible="{Binding State.Current.CanChangeInterfaceLocale, ElementName=SettingsRoot}"
+                                                  IsEnabled="{Binding State.Current.CanChangeInterfaceLocale, ElementName=SettingsRoot}"
                                                   Focusable="{Binding State.Current.CanChangeInterfaceLocale, ElementName=SettingsRoot}"
                                                   Style="{StaticResource SettingsPilot.ComboBox}"
                                                   SelectionChanged="InterfaceLanguageComboBox_SelectionChanged">
@@ -293,6 +294,7 @@
                                         <ToggleButton x:Name="StartWithWindowsToggle" Grid.Column="2" VerticalAlignment="Center"
                                                       IsChecked="{Binding State.Current.General.StartWithWindows, ElementName=SettingsRoot, Mode=OneWay}"
                                                       IsHitTestVisible="{Binding State.Current.CanChangeStartWithWindows, ElementName=SettingsRoot}"
+                                                      IsEnabled="{Binding State.Current.CanChangeStartWithWindows, ElementName=SettingsRoot}"
                                                       Focusable="{Binding State.Current.CanChangeStartWithWindows, ElementName=SettingsRoot}"
                                                       Style="{StaticResource SettingsPilot.Toggle}" Click="StartWithWindowsToggle_Click"/>
                                     </Grid>
@@ -317,6 +319,7 @@
                                         <ToggleButton x:Name="MinimizeToTrayOnCloseToggle" Grid.Column="2" VerticalAlignment="Center"
                                                       IsChecked="{Binding State.Current.General.MinimizeToTrayOnClose, ElementName=SettingsRoot, Mode=OneWay}"
                                                       IsHitTestVisible="{Binding State.Current.CanChangeBehavior, ElementName=SettingsRoot}"
+                                                      IsEnabled="{Binding State.Current.CanChangeBehavior, ElementName=SettingsRoot}"
                                                       Focusable="{Binding State.Current.CanChangeBehavior, ElementName=SettingsRoot}"
                                                       Style="{StaticResource SettingsPilot.Toggle}" Click="MinimizeToTrayOnCloseToggle_Click"/>
                                     </Grid>
@@ -448,6 +451,7 @@
                                                   SelectedValuePath="Tag"
                                                   SelectedValue="{Binding State.Current.Game.GameLocale, ElementName=SettingsRoot, Mode=OneWay}"
                                                   IsHitTestVisible="{Binding State.Current.CanChangeGameLocale, ElementName=SettingsRoot}"
+                                                  IsEnabled="{Binding State.Current.CanChangeGameLocale, ElementName=SettingsRoot}"
                                                   Focusable="{Binding State.Current.CanChangeGameLocale, ElementName=SettingsRoot}"
                                                   Style="{StaticResource SettingsPilot.ComboBox}"
                                                   SelectionChanged="GameLanguageComboBox_SelectionChanged">
@@ -472,6 +476,7 @@
                                                       VerticalAlignment="Center"
                                                       IsChecked="{Binding State.Current.Game.InstantQuestText, ElementName=SettingsRoot, Mode=OneWay}"
                                                       IsHitTestVisible="{Binding State.Current.CanChangeInstantQuestText, ElementName=SettingsRoot}"
+                                                      IsEnabled="{Binding State.Current.CanChangeInstantQuestText, ElementName=SettingsRoot}"
                                                       Focusable="{Binding State.Current.CanChangeInstantQuestText, ElementName=SettingsRoot}"
                                                       Style="{StaticResource SettingsPilot.Toggle}"
                                                       Click="InstantQuestTextToggle_Click"/>
@@ -545,6 +550,7 @@
                                                       VerticalAlignment="Center"
                                                       IsChecked="{Binding State.Current.Notifications.FriendPresence, ElementName=SettingsRoot, Mode=OneWay}"
                                                       IsHitTestVisible="{Binding State.Current.CanChangeFriendPresenceNotifications, ElementName=SettingsRoot}"
+                                                      IsEnabled="{Binding State.Current.CanChangeFriendPresenceNotifications, ElementName=SettingsRoot}"
                                                       Focusable="{Binding State.Current.CanChangeFriendPresenceNotifications, ElementName=SettingsRoot}"
                                                       Style="{StaticResource SettingsPilot.Toggle}"
                                                       Click="FriendPresenceNotificationsToggle_Click"/>

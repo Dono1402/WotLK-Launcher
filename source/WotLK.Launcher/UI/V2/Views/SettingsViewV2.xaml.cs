@@ -350,7 +350,7 @@ public partial class SettingsViewV2 : UserControl
         SelectCategory(SettingsCategory.Diagnostic);
     }
 
-    private void GameLanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void GameLanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_isApplyingState
             || State is null
@@ -360,13 +360,14 @@ public partial class SettingsViewV2 : UserControl
         }
 
         string locale = LauncherSettings.NormalizeGameLocale(item.Tag?.ToString());
-        if (!State.TryChangeGameLocale(locale))
+        if (locale == State.Current.Game.GameLocale) return;
+        if (!await State.TryChangeGameLocaleAsync(locale))
         {
-            GameLanguageComboBox.SelectedValue = State.Current.Game.GameLocale;
+            await RestoreRuntimeControlsAsync();
         }
     }
 
-    private void InterfaceLanguageComboBox_SelectionChanged(
+    private async void InterfaceLanguageComboBox_SelectionChanged(
         object sender,
         SelectionChangedEventArgs e)
     {
@@ -378,14 +379,14 @@ public partial class SettingsViewV2 : UserControl
         }
 
         string locale = LauncherSettings.NormalizeInterfaceLocale(item.Tag?.ToString());
-        if (!State.TryChangeInterfaceLocale(locale))
+        if (locale == State.Current.General.InterfaceLocale) return;
+        if (!await State.TryChangeInterfaceLocaleAsync(locale))
         {
-            InterfaceLanguageComboBox.SelectedValue =
-                State.Current.General.InterfaceLocale;
+            await RestoreRuntimeControlsAsync();
         }
     }
 
-    private void StartWithWindowsToggle_Click(object sender, RoutedEventArgs e)
+    private async void StartWithWindowsToggle_Click(object sender, RoutedEventArgs e)
     {
         if (_isApplyingState || State is null)
         {
@@ -393,13 +394,13 @@ public partial class SettingsViewV2 : UserControl
         }
 
         bool requested = StartWithWindowsToggle.IsChecked == true;
-        if (!State.TryChangeStartWithWindows(requested))
+        if (!await State.TryChangeStartWithWindowsAsync(requested))
         {
-            StartWithWindowsToggle.IsChecked = State.Current.General.StartWithWindows;
+            await RestoreRuntimeControlsAsync();
         }
     }
 
-    private void MinimizeToTrayOnCloseToggle_Click(object sender, RoutedEventArgs e)
+    private async void MinimizeToTrayOnCloseToggle_Click(object sender, RoutedEventArgs e)
     {
         if (_isApplyingState || State is null)
         {
@@ -407,14 +408,13 @@ public partial class SettingsViewV2 : UserControl
         }
 
         bool requested = MinimizeToTrayOnCloseToggle.IsChecked == true;
-        if (!State.TryChangeMinimizeToTrayOnClose(requested))
+        if (!await State.TryChangeMinimizeToTrayOnCloseAsync(requested))
         {
-            MinimizeToTrayOnCloseToggle.IsChecked =
-                State.Current.General.MinimizeToTrayOnClose;
+            await RestoreRuntimeControlsAsync();
         }
     }
 
-    private void FriendPresenceNotificationsToggle_Click(
+    private async void FriendPresenceNotificationsToggle_Click(
         object sender,
         RoutedEventArgs e)
     {
@@ -424,14 +424,13 @@ public partial class SettingsViewV2 : UserControl
         }
 
         bool requested = FriendPresenceNotificationsToggle.IsChecked == true;
-        if (!State.TryChangeFriendPresenceNotifications(requested))
+        if (!await State.TryChangeFriendPresenceNotificationsAsync(requested))
         {
-            FriendPresenceNotificationsToggle.IsChecked =
-                State.Current.Notifications.FriendPresence;
+            await RestoreRuntimeControlsAsync();
         }
     }
 
-    private void InstantQuestTextToggle_Click(object sender, RoutedEventArgs e)
+    private async void InstantQuestTextToggle_Click(object sender, RoutedEventArgs e)
     {
         if (_isApplyingState || State is null)
         {
@@ -439,10 +438,38 @@ public partial class SettingsViewV2 : UserControl
         }
 
         bool requested = InstantQuestTextToggle.IsChecked == true;
-        if (!State.TryChangeInstantQuestText(requested))
+        if (!await State.TryChangeInstantQuestTextAsync(requested))
         {
-            InstantQuestTextToggle.IsChecked = State.Current.Game.InstantQuestText;
+            await RestoreRuntimeControlsAsync();
         }
+    }
+
+    private async Task RestoreRuntimeControlsAsync()
+    {
+        if (Dispatcher.HasShutdownStarted) return;
+        try
+        {
+            // The worker publishes its rollback through SettingsStateAdapter at
+            // DataBind priority. Restore controls after that snapshot is applied,
+            // preserving their bindings and suppressing recursive selections.
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (State is null) return;
+                _isApplyingState = true;
+                try
+                {
+                    SettingsViewState current = State.Current;
+                    GameLanguageComboBox.SetCurrentValue(Selector.SelectedValueProperty, current.Game.GameLocale);
+                    InterfaceLanguageComboBox.SetCurrentValue(Selector.SelectedValueProperty, current.General.InterfaceLocale);
+                    StartWithWindowsToggle.SetCurrentValue(ToggleButton.IsCheckedProperty, current.General.StartWithWindows);
+                    MinimizeToTrayOnCloseToggle.SetCurrentValue(ToggleButton.IsCheckedProperty, current.General.MinimizeToTrayOnClose);
+                    FriendPresenceNotificationsToggle.SetCurrentValue(ToggleButton.IsCheckedProperty, current.Notifications.FriendPresence);
+                    InstantQuestTextToggle.SetCurrentValue(ToggleButton.IsCheckedProperty, current.Game.InstantQuestText);
+                }
+                finally { _isApplyingState = false; }
+            }, DispatcherPriority.Loaded);
+        }
+        catch (TaskCanceledException) when (Dispatcher.HasShutdownStarted) { }
     }
 
     private void VerifyRepairButton_Click(object sender, RoutedEventArgs e)

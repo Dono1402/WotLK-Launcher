@@ -573,6 +573,7 @@ internal sealed partial class LauncherRuntime : IDisposable
     internal async Task<bool> WaitForShutdownAsync(TimeSpan timeout)
     {
         BeginShutdown();
+        Task<bool> settings = SettingsRuntime.WaitForIdleAsync(timeout);
         Task<bool> operations = Operations.WaitForIdleAsync(timeout);
         Task<bool> selfUpdate = SelfUpdate.WaitForIdleAsync(timeout);
         Task<bool> dashboard = Dashboard.WaitForIdleAsync(timeout);
@@ -586,6 +587,7 @@ internal sealed partial class LauncherRuntime : IDisposable
         Task<bool> chatWorkspace = ChatWorkspace.WaitForIdleAsync(timeout);
         Task<bool> presence = Presence.WaitForIdleAsync(timeout);
         bool[] results = await Task.WhenAll(
+            settings,
             operations,
             selfUpdate,
             dashboard,

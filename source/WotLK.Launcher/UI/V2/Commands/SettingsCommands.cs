@@ -184,12 +184,12 @@ internal sealed class SettingsCommands : IDisposable
             _checkLauncherUpdate,
             _startLauncherUpdate,
             showGameForRepair ?? (static () => { }),
-            ChangeInterfaceLocale,
-            ChangeStartWithWindows,
-            ChangeMinimizeToTrayOnClose,
-            ChangeFriendPresenceNotifications,
-            ChangeGameLocale,
-            ChangeInstantQuestText);
+            ChangeInterfaceLocaleAsync,
+            ChangeStartWithWindowsAsync,
+            ChangeMinimizeToTrayOnCloseAsync,
+            ChangeFriendPresenceNotificationsAsync,
+            ChangeGameLocaleAsync,
+            ChangeInstantQuestTextAsync);
 
         bool shouldStartWithWindows = _settings.CurrentSnapshot.StartWithWindows;
         if (_startupRegistration.IsRegistered != shouldStartWithWindows
@@ -230,7 +230,7 @@ internal sealed class SettingsCommands : IDisposable
         _startLauncherUpdate.Dispose();
     }
 
-    private void BrowseInstallPath()
+    private async void BrowseInstallPath()
     {
         LauncherSettingsSnapshot current = _settings.CurrentSnapshot;
         string initialDirectory = Directory.Exists(current.InstallPath)
@@ -242,12 +242,12 @@ internal sealed class SettingsCommands : IDisposable
             return;
         }
 
-        _ = _settings.TrySetInstallPath(selectedPath);
+        _ = await _settings.TrySetInstallPathAsync(selectedPath);
     }
 
-    private bool ChangeGameLocale(string gameLocale)
+    private async Task<bool> ChangeGameLocaleAsync(string gameLocale)
     {
-        LauncherSettingsChangeResult change = _settings.TrySetGameLocale(gameLocale);
+        LauncherSettingsChangeResult change = await _settings.TrySetGameLocaleAsync(gameLocale);
         if (change.Status == LauncherSettingsChangeStatus.Unchanged)
         {
             return true;
@@ -273,9 +273,9 @@ internal sealed class SettingsCommands : IDisposable
         return true;
     }
 
-    private bool ChangeInterfaceLocale(string interfaceLocale)
+    private async Task<bool> ChangeInterfaceLocaleAsync(string interfaceLocale)
     {
-        LauncherSettingsChangeResult result = _settings.TrySetInterfaceLocale(interfaceLocale);
+        LauncherSettingsChangeResult result = await _settings.TrySetInterfaceLocaleAsync(interfaceLocale);
         if (result.Status is not (LauncherSettingsChangeStatus.Saved
             or LauncherSettingsChangeStatus.Unchanged))
         {
@@ -286,7 +286,7 @@ internal sealed class SettingsCommands : IDisposable
         return true;
     }
 
-    private bool ChangeStartWithWindows(bool enabled)
+    private async Task<bool> ChangeStartWithWindowsAsync(bool enabled)
     {
         bool previous = _settings.CurrentSnapshot.StartWithWindows;
         if (previous == enabled)
@@ -304,7 +304,7 @@ internal sealed class SettingsCommands : IDisposable
             return false;
         }
 
-        LauncherSettingsChangeResult result = _settings.TrySetStartWithWindows(enabled);
+        LauncherSettingsChangeResult result = await _settings.TrySetStartWithWindowsAsync(enabled);
         if (result.Status is LauncherSettingsChangeStatus.Saved
             or LauncherSettingsChangeStatus.Unchanged)
         {
@@ -315,23 +315,23 @@ internal sealed class SettingsCommands : IDisposable
         return false;
     }
 
-    private bool ChangeMinimizeToTrayOnClose(bool enabled)
+    private async Task<bool> ChangeMinimizeToTrayOnCloseAsync(bool enabled)
     {
         LauncherSettingsChangeResult result =
-            _settings.TrySetMinimizeToTrayOnClose(enabled);
+            await _settings.TrySetMinimizeToTrayOnCloseAsync(enabled);
         return result.Status is LauncherSettingsChangeStatus.Saved
             or LauncherSettingsChangeStatus.Unchanged;
     }
 
-    private bool ChangeFriendPresenceNotifications(bool enabled)
+    private async Task<bool> ChangeFriendPresenceNotificationsAsync(bool enabled)
     {
         LauncherSettingsChangeResult result =
-            _settings.TrySetFriendPresenceNotifications(enabled);
+            await _settings.TrySetFriendPresenceNotificationsAsync(enabled);
         return result.Status is LauncherSettingsChangeStatus.Saved
             or LauncherSettingsChangeStatus.Unchanged;
     }
 
-    private bool ChangeInstantQuestText(bool enabled)
+    private async Task<bool> ChangeInstantQuestTextAsync(bool enabled)
     {
         LauncherSettingsSnapshot current = _settings.CurrentSnapshot;
         if (current.InstantQuestText == enabled)
@@ -352,7 +352,7 @@ internal sealed class SettingsCommands : IDisposable
             return false;
         }
 
-        LauncherSettingsChangeResult result = _settings.TrySetInstantQuestText(enabled);
+        LauncherSettingsChangeResult result = await _settings.TrySetInstantQuestTextAsync(enabled);
         return result.Status is LauncherSettingsChangeStatus.Saved
             or LauncherSettingsChangeStatus.Unchanged;
     }

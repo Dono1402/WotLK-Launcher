@@ -68,21 +68,21 @@ internal interface ILauncherSettingsRuntime
 
     LauncherSettingsSnapshot CurrentSnapshot { get; }
 
-    LauncherSettingsChangeResult TrySetInstallPath(string installPath);
+    Task<LauncherSettingsChangeResult> TrySetInstallPathAsync(string installPath);
 
-    LauncherSettingsChangeResult TrySetGameLocale(string gameLocale);
+    Task<LauncherSettingsChangeResult> TrySetGameLocaleAsync(string gameLocale);
 
-    LauncherSettingsChangeResult TrySetInterfaceLocale(string interfaceLocale);
+    Task<LauncherSettingsChangeResult> TrySetInterfaceLocaleAsync(string interfaceLocale);
 
-    LauncherSettingsChangeResult TrySetStartWithWindows(bool startWithWindows);
+    Task<LauncherSettingsChangeResult> TrySetStartWithWindowsAsync(bool startWithWindows);
 
-    LauncherSettingsChangeResult TrySetMinimizeToTrayOnClose(bool minimizeToTrayOnClose);
+    Task<LauncherSettingsChangeResult> TrySetMinimizeToTrayOnCloseAsync(bool minimizeToTrayOnClose);
 
-    LauncherSettingsChangeResult TrySetFriendPresenceNotifications(bool enabled);
+    Task<LauncherSettingsChangeResult> TrySetFriendPresenceNotificationsAsync(bool enabled);
 
-    LauncherSettingsChangeResult TrySetCloseLauncherOnGameStart(bool closeAfterLaunch);
+    Task<LauncherSettingsChangeResult> TrySetCloseLauncherOnGameStartAsync(bool closeAfterLaunch);
 
-    LauncherSettingsChangeResult TrySetInstantQuestText(bool enabled);
+    Task<LauncherSettingsChangeResult> TrySetInstantQuestTextAsync(bool enabled);
 
     void BeginShutdown();
 }
@@ -101,6 +101,7 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
     private bool _instantQuestText;
     private long _sequence;
     private bool _isSaving;
+    private TaskCompletionSource? _saveCompletion;
     private bool _isShuttingDown;
     private int _disposeState;
 
@@ -140,10 +141,10 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
         }
     }
 
-    public LauncherSettingsChangeResult TrySetInstallPath(string installPath)
+    public Task<LauncherSettingsChangeResult> TrySetInstallPathAsync(string installPath)
     {
         string normalized = LauncherSettings.NormalizeInstallPath(installPath);
-        return TrySave(
+        return TrySaveAsync(
             LauncherSettingsChangeKind.InstallPath,
             normalized,
             static settings => settings.InstallPath,
@@ -151,10 +152,10 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             pathRequiresIdleUserOperation: true);
     }
 
-    public LauncherSettingsChangeResult TrySetGameLocale(string gameLocale)
+    public Task<LauncherSettingsChangeResult> TrySetGameLocaleAsync(string gameLocale)
     {
         string normalized = LauncherSettings.NormalizeGameLocale(gameLocale);
-        return TrySave(
+        return TrySaveAsync(
             LauncherSettingsChangeKind.GameLocale,
             normalized,
             static settings => settings.GameLocale,
@@ -162,10 +163,10 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             pathRequiresIdleUserOperation: false);
     }
 
-    public LauncherSettingsChangeResult TrySetInterfaceLocale(string interfaceLocale)
+    public Task<LauncherSettingsChangeResult> TrySetInterfaceLocaleAsync(string interfaceLocale)
     {
         string normalized = LauncherSettings.NormalizeInterfaceLocale(interfaceLocale);
-        return TrySave(
+        return TrySaveAsync(
             LauncherSettingsChangeKind.InterfaceLocale,
             normalized,
             static settings => settings.InterfaceLocale,
@@ -173,9 +174,9 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             pathRequiresIdleUserOperation: false);
     }
 
-    public LauncherSettingsChangeResult TrySetStartWithWindows(bool startWithWindows)
+    public Task<LauncherSettingsChangeResult> TrySetStartWithWindowsAsync(bool startWithWindows)
     {
-        return TrySave(
+        return TrySaveAsync(
             LauncherSettingsChangeKind.StartWithWindows,
             startWithWindows,
             static settings => settings.StartWithWindows,
@@ -183,9 +184,9 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             pathRequiresIdleUserOperation: false);
     }
 
-    public LauncherSettingsChangeResult TrySetMinimizeToTrayOnClose(bool minimizeToTrayOnClose)
+    public Task<LauncherSettingsChangeResult> TrySetMinimizeToTrayOnCloseAsync(bool minimizeToTrayOnClose)
     {
-        return TrySave(
+        return TrySaveAsync(
             LauncherSettingsChangeKind.MinimizeToTrayOnClose,
             minimizeToTrayOnClose,
             static settings => settings.MinimizeToTrayOnClose,
@@ -193,9 +194,9 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             pathRequiresIdleUserOperation: false);
     }
 
-    public LauncherSettingsChangeResult TrySetFriendPresenceNotifications(bool enabled)
+    public Task<LauncherSettingsChangeResult> TrySetFriendPresenceNotificationsAsync(bool enabled)
     {
-        return TrySave(
+        return TrySaveAsync(
             LauncherSettingsChangeKind.FriendPresenceNotifications,
             enabled,
             static settings => settings.FriendPresenceNotifications,
@@ -203,9 +204,9 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             pathRequiresIdleUserOperation: false);
     }
 
-    public LauncherSettingsChangeResult TrySetCloseLauncherOnGameStart(bool closeAfterLaunch)
+    public Task<LauncherSettingsChangeResult> TrySetCloseLauncherOnGameStartAsync(bool closeAfterLaunch)
     {
-        return TrySave(
+        return TrySaveAsync(
             LauncherSettingsChangeKind.CloseLauncherOnGameStart,
             closeAfterLaunch,
             static settings => settings.CloseLauncherOnGameStart,
@@ -213,10 +214,11 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             pathRequiresIdleUserOperation: false);
     }
 
-    public LauncherSettingsChangeResult TrySetInstantQuestText(bool enabled)
+    public async Task<LauncherSettingsChangeResult> TrySetInstantQuestTextAsync(bool enabled)
     {
         LauncherSettingsSnapshot savingSnapshot;
         bool previous;
+        TaskCompletionSource saveCompletion;
         lock (_sync)
         {
             if (_isShuttingDown
@@ -244,6 +246,7 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             }
 
             _isSaving = true;
+            saveCompletion = _saveCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
             _instantQuestText = enabled;
             savingSnapshot = CreateSnapshotUnsafe(
                 LauncherSettingsSaveStatus.Saving,
@@ -257,7 +260,7 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
         LauncherSettingsChangeStatus status;
         try
         {
-            _ = _writeInstantQuestText(_settings.InstallPath, enabled);
+            await Task.Run(() => _writeInstantQuestText(_settings.InstallPath, enabled)).ConfigureAwait(false);
             lock (_sync)
             {
                 _isSaving = false;
@@ -286,9 +289,18 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
         }
 
         Publish(finalSnapshot, availabilityChanged: true);
+        saveCompletion.TrySetResult();
         return new LauncherSettingsChangeResult(
             status,
             LauncherSettingsChangeKind.InstantQuestText);
+    }
+
+    internal async Task<bool> WaitForIdleAsync(TimeSpan timeout)
+    {
+        Task pending;
+        lock (_sync) pending = _saveCompletion?.Task ?? Task.CompletedTask;
+        try { await pending.WaitAsync(timeout).ConfigureAwait(false); return true; }
+        catch (TimeoutException) { return false; }
     }
 
     public void BeginShutdown()
@@ -322,7 +334,7 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
         SnapshotChanged = null;
     }
 
-    private LauncherSettingsChangeResult TrySave<T>(
+    private async Task<LauncherSettingsChangeResult> TrySaveAsync<T>(
         LauncherSettingsChangeKind changeKind,
         T value,
         Func<LauncherSettings, T> read,
@@ -330,6 +342,7 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
         bool pathRequiresIdleUserOperation)
     {
         T previous;
+        TaskCompletionSource saveCompletion;
         LauncherSettingsSnapshot savingSnapshot;
         lock (_sync)
         {
@@ -360,6 +373,7 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             }
 
             _isSaving = true;
+            saveCompletion = _saveCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
             write(_settings, value);
             savingSnapshot = CreateSnapshotUnsafe(
                 LauncherSettingsSaveStatus.Saving,
@@ -373,7 +387,7 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
         LauncherSettingsChangeStatus status;
         try
         {
-            _saveSettings(_settings);
+            await Task.Run(() => _saveSettings(_settings)).ConfigureAwait(false);
             bool? refreshedInstantQuestText = changeKind == LauncherSettingsChangeKind.InstallPath
                 ? ReadInstantQuestTextSafely(_settings.InstallPath)
                 : null;
@@ -422,6 +436,7 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             }
         }
 
+        saveCompletion.TrySetResult();
         return new LauncherSettingsChangeResult(status, changeKind);
     }
 

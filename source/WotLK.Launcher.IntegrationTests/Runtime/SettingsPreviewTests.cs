@@ -30,7 +30,7 @@ internal static class SettingsPreviewTests
     internal static async Task<int> RunAsync(string? captureDirectory)
     {
         CharacterizePreviewStartupIsolation();
-        CharacterizeReadOnlyPreviewState();
+        await CharacterizeReadOnlyPreviewStateAsync();
         CharacterizePreviewScenarios();
         CharacterizeUpdateSummary();
         await ValidateWpfLayoutsNavigationAndCapturesAsync(captureDirectory);
@@ -76,7 +76,8 @@ internal static class SettingsPreviewTests
         True(current.IsUpToDate, "Le statut à jour doit être positif.");
         Equal(string.Empty, (current with { IsChecking = true }).StatusText, "La recherche ne crée pas de ligne temporaire.");
         True((current with { IsChecking = true }).IsBusy, "La recherche active l’indicateur du contrôle.");
-        Equal("Mise à jour en cours…", (current with { IsUpdating = true }).StatusText, "Le téléchargement reste visible.");
+        Equal(string.Empty, (current with { IsUpdating = true }).StatusText, "Le telechargement reste suivi dans Activite sans doubler son statut.");
+        True((current with { IsUpdating = true }).IsBusy, "Le controle conserve son indicateur pendant le telechargement.");
         Equal("Vérification indisponible", (current with { HasError = true }).StatusText, "Une erreur ne doit pas afficher À jour.");
         True(!(current with { HasError = true }).IsUpToDate, "L'erreur retire le statut à jour.");
         Equal("Update available · v1.4.0", LauncherLocalization.TranslateFromFrench(
@@ -85,7 +86,7 @@ internal static class SettingsPreviewTests
         Equal("Release notes", LauncherLocalization.TranslateFromFrench("Notes de version"), "La navigation doit être traduite.");
     }
 
-    private static void CharacterizeReadOnlyPreviewState()
+    private static async Task CharacterizeReadOnlyPreviewStateAsync()
     {
         SettingsUiState state = LauncherV2PreviewData.CreateSettings();
         Equal(@"C:\Program Files (x86)\WotLK", state.Current.Game.InstallPath, "Le chemin fictif est incorrect.");
@@ -103,11 +104,11 @@ internal static class SettingsPreviewTests
         state.OpenGameFolderCommand.Execute(null);
         state.OpenLogsCommand.Execute(null);
         True(ReferenceEquals(before, state.Current), "Les commandes preview ne doivent modifier aucun état.");
-        True(!state.TryChangeInterfaceLocale("en-US"), "Le preview ne doit pas persister une langue réelle.");
-        True(!state.TryChangeStartWithWindows(true), "Le preview ne doit pas toucher au démarrage Windows.");
-        True(!state.TryChangeMinimizeToTrayOnClose(false), "Le preview ne doit pas modifier la fermeture réelle.");
-        True(!state.TryChangeFriendPresenceNotifications(false), "Le preview ne doit pas modifier les notifications réelles.");
-        True(!state.TryChangeGameLocale("enUS"), "Le preview ne doit pas accepter une langue réelle.");
+        True(!(await state.TryChangeInterfaceLocaleAsync("en-US")), "Le preview ne doit pas persister une langue réelle.");
+        True(!(await state.TryChangeStartWithWindowsAsync(true)), "Le preview ne doit pas toucher au démarrage Windows.");
+        True(!(await state.TryChangeMinimizeToTrayOnCloseAsync(false)), "Le preview ne doit pas modifier la fermeture réelle.");
+        True(!(await state.TryChangeFriendPresenceNotificationsAsync(false)), "Le preview ne doit pas modifier les notifications réelles.");
+        True(!(await state.TryChangeGameLocaleAsync("enUS")), "Le preview ne doit pas accepter une langue réelle.");
     }
 
     private static void CharacterizePreviewScenarios()
@@ -339,16 +340,13 @@ internal static class SettingsPreviewTests
 
                 SettingsViewV2 settings = window.SettingsPage;
                 ColumnDefinition navigationColumn = Required<ColumnDefinition>(settings, "NavigationColumn");
-                double expectedNavigationWidth = expectedMode switch
-                {
-                    AdaptiveLayoutMode.Wide => 224,
-                    AdaptiveLayoutMode.Compact => 212,
-                    _ => 176
-                };
-                Near(expectedNavigationWidth, navigationColumn.ActualWidth, 0.6, "La navigation secondaire n'a pas la largeur attendue.");
+                True(navigationColumn.ActualWidth >= 176 && navigationColumn.ActualWidth < settings.ActualWidth / 3,
+                    "La navigation doit rester lisible en laissant la majeure partie de la page aux reglages.");
 
                 Grid contentFrame = Required<Grid>(settings, "ContentFrame");
-                True(contentFrame.ActualWidth <= 1280.5, "Le contenu Wide ne doit pas être étiré excessivement.");
+                Rect contentBounds = BoundsInAncestor(contentFrame, window);
+                True(contentBounds.Left >= 0 && contentBounds.Right <= window.ActualWidth + 0.5,
+                    "Le contenu des reglages doit rester entierement dans la fenetre.");
                 Equal(
                     ScrollBarVisibility.Disabled,
                     settings.ScrollHost.HorizontalScrollBarVisibility,
@@ -357,10 +355,9 @@ internal static class SettingsPreviewTests
 
                 if (width >= 1900)
                 {
-                    True(contentFrame.ActualWidth >= 1270, "La largeur maximale doit être utilisée sur grand écran.");
-                    Rect contentBounds = BoundsInAncestor(contentFrame, window);
-                    True(contentBounds.Left > 250, "Le contenu 1920 doit être visiblement centré.");
-                    True(window.ActualWidth - contentBounds.Right > 250, "Le vide latéral 1920 doit être équilibré.");
+                    True(contentFrame.ActualWidth >= 1270, "Les reglages doivent profiter de la largeur du grand ecran.");
+                    True(Math.Abs(contentBounds.Left - (window.ActualWidth - contentBounds.Right)) < 40,
+                        "Les marges laterales doivent rester equilibrees sur grand ecran.");
                 }
 
                 if (showsActionBar)

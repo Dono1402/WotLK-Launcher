@@ -18,6 +18,9 @@ La version et la date de publication ne sont pas encore définies.
 - Recherche dans la conversation avec Ctrl+F, surlignage des résultats et parcours de l'historique.
 - Commandes des petits aperçus vidéo réorganisées pour garder les durées lisibles à 12 px.
 - Bouton Réessayer pour rouvrir Messages après un incident, en retrouvant la conversation et son brouillon déjà enregistré, sans relancer le launcher.
+- Sauvegarde périodique des brouillons pendant la frappe continue, avec nouvelle tentative automatique et message discret en cas d’échec.
+- Reprise de la messagerie après un problème temporaire de lecture locale, sans redémarrage ni effacement des brouillons et messages en attente.
+- Bouton Réessayer conservé après un passage temporaire au mode de secours.
 
 ## Addons
 
@@ -42,11 +45,13 @@ La version et la date de publication ne sont pas encore définies.
 - Position de défilement conservée lors des retours entre les pages, tandis que les menus et confirmations temporaires se ferment.
 - Affichage allégé des longues listes d’amis et de notes de version ; seuls les éléments proches de la zone visible sont préparés.
 - Mémoire du cache des avatars plafonnée et meilleure libération des anciens éléments de l’interface après navigation ou changement de langue.
+- Avatars affichés même si leur cache disque est indisponible ; écritures et nettoyages regroupés en arrière-plan.
 
 ## Paramètres
 
 - Enregistrement des réglages renforcé pour éviter les fichiers incomplets en cas d’interruption.
 - Récupération depuis une copie de secours lorsque le fichier de réglages est absent ou illisible, avec un message invitant à vérifier les préférences.
+- Sauvegarde des préférences hors du thread d’interface, avec restauration de la valeur précédente en cas d’échec et attente de l’écriture en cours à la fermeture.
 
 ## Windows
 
@@ -74,6 +79,9 @@ The version and publication date have not been set.
 - Ctrl+F conversation search with highlighted results and history navigation.
 - Rearranged compact video preview controls to keep timestamps readable at 12 px.
 - A Retry button reopens Messages after an error, restoring the conversation and its previously saved draft without restarting the launcher.
+- Periodic draft checkpoints during continuous typing, with automatic retries and a discreet error message if saving fails.
+- Messaging recovers from temporary local read failures without restarting or discarding drafts and pending messages.
+- The Retry button remains available after temporarily switching to fallback mode.
 
 ## Addons
 
@@ -98,11 +106,13 @@ The version and publication date have not been set.
 - Scroll position is preserved when returning to pages, while temporary menus and confirmations close.
 - Lighter rendering of long friends and release-note lists; only items near the visible area are prepared.
 - Bounded avatar cache memory and improved release of old interface elements after navigation or language changes.
+- Avatars remain visible when their disk cache is unavailable; writes and cleanup are batched in the background.
 
 ## Settings
 
 - More robust settings saves prevent incomplete files if writing is interrupted.
 - Settings can be recovered from a backup when the main file is missing or unreadable, with a message asking you to check your preferences.
+- Preferences save off the interface thread, restoring the previous value on failure and waiting for an ongoing write during shutdown.
 
 ## Windows
 

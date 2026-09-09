@@ -115,6 +115,9 @@ const landscape = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="4
   await capture('chat-fr-fixed.png');
   check('The fixed launcher content has no horizontal overflow or clipped composer',await page.evaluate(()=>document.documentElement.scrollWidth===innerWidth&&document.querySelector('#composer-box').getBoundingClientRect().bottom<=innerHeight&&document.querySelector('.conversation-sidebar').getBoundingClientRect().width>=248));
 
+  await exerciseDraftPersistence(page, apply);
+  await apply(state);
+
   const safety=await page.evaluate(()=>{
     const R=AtlasChatRender,node=R.renderMarkdown('**gras** *italique* ~~barré~~ ||secret||\n\n<img src=x onerror="window.__xss=1">\n\n![photo](https://outside.test/a.png) [piège](javascript:alert(1)) [ok](https://example.test)',key=>key);
     document.body.append(node);const before={strong:node.querySelectorAll('strong').length,em:node.querySelectorAll('em').length,strike:node.querySelectorAll('s').length,images:node.querySelectorAll('img').length,scripts:node.querySelectorAll('script').length,badLinks:Array.from(node.querySelectorAll('a')).some(a=>a.href.startsWith('javascript:')),spoilerHidden:node.querySelector('.spoiler').getAttribute('aria-expanded')==='false'};
@@ -474,6 +477,39 @@ function installFixtureBridge(options) {
     const durations=getComputedStyle(event.target).animationDuration.split(',').map(value=>parseFloat(value)*1000);
     window.__motionEvents.push({target:event.target,message:event.target.closest('.message'),queue:event.target.matches('.queued-file')?event.target:null,kind:'css',name:event.animationName,duration:Math.max(...durations)});
   });
+}
+
+async function exerciseDraftPersistence(page, apply) {
+  const state=clone(fixtures.snapshot);state.sessionId='durable-draft-checks';state.draft={};state.pending=[];
+  await apply(state);
+  await page.evaluate(()=>{window.__draftTimes=[];const original=chrome.webview.postMessage;chrome.webview.postMessage=message=>{if(message.action==='draft')__draftTimes.push({at:performance.now(),...message});original(message);};});
+  const continuous=await page.evaluate(async()=>{
+    const composer=document.querySelector('#composer-input'),start=performance.now();
+    for(let index=0;index<26;index++) {composer.value+='a';composer.dispatchEvent(new Event('input',{bubbles:true}));await new Promise(resolve=>setTimeout(resolve,100));}
+    return {start,end:performance.now(),saves:__draftTimes.slice()};
+  });
+  check('Continuous typing checkpoints during input instead of waiting for a pause',continuous.saves.length>=2&&continuous.saves[0].at-continuous.start<1500&&continuous.saves.every(save=>save.at<continuous.end));
+  await page.waitForTimeout(350);
+  const latest=await page.evaluate(()=>__draftTimes.at(-1));
+  check('The pause checkpoint includes the latest complete text with its account and thread',latest.payload.body==='a'.repeat(26)&&latest.ownerAccountId===42&&latest.payload.threadId==='d:42:91');
+  check('Successful background draft persistence creates no saved or saving status line',await page.locator('#draft-status').count()===0&&!await page.locator('#toast').isVisible());
+  await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,error:'chat-local-storage'}),latest);
+  check('An actual persistence failure retains the text and exposes only an error',await page.locator('#composer-input').inputValue()==='a'.repeat(26)&&await page.locator('#toast').isVisible()&&(await page.locator('#toast').innerText()).includes('brouillon'));
+  await page.waitForFunction(id=>__draftTimes.at(-1).requestId!==id,latest.requestId,{timeout:5000});
+  const retry=await page.evaluate(()=>__draftTimes.at(-1));
+  check('A failed checkpoint is retried without requiring another keystroke',retry.payload.body===latest.payload.body);
+  await page.locator('#composer-input').fill('texte plus recent');
+  await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,payload:{saved:true}}),retry);
+  await page.waitForTimeout(350);
+  check('A late acknowledgement cannot replace a newer draft',await page.locator('#composer-input').inputValue()==='texte plus recent'&&await page.evaluate(()=>__draftTimes.at(-1).payload.body==='texte plus recent'));
+  const stale=await page.evaluate(()=>__draftTimes.at(-1));
+  state.sessionId='durable-draft-next-session';state.locale='en';await apply(state);
+  await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,error:'chat-local-storage'}),stale);
+  check('A stale draft failure cannot leak text or an error into a new session',await page.locator('#composer-input').inputValue()===''&&!await page.locator('#toast').isVisible());
+  await page.locator('#composer-input').fill('English draft');await page.waitForTimeout(350);
+  const english=await page.evaluate(()=>__draftTimes.at(-1));
+  await page.evaluate(request=>AtlasChat.receive({type:'result',requestId:request.requestId,error:'chat-local-storage'}),english);
+  check('Draft persistence failures are localized in English', (await page.locator('#toast').innerText()).includes('could not be saved'));
 }
 
 async function settleMotion(page) {

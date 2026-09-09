@@ -391,6 +391,7 @@ internal static class AccountAvatarClientTests
             using (AvatarImageCache cache = new(network, root, lifetime.Token))
             {
                 BitmapSource? first = await cache.GetAsync(descriptor, 128, CancellationToken.None);
+                await cache.WaitForDiskIdleAsync();
                 True(first is { IsFrozen: true }, "Un miss cache doit publier un BitmapSource figé.");
                 Equal(1, network.DownloadCalls, "Un miss doit télécharger une seule fois.");
                 BitmapSource? memory = await cache.GetAsync(descriptor, 128, CancellationToken.None);
@@ -514,6 +515,7 @@ internal static class AccountAvatarClientTests
                 await cache.GetAsync(descriptor, 32, CancellationToken.None);
                 await cache.GetAsync(descriptor with { Version = 2 }, 32, CancellationToken.None);
                 await cache.GetAsync(descriptor with { Version = 2 }, 64, CancellationToken.None);
+                await cache.WaitForDiskIdleAsync();
                 Equal(3, versions.DownloadCalls, "Version et taille doivent produire des clés distinctes.");
                 string[] names = Directory.GetFiles(versionRoot, "*.png").Select(Path.GetFileName).ToArray()!;
                 True(names.Length == 3
@@ -540,6 +542,7 @@ internal static class AccountAvatarClientTests
                 StubAvatarMediaClient trimNetwork = new() { DownloadBytes = png };
                 using AvatarImageCache cache = new(trimNetwork, trimRoot, lifetime.Token);
                 await cache.GetAsync(descriptor, 128, CancellationToken.None);
+                await cache.WaitForDiskIdleAsync();
                 long total = Directory.EnumerateFiles(trimRoot, "*.png")
                     .Sum(path => new FileInfo(path).Length);
                 True(total <= AvatarImageCache.MaximumDiskBytes, "Le cache disque doit rester sous 64 Mio.");
@@ -548,6 +551,25 @@ internal static class AccountAvatarClientTests
             {
                 TryDelete(trimRoot);
             }
+
+            string blockedRoot = NewRoot("cache-unwritable");
+            try
+            {
+                Directory.CreateDirectory(blockedRoot);
+                string blockedDirectory = Path.Combine(blockedRoot, "file-instead-of-directory");
+                await File.WriteAllTextAsync(blockedDirectory, "synthetic obstacle");
+                StubAvatarMediaClient blockedNetwork = new() { DownloadBytes = png };
+                using AvatarImageCache cache = new(blockedNetwork, blockedDirectory, lifetime.Token);
+                BitmapSource? image = await cache.GetAsync(descriptor, 64, CancellationToken.None);
+                True(image is { IsFrozen: true }, "Un disque indisponible ne doit pas cacher un avatar decode valide.");
+                await cache.WaitForDiskIdleAsync();
+                True(ReferenceEquals(image, await cache.GetAsync(descriptor, 64, CancellationToken.None)),
+                    "L avatar reste en memoire apres un echec reel de publication disque.");
+                Equal(1, blockedNetwork.DownloadCalls, "Une erreur de cache ne doit pas provoquer un nouveau telechargement.");
+                Equal("synthetic obstacle", await File.ReadAllTextAsync(blockedDirectory),
+                    "La maintenance opportuniste ne doit pas supprimer un obstacle etranger au cache.");
+            }
+            finally { TryDelete(blockedRoot); }
         }
         finally
         {

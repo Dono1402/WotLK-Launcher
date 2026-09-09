@@ -24,7 +24,8 @@ de la connexion d'un compte AzerothCore existant.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Build-AddonPackages.ps1 `
-  -OutputDirectory .\artifacts\addons
+  -OutputDirectory .\artifacts\addons `
+  -DetailsArchivePath 'C:\staging\Details-Details.20240115.12220.155-atlas-30403.zip'
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Test-AddonPackages.ps1 `
   -PackageDirectory .\artifacts\addons
@@ -37,7 +38,7 @@ Le catalogue fige des versions testees declarant l'interface `30403`:
 - Questie 10.19.2
 - What's Training? 5.0.3
 - Deadly Boss Mods 11.0.34 avec les modules Vanilla, Burning Crusade et WotLK
-- Details! 20250119.13388.161
+- Details! 20240115.12220.155 (paquet Atlas : code original, TOC Wrath alignés sur 30403)
 - AtlasLootClassic 3.2.0
 - Auctionator 10.2.0-wrath
 - Leatrix Maps 3.0.191
@@ -45,6 +46,12 @@ Le catalogue fige des versions testees declarant l'interface `30403`:
 - Nova Instance Tracker 1.55-Wrath
 - Attune WOTLK-314
 - Baganator 158-wrath
+
+Le paquet Details doit être préparé depuis le ZIP fourni par l'utilisateur avec
+`scripts/addon-update-validation/prepare_details_package.py`, depuis la racine
+du dépôt. La fabrication exige ce fichier local et contrôle son SHA-256 : elle
+ne tente pas un téléchargement anonyme sur l'endpoint Atlas authentifié.
+Voir le [rapport Details](../docs/DETAILS-REPLACEMENT-2026-09-09.md).
 
 ## Feed Classic frFR
 

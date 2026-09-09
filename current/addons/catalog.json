@@ -141,12 +141,12 @@
                        "id":  "details",
                        "name":  "Details!",
                        "description":  "Mesure des dégâts, soins, menaces et statistiques de combat.",
-                       "version":  "20250119.13388.161",
+                       "version":  "20240115.12220.155",
                        "interface":  "30403",
-                       "url":  "https://edge.forgecdn.net/files/6102/986/Details-Details.20250119.13388.161.zip",
-                       "size":  5160009,
-                       "sha256":  "e8a5d367db44a540cb85005c092ffd9cf32f59e44c946cffc7070509cf91a303",
-                       "installHash":  "e8a5d367db44a540cb85005c092ffd9cf32f59e44c946cffc7070509cf91a303",
+                       "url":  "https://animeclub.fr/wotlk/addons/packages/Details-Details.20240115.12220.155-atlas-30403.zip",
+                       "size":  4959885,
+                       "sha256":  "ca2ffad679c0647a0f4345f57675ef9e1198514d22022e5cfb380a34186c688b",
+                       "installHash":  "ca2ffad679c0647a0f4345f57675ef9e1198514d22022e5cfb380a34186c688b",
                        "stripPrefix":  "",
                        "components":  [
 
@@ -164,7 +164,8 @@
                                        "Details_TinyThreat",
                                        "Details_Vanguard"
                                    ],
-                       "sourceUrl":  "https://www.curseforge.com/wow/addons/details/files/6102986"
+                       "sourceUrl":  "https://www.curseforge.com/wow/addons/details",
+                       "knownLimitations":  "Version choisie par Atlas. Seules les declarations Interface des TOC Wrath ont ete alignees sur 30403; code Lua d'origine inchange. Sauvegarder les reglages avant de revenir depuis une version plus recente."
                    },
                    {
                        "id":  "atlaslootclassic",

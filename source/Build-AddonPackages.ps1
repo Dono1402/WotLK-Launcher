@@ -1,7 +1,8 @@
 param(
     [string]$OutputDirectory = (Join-Path $PSScriptRoot 'artifacts\addons'),
     [string]$WorkDirectory = (Join-Path $env:TEMP 'Atlas-WotLK-AddonBuild'),
-    [string]$PublicBaseUrl = 'https://animeclub.fr/wotlk/addons/packages'
+    [string]$PublicBaseUrl = 'https://animeclub.fr/wotlk/addons/packages',
+    [string]$DetailsArchivePath = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -15,6 +16,23 @@ if ($WorkDirectory.Length -lt 12 -or $WorkDirectory -eq [System.IO.Path]::GetPat
 
 function Get-Sha256([string]$Path) {
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+# Details is the user-supplied, reviewed Atlas package, not an upstream latest.
+# Validate the explicit input before any existing work/output directory cleanup.
+if ([string]::IsNullOrWhiteSpace($DetailsArchivePath)) {
+    throw 'DetailsArchivePath requis : fournir le paquet prepare par prepare_details_package.py.'
+}
+$DetailsArchivePath = [System.IO.Path]::GetFullPath($DetailsArchivePath)
+if (-not (Test-Path -LiteralPath $DetailsArchivePath -PathType Leaf) -or
+    (Get-Sha256 $DetailsArchivePath) -ne 'ca2ffad679c0647a0f4345f57675ef9e1198514d22022e5cfb380a34186c688b') {
+    throw 'Paquet Details different de la version Atlas approuvee.'
+}
+foreach ($detailsUnsafeRoot in @($WorkDirectory, $OutputDirectory)) {
+    $detailsRootPrefix = $detailsUnsafeRoot.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+    if ($DetailsArchivePath.StartsWith($detailsRootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Le paquet Details source doit rester en dehors des dossiers de travail et de sortie.'
+    }
 }
 
 function Get-StringSha256([string]$Value) {
@@ -172,9 +190,9 @@ $sources = @(
     },
     [ordered]@{
         Id = 'details'
-        File = 'Details-Details.20250119.13388.161.zip'
-        Url = 'https://edge.forgecdn.net/files/6102/986/Details-Details.20250119.13388.161.zip'
-        Sha256 = 'e8a5d367db44a540cb85005c092ffd9cf32f59e44c946cffc7070509cf91a303'
+        File = 'Details-Details.20240115.12220.155-atlas-30403.zip'
+        Url = "$($PublicBaseUrl.TrimEnd('/'))/Details-Details.20240115.12220.155-atlas-30403.zip"
+        Sha256 = 'ca2ffad679c0647a0f4345f57675ef9e1198514d22022e5cfb380a34186c688b'
     },
     [ordered]@{
         Id = 'atlaslootclassic'
@@ -243,8 +261,17 @@ $publicPackagesDirectory = Join-Path $OutputDirectory 'packages'
 New-Item -ItemType Directory -Path $downloadDirectory, $extractDirectory, $packageDirectory, $overlayDirectory, $dbmCorePackageDirectory, $publicPackagesDirectory -Force | Out-Null
 
 foreach ($source in $sources) {
-    Get-VerifiedFile $source.Url (Join-Path $downloadDirectory $source.File) $source.Sha256
+    if ($source.Id -eq 'details') {
+        Copy-Item -LiteralPath $DetailsArchivePath -Destination (Join-Path $downloadDirectory $source.File)
+        if ((Get-Sha256 (Join-Path $downloadDirectory $source.File)) -ne $source.Sha256) {
+            throw 'Le paquet Details a change pendant la copie.'
+        }
+    }
+    else {
+        Get-VerifiedFile $source.Url (Join-Path $downloadDirectory $source.File) $source.Sha256
+    }
 }
+Copy-Item -LiteralPath (Join-Path $downloadDirectory 'Details-Details.20240115.12220.155-atlas-30403.zip') -Destination (Join-Path $publicPackagesDirectory 'Details-Details.20240115.12220.155-atlas-30403.zip')
 
 $utf8DownloadDirectory = Join-Path $downloadDirectory 'utf8-r10'
 New-Item -ItemType Directory -Path $utf8DownloadDirectory -Force | Out-Null
@@ -355,7 +382,7 @@ $elvuiSourceArchive = Join-Path $downloadDirectory 'v13.61.zip'
 $dbmWotlkArchive = Join-Path $downloadDirectory 'DBM-Raids-WoTLK-r337.zip'
 $dbmDungeonsArchive = Join-Path $downloadDirectory 'DBM-Party-WotLK-r122-wrath.zip'
 $dbmLegacyArchive = Join-Path $downloadDirectory 'DBM-Vanilla_SoD_BC-r713.zip'
-$detailsArchive = Join-Path $downloadDirectory 'Details-Details.20250119.13388.161.zip'
+$detailsArchive = Join-Path $downloadDirectory 'Details-Details.20240115.12220.155-atlas-30403.zip'
 $atlasLootArchive = Join-Path $downloadDirectory 'AtlasLootClassic-v3.2.0.zip'
 $auctionatorArchive = Join-Path $downloadDirectory 'Auctionator-10.2.0-wrath.zip'
 $leatrixPlusArchive = Join-Path $downloadDirectory 'Leatrix_Plus-3.0.191.zip'
@@ -501,16 +528,17 @@ $packageDefinitions = @(
         id = 'details'
         name = 'Details!'
         description = [System.Text.RegularExpressions.Regex]::Unescape('Mesure des d\u00e9g\u00e2ts, soins, menaces et statistiques de combat.')
-        version = '20250119.13388.161'
+        version = '20240115.12220.155'
         interface = '30403'
         archive = $detailsArchive
-        url = 'https://edge.forgecdn.net/files/6102/986/Details-Details.20250119.13388.161.zip'
+        url = "$($PublicBaseUrl.TrimEnd('/'))/Details-Details.20240115.12220.155-atlas-30403.zip"
         installHash = Get-Sha256 $detailsArchive
         stripPrefix = ''
         components = @()
         tokenReplacements = [ordered]@{}
         folders = @('Details', 'Details_Compare2', 'Details_DataStorage', 'Details_EncounterDetails', 'Details_RaidCheck', 'Details_Streamer', 'Details_TinyThreat', 'Details_Vanguard')
-        sourceUrl = 'https://www.curseforge.com/wow/addons/details/files/6102986'
+        sourceUrl = 'https://www.curseforge.com/wow/addons/details'
+        knownLimitations = "Version choisie par Atlas. Seules les declarations Interface des TOC Wrath ont ete alignees sur 30403; code Lua d'origine inchange. Sauvegarder les reglages avant de revenir depuis une version plus recente."
     },
     [ordered]@{
         id = 'atlaslootclassic'
@@ -646,7 +674,7 @@ $catalogAddons = foreach ($package in $packageDefinitions) {
             stripPrefix = $component.stripPrefix
         }
     }
-    [ordered]@{
+    $catalogEntry = [ordered]@{
         id = $package.id
         name = $package.name
         description = $package.description
@@ -663,6 +691,10 @@ $catalogAddons = foreach ($package in $packageDefinitions) {
         folders = $package.folders
         sourceUrl = $package.sourceUrl
     }
+    if ($package.Contains('knownLimitations')) {
+        $catalogEntry.knownLimitations = $package.knownLimitations
+    }
+    $catalogEntry
 }
 
 $catalog = [ordered]@{

@@ -1,11 +1,14 @@
-# Details : version choisie par l'utilisateur, préparation du remplacement
+# Details : version choisie par l'utilisateur, remplacement publié
 
 ## État
 
-**Paquet préparé localement, publication en attente de confirmation.** Aucun
-catalogue distribué, addon installé ou réglage de joueur n'a été modifié.
-Aucun jeu ou launcher n'a été ouvert. Cette préparation est indépendante du
-prototype HD, laissé de côté à la demande de l'utilisateur.
+**Details `20240115.12220.155` est publié depuis le 9 septembre 2026 à 18:50:45 UTC
+(20:50:45 à Paris), après confirmation de l'utilisateur.** Le catalogue serveur
+remplace l'ancienne version `20250228.13407.162` par le paquet Atlas préparé
+ci-dessous. Les treize autres addons sont inchangés. Aucun addon installé ou
+réglage de joueur n'a été modifié ; aucun jeu ou launcher n'a été ouvert.
+Ce travail est indépendant du prototype HD, laissé de côté à la demande de
+l'utilisateur.
 
 Le ZIP fourni est `Details-Details.20240115.12220.155.zip`, 5 009 518 octets,
 SHA-256 `5a4419ff922916f1e7cfb6c2360a0675b0319a5daa810a980542113c79e74656`.
@@ -13,7 +16,7 @@ Il contient 551 entrées, dont 490 fichiers répartis entre huit dossiers. Le
 contrôle CRC intégral réussit. Le TOC principal Wrath annonce bien `30403` et
 `#Details.20240115.12220.155`.
 
-Le catalogue de production a été consulté **en lecture seule** le 9 septembre :
+Avant publication, le catalogue de production a été consulté en lecture seule :
 14 addons, Details `20250228.13407.162`, hash du catalogue
 `cc4d48f80ac5dae76ec58fbb80f0ffe254196361d30ba26d42cf3f494c032b79`.
 Le paquet proposé jusqu'ici est hébergé sur ForgeCDN. Le catalogue local
@@ -51,22 +54,44 @@ Paquet préparé : `Details-Details.20240115.12220.155-atlas-30403.zip`,
 Les fichiers binaires restent hors Git, dans le staging local. Le manifeste
 `details-package.json` et le rapport `details-preparation.json` y sont associés.
 
-## Publication prévue, non exécutée
+## Publication exécutée
 
-Après confirmation :
+Le [script de publication ciblée](../scripts/addon-update-validation/publish_details_package.py)
+a appliqué les étapes suivantes après confirmation :
 
-1. Recharger le catalogue distant pour préserver toute évolution intervenue
-   depuis cette préparation. Ne modifier que l'entrée `id=details`.
-2. Sauvegarder le catalogue précédent dans un répertoire privé distinct, puis
-   publier le ZIP sous son nouveau nom et vérifier taille/empreinte.
-3. Remplacer atomiquement le catalogue avec une vérification de non-concurrence.
-   Version, URL HTTPS Atlas, taille, SHA-256 et `installHash` doivent correspondre
-   au nouveau paquet. Préserver les treize autres addons.
-4. Vérifier les fichiers servis, les permissions et l'état de l'API ; aucun
-   redémarrage de l'API, de HermesProxy ou de worldserver n'est nécessaire.
-5. Mettre à jour la définition de fabrication et l'entrée Details du catalogue
-   local pour éviter qu'une fabrication ultérieure ne réintroduise l'ancien
-   paquet. Ne pas réécrire les archives historiques de releases.
+1. Relecture du catalogue et contrôle de son empreinte avant remplacement.
+   Seule l'entrée `id=details` change ; les métadonnées générales sont conservées.
+2. Sauvegarde privée vérifiée du catalogue précédent, puis publication du ZIP
+   sous un nouveau nom. Aucun ancien ZIP n'est supprimé.
+3. Remplacement atomique du catalogue, sous verrou et avec une nouvelle
+   vérification de non-concurrence juste avant bascule.
+4. Relecture du catalogue et du ZIP après publication, comparaison des treize
+   autres entrées à la sauvegarde, contrôle de lecture par `wotlklauncher`.
+5. Mise à jour ciblée de la définition de fabrication et de l'entrée Details du
+   catalogue local. Les anciennes releases restent intactes.
+
+Résultat détaillé : [details-publication-20260909.json](update-preparation/details-publication-20260909.json).
+
+- Catalogue après publication :
+  `33c5e012f0fff8d12f6f427b7189c828a11844a6c0cabb55820050554f147224`.
+- Paquet : empreinte et taille conformes à la préparation, permissions `0644`.
+- Sauvegarde privée sur Atlas :
+  `/var/backups/atlas-launcher-addons/details-20260909T185045Z-cf01213a/catalog.before.json`.
+- API toujours active, même PID `1866560`, compteur de redémarrages `0` avant/après.
+  Aucun redémarrage d'API, de HermesProxy ou de worldserver n'a été effectué.
+- Les deux endpoints HTTPS répondent `401` aux requêtes GET sans compte,
+  conformément à l'authentification existante. HEAD est refusé avec `405`
+  (`Allow: GET`) : ce contrôle a été repris avec la méthode GET du launcher.
+  Aucun téléchargement HTTP authentifié ni test dans le launcher réel n'a été
+  effectué ; les octets et permissions serveur sont vérifiés directement.
+- 13 tests du préparateur et sept tests de publication ciblée réussissent.
+  La syntaxe PowerShell du générateur est validée. La fabrication globale de
+  tous les addons n'a pas été relancée, afin de ne pas remplacer le catalogue
+  distant par des définitions locales plus anciennes.
+
+Le script de publication est volontairement lié à l'empreinte précédente :
+**ne pas le relancer après succès**. Pour un changement ultérieur ou un retour
+arrière, relire d'abord l'état courant et préserver les mises à jour intermédiaires.
 
 Le remplacement est un retour à une version plus ancienne pour les joueurs
 ayant celle du catalogue actuel. Le launcher compare version **et** empreinte,

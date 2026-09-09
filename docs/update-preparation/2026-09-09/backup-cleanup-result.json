@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "performedAtUtc": "2026-09-09T10:43:26Z",
+  "authorization": "User explicitly authorized deletion of old backups",
+  "scope": "24 inactive July backup directories; candidate/source/build directories excluded",
+  "permanentDeletion": true,
+  "newCopyOfDeletedContentsMade": false,
+  "deletedDirectories": [
+    "/opt/arthas-next/backups/player-led-bots-rollback-20260728_020830",
+    "/opt/arthas-next/backups/player-led-bots-rollback-20260728_021307",
+    "/opt/arthas-next/backups/playerbots-autonomy-activate-20260712T155827Z",
+    "/opt/arthas-next/backups/playerbots-autonomy-ai-combat-20260713_010806",
+    "/opt/arthas-next/backups/playerbots-autonomy-clean-20260712T175744Z",
+    "/opt/arthas-next/backups/playerbots-autonomy-corefix-20260712T181347Z",
+    "/opt/arthas-next/backups/playerbots-autonomy-direct-teleport-20260713_000639",
+    "/opt/arthas-next/backups/playerbots-autonomy-driver-20260712T170348Z",
+    "/opt/arthas-next/backups/playerbots-autonomy-driver2-20260712T171345Z",
+    "/opt/arthas-next/backups/playerbots-autonomy-driver3-20260712T172716Z",
+    "/opt/arthas-next/backups/playerbots-autonomy-driver4-20260712T173655Z",
+    "/opt/arthas-next/backups/playerbots-autonomy-driver5-20260712T174518Z",
+    "/opt/arthas-next/backups/playerbots-autonomy-dungeon-guard-20260713_002850",
+    "/opt/arthas-next/backups/playerbots-autonomy-dungeon-sticky-20260713_020835",
+    "/opt/arthas-next/backups/playerbots-autonomy-force-combat-20260713_001251",
+    "/opt/arthas-next/backups/playerbots-autonomy-forge-order-20260713_013039",
+    "/opt/arthas-next/backups/playerbots-autonomy-leader-recovery-20260713_002252",
+    "/opt/arthas-next/backups/playerbots-autonomy-overboost-20260712_234803",
+    "/opt/arthas-next/backups/playerbots-autonomy-sync-20260713_000035",
+    "/opt/arthas-next/backups/playerbots-autonomy-tank-guard-20260713_003516",
+    "/opt/arthas-next/backups/playerbots-autonomy-utgarde-route-20260713_005646",
+    "/opt/arthas-next/backups/playerbots-botonly-lfg-20260712T161026Z",
+    "/opt/arthas-next/backups/worldserver-before-modules-20260728T040056Z",
+    "/opt/arthas-next/backups/worldserver-before-modules-retry-20260728T040407Z"
+  ],
+  "allocatedBytesFreed": 12530073600,
+  "availableBytesBefore": 12246401024,
+  "availableBytesAfter": 24776450048,
+  "backupDirectoriesBefore": 47,
+  "backupDirectoriesAfter": 23,
+  "exactRemovalSetVerified": true,
+  "productionServices": {
+    "worldserver": {
+      "beforePid": 1910234,
+      "afterPid": 1910234,
+      "nRestarts": 0
+    },
+    "hermes": {
+      "beforePid": 1910530,
+      "afterPid": 1910530,
+      "nRestarts": 0
+    }
+  },
+  "retained": "August and September snapshots, SQL-only and configuration-only July backups, all candidate/source/build directories",
+  "serverLedger": "/opt/arthas-next/maintenance/backup-cleanup-20260909"
+}

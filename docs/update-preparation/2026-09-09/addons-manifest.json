@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "auditDate": "2026-09-09",
+  "scope": "offline-preparation-only",
+  "targetClient": {"version": "3.4.3.54261", "interface": 30403},
+  "installedOrPublished": false,
+  "runtimeValidated": false,
+  "packages": [
+    {
+      "id": "weakauras",
+      "version": "5.12.9",
+      "status": "selected-for-later-client-test",
+      "installedBaseline": "5.12.8",
+      "reason": "Keeps legacy API fallbacks and includes the talent-group change fix; preferred over 5.13.1 pending client tests.",
+      "sourceUrl": "https://github.com/WeakAuras/WeakAuras2/releases/tag/5.12.9",
+      "downloadUrl": "https://github.com/WeakAuras/WeakAuras2/releases/download/5.12.9/WeakAuras-5.12.9.zip",
+      "filename": "WeakAuras-5.12.9.zip",
+      "sha256": "24e72072d22669f157d4acb44d7f0bbfceadbbe598d41285e013346891dcdeab",
+      "bytes": 8887511,
+      "roots": ["WeakAuras", "WeakAurasArchive", "WeakAurasModelPaths", "WeakAurasOptions", "WeakAurasTemplates"],
+      "declaredWrathInterface": 30403,
+      "validation": {"archiveSafety": "pass", "files": 675, "luaFiles": 235, "allTocs": 30, "wrathTocs": 5, "wrathLoadGraph": "pass", "requiredDependencies": "included", "lua51AfterDocumentedParserWorkaroundErrors": 0, "lua51RawParserWarningsAlreadyInBaseline": 15, "fengariRawCompilationErrors": 0},
+      "deltaFromInstalled": {"changed": 59, "added": 0, "removed": 0},
+      "savedVariableInternalVersion": 73,
+      "modernizeLuaSha256": "47c9c6a11967eb21e8b31dc2a155bce5a347ac55815f66d005bb81a46a2d17b5"
+    },
+    {
+      "id": "weakauras",
+      "version": "5.13.1",
+      "status": "hold-api-compatibility-not-validated",
+      "installedBaseline": "5.12.8",
+      "reason": "Declares 30403 but introduces direct C_AddOns.EnableAddOn/LoadAddOn/IsAddOnLoaded and C_Item calls absent from the available 3.4.3 build 53788 generated API reference. This is a risk, not proof of failure on build 54261.",
+      "sourceUrl": "https://github.com/WeakAuras/WeakAuras2/releases/tag/5.13.1",
+      "downloadUrl": "https://github.com/WeakAuras/WeakAuras2/releases/download/5.13.1/WeakAuras-5.13.1.zip",
+      "filename": "WeakAuras-5.13.1.zip",
+      "sha256": "2164b8e4f0254f13e6b54044d5d5b358bc04fb4823ba8ff4a59b262052ac03d4",
+      "bytes": 9017286,
+      "roots": ["WeakAuras", "WeakAurasArchive", "WeakAurasModelPaths", "WeakAurasOptions", "WeakAurasTemplates"],
+      "declaredWrathInterface": 30403,
+      "validation": {"archiveSafety": "pass", "files": 677, "luaFiles": 237, "allTocs": 30, "wrathTocs": 5, "wrathLoadGraph": "pass", "requiredDependencies": "included", "lua51AfterDocumentedParserWorkaroundErrors": 0, "lua51RawParserWarningsAlreadyInBaseline": 15, "fengariRawCompilationErrors": 0},
+      "deltaFromInstalled": {"changed": 87, "added": 2, "removed": 0}
+    },
+    {
+      "id": "auctionator",
+      "version": "10.2.24-wrath",
+      "tocVersion": "10.2.24",
+      "status": "hold-functional-review-and-coordinated-backup-required",
+      "installedBaseline": "10.2.0-wrath",
+      "reason": "Removes custom selling-group UI and migrates the price database from schema 6 to 7. Downgrading addon files alone resets that database; addon and SavedVariables must be restored together.",
+      "sourceUrl": "https://www.curseforge.com/wow/addons/auctionator/files/5100002",
+      "downloadUrl": "https://edge.forgecdn.net/files/5100/002/Auctionator-10.2.24-wrath.zip",
+      "filename": "Auctionator-10.2.24-wrath.zip",
+      "sha256": "c6b70f4dc569e02177519295c3296215711d292d82c903337d1d1fd9bc2ad1aa",
+      "bytes": 764704,
+      "roots": ["Auctionator"],
+      "declaredWrathInterface": 30403,
+      "validation": {"archiveSafety": "pass", "files": 478, "luaFiles": 238, "allTocs": 2, "wrathTocs": 1, "wrathLoadGraph": "pass", "requiredDependencies": "included", "lua51AfterDocumentedParserWorkaroundErrors": 0, "lua51RawParserWarningsAlreadyInBaseline": 1, "fengariRawCompilationErrors": 0},
+      "deltaFromInstalled": {"changed": 58, "added": 7, "removed": 6},
+      "priceDatabaseSchema": {"installed": 6, "candidate": 7},
+      "auctionHouseProtocolFixValidated": false
+    }
+  ],
+  "combinedTests": {
+    "luaFilesCompiledWithoutExecution": 710,
+    "xmlDocumentsWellFormed": 267,
+    "inlineLuaHandlersParsed": 121,
+    "syntheticMigrationAndTalentEventAssertions": 25,
+    "upstreamLibStubTestFilesPassed": 8,
+    "upstreamLibStubAssertionsPassed": 104,
+    "runtime": "Fengari 0.1.5 / Lua 5.3 with bounded synthetic mocks; Lua 5.1 syntax also checked by luaparse 0.3.1 with documented break-semicolon workaround",
+    "gameplayOrVisualValidation": "not-run"
+  },
+  "apiReference": {
+    "repository": "https://github.com/Gethe/wow-ui-source",
+    "commit": "564ca565fd2de4d1bd4ca787d75d9f8c6d1ffcde",
+    "clientBuild": "3.4.3.53788",
+    "exactTargetBuildReferenceAvailable": false
+  },
+  "protectedBaseline": {
+    "ElvUI/Wrath/Modules/Skins/Inspect.lua": "023792bb53fd7b05434910af4854a73f10ea33f129e702d0d345c061b47463e8",
+    "elvuiInspectAndSimpleDungeonMapAndAddonRegistryUnchanged": true,
+    "userSavedVariablesReadOrCopied": false
+  }
+}

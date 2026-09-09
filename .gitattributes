@@ -2,8 +2,9 @@
 *.py text eol=lf
 *.caddy text eol=lf
 
-# Unified patches contain a single-space marker for blank context lines.
-mod-atlas-chat/hermes/*.patch text eol=lf whitespace=-blank-at-eol
+# Unified patches prefix context with a space, including before source tabs.
+# Preserve these markers: the patches are verified by applying to their base.
+mod-atlas-chat/hermes/*.patch text eol=lf whitespace=-blank-at-eol,-space-before-tab
 
 # Migration manifests hash these bytes; keep the same LF form on every platform.
 source/WotLK.Launcher.Server/Database/Migrations/*.sql text eol=lf

@@ -63,3 +63,29 @@ précise la bascule de 69,079 secondes, les versions actives, les sondes de
 protocole et les observations des journaux. Les tests de paquets et les contrôles
 de démarrage ne certifient pas l'affichage dans le client WoW : un aller-retour
 réel, la touche de réponse et les changements de session restent à vérifier.
+
+## Candidat du 9 septembre 2026 — non activé
+
+Le nouveau [patch complet Atlas](atlas-update-20260909.patch) s'applique cette
+fois à l'amont public `4247d957b78e6621047783560b3606f8fcf7ff42`, **pas** à
+la base Atlas `01667dc` du patch historique ci-dessus. Il contient tous les
+ajouts Atlas conservés, les whispers actifs et les tests de non-régression
+ajoutés pendant la fusion. Ne pas appliquer les deux patches successivement.
+
+- Commit du candidat source : `f859d0c59696b62483a98133b1e064c15dcb5604`.
+- Parents : `01667dc73262db01b10a5fcb99b505528e52211c` et
+  `4247d957b78e6621047783560b3606f8fcf7ff42`.
+- Arbre Git : `0c3c4baca7b309142364e784618f2a44eba433f2`.
+- SHA256 du patch :
+  `6993061f19cb6485759ca20cd41afc9688afeb6cfb89c6f12a85aa9fec72baf5`.
+
+L'application du patch contre `4247d957` a été vérifiée dans un index séparé :
+elle reproduit exactement cet arbre Git, sans toucher aux fichiers du candidat.
+Cinq avertissements de lignes vides de fin de fichier héritées restent dans
+le patch ; ils n'altèrent pas la correspondance. Reproduire l'arbre ne
+recrée pas automatiquement l'identité du commit de fusion ni son historique.
+
+Les résultats, limites et conditions avant activation figurent dans le
+[rapport de préparation](../../docs/WOTLK-UPDATE-PREPARATION-2026-09-09.md).
+Ce candidat ne remplace pas la release du 7 septembre tant qu'une bascule
+distincte n'a pas été autorisée et vérifiée.

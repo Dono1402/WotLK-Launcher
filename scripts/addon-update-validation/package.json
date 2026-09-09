@@ -1,0 +1,10 @@
+{
+  "name": "atlas-addon-update-validation",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Offline checks for the pinned September 2026 addon candidates; no game control or installation",
+  "dependencies": {
+    "fengari": "0.1.5",
+    "luaparse": "0.3.1"
+  }
+}

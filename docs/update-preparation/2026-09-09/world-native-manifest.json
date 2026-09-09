@@ -1,0 +1,338 @@
+{
+  "schemaVersion": 1,
+  "verifiedAtUtc": "2026-09-09T11:57:24.636406+00:00",
+  "status": "paused_before_test_link_correction_at_user_request",
+  "root": "/opt/arthas-next/candidates/modules-update-20260909T1035Z",
+  "baseWorldVariant": "atlas-chat-whispers-20260907",
+  "baseWorldSha256": "de9f14523f7b933b714904f05cb0d4bb6d65f6592c9cd4d2aaeb0de125bfe315",
+  "targetDungeonClear": "3dd90f7c1122abc291edcbd9d3dc68f6c8fed0bc",
+  "baseDungeonClear": "c32a38436567328d4f8f9a6ee0d221f19d58301e",
+  "manifestSha256": "95a8f878379ba16c8ad0ae69b98941ebb625ac85167f941af749bfba3cf6aab3",
+  "captureManifestSha256": "4af9b94d671283ffe75e0b0bb8be7f88bdfe27635b0d5b8de1392dcb452dff00",
+  "builderExecutedSha256": "2b2e6e5bf46ccfc7f699eb05d4abc0322f3517f56569c9b32be36fda5261f82e",
+  "sourceArchiveSha256": "52d3512d875e61354ea21b44e525c082e031a1ca9a4a957c521a9787498e310d",
+  "phases": {
+    "baseline": {
+      "passed": true,
+      "atUtc": "2026-09-09T11:05:04.880894+00:00",
+      "allAllocatedSectionsEquivalent": true,
+      "byteIdentical": true
+    },
+    "compile": {
+      "passed": true,
+      "atUtc": "2026-09-09T11:40:12.679081+00:00",
+      "translationUnits": 173,
+      "jobs": 6,
+      "allowedCPUs": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ]
+    },
+    "link": {
+      "passed": true,
+      "atUtc": "2026-09-09T11:42:56.213340+00:00",
+      "oldDCMembersExtracted": [],
+      "registrationsChecked": true,
+      "worldserverStarted": false
+    },
+    "tests": {
+      "passed": false,
+      "invalidatedAtUtc": "2026-09-09T11:44:33.299337+00:00",
+      "startedAtUtc": "2026-09-09T11:44:33.299351+00:00",
+      "jobs": 6
+    }
+  },
+  "objectCounts": {
+    "dungeonClear": 173,
+    "tests": 75
+  },
+  "schedulerMigrations": [
+    {
+      "atUtc": "20260909T113705Z",
+      "purpose": "Scheduling-only resume migration after explicit user acceleration request",
+      "oldBuilderSha256": "f7bdcfa6663c2b79bf1cd78860d20207250cc2f5cdef8ac07549b1ca18ea5a57",
+      "newBuilderSha256": "2b2e6e5bf46ccfc7f699eb05d4abc0322f3517f56569c9b32be36fda5261f82e",
+      "oldStateSha256": "83ad5215c433f7fbc1acec5891b1cfdbe0f48287695ddc892fc233e0d111b5f7",
+      "candidateManifestSha256": "95a8f878379ba16c8ad0ae69b98941ebb625ac85167f941af749bfba3cf6aab3",
+      "captureManifestSha256": "4af9b94d671283ffe75e0b0bb8be7f88bdfe27635b0d5b8de1392dcb452dff00",
+      "compileCommandsComparedUnchanged": 248,
+      "existingObjectsIndependentlyHashVerified": 108,
+      "sourcesRecipesCompilerGeneratedHeadersUnchanged": true,
+      "productionWrites": false,
+      "compilationStartedByMigration": false,
+      "applyRequested": true
+    }
+  ],
+  "lastFailure": {
+    "phase": "tests",
+    "atUtc": "2026-09-09T11:46:40.333514+00:00",
+    "error": "Command failed (1): tests-candidate-link; see /opt/arthas-next/candidates/modules-update-20260909T1035Z/build-isolated/logs/tests-candidate-link.log"
+  },
+  "units": {
+    "baseline": {
+      "unit": "atlas-dc-baseline-20260909.service",
+      "observedProperties": {
+        "MainPID": "0",
+        "Result": "success",
+        "ExecMainStatus": "0",
+        "MemoryPeak": "[not set]",
+        "ActiveState": "inactive"
+      },
+      "resourceSummary": "atlas-dc-baseline-20260909.service: Consumed 1min 10.639s CPU time, 4G memory peak.",
+      "executionMainPid": 2268245,
+      "invocationId": "b079ff19606a43ebb4fa2d055a76b3e6"
+    },
+    "serialCompileInterrupted": {
+      "unit": "atlas-dc-compile-20260909.service",
+      "observedProperties": {
+        "MainPID": "0",
+        "Result": "exit-code",
+        "ExecMainStatus": "1",
+        "MemoryPeak": "3478142976",
+        "ActiveState": "failed"
+      },
+      "resourceSummary": "atlas-dc-compile-20260909.service: Consumed 14min 50.647s CPU time, 3.2G memory peak.",
+      "executionMainPid": 2268974,
+      "invocationId": "e2a8554b61cd4911910f6d7e5436f9cc",
+      "controlledStopReason": "Effective-isolation audit found writable home/runtime exceptions; stopped before hardened parallel resume."
+    },
+    "parallelCompile": {
+      "unit": "atlas-dc-compile-20260909-r2.service",
+      "observedProperties": {
+        "MainPID": "0",
+        "Result": "success",
+        "ExecMainStatus": "0",
+        "MemoryPeak": "[not set]",
+        "ActiveState": "inactive"
+      },
+      "resourceSummary": "atlas-dc-compile-20260909-r2.service: Consumed 11min 36.084s CPU time, 6G memory peak.",
+      "executionMainPid": 2275648,
+      "invocationId": "1791421720de45f68a544b6cf6802d6e"
+    },
+    "worldLink": {
+      "unit": "atlas-dc-link-20260909-r2.service",
+      "observedProperties": {
+        "MainPID": "0",
+        "Result": "success",
+        "ExecMainStatus": "0",
+        "MemoryPeak": "[not set]",
+        "ActiveState": "inactive"
+      },
+      "resourceSummary": "atlas-dc-link-20260909-r2.service: Consumed 1min 9.770s CPU time, 6G memory peak.",
+      "executionMainPid": 2276975,
+      "invocationId": "31c8120fe302428ebd42cb42c034321b"
+    },
+    "testCompileAndLink": {
+      "unit": "atlas-dc-tests-20260909-r2.service",
+      "observedProperties": {
+        "MainPID": "0",
+        "Result": "exit-code",
+        "ExecMainStatus": "1",
+        "MemoryPeak": "6444802048",
+        "ActiveState": "failed"
+      },
+      "resourceSummary": "atlas-dc-tests-20260909-r2.service: Consumed 8min 2.631s CPU time, 6G memory peak.",
+      "executionMainPid": 2277560,
+      "invocationId": "062f29487b284fd5a230faf481a166a9"
+    }
+  },
+  "outputs": {
+    "worldserver-baseline-reproduced": {
+      "sha256": "de9f14523f7b933b714904f05cb0d4bb6d65f6592c9cd4d2aaeb0de125bfe315",
+      "size": 2468468944,
+      "mode": "0o600",
+      "matchesLastSealedHash": true
+    },
+    "worldserver-candidate": {
+      "sha256": "428e92b4498312593ea44f6c0d2870519a43af65acf68be3567890d178cd87d6",
+      "size": 2472074992,
+      "mode": "0o600",
+      "matchesLastSealedHash": true
+    },
+    "dungeon_clear_tests": {
+      "exists": false
+    }
+  },
+  "services": {
+    "arthas-worldserver.service": {
+      "MainPID": "1910234",
+      "NRestarts": "0",
+      "Id": "arthas-worldserver.dungeon-clear-8224099.service",
+      "ActiveState": "active"
+    },
+    "hermesproxy-wotlk.service": {
+      "MainPID": "1910530",
+      "NRestarts": "0",
+      "Id": "hermesproxy-wotlk.service",
+      "ActiveState": "active"
+    }
+  },
+  "tests": {
+    "compiledTranslationUnits": 75,
+    "linkedSuccessfully": false,
+    "executedCount": 0,
+    "xmlReportExists": false,
+    "undefinedSymbols": [
+      "Acore::ChatCommands::PlayerIdentifier::FromSelf(ChatHandler*)",
+      "Acore::ChatCommands::PlayerIdentifier::FromTarget(ChatHandler*)",
+      "Acore::ChatCommands::PlayerIdentifier::TryConsume(ChatHandler const*, std::basic_string_view<char, std::char_traits<char> >)",
+      "Acore::Impl::ChatCommands::ArgInfo<ItemTemplate const*, void>::TryConsume(ItemTemplate const*&, ChatHandler const*, std::basic_string_view<char, std::char_traits<char> >)"
+    ],
+    "skips": "not applicable: suite was not executed",
+    "navigationProbesExecuted": 0,
+    "navigationScenariosProvided": 29,
+    "navigationScenarioCountsByMap": {
+      "229": 1,
+      "545": 4,
+      "560": 23,
+      "658": 1
+    },
+    "navigationScenarioExecutionCount": null
+  },
+  "fixtures": {
+    "parent": "/opt/arthas-next/candidates/clean-official-20260829T132012Z/navigation-v20",
+    "bindDestination": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/candidate/core/modules/mod-dungeon-clear/t/fixtures/mapdata/mmaps",
+    "privateBindNoLongerPresent": true,
+    "bindDestinationIsEmptyAfterUnit": true,
+    "dataCopied": false,
+    "dataModified": false,
+    "observedReadOnlyIsolation": {
+      "verifiedAtUtc": "2026-09-09T11:46:00.003586+00:00",
+      "unit": "atlas-dc-tests-20260909-r2.service",
+      "mainPid": 2277560,
+      "fixtureParent": "/opt/arthas-next/candidates/clean-official-20260829T132012Z/navigation-v20",
+      "bindDestination": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/candidate/core/modules/mod-dungeon-clear/t/fixtures/mapdata/mmaps",
+      "mounts": {
+        "/opt/arthas-next/candidates/clean-official-20260829T132012Z/navigation-v20": {
+          "effectiveMountPoint": "/",
+          "mountRoot": "/",
+          "mountOptions": "ro,nosuid,relatime",
+          "readOnly": true
+        },
+        "/opt/arthas-next/candidates/modules-update-20260909T1035Z/candidate/core/modules/mod-dungeon-clear/t/fixtures/mapdata/mmaps": {
+          "effectiveMountPoint": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/candidate/core/modules/mod-dungeon-clear/t/fixtures/mapdata/mmaps",
+          "mountRoot": "/opt/arthas-next/candidates/clean-official-20260829T132012Z/navigation-v20/mmaps",
+          "mountOptions": "ro,nosuid,relatime",
+          "readOnly": true
+        }
+      },
+      "writeAccessViaProcessRoot": {
+        "/opt/arthas-next/candidates/clean-official-20260829T132012Z/navigation-v20": false,
+        "/opt/arthas-next/candidates/modules-update-20260909T1035Z/candidate/core/modules/mod-dungeon-clear/t/fixtures/mapdata/mmaps": false
+      },
+      "navigationFilesCopied": false,
+      "navigationFilesModified": false
+    }
+  },
+  "safety": {
+    "worldserverCandidateStarted": false,
+    "productionActivation": false,
+    "databaseAccess": false,
+    "productionRestarts": false
+  },
+  "diskFreeBytes": 15120801792,
+  "proofs": {
+    "state.json": {
+      "path": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/build-isolated/state.json",
+      "sha256": "3313c9c6da475cb775526ee22a679931aa9d0dc0815de9cd569aa2399ad44761"
+    },
+    "logs/baseline-link.log": {
+      "path": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/build-isolated/logs/baseline-link.log",
+      "sha256": "14af86be037d986c6e638facbc5ccaff81d8b1c32542d44c5c1e6576f433fc26"
+    },
+    "logs/world-candidate-link.log": {
+      "path": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/build-isolated/logs/world-candidate-link.log",
+      "sha256": "62644b67ad7ca75d0c543e29ea1cb353c60f9502735094674987031e1dd906c2"
+    },
+    "logs/tests-candidate-link.log": {
+      "path": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/build-isolated/logs/tests-candidate-link.log",
+      "sha256": "64f874a2f1929f68268fc40e72896a202661a5e3716581511285bd2453cf81e6"
+    },
+    "logs/tests-candidate-link.command.json": {
+      "path": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/build-isolated/logs/tests-candidate-link.command.json",
+      "sha256": "6205000725e31240089d5e45afc1a13028b69ae28448c18a3fb6ef16a3fdc1b8"
+    },
+    "scheduler-migration-20260909T113705Z.json": {
+      "path": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/build-isolated/scheduler-migration-20260909T113705Z.json",
+      "sha256": "d1fa66219a4820489c4e70475852264daf4191c61a62b0a066eedffe872af647"
+    },
+    "scheduler-migration-complete-20260909T113705Z.json": {
+      "path": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/build-isolated/scheduler-migration-complete-20260909T113705Z.json",
+      "sha256": "741289f10ee8c2520409b31d828e1216fe6eed38ec5411aad020b83f4f3e90ae"
+    }
+  },
+  "preparedButNotExecuted": {
+    "groupedBuilderSha256": "7230d02852bd5e15d77c955f52f2527fe84da98e560791e8750a8cf559ad6daf",
+    "testLinkMigrationScriptSha256": "b9abd431d42d2fd2fde1f74f5f26d7c3e263c2437d994236872032aea389eb27",
+    "testLinkGroupTestsSha256": "24a3c02f979a8e0bde2f8df0ad5bcc4487b5cb2416821d89f6da016cdc66c24c",
+    "localTestsPassed": 22,
+    "transferred": false,
+    "migrated": false,
+    "relinked": false
+  },
+  "effectiveParallelIsolation": {
+    "verifiedByIndependentReview": true,
+    "mainPid": 2275648,
+    "invocationId": "1791421720de45f68a544b6cf6802d6e",
+    "uid": 1000,
+    "gid": 1000,
+    "cpusAllowed": "0-11",
+    "cpuMax": "max 100000",
+    "memoryHighBytes": 6442450944,
+    "memoryMaxBytes": 7516192768,
+    "memorySwapMaxBytes": 0,
+    "perProcessAddressSpaceLimitBytes": 4294967296,
+    "noNewPrivileges": true,
+    "effectiveCapabilities": 0,
+    "networkInterfaces": [
+      "lo"
+    ],
+    "rootAndTmpReadOnly": true,
+    "candidateWritable": true,
+    "homeRootRunUserDevShmAndRuntimeConfigsInaccessible": true,
+    "databaseSocketsAbsentInNamespace": true,
+    "niceConfigured": 19
+  },
+  "limitations": [
+    "No GoogleTest test case was executed because its linker failed.",
+    "The world candidate was built and its module registrations/link map checked, but never started or installed.",
+    "Both baseline/world linkers emitted a nonfatal .debug_info size diagnostic; baseline output nevertheless matched the active binary SHA256 byte for byte.",
+    "The original serial unit was stopped after an effective-isolation audit found writable home/runtime exceptions; the resumed r2 unit added verified restrictions.",
+    "If tests are resumed, the single DcNavGeometry test can silently skip individual scenario maps; its aggregate PASS alone cannot certify all 29 scenarios ran."
+  ],
+  "finalReadOnlySourceVerification": {
+    "passed": true,
+    "atUtc": "2026-09-09T11:59:02.181430+00:00",
+    "builderSha256": "2b2e6e5bf46ccfc7f699eb05d4abc0322f3517f56569c9b32be36fda5261f82e"
+  },
+  "testLinkDiagnosis": {
+    "undefinedReferences": 12,
+    "distinctUndefinedSymbols": 4,
+    "referringMember": "cs_transmog.cpp.o",
+    "referringArchive": "/opt/arthas-next/candidates/armory-live-20260905T1310Z/build-overlay/libmodules.a",
+    "definingMembersVerifiedInGameArchive": [
+      "ChatCommandArgs.cpp.o",
+      "ChatCommandTags.cpp.o"
+    ],
+    "definitionsConfirmedByNmAsStrongTextSymbols": true,
+    "observedLinkOrder": [
+      "libgame.a",
+      "libgtest_main.a",
+      "libgmock_main.a",
+      "libmodules.a",
+      "libscripts.a"
+    ],
+    "proposedCorrection": "Add exactly --start-group before libgame.a and --end-group after libscripts.a.",
+    "linuxCorrectionExecuted": false
+  }
+}

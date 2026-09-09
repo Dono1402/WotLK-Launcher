@@ -57,7 +57,7 @@ modifie pas les exécutables actifs, leurs configurations ou les bases.
 
 - Hermes : le conflit dans `BnetRestApiSession.ReadHandler` est résolu en
   conservant les adaptations Atlas, la gestion d'erreurs et la fermeture
-  contrôlée de la session fautive. Les diagnostics d'authentification ne
+  contrôlée de la session fautive. Les diagnostics de ce gestionnaire REST ne
   journalisent plus que des métadonnées à valeurs limitées : aucun contenu,
   header, query, segment libre d'URL ou message d'exception fourni par l'entrée.
 - WeakAuras : la déclaration TOC `30403` ne suffit pas à certifier les nouvelles
@@ -133,18 +133,28 @@ comme une réussite ni corrigé silencieusement.
 
 Le build Linux utilise le SDK 10.0.400 et confirme l'absence de `_WINDOWS`.
 La restauration de dépendances est séparée des tests : ceux-ci utilisent un
-réseau privé réduit à loopback, un système de fichiers en lecture seule sauf
-le nouveau candidat, et des sockets SQL inaccessibles. Le `/tmp` du processus
+réseau privé réduit à loopback, les chemins de build/production en lecture
+seule, des sorties/caches dirigés vers le candidat et des sockets SQL
+inaccessibles. Le `/tmp` du processus
 est un montage du sous-dossier temporaire du candidat. Le premier essai a
 échoué sur un mutex NuGet tentant d'écrire dans `/tmp` malgré `TMPDIR` ; cette
 adaptation du montage est consignée, sans changement de source après gel.
+
+Une contre-revue ultérieure du confinement a relevé les exceptions standard
+de `ProtectSystem=strict` : cette option seule ne rend pas `/home`, `/root`,
+`/run/user` et `/dev/shm` inaccessibles en écriture. Elle ne doit donc pas être
+présentée comme une garantie absolue « seul le candidat est writable ». Les
+chemins de sortie des outils étaient explicitement dirigés vers le candidat,
+mais aucune preuve exhaustive d'absence d'écriture dans ces exceptions n'est
+revendiquée. La relance World renforce ces protections ; le manifeste Hermes
+initial reste une preuve des paramètres réellement utilisés à cette étape.
 
 Ces résultats ne certifient pas une authentification réelle, une session de
 jeu, un trajet de transport ou une interaction avec le world mis à jour.
 
 Publication native terminée à 10:54:59 UTC, sans erreur. Les 79 avertissements
 du build et les avertissements de trimming sont conservés dans les logs ;
-l'exécutable publié n'a pas encore été démarré. Le
+l'exécutable publié n'avait pas encore été démarré à ce point de contrôle. Le
 [manifeste Hermes](update-preparation/2026-09-09/hermes-manifest.json) donne
 les options exactes et les empreintes des preuves.
 
@@ -154,6 +164,39 @@ Les 233 fichiers du paquet, dont 114 fichiers de données CSV, ont été
 revérifiés après extraction locale. Les CSV correspondent tous à `4247d957`.
 Les configurations (même publiques), PDB, logs, données de comptes et
 certificats Atlas ne sont pas dans l'archive.
+
+### Contrôle du paquet Hermes publié
+
+Une unique exécution synthétique du paquet publié a réussi de 11:51:30 à
+11:51:39 UTC. Elle utilise une copie vérifiée des 233 fichiers, une configuration
+inventée avec bridge désactivé, aucun compte réel, aucune connexion SQL et
+des espaces de noms réseau/IPC privés. Les certificats Atlas et tous les
+répertoires de production Hermes/Arthas sont inaccessibles.
+
+Les contrôles couvrent le formulaire REST, le refus du endpoint SRP désactivé,
+la récupération après requête REST malformée, la connexion BNet non authentifiée,
+les acquittements/keepalive, les erreurs de payload/header et les bannières
+realm/instance sans envoyer de paquet d'authentification au world.
+
+Résultat : `success=true`, sortie normale 0, aucun arrêt forcé, plus aucun
+listener dans le réseau isolé, données de compte synthétiques vides et
+empreintes du paquet canonique/de sa copie inchangées. Le reçu indépendant
+de fin d'unité indique `success/exited/0`. Les PID des deux processus de
+test ont disparu, leur cgroup a été supprimé et aucun des quatre ports de
+test n'écoute sur l'hôte ; ces trois points ont aussi été revérifiés séparément.
+
+Le confinement effectif limite l'exécution à un CPU et 1 Gio sans swap,
+`UMask=0077`, une seule capacité de lecture/traversée (`CAP_DAC_READ_SEARCH`),
+aucune capacité héritée/ambiante, paquet canonique en lecture seule et
+écritures dans le dossier de smoke neuf. Le pic mémoire mesuré est de
+408,2 Mio. Les PID de production `1910234`/`1910530` et les compteurs de
+redémarrage sont inchangés après ce contrôle.
+
+Ce smoke vérifie le démarrage et ces échanges synthétiques du paquet Linux,
+y compris après publication avec trimming. Il ne certifie toujours pas un
+login réel, une session de jeu ou les fonctionnalités Atlas reliées aux bases.
+Le [manifeste runtime séparé](update-preparation/2026-09-09/hermes-runtime-manifest.json)
+conserve les empreintes des preuves et les propriétés effectives de cette exécution.
 
 ## Préparation du world / Dungeon Clear
 
@@ -191,8 +234,9 @@ d'échec. Il ne démarre jamais worldserver, n'exécute aucun SQL et ne passe pa
 par CMake/Make dans les anciens dossiers de build.
 
 Les [recettes natives versionnées](../scripts/wotlk-update-20260909/README.md)
-sont identiques aux scripts exécutés ; dix tests de contrat ont été rejoués
-avec succès après copie dans ce dépôt. Elles dépendent des snapshots et
+sont identiques aux scripts correspondants exécutés ; dix tests de contrat
+et sept tests d'ordonnancement ont été rejoués avec succès après copie dans
+ce dépôt. Elles dépendent des snapshots et
 archives historiques, et ne constituent pas un build autonome depuis un
 clone de ce dépôt seul.
 
@@ -205,3 +249,61 @@ sections ELF. Un diagnostic non fatal du linker sur la taille de `.debug_info`
 a été conservé ; le processus a terminé avec code 0 et aucun relèvement de
 limite. Les phases compilation DC, lien candidat et tests complets sont encore
 en cours à ce point de contrôle : aucun world mis à jour n'est déclaré validé.
+
+### Reprise accélérée et confinement renforcé
+
+Le premier passage a été interrompu proprement à 11:22:39 UTC pour renforcer
+le confinement après contre-revue, avec 108 objets déjà scellés. Il ne
+s'agissait pas d'un échec C++. Après la demande d'accélération de l'utilisateur,
+le constructeur a été adapté pour exécuter six compilations simultanées,
+sans modifier les sources C++, recettes, options GCC ou bibliothèques.
+
+La migration appliquée à 11:37:05 UTC a vérifié indépendamment les 108 objets,
+les 248 commandes de compilation et la baseline déjà réussie, puis conservé
+des copies contrôlées de l'ancien constructeur et de l'ancien état. Le
+constructeur parallèle est figé par SHA256 :
+`2b2e6e5bf46ccfc7f699eb05d4abc0322f3517f56569c9b32be36fda5261f82e`.
+
+La nouvelle unité `atlas-dc-compile-20260909-r2` a démarré à 11:37:55 UTC.
+Contrôle direct : affinité `0-11`, quota CPU absent, `MemoryHigh=6G`,
+`MemoryMax=7G`, `MemorySwapMax=0`, `Nice=19`. `ProtectHome`, `PrivateDevices`,
+`PrivateIPC` et `NoNewPrivileges` sont actifs ; les répertoires runtime
+sensibles sont inaccessibles. `KillMode=control-group` et un délai d'arrêt de
+15 secondes complètent l'annulation interne de tous les processus enfants.
+Le plafond d'espace d'adressage par processus reste inchangé à 4 Gio.
+
+Les tests de l'ordonnanceur comparent les commandes réellement émises par
+l'ancien et le nouveau `compile_one`, simulent les erreurs et annulations,
+contrôlent la concurrence bornée, les checkpoints JSON atomiques et la
+conservation des journaux de chaque tentative. Les 17 tests ont été réussis
+sur Linux puis rejoués depuis ce dépôt. Ils ne remplacent pas la suite C++
+complète, qui doit encore terminer pour déclarer le candidat validé.
+
+Le passage accéléré a terminé les 173 unités DC à 11:40:18 UTC. Le lien du
+world candidat a ensuite réussi à 11:43:05 UTC, avec les huit enregistrements
+de modules attendus et sans extraction des anciens membres DC. Les 75 unités
+de tests ont également été compilées.
+
+Le premier lien de l'exécutable de tests a cependant échoué à 11:46:40 UTC,
+avant toute exécution GoogleTest : quatre symboles ChatCommands requis par
+Transmog restaient non résolus. La recette place `libgame.a` avant
+`libmodules.a`/`libscripts.a`, sans groupe de relecture des archives. Les
+définitions sont présentes dans `ChatCommandArgs.cpp.o` et
+`ChatCommandTags.cpp.o` de `libgame.a` ; la correction examinée porte sur
+cette recette de test, pas sur les sources C++ ou le world déjà assemblé.
+L'échec et son journal sont conservés ; aucune assertion n'est supprimée
+pour obtenir un résultat réussi.
+
+Le [bilan natif figé](update-preparation/2026-09-09/world-native-manifest.json)
+identifie le world candidat de 2 472 074 992 octets, SHA256
+`428e92b4498312593ea44f6c0d2870519a43af65acf68be3567890d178cd87d6`.
+La correction de lien des tests est préparée localement dans le constructeur
+`7230d028`, avec 22 tests de contrat/ordonnancement/lien réussis. Elle ajoute
+exactement deux bornes de groupe d'archives, sans modifier les 248 commandes
+de compilation ni le lien World. Elle n'a pas été appliquée sur Linux : à la
+demande de l'utilisateur, la suite exhaustive reste suspendue. Le constructeur
+Linux exécuté `2b2e6e5b` est conservé séparément pour la traçabilité.
+
+Ce bilan décrit la préparation avant activation. Une autorisation ultérieure
+de déploiement ne transforme pas les tests non exécutés en tests réussis ;
+les résultats de bascule et de contrôles runtime seront consignés séparément.

@@ -6,7 +6,6 @@ or invokes CMake/Make. Execution requires an explicit phase and confirmation.
 Run under the externally reviewed cgroup/network/filesystem sandbox.
 """
 import argparse
-from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -20,7 +19,6 @@ import signal
 import struct
 import subprocess
 import sys
-import threading
 import time
 import xml.etree.ElementTree as ET
 
@@ -207,25 +205,10 @@ def tests_link_command(original, new_tests, dc_objects, chat_objects, target, ma
     if command.count(old_archive) != 1:
         raise RuntimeError('Unexpected module archive count in test link.')
     command[command.index(old_archive)] = str(ACTIVE_ARCHIVE)
-    # The retained module loader pulls modules that refer back to game.a.
-    # Rescan only the existing game/modules/scripts span, preserving its order.
-    game = str(BASE_BUILD / 'src/server/game/libgame.a')
-    scripts = str(BASE_BUILD / 'src/server/scripts/libscripts.a')
-    if command.count(game) != 1 or command.count(scripts) != 1:
-        raise RuntimeError('Unexpected game/scripts archive count in test link.')
-    first, last = command.index(game), command.index(scripts)
-    if not first < command.index(str(ACTIVE_ARCHIVE)) < last:
-        raise RuntimeError('Unexpected game/modules/scripts archive order in test link.')
-    if any(item in command for item in ['-Wl,--start-group', '-Wl,--end-group', '-Wl,-(', '-Wl,-)']):
-        raise RuntimeError('Unreviewed archive group already present in test link.')
-    command.insert(last + 1, '-Wl,--end-group')
-    command.insert(first, '-Wl,--start-group')
     return replace_link_outputs(command, target, map_path)
 
 
-def plan(root, jobs=1):
-    if not 1 <= jobs <= 8:
-        raise ValueError('jobs must be between 1 and 8.')
+def plan(root):
     core = root / 'candidate/core'
     cpp = sorted((core / 'modules/mod-dungeon-clear/src').rglob('*.cpp'))
     if len(cpp) != 173:
@@ -244,17 +227,13 @@ def plan(root, jobs=1):
     return {'mode': 'plan-only', 'sourceRoot': str(root), 'executionRootRequired': str(EXPECTED_ROOT),
         'dcTranslationUnits': len(cpp), 'fullTestTranslationUnits': len(tests), 'oldDCArchiveMembersToExclude': len(members),
         'preservedChatObjects': chats, 'preservedArchive': str(ACTIVE_ARCHIVE),
-        'minFreeBytes': MIN_FREE, 'addressSpaceLimitBytes': MAX_ADDRESS_SPACE,
-        'jobs': jobs, 'cpuAffinityCount': 1 if jobs == 1 else None,
-        'cpuAffinityPolicy': 'single CPU' if jobs == 1 else 'all initially allowed CPUs', 'nice': 19,
+        'minFreeBytes': MIN_FREE, 'addressSpaceLimitBytes': MAX_ADDRESS_SPACE, 'cpuAffinityCount': 1, 'nice': 19,
         'phases': list(MUTATING_PHASES), 'worldserverWillRun': False, 'oldInputsWillBeModified': False,
-        'requiresExternalSandbox': 'PrivateNetwork, reviewed cgroup memory/CPU budget, MemorySwapMax=0, ProtectSystem=strict, only new root writable; DB sockets/config dirs inaccessible'}
+        'requiresExternalSandbox': 'PrivateNetwork, MemoryMax~4G, CPU1, ProtectSystem=strict, only new root writable; DB sockets/config dirs inaccessible'}
 
 
 class Builder:
-    def __init__(self, root, phase, probe_mmaps=None, jobs=1):
-        if not 1 <= jobs <= 8:
-            raise ValueError('jobs must be between 1 and 8.')
+    def __init__(self, root, phase, probe_mmaps=None):
         if sys.platform != 'linux':
             raise RuntimeError('Execution is Linux-only; plan mode is portable.')
         self.root = root.absolute()
@@ -264,11 +243,10 @@ class Builder:
             if ancestor.is_symlink():
                 raise RuntimeError('Symlink in candidate root ancestry.')
         self.phase = phase
-        self.jobs = jobs
         self.core = self.root / 'candidate/core'
         self.out = self.root / 'build-isolated'
         self.probe_mmaps = probe_mmaps
-        self.summary = plan(self.root, jobs)
+        self.summary = plan(self.root)
         self.manifest = json.loads((self.root / 'candidate-manifest.json').read_text())
         self.capture = json.loads((self.root / 'capture-manifest.json').read_text())
         self.active_command = absolute_inputs(json.loads((self.root / 'evidence/active-link-command.json').read_text()), BASE_BUILD / 'src/server/apps')
@@ -287,12 +265,7 @@ class Builder:
             self.env.pop(key, None)
         self.env.update(TMPDIR=str(self.out / 'tmp'), TMP=str(self.out / 'tmp'), TEMP=str(self.out / 'tmp'),
             CCACHE_DISABLE='1', GCOV_PREFIX=str(self.out / 'coverage'), GCOV_PREFIX_STRIP='0', GCOV_EXIT_AT_ERROR='1')
-        self.children = set()
-        self._children_lock = threading.RLock()
-        self._termination_lock = threading.RLock()
-        self._state_lock = threading.RLock()
-        self._stop_requested = threading.Event()
-        self._first_failure = None
+        self.child = None
         self.state = None
 
     def safe(self, path):
@@ -312,17 +285,15 @@ class Builder:
             raise RuntimeError('Free disk below 8 GiB guard: ' + str(free))
 
     def write_json(self, path, value):
-        with self._state_lock:
-            path = self.safe(path)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            temporary = self.safe(path.with_name(path.name + '.tmp'))
-            temporary.write_text(json.dumps(value, indent=2))
-            os.replace(temporary, path)
+        path = self.safe(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.safe(path.with_name(path.name + '.tmp'))
+        temporary.write_text(json.dumps(value, indent=2))
+        os.replace(temporary, path)
 
     def save(self):
-        with self._state_lock:
-            self.state['updatedAtUtc'] = utc()
-            self.write_json(self.out / 'state.json', self.state)
+        self.state['updatedAtUtc'] = utc()
+        self.write_json(self.out / 'state.json', self.state)
 
     def isolation_guard(self):
         if set(os.listdir('/sys/class/net')) - {'lo'}:
@@ -454,105 +425,45 @@ class Builder:
         resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
         os.nice(max(0, 19 - os.getpriority(os.PRIO_PROCESS, 0)))
         affinity = os.sched_getaffinity(0)
-        if self.jobs == 1:
-            os.sched_setaffinity(0, {min(affinity)})
-        self.allowed_cpus = sorted(os.sched_getaffinity(0))
+        os.sched_setaffinity(0, {min(affinity)})
         os.umask(0o077)
 
     def stop_child(self):
-        """Latch cancellation before taking the child snapshot; no later spawn is allowed."""
-        with self._children_lock:
-            self._stop_requested.set()
-            children = tuple(self.children)
-        with self._termination_lock:
-            self._terminate_children(children)
-
-    @staticmethod
-    def _terminate_children(children):
-        def send(child, signum):
+        if self.child and self.child.poll() is None:
+            os.killpg(self.child.pid, signal.SIGTERM)
             try:
-                os.killpg(child.pid, signum)
-            except ProcessLookupError:
-                pass
-
-        for child in children:
-            send(child, signal.SIGTERM)
-        deadline = time.monotonic() + 5
-        for child in children:
-            try:
-                child.wait(timeout=max(0, deadline - time.monotonic()))
+                self.child.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                pass
-        # A compiler driver can exit before its descendants. Kill the process
-        # group too, rather than relying only on the driver's return code.
-        for child in children:
-            send(child, signal.SIGKILL)
-            child.wait()
-
-    def cancel(self, error):
-        with self._children_lock:
-            if self._first_failure is None:
-                self._first_failure = error
-            self._stop_requested.set()
-        self.stop_child()
-
-    def check_cancelled(self):
-        if self._stop_requested.is_set():
-            raise RuntimeError('Build cancelled: ' + str(self._first_failure or 'interrupted'))
+                os.killpg(self.child.pid, signal.SIGKILL)
+                self.child.wait()
 
     def run(self, name, command, timeout=1800, env_extra=None):
-        child = None
-        try:
-            self.check_cancelled()
-            self.disk_guard()
-            self.verify_inputs()
-            # Preserve all attempts, including interrupted/failed compilations.
-            with self._state_lock:
-                attempt = 0
-                while True:
-                    suffix = '' if not attempt else '.attempt-' + str(attempt)
-                    log = self.safe(self.out / 'logs' / (name + suffix + '.log'))
-                    recipe = self.safe(self.out / 'logs' / (name + suffix + '.command.json'))
-                    if not log.exists() and not recipe.exists():
-                        break
-                    attempt += 1
-                self.write_json(recipe, command)
-                stream = log.open('xb')
-            with stream:
-                print('RUN', name, shlex.join(list(map(str, command))), flush=True)
-                environment = self.env.copy()
-                if env_extra:
-                    environment.update(env_extra)
-                started = time.monotonic()
-                # Cancellation and spawn share this lock. A child is registered
-                # before cancellation can take its snapshot.
-                with self._children_lock:
-                    self.check_cancelled()
-                    child = subprocess.Popen(list(map(str, command)), cwd=self.out,
-                        stdout=stream, stderr=subprocess.STDOUT, env=environment, start_new_session=True)
-                    self.children.add(child)
-                while child.poll() is None:
-                    self.check_cancelled()
+        self.disk_guard()
+        self.verify_inputs()
+        log = self.safe(self.out / 'logs' / (name + '.log'))
+        self.write_json(self.out / 'logs' / (name + '.command.json'), command)
+        print('RUN', name, shlex.join(list(map(str, command))), flush=True)
+        environment = self.env.copy()
+        if env_extra:
+            environment.update(env_extra)
+        started = time.monotonic()
+        with log.open('wb') as stream:
+            self.child = subprocess.Popen(list(map(str, command)), cwd=self.out, stdout=stream, stderr=subprocess.STDOUT,
+                env=environment, start_new_session=True)
+            try:
+                while self.child.poll() is None:
                     self.disk_guard()
                     if time.monotonic() - started > timeout:
                         raise RuntimeError('Command exceeded timeout: ' + name)
-                    self._stop_requested.wait(1)
-                code = child.returncode
-                if code:
-                    raise RuntimeError('Command failed (' + str(code) + '): ' + name + '; see ' + str(log))
-            self.verify_inputs()
-            self.check_cancelled()
-            return log
-        except BaseException as exc:
-            self.cancel(exc)
-            raise
-        finally:
-            if child is not None:
-                if child.poll() is None:
-                    with self._termination_lock:
-                        self._terminate_children((child,))
-                with self._children_lock:
-                    self.children.discard(child)
+                    time.sleep(1)
+                code = self.child.returncode
+            finally:
+                self.stop_child()
+                self.child = None
+        self.verify_inputs()
+        if code:
+            raise RuntimeError('Command failed (' + str(code) + '): ' + name + '; see ' + str(log))
+        return log
 
     def require_phase(self, phase):
         if not self.state['phases'].get(phase, {}).get('passed'):
@@ -586,75 +497,25 @@ class Builder:
             'outputKeys': [self.seal_output(output), self.seal_output(self.out / 'baseline-runtime-sections.json')]}
 
     def compile_one(self, source, obj, flags, group):
-        self.check_cancelled()
         obj = self.safe(obj)
         obj.parent.mkdir(parents=True, exist_ok=True)
         command = ['/usr/bin/c++', *flags, '-MMD', '-MF', str(obj) + '.d', '-MT', str(obj), '-c', str(source), '-o', str(obj)]
         identity = hashlib.sha256(json.dumps(command).encode()).hexdigest()
         key = obj.relative_to(self.out).as_posix()
-        with self._state_lock:
-            previous = self.state['objects'].get(key)
+        previous = self.state['objects'].get(key)
         if previous and previous['commandSha256'] == identity and previous['sourceSha256'] == sha(source) and obj.is_file() and sha(obj) == previous['sha256']:
-            self.check_cancelled()
             print('REUSE verified', key, flush=True)
             return
-        with self._state_lock:
-            if key in self.state['objects']:
-                del self.state['objects'][key]
-                self.save()
         self.run(group + '-' + source.stem, command, timeout=600)
-        record = {'commandSha256': identity, 'sourceSha256': sha(source), 'sha256': sha(obj), 'size': obj.stat().st_size}
-        with self._state_lock:
-            self.check_cancelled()
-            self.state['objects'][key] = record
-            self.save()
-
-    def compile_many(self, sources, objects, flags, group):
-        """Keep at most jobs futures in flight; stop the whole batch on any failure."""
-        if len(sources) != len(objects):
-            raise RuntimeError('Source/object counts differ.')
-        work = iter(zip(sources, objects))
-        executor = ThreadPoolExecutor(max_workers=self.jobs, thread_name_prefix=group)
-        pending = set()
-        try:
-            for _ in range(min(self.jobs, len(sources))):
-                self.check_cancelled()
-                source, obj = next(work)
-                pending.add(executor.submit(self._compile_worker, source, obj, flags, group))
-            while pending:
-                finished, pending = wait(pending, timeout=1, return_when=FIRST_COMPLETED)
-                for future in finished:
-                    future.result()
-                self.check_cancelled()
-                for _ in finished:
-                    pair = next(work, None)
-                    if pair is None:
-                        break
-                    self.check_cancelled()
-                    pending.add(executor.submit(self._compile_worker, *pair, flags, group))
-        except BaseException as exc:
-            self.cancel(exc)
-            for future in pending:
-                future.cancel()
-            raise
-        finally:
-            executor.shutdown(wait=True, cancel_futures=True)
-
-    def _compile_worker(self, source, obj, flags, group):
-        try:
-            self.compile_one(source, obj, flags, group)
-        except BaseException as exc:
-            # Hashing, output creation, and checkpoint failures are fatal too;
-            # latch cancellation before the failed future becomes observable.
-            self.cancel(exc)
-            raise
+        self.state['objects'][key] = {'commandSha256': identity, 'sourceSha256': sha(source), 'sha256': sha(obj), 'size': obj.stat().st_size}
+        self.save()
 
     def compile(self):
         self.require_phase('baseline')
         flags = remap_flags(parse_flags((self.root / 'evidence/module-flags.make').read_text()), self.core, self.out)
-        self.compile_many(self.dc_sources, self.dc_objects, flags, 'dc')
+        for source, obj in zip(self.dc_sources, self.dc_objects):
+            self.compile_one(source, obj, flags, 'dc')
         self.state['phases']['compile'] = {'passed': True, 'atUtc': utc(), 'translationUnits': len(self.dc_sources),
-            'jobs': self.jobs, 'allowedCPUs': self.allowed_cpus,
             'outputKeys': [self.seal_output(path) for path in self.dc_objects]}
 
     def verify_link(self, target, linkmap, require_registrations):
@@ -698,7 +559,8 @@ class Builder:
         self.require_phase('compile')
         self.require_phase('link')
         flags = remap_flags(parse_flags((self.root / 'evidence/tests-flags.make').read_text()), self.core, self.out)
-        self.compile_many(self.tests, self.test_objects, flags, 'tests')
+        for source, obj in zip(self.tests, self.test_objects):
+            self.compile_one(source, obj, flags, 'tests')
         target = self.safe(self.out / 'dungeon_clear_tests')
         linkmap = self.safe(self.out / 'dungeon_clear_tests.link.map')
         command = tests_link_command(self.test_command, self.test_objects, self.dc_objects, self.chat_objects, target, linkmap)
@@ -725,7 +587,6 @@ class Builder:
         if not tests or failures or errors:
             raise RuntimeError('Incomplete or failed full gtest report.')
         self.state['phases']['tests'] = {'passed': True, 'atUtc': utc(), **details, 'tests': tests,
-            'jobs': self.jobs, 'allowedCPUs': self.allowed_cpus,
             'failures': failures, 'errors': errors, 'skipped': skips, 'navigationFixturesProvided': bool(self.probe_mmaps),
             'translationUnits': len(self.tests), 'databaseAccess': False,
             'outputKeys': [self.seal_output(target), self.seal_output(linkmap), self.seal_output(xml)]}
@@ -734,9 +595,8 @@ class Builder:
         self.initialise()
         # SIGTERM must stop a compiler/linker child too, not leave it orphaned.
         def interrupted(signum, _frame):
-            # Do not raise inside Popen or a state write. Workers/mainline observe
-            # the latched cancellation and unwind after child tracking is complete.
-            self.cancel(RuntimeError('Build interrupted by signal ' + str(signum)))
+            self.stop_child()
+            raise RuntimeError('Build interrupted by signal ' + str(signum))
         signal.signal(signal.SIGTERM, interrupted)
         try:
             # A failed retry must not retain an earlier PASS, especially when
@@ -745,19 +605,16 @@ class Builder:
             for dependent in MUTATING_PHASES[index:]:
                 self.state['phases'][dependent] = {'passed': False, 'invalidatedAtUtc': utc()}
             self.state['phases'][self.phase]['startedAtUtc'] = utc()
-            self.state['phases'][self.phase]['jobs'] = self.jobs
             self.save()
             if self.phase == 'tests':
                 self.tests_phase()
             else:
                 getattr(self, self.phase)()
-            self.check_cancelled()
             self.verify_sources()
             self.verify_inputs()
             if self.auxiliary_hashes() != self.state['auxiliaryInputSha256']:
                 raise RuntimeError('Auxiliary inputs changed during this phase.')
             self.disk_guard()
-            self.check_cancelled()
             self.state.pop('lastFailure', None)
             self.save()
             print(json.dumps(self.state['phases'][self.phase], indent=2), flush=True)
@@ -779,14 +636,13 @@ def main():
     parser.add_argument('--phase', choices=['plan', *MUTATING_PHASES], default='plan')
     parser.add_argument('--confirm-isolated-build', action='store_true')
     parser.add_argument('--probe-mmaps', type=Path)
-    parser.add_argument('--jobs', type=int, choices=range(1, 9), default=1)
     args = parser.parse_args()
     if args.phase == 'plan':
-        print(json.dumps(plan(args.root.resolve(), args.jobs), indent=2))
+        print(json.dumps(plan(args.root.resolve()), indent=2))
         return
     if not args.confirm_isolated_build:
         raise RuntimeError('Execution requires --confirm-isolated-build after separate authorisation; default plan writes nothing.')
-    Builder(args.root, args.phase, args.probe_mmaps, args.jobs).execute()
+    Builder(args.root, args.phase, args.probe_mmaps).execute()
 
 
 if __name__ == '__main__':

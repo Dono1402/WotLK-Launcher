@@ -207,19 +207,6 @@ def tests_link_command(original, new_tests, dc_objects, chat_objects, target, ma
     if command.count(old_archive) != 1:
         raise RuntimeError('Unexpected module archive count in test link.')
     command[command.index(old_archive)] = str(ACTIVE_ARCHIVE)
-    # The retained module loader pulls modules that refer back to game.a.
-    # Rescan only the existing game/modules/scripts span, preserving its order.
-    game = str(BASE_BUILD / 'src/server/game/libgame.a')
-    scripts = str(BASE_BUILD / 'src/server/scripts/libscripts.a')
-    if command.count(game) != 1 or command.count(scripts) != 1:
-        raise RuntimeError('Unexpected game/scripts archive count in test link.')
-    first, last = command.index(game), command.index(scripts)
-    if not first < command.index(str(ACTIVE_ARCHIVE)) < last:
-        raise RuntimeError('Unexpected game/modules/scripts archive order in test link.')
-    if any(item in command for item in ['-Wl,--start-group', '-Wl,--end-group', '-Wl,-(', '-Wl,-)']):
-        raise RuntimeError('Unreviewed archive group already present in test link.')
-    command.insert(last + 1, '-Wl,--end-group')
-    command.insert(first, '-Wl,--start-group')
     return replace_link_outputs(command, target, map_path)
 
 

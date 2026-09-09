@@ -1,0 +1,294 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "controlled-published-package-runtime-smoke",
+  "status": "passed",
+  "attemptCount": 1,
+  "automaticRetry": false,
+  "source": {
+    "commit": "f859d0c59696b62483a98133b1e064c15dcb5604",
+    "tree": "0c3c4baca7b309142364e784618f2a44eba433f2",
+    "changedForSmoke": false,
+    "initialBuildManifest": "release-manifest.json",
+    "initialBuildManifestSha256": "433f19ab00018b1efe0925e18aed8f78df6bfe8d302243463129ba1b4411062b",
+    "initialBuildManifestModified": false
+  },
+  "package": {
+    "rid": "linux-x64",
+    "selfContained": true,
+    "archive": "hermes-f859d0c-linux-x64-native.tar.gz",
+    "archiveSha256": "61785e2db59b0586874fe055c2e94549d2f9de5d3375b4d73fb295eab3e38d61",
+    "archiveBytes": 23784361,
+    "canonicalFileCount": 233,
+    "dataCsvFileCount": 114,
+    "filesManifestSha256": "3431950d9704608f6b9a33638ce56eb533cc634db20cb6804806b6b2d8c7d8fa",
+    "hermesDllSha256": "ea2db35b996f8af12ef7ebe9d5ec8a76ba3eed9798011702006e49e6041d8b35",
+    "canonicalPackageReadOnlyVerifiedInsideAndOutsideUnit": true,
+    "hardlinkedCopy": false,
+    "canonicalAndTestClone233HashesUnchanged": true,
+    "publicEmbeddedDevelopmentCertificateOnly": true
+  },
+  "reviewedHarness": {
+    "script": "smoke-published.py",
+    "scriptSha256": "4a279a8e8661b78fdfd5d7a9bfa8048e37692135b79daaf654f4c5f5b448a857",
+    "plan": "smoke-published-plan.md",
+    "planSha256": "68bad189d29cd6df92d587ea6eca805ec99da13f05a2ab64ac57f9f621fd5f8d",
+    "ownedRepositoryScript": "scripts/wotlk-update-20260909/hermes/smoke-published.py",
+    "ownedRepositoryPlan": "scripts/wotlk-update-20260909/hermes/smoke-published-plan.md",
+    "ownedCopiesByteIdentical": true,
+    "historicalPlanPreserved": true,
+    "runtimeEvidenceIsThisManifestNotThePlanTitle": true
+  },
+  "resourceGate": {
+    "checkedAtUtc": "2026-09-09T11:49:39Z",
+    "noCompilerOrLinkerProcessActive": true,
+    "separateDcTestsClaimedSuccessful": false,
+    "minimumMemAvailableKiB": 4194304,
+    "memAvailableKiBAtPreflight": 10547656,
+    "memAvailableKiBAtLaunch": 10530296,
+    "diskAvailableBytesAtPreflight": 15246553088,
+    "existingProductionServicesStable": true
+  },
+  "execution": {
+    "unit": "atlas-hermes-smoke-20260909-v1.service",
+    "startedAtUtc": "2026-09-09T11:51:30Z",
+    "finishedAtUtc": "2026-09-09T11:51:39Z",
+    "postflightVerifiedAtUtc": "2026-09-09T11:53:06Z",
+    "serviceRuntimeSeconds": 8.853,
+    "cpuTimeSeconds": 5.494,
+    "peakMemorySystemdDisplay": "408.2M",
+    "exactPeakMemoryBytes": null,
+    "swapSystemdDisplay": "0B",
+    "pythonVersion": "3.13.5",
+    "pythonSslVersion": "OpenSSL 3.5.7 9 Jun 2026",
+    "runnerPid": 2279799,
+    "hermesPid": 2279825,
+    "systemdRunExitCode": 0,
+    "recordedMainTermination": {
+      "code": "exited",
+      "status": 0
+    },
+    "independentExecStopPostReceipt": {
+      "SERVICE_RESULT": "success",
+      "EXIT_CODE": "exited",
+      "EXIT_STATUS": "0"
+    },
+    "receiptRequiredWithCompleteSmokeResult": true,
+    "unitGarbageCollectedBeforePostflightShow": true,
+    "defaultExecMainCodeFromNotFoundUnitUsedAsEvidence": false,
+    "applicationVersionLogged": "4.4.11+16(f859d0c)",
+    "gameDataLoadMillisecondsLogged": 2781.7966
+  },
+  "sandbox": {
+    "user": "root",
+    "group": "root",
+    "umask": "0077",
+    "capabilityBoundingSet": [
+      "CAP_DAC_READ_SEARCH"
+    ],
+    "permittedAndEffectiveCapabilityMask": "0000000000000004",
+    "inheritedAndAmbientCapabilityMask": "0000000000000000",
+    "existingPermissionsOrOwnershipChanged": false,
+    "noWritePermissionBypassOnCandidateParentVerified": true,
+    "privateNetwork": true,
+    "privateIpc": true,
+    "privateDevices": true,
+    "noNewPrivileges": true,
+    "protectSystem": "strict",
+    "protectHome": true,
+    "hostNetworkNamespace": "net:[4026531840]",
+    "testNetworkNamespace": "net:[4026532812]",
+    "hostIpcNamespace": "ipc:[4026531839]",
+    "testIpcNamespace": "ipc:[4026532871]",
+    "testMountNamespace": "mnt:[4026532872]",
+    "networkInterfaces": [
+      "lo"
+    ],
+    "canonicalRoot": "/opt/hermesproxy-candidates/hermes-update-20260909",
+    "writableSmokeRoot": "/opt/hermesproxy-candidates/hermes-update-20260909/smoke-published-343-v1",
+    "smokeRootAndTmpOwnershipMode": "root:root 0700",
+    "privateTmpSource": "/opt/hermesproxy-candidates/hermes-update-20260909/smoke-published-343-v1/tmp",
+    "privateTmpDestination": "/tmp",
+    "privateTmpDeviceAndInodeMatchVerified": true,
+    "inaccessiblePaths": [
+      "/root",
+      "/home",
+      "/run/user",
+      "/dev/shm",
+      "/run/mysqld",
+      "/var/run/mysqld",
+      "/run/mariadb",
+      "/opt/hermesproxy-wotlk",
+      "/opt/arthas-next"
+    ],
+    "cpuQuotaPercent": 100,
+    "memoryMaxBytes": 1073741824,
+    "memorySwapMaxBytes": 0,
+    "nice": 19,
+    "runtimeMaxSeconds": 120,
+    "timeoutStopSeconds": 15,
+    "killMode": "control-group",
+    "sendSigkill": true,
+    "restart": "no"
+  },
+  "syntheticConfiguration": {
+    "clientBuild": "V3_4_3_54261",
+    "legacyServerBuild": "V3_3_5a_12340",
+    "address": "127.0.0.1",
+    "ports": {
+      "rest": 29181,
+      "bnet": 29119,
+      "realm": 29184,
+      "instance": 29186
+    },
+    "dummyLegacyAuthPort": 29398,
+    "disabledLauncherTicketPort": 29399,
+    "azerothCoreBridgeEnabled": false,
+    "databaseConnectionString": "empty",
+    "realCredentialsUsed": false,
+    "productionCertificatesRead": false,
+    "versionCheckEnabled": false,
+    "metricsEnabled": false,
+    "packetLoggingEnabled": false,
+    "testConfigSha256": "bce83dde9233ba33108e1a3e02ecfe6ce8308483bf39b49efc9c7de244bc9c8f"
+  },
+  "probeResults": {
+    "fourExactIpv4LoopbackListeners": "passed",
+    "restTlsLoginForm200AndExpectedFields": "passed",
+    "bridgeDisabledSrpEndpoint404": "passed",
+    "malformedRestRequestClosesOnlyConnection": "passed",
+    "newRestRequestAfterFaultHealthy": "passed",
+    "bnetTlsUnauthenticatedConnectResponse": "passed",
+    "emptyAckAndKeepaliveAllowNextConnect": "passed",
+    "malformedPayloadDroppedAndNextSameBufferFrameProcessed": "passed",
+    "subsequentTlsReadStillProcessed": "passed",
+    "malformedBnetHeaderClosesWithoutProcessingTrailingFrame": "passed",
+    "newBnetConnectionAfterHeaderFaultHealthy": "passed",
+    "realmAndInstanceServerToClientBanners": "passed",
+    "syntheticHostMarkerAbsentFromDiagnostics": "passed",
+    "expectedInjectedFaultLogsPresent": "passed",
+    "fatalStartupMarkersAbsent": "passed"
+  },
+  "cleanup": {
+    "hermesExitCode": 0,
+    "forcedStop": false,
+    "listenersAfter": [],
+    "runnerAndHermesPidsGone": true,
+    "unitCgroupRemoved": true,
+    "unitCgroupDescendantsEmpty": true,
+    "testNetworkNamespaceHolders": [],
+    "hostTestPortListeners": [],
+    "syntheticAccountDataEmpty": true,
+    "canonicalArchiveAnd233FileHashesUnchanged": true,
+    "clone233FileHashesUnchanged": true,
+    "evidenceRetained": true,
+    "deletedFilesOrDirectories": []
+  },
+  "production": {
+    "deploymentPerformed": false,
+    "serviceRestartPerformed": false,
+    "databaseAccessPerformed": false,
+    "realAuthenticationPerformed": false,
+    "gameOrLauncherStarted": false,
+    "hermesBeforeAndAfter": {
+      "unit": "hermesproxy-wotlk.service",
+      "mainPid": 1910530,
+      "startedAtUtc": "2026-09-07T18:07:52Z",
+      "nRestarts": 0,
+      "activeState": "active",
+      "subState": "running"
+    },
+    "worldBeforeAndAfter": {
+      "unit": "arthas-worldserver.dungeon-clear-8224099.service",
+      "alias": "arthas-worldserver.service",
+      "mainPid": 1910234,
+      "startedAtUtc": "2026-09-07T18:06:58Z",
+      "nRestarts": 0,
+      "activeState": "active",
+      "subState": "running"
+    }
+  },
+  "evidence": {
+    "directory": "runtime-validation",
+    "archive": {
+      "file": "hermes-f859d0c-smoke-343-v1-evidence.tar.gz",
+      "sha256": "eaae5443efb6dddb3400b5e2660acf7159620564b62c625642bf5a8fbbf9b9fc",
+      "bytes": 2564,
+      "downloadedSha256Matches": true,
+      "archiveMembers": [
+        "application.log",
+        "smoke-result.json",
+        "unit-result.json",
+        "run/test-config.json",
+        "run/AccountData/"
+      ]
+    },
+    "nativeFiles": [
+      {
+        "file": "native/application.log",
+        "sha256": "d2253aafde6d56a87d510a632be4fdfde190493aef830603d4650164cd0e8f06"
+      },
+      {
+        "file": "native/smoke-result.json",
+        "sha256": "7383e9e6e75268f23dc4691bbe33a4f228f055d2ee3f227abf5b9d4c4e50e6e9"
+      },
+      {
+        "file": "native/unit-result.json",
+        "sha256": "f9f1c20cde5aea0cb971ca54a30d45a886efacb3b2b377458950ad83c3c78735"
+      },
+      {
+        "file": "native/run/test-config.json",
+        "sha256": "bce83dde9233ba33108e1a3e02ecfe6ce8308483bf39b49efc9c7de244bc9c8f"
+      }
+    ],
+    "captureFiles": [
+      {
+        "file": "hermes-f859d0c-smoke-343-v1-evidence.tar.gz",
+        "bytes": 2564,
+        "sha256": "eaae5443efb6dddb3400b5e2660acf7159620564b62c625642bf5a8fbbf9b9fc"
+      },
+      {
+        "file": "launch.log",
+        "bytes": 383,
+        "sha256": "a094acd430c5f6e918950ef35780b5081c58482b2b84764c49e8c642d1093bf0"
+      },
+      {
+        "file": "native-evidence-hashes.log",
+        "bytes": 818,
+        "sha256": "247e6a7bd3ca99c84cc1c559c80e50d7458a05bbfed8f943fefaf35ff642b494"
+      },
+      {
+        "file": "postflight-after.log",
+        "bytes": 2247,
+        "sha256": "eb7f7a576e3ca1654e24f4c89290e93db59116b19a0ac6a8477cff2714acdaa6"
+      },
+      {
+        "file": "preflight-before.log",
+        "bytes": 543,
+        "sha256": "8c6920fafda8bbc5a6a32f3ce24849bceac2259e4611a8cef9331b79c269cb46"
+      },
+      {
+        "file": "preparation.log",
+        "bytes": 382,
+        "sha256": "cc0690ba132bbfda09383bc69b7adab04965714100151a36cd91a14081cd8983"
+      },
+      {
+        "file": "sandbox-during.log",
+        "bytes": 10632,
+        "sha256": "81463810663b7f6dce7959cae7315a088f69a6a7a04f2a8ec32f37e7a2c59337"
+      },
+      {
+        "file": "unit-journal.log",
+        "bytes": 3566,
+        "sha256": "81e2c354498a3496db6484d0cc9aef89a3dbc575804be27d0b26af4d0146c211"
+      }
+    ]
+  },
+  "limitations": [
+    "Synthetic published-package startup and protocol smoke only; not a real client login or in-game validation.",
+    "No production authentication, database bridge, launcher ticket exchange or private certificate configuration tested.",
+    "No load, multi-client endurance, item-stat UI or in-game transport validation performed.",
+    "Initial build unit-test results remain in the separate unmodified build manifest.",
+    "This runtime success does not imply the unrelated Dungeon Clear test link or execution succeeded.",
+    "The frozen script refuses a reused smoke directory; no automatic cleanup or retry was performed."
+  ]
+}

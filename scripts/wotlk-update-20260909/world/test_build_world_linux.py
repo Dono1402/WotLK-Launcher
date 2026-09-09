@@ -69,12 +69,14 @@ class BuilderContracts(unittest.TestCase):
     def test_postcheck_failure_cannot_retain_pass(self):
         builder = object.__new__(b.Builder)
         builder.phase = 'tests'
+        builder.jobs = 1
+        builder.check_cancelled = lambda: None
         builder.state = {'phases': {'baseline': {'passed': True}, 'compile': {'passed': True},
             'link': {'passed': True}}, 'outputs': {}}
         builder.initialise = builder.save = builder.stop_child = lambda: None
         builder.verify_sources = lambda: (_ for _ in ()).throw(RuntimeError('synthetic postcheck'))
         builder.tests_phase = lambda: builder.state['phases'].update(tests={'passed': True})
-        with tempfile.TemporaryDirectory() as folder, patch.object(b.signal, 'signal'):
+        with tempfile.TemporaryDirectory(dir=ROOT / 'validation') as folder, patch.object(b.signal, 'signal'):
             builder.out, builder.root = Path(folder) / 'out', Path(folder)
             with self.assertRaisesRegex(RuntimeError, 'synthetic postcheck'):
                 builder.execute()
@@ -85,7 +87,7 @@ class BuilderContracts(unittest.TestCase):
         builder = object.__new__(b.Builder)
         builder.state = {'phases': {'compile': {'passed': True, 'outputKeys': ['missing.o']}},
             'outputs': {'missing.o': {'sha256': 'not-a-hash'}}}
-        with tempfile.TemporaryDirectory() as folder:
+        with tempfile.TemporaryDirectory(dir=ROOT / 'validation') as folder:
             builder.out, builder.root = Path(folder) / 'out', Path(folder)
             with self.assertRaisesRegex(RuntimeError, 'Sealed phase output changed'):
                 builder.require_phase('compile')

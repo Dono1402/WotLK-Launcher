@@ -24,7 +24,8 @@ internal static class LauncherSettingsRuntimeTests
     {
         await CharacterizeImmediatePersistenceAsync();
         await CharacterizePersistenceRollbackAsync();
-        await CharacterizePendingSaveShutdownAsync();
+        await CharacterizePendingSaveShutdownAsync(clientWrite: false);
+        await CharacterizePendingSaveShutdownAsync(clientWrite: true);
         CharacterizeStartupRegistration();
         await CharacterizeLegacyAvailabilityRulesAsync();
         await CharacterizeGameProjectionRefreshAsync();
@@ -35,7 +36,7 @@ internal static class LauncherSettingsRuntimeTests
         return 0;
     }
 
-    private static async Task CharacterizePendingSaveShutdownAsync()
+    private static async Task CharacterizePendingSaveShutdownAsync(bool clientWrite)
     {
         using TemporarySettingsRoot root = new();
         LauncherSettings settings = root.CreateSettings();
@@ -43,9 +44,11 @@ internal static class LauncherSettingsRuntimeTests
         using ManualResetEventSlim release = new(false);
         TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         using LauncherSettingsCoordinator coordinator = new(settings, operations,
-            _ => { entered.TrySetResult(); if (!release.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException(); },
+            _ => { if (!clientWrite) BlockWrite(); },
             static _ => { }, static _ => { });
-        Task<LauncherSettingsChangeResult> save = coordinator.TrySetInterfaceLocaleAsync("en-US");
+        Task<LauncherSettingsChangeResult> save = clientWrite
+            ? coordinator.TrySetGameLocaleAsync("enUS", async (_, _) => { await Task.Run(BlockWrite); return null; })
+            : coordinator.TrySetInterfaceLocaleAsync("en-US");
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
@@ -63,7 +66,14 @@ internal static class LauncherSettingsRuntimeTests
         Equal(LauncherSettingsChangeStatus.Saved, (await save).Status,
             "La fermeture laisse terminer le changement deja accepte.");
         True(await coordinator.WaitForIdleAsync(TimeSpan.FromSeconds(2)), "La sauvegarde terminee libere la fermeture.");
-        Equal("en-US", settings.InterfaceLocale, "La valeur persistee survit a la fermeture.");
+        Equal(clientWrite ? "enUS" : "en-US", clientWrite ? settings.GameLocale : settings.InterfaceLocale,
+            "La valeur persistee survit a la fermeture.");
+
+        void BlockWrite()
+        {
+            entered.TrySetResult();
+            if (!release.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException();
+        }
     }
 
     private static async Task CharacterizeImmediatePersistenceAsync()
@@ -778,6 +788,66 @@ internal static class LauncherSettingsRuntimeTests
             Equal("enUS", settings.GameLocale, "Le ComboBox doit enregistrer la langue legacy.");
             Equal(1, localeApplier.Calls, "La configuration du jeu doit être appliquée une fois après l'écriture.");
 
+            using (TemporarySettingsRoot configRoot = new())
+            using (ManualResetEventSlim configRelease = new(false))
+            {
+                string configDirectory = Path.Combine(GameInstallServices.GetClassicDirectoryPath(configRoot.Root), "WTF");
+                Directory.CreateDirectory(configDirectory);
+                string configPath = Path.Combine(configDirectory, "Config.wtf");
+                await File.WriteAllTextAsync(configPath, "SET customFixtureOption \"preserved\"\nSET locale \"enUS\"\n");
+                TaskCompletionSource configEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                int configThread = 0, configWrites = 0;
+                bool failConfig = false;
+                SettingsGameLocaleApplier realApplier = new(hasPlayableClient: _ => true, writeConfig: (path, locale) =>
+                {
+                    configThread = System.Environment.CurrentManagedThreadId;
+                    Interlocked.Increment(ref configWrites);
+                    configEntered.TrySetResult();
+                    if (!configRelease.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException();
+                    if (failConfig) throw new IOException("Synthetic Config.wtf write failure.");
+                    return GameInstallServices.EnsureDefaultClientConfig(path, locale);
+                });
+                localeApplier.Handler = (owner, _, locale) => realApplier.ApplyAsync(owner, configRoot.Root, locale);
+                try
+                {
+                    language.SelectedValue = "frFR";
+                    await configEntered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+                    await PumpAsync(DispatcherPriority.ApplicationIdle);
+                    True(configThread != System.Environment.CurrentManagedThreadId,
+                        "Config.wtf doit etre lu et ecrit hors du thread WPF.");
+                    True(settingsRuntime.CurrentSnapshot.SaveStatus == LauncherSettingsSaveStatus.Saving && !language.IsEnabled,
+                        "Le changement de langue reste occupe jusqu a la fin du fichier du jeu.");
+                    Equal(LauncherSettingsChangeStatus.Busy,
+                        (await settingsRuntime.TrySetInstantQuestTextAsync(false)).Status,
+                        "Un autre changement de Config.wtf doit attendre la langue en cours.");
+                    True(!await settingsRuntime.WaitForIdleAsync(TimeSpan.FromMilliseconds(35)),
+                        "L attente de fermeture inclut l ecriture du fichier du jeu.");
+                }
+                finally { configRelease.Set(); }
+                await SettingsSettledAsync();
+                string written = await File.ReadAllTextAsync(configPath);
+                True(written.Contains("SET locale \"frFR\"", StringComparison.Ordinal)
+                    && written.Contains("SET customFixtureOption \"preserved\"", StringComparison.Ordinal),
+                    "Le fichier temporaire contient la langue demandee et conserve les options non gerees.");
+                Equal(1, configWrites, "Le changement ne doit ecrire Config.wtf qu une fois.");
+
+                failConfig = true;
+                language.SelectedValue = "enUS";
+                await SettingsSettledAsync();
+                Equal("enUS", settings.GameLocale, "Un echec du fichier du jeu ne doit pas annuler la preference deja sauvegardee.");
+                Equal(written, await File.ReadAllTextAsync(configPath), "Un refus avant ecriture conserve le fichier precedent.");
+                True(language.IsEnabled && settingsState.Current.RuntimeNoticeMessage?.Contains("client", StringComparison.Ordinal) == true,
+                    "Un echec du fichier du jeu libere le controle et expose une erreur utilisateur.");
+
+                SettingsGameLocaleApplier denied = new(hasPlayableClient: _ => true,
+                    ensureWritable: (_, _) => Task.FromResult(false),
+                    writeConfig: (_, _) => throw new InvalidOperationException("Permission denial must prevent writing."));
+                Equal(SettingsGameLocaleApplyStatus.PermissionCancelled,
+                    (await denied.ApplyAsync(window, configRoot.Root, "frFR")).Status,
+                    "Un refus de permission ne doit pas atteindre l ecriture du fichier.");
+                localeApplier.Handler = null;
+            }
+
             view.SelectCategory(SettingsCategory.General);
             ComboBox interfaceLanguage = Required<ComboBox>(view, "InterfaceLanguageComboBox");
             saveRelease.Reset();
@@ -1234,14 +1304,16 @@ internal sealed class FakeSettingsFolderPicker(string selectedPath) : ISettingsF
 internal sealed class FakeSettingsLocaleApplier : ISettingsGameLocaleApplier
 {
     internal int Calls { get; private set; }
+    internal Func<Window, string, string, Task<SettingsGameLocaleApplyResult>>? Handler { get; set; }
 
-    public SettingsGameLocaleApplyResult Apply(
+    public Task<SettingsGameLocaleApplyResult> ApplyAsync(
         Window owner,
         string installPath,
         string gameLocale)
     {
         Calls++;
-        return new SettingsGameLocaleApplyResult(SettingsGameLocaleApplyStatus.Applied);
+        return Handler?.Invoke(owner, installPath, gameLocale)
+            ?? Task.FromResult(new SettingsGameLocaleApplyResult(SettingsGameLocaleApplyStatus.Applied));
     }
 }
 

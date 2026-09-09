@@ -40,31 +40,42 @@ internal readonly record struct SettingsGameLocaleApplyResult(
 
 internal interface ISettingsGameLocaleApplier
 {
-    SettingsGameLocaleApplyResult Apply(Window owner, string installPath, string gameLocale);
+    Task<SettingsGameLocaleApplyResult> ApplyAsync(Window owner, string installPath, string gameLocale);
 }
 
 internal sealed class SettingsGameLocaleApplier : ISettingsGameLocaleApplier
 {
-    public SettingsGameLocaleApplyResult Apply(
+    private readonly Func<string, bool> _hasPlayableClient;
+    private readonly Func<Window, string, Task<bool>> _ensureWritable;
+    private readonly Func<string, string, string> _writeConfig;
+
+    internal SettingsGameLocaleApplier(
+        Func<string, bool>? hasPlayableClient = null,
+        Func<Window, string, Task<bool>>? ensureWritable = null,
+        Func<string, string, string>? writeConfig = null)
+    {
+        _hasPlayableClient = hasPlayableClient ?? GameInstallServices.HasPlayableClient;
+        _ensureWritable = ensureWritable ?? GameDirectoryAccess.EnsureWritableAsync;
+        _writeConfig = writeConfig ?? GameInstallServices.EnsureDefaultClientConfig;
+    }
+
+    public async Task<SettingsGameLocaleApplyResult> ApplyAsync(
         Window owner,
         string installPath,
         string gameLocale)
     {
-        if (!GameInstallServices.HasPlayableClient(installPath))
-        {
-            return new SettingsGameLocaleApplyResult(
-                SettingsGameLocaleApplyStatus.ClientNotInstalled);
-        }
-
         try
         {
-            if (!GameDirectoryAccess.EnsureWritable(owner, installPath))
+            if (!await Task.Run(() => _hasPlayableClient(installPath)).ConfigureAwait(false))
+                return new SettingsGameLocaleApplyResult(SettingsGameLocaleApplyStatus.ClientNotInstalled);
+
+            if (!await _ensureWritable(owner, installPath).ConfigureAwait(false))
             {
                 return new SettingsGameLocaleApplyResult(
                     SettingsGameLocaleApplyStatus.PermissionCancelled);
             }
 
-            _ = GameInstallServices.EnsureDefaultClientConfig(installPath, gameLocale);
+            _ = await Task.Run(() => _writeConfig(installPath, gameLocale)).ConfigureAwait(false);
             return new SettingsGameLocaleApplyResult(SettingsGameLocaleApplyStatus.Applied);
         }
         catch (Exception exception)
@@ -247,7 +258,15 @@ internal sealed class SettingsCommands : IDisposable
 
     private async Task<bool> ChangeGameLocaleAsync(string gameLocale)
     {
-        LauncherSettingsChangeResult change = await _settings.TrySetGameLocaleAsync(gameLocale);
+        LauncherSettingsChangeResult change = await _settings.TrySetGameLocaleAsync(gameLocale, async (path, locale) =>
+        {
+            SettingsGameLocaleApplyResult apply;
+            try { apply = await _localeApplier.ApplyAsync(_owner, path, locale).ConfigureAwait(false); }
+            catch (Exception exception) { apply = new(SettingsGameLocaleApplyStatus.Failed, exception.GetType().Name); }
+            if (apply.Status != SettingsGameLocaleApplyStatus.Failed) return null;
+            WriteLocaleFailureSafely(apply.FailureCategory);
+            return "La langue est enregistrée, mais le client n’a pas pu être modifié maintenant.";
+        });
         if (change.Status == LauncherSettingsChangeStatus.Unchanged)
         {
             return true;
@@ -256,18 +275,6 @@ internal sealed class SettingsCommands : IDisposable
         if (!change.IsSaved)
         {
             return false;
-        }
-
-        LauncherSettingsSnapshot current = _settings.CurrentSnapshot;
-        SettingsGameLocaleApplyResult apply = _localeApplier.Apply(
-            _owner,
-            current.InstallPath,
-            current.GameLocale);
-        if (apply.Status == SettingsGameLocaleApplyStatus.Failed)
-        {
-            WriteLocaleFailureSafely(apply.FailureCategory);
-            _state.ShowRuntimeActionFailure(
-                "La langue est enregistrée, mais le client n’a pas pu être modifié maintenant.");
         }
 
         return true;

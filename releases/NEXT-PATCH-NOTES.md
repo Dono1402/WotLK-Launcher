@@ -52,6 +52,7 @@ La version et la date de publication ne sont pas encore définies.
 - Enregistrement des réglages renforcé pour éviter les fichiers incomplets en cas d’interruption.
 - Récupération depuis une copie de secours lorsque le fichier de réglages est absent ou illisible, avec un message invitant à vérifier les préférences.
 - Sauvegarde des préférences hors du thread d’interface, avec restauration de la valeur précédente en cas d’échec et attente de l’écriture en cours à la fermeture.
+- Changement de langue du jeu sans bloquer l’interface pendant la mise à jour de sa configuration, avec un message si le fichier ne peut pas être modifié.
 
 ## Windows
 
@@ -113,6 +114,7 @@ The version and publication date have not been set.
 - More robust settings saves prevent incomplete files if writing is interrupted.
 - Settings can be recovered from a backup when the main file is missing or unreadable, with a message asking you to check your preferences.
 - Preferences save off the interface thread, restoring the previous value on failure and waiting for an ongoing write during shutdown.
+- Changing the game language keeps the interface responsive while updating the game configuration, with a message if the file cannot be modified.
 
 ## Windows
 

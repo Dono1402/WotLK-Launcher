@@ -70,7 +70,7 @@ internal interface ILauncherSettingsRuntime
 
     Task<LauncherSettingsChangeResult> TrySetInstallPathAsync(string installPath);
 
-    Task<LauncherSettingsChangeResult> TrySetGameLocaleAsync(string gameLocale);
+    Task<LauncherSettingsChangeResult> TrySetGameLocaleAsync(string gameLocale, Func<string, string, Task<string?>>? applyClient = null);
 
     Task<LauncherSettingsChangeResult> TrySetInterfaceLocaleAsync(string interfaceLocale);
 
@@ -152,7 +152,7 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             pathRequiresIdleUserOperation: true);
     }
 
-    public Task<LauncherSettingsChangeResult> TrySetGameLocaleAsync(string gameLocale)
+    public Task<LauncherSettingsChangeResult> TrySetGameLocaleAsync(string gameLocale, Func<string, string, Task<string?>>? applyClient = null)
     {
         string normalized = LauncherSettings.NormalizeGameLocale(gameLocale);
         return TrySaveAsync(
@@ -160,7 +160,8 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             normalized,
             static settings => settings.GameLocale,
             static (settings, value) => settings.GameLocale = value,
-            pathRequiresIdleUserOperation: false);
+            pathRequiresIdleUserOperation: false,
+            afterSave: applyClient is null ? null : () => applyClient(_settings.InstallPath, _settings.GameLocale));
     }
 
     public Task<LauncherSettingsChangeResult> TrySetInterfaceLocaleAsync(string interfaceLocale)
@@ -339,7 +340,8 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
         T value,
         Func<LauncherSettings, T> read,
         Action<LauncherSettings, T> write,
-        bool pathRequiresIdleUserOperation)
+        bool pathRequiresIdleUserOperation,
+        Func<Task<string?>>? afterSave = null)
     {
         T previous;
         TaskCompletionSource saveCompletion;
@@ -388,6 +390,18 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
         try
         {
             await Task.Run(() => _saveSettings(_settings)).ConfigureAwait(false);
+            string? applicationError = null;
+            if (afterSave is not null)
+            {
+                try { applicationError = await afterSave().ConfigureAwait(false); }
+                catch (Exception exception)
+                {
+                    // The preference is already durable. A client-side effect
+                    // must not roll it back in memory or end shutdown tracking early.
+                    WriteFailureSafely(changeKind, exception);
+                    applicationError = "La langue est enregistrée, mais le client n’a pas pu être modifié maintenant.";
+                }
+            }
             bool? refreshedInstantQuestText = changeKind == LauncherSettingsChangeKind.InstallPath
                 ? ReadInstantQuestTextSafely(_settings.InstallPath)
                 : null;
@@ -400,8 +414,8 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
 
                 _isSaving = false;
                 finalSnapshot = CreateSnapshotUnsafe(
-                    LauncherSettingsSaveStatus.Saved,
-                    "Préférence enregistrée sur cet ordinateur.");
+                    applicationError is null ? LauncherSettingsSaveStatus.Saved : LauncherSettingsSaveStatus.Error,
+                    applicationError ?? "Préférence enregistrée sur cet ordinateur.");
                 _currentSnapshot = finalSnapshot;
             }
 

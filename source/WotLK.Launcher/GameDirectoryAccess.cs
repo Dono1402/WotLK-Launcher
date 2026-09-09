@@ -122,6 +122,46 @@ internal static class GameDirectoryAccess
         return false;
     }
 
+    internal static async Task<bool> EnsureWritableAsync(Window owner, string installRoot)
+    {
+        string root = GameInstallServices.NormalizeAndValidateGameRoot(installRoot);
+        if (await Task.Run(() => CanWrite(root)).ConfigureAwait(false)) return true;
+
+        string? currentExe = Environment.ProcessPath;
+        using WindowsIdentity identity = WindowsIdentity.GetCurrent();
+        string? sid = identity.User?.Value;
+        if (string.IsNullOrWhiteSpace(currentExe) || !File.Exists(currentExe) || string.IsNullOrWhiteSpace(sid))
+            throw new InvalidOperationException("Impossible de preparer les droits du dossier WotLK.");
+
+        ProcessStartInfo start = new()
+        {
+            FileName = currentExe, UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden
+        };
+        start.ArgumentList.Add(GrantAccessSwitch);
+        start.ArgumentList.Add(root);
+        start.ArgumentList.Add(sid);
+        try
+        {
+            using Process? process = await Task.Run(() => Process.Start(start)).ConfigureAwait(false);
+            if (process is null) throw new InvalidOperationException("Impossible de preparer les droits du dossier WotLK.");
+            await process.WaitForExitAsync().ConfigureAwait(false);
+            if (process.ExitCode == 0 && await Task.Run(() => CanWrite(root)).ConfigureAwait(false)) return true;
+        }
+        catch (Win32Exception exception) when (exception.NativeErrorCode == OperationCancelledError) { return false; }
+
+        if (!owner.Dispatcher.HasShutdownStarted)
+        {
+            try
+            {
+                await owner.Dispatcher.InvokeAsync(() => MessageBox.Show(owner,
+                    "Windows n'a pas pu autoriser l'acces au dossier du client WotLK.",
+                    "Autorisation requise", MessageBoxButton.OK, MessageBoxImage.Warning));
+            }
+            catch (TaskCanceledException) when (owner.Dispatcher.HasShutdownStarted) { }
+        }
+        return false;
+    }
+
     internal static bool CanWrite(string installRoot)
     {
         var candidate = GameInstallServices.NormalizeAndValidateGameRoot(installRoot);

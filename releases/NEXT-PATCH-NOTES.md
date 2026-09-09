@@ -39,6 +39,7 @@ La version et la date de publication ne sont pas encore définies.
 - Menu de présence plus compact : le statut courant déplie les quatre choix au clic, puis la liste se referme après sélection.
 - Possibilité de relancer l’armurerie après un incident, avec conservation du personnage partagé demandé.
 - Entretien des données de profils en cache et arrêt de l’armurerie effectués en arrière-plan pour préserver la réactivité du launcher.
+- Réduction des allocations mémoire lors des changements successifs de profils, avec masquage immédiat du profil précédent pendant le chargement.
 
 ## Navigation et fluidité
 
@@ -46,6 +47,7 @@ La version et la date de publication ne sont pas encore définies.
 - Affichage allégé des longues listes d’amis et de notes de version ; seuls les éléments proches de la zone visible sont préparés.
 - Mémoire du cache des avatars plafonnée et meilleure libération des anciens éléments de l’interface après navigation ou changement de langue.
 - Avatars affichés même si leur cache disque est indisponible ; écritures et nettoyages regroupés en arrière-plan.
+- Ouverture des pages moins gourmande en mémoire.
 
 ## Paramètres
 
@@ -101,6 +103,7 @@ The version and publication date have not been set.
 - More compact presence menu: clicking the current status expands the four choices, which collapse again after selection.
 - The armory can be reopened after an error while preserving the requested shared character.
 - Cached profile maintenance and armory shutdown run in the background to keep the launcher responsive.
+- Reduced memory allocations when switching between profiles, with the previous profile hidden immediately while the next one loads.
 
 ## Navigation and responsiveness
 
@@ -108,6 +111,7 @@ The version and publication date have not been set.
 - Lighter rendering of long friends and release-note lists; only items near the visible area are prepared.
 - Bounded avatar cache memory and improved release of old interface elements after navigation or language changes.
 - Avatars remain visible when their disk cache is unavailable; writes and cleanup are batched in the background.
+- Pages use less temporary memory when opening.
 
 ## Settings
 

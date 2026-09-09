@@ -83,6 +83,9 @@ internal static partial class ArmoryLauncherTests
         List<object> phases = [];
         Dictionary<string, double> timings = [];
         List<double> navigationMs = [], friendProfileMs = [], ownProfileMs = [];
+        List<object> navigationDetails = [];
+        List<WeakReference> retiredBrowsers = [];
+        bool diagnostics = Environment.GetEnvironmentVariable("ATLAS_LAUNCHER_PERF_DIAGNOSTICS") == "1";
         const string chatReady = "document.querySelector('#thread-title')?.textContent==='Lyra'&&document.fonts.status==='loaded'&&[...document.images].filter(i=>i.hasAttribute('src')).every(i=>i.complete&&i.naturalWidth>0)";
         string modelReady = "document.getElementById('character-view')?.contentWindow.armory?.ready===true";
         if (fixture.HasModel) modelReady += "&&document.getElementById('character-view').contentWindow.armory.root.children.length>0&&document.getElementById('character-view').contentWindow.armory.frames>2";
@@ -93,6 +96,21 @@ internal static partial class ArmoryLauncherTests
             timings["shellConstructConfigureLayoutMs"] = startup.Elapsed.TotalMilliseconds - fixtureSetupMs;
             using (Process process = Process.GetCurrentProcess())
                 timings["processToShellLayoutMs"] = (DateTime.UtcNow - process.StartTime.ToUniversalTime()).TotalMilliseconds;
+            if (diagnostics && Environment.GetEnvironmentVariable("ATLAS_LAUNCHER_PERF_NATIVE_ONLY") == "1")
+            {
+                for (int cycle = 0; cycle < 3; cycle++)
+                    foreach (string button in new[] { "AddonsNavigationButton", "PatchNotesNavigationButton", "SettingsButton", "GameNavigationButton" })
+                    {
+                        long allocations = GC.GetAllocatedBytesForCurrentThread();
+                        Stopwatch nativeAction = Stopwatch.StartNew();
+                        Navigate(button);
+                        double clickMs = nativeAction.Elapsed.TotalMilliseconds;
+                        await PumpAsync();
+                        navigationDetails.Add(new { cycle, button, clickMs, totalMs = nativeAction.Elapsed.TotalMilliseconds,
+                            uiAllocatedMiB = (GC.GetAllocatedBytesForCurrentThread() - allocations) / 1048576d });
+                    }
+                return new { diagnostics, nativeOnly = true, cacheMode, timings, navigationDetails };
+            }
             phases.Add(await IdleAsync("shell"));
             Stopwatch action = Stopwatch.StartNew();
             Navigate("MessagesNavigationButton");
@@ -109,11 +127,15 @@ internal static partial class ArmoryLauncherTests
             {
                 foreach (string button in new[] { "GameNavigationButton", "AddonsNavigationButton", "PatchNotesNavigationButton", "SettingsButton", "MessagesNavigationButton" })
                 {
+                    long allocations = GC.GetAllocatedBytesForCurrentThread();
                     action.Restart();
                     Navigate(button);
+                    double clickMs = action.Elapsed.TotalMilliseconds;
                     await PumpAsync();
                     if (button == "MessagesNavigationButton") await ReadyAsync(() => chat.RichBrowser?.CoreWebView2, chatReady);
                     navigationMs.Add(action.Elapsed.TotalMilliseconds);
+                    navigationDetails.Add(new { cycle, button, clickMs, totalMs = action.Elapsed.TotalMilliseconds,
+                        uiAllocatedMiB = (GC.GetAllocatedBytesForCurrentThread() - allocations) / 1048576d });
                 }
                 action.Restart();
                 await OpenProfileAsync(shell);
@@ -138,6 +160,7 @@ internal static partial class ArmoryLauncherTests
             for (int cycle = 0; cycle <= 20; cycle++)
             {
                 uint target = cycle % 2 == 0 ? 91u : 92u;
+                WeakReference? previousBrowser = armory.Browser is { } currentBrowser ? new WeakReference(currentBrowser) : null;
                 action.Restart();
                 typeof(LauncherShellV2).GetMethod("FriendsDrawer_PublicProfileRequested", BindingFlags.Instance | BindingFlags.NonPublic)!
                     .Invoke(shell, [shell, new FriendPublicProfileRequestedEventArgs(target, "Friend" + target)]);
@@ -145,9 +168,18 @@ internal static partial class ArmoryLauncherTests
                     $"document.getElementById('profile-name')?.textContent==='Friend{target}'&&document.querySelector('.character strong')?.textContent==='Mage{target}'");
                 if (cycle == 0) timings["firstFriendRosterMs"] = action.Elapsed.TotalMilliseconds;
                 else friendProfileMs.Add(action.Elapsed.TotalMilliseconds);
+                if (previousBrowser is not null && !ReferenceEquals(previousBrowser.Target, armory.Browser)) retiredBrowsers.Add(previousBrowser);
                 RememberProcesses();
                 if (cycle is 0 or 10 or 20) phases.Add(await IdleAsync("friend-profile-after-" + cycle + "-switches"));
                 AssertOffscreen(shell);
+            }
+            int retiredBeforeGc = retiredBrowsers.Count(reference => reference.IsAlive);
+            if (diagnostics)
+            {
+                // Diagnostic only: separate retained controls from uncollected temporary allocations.
+                GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+                await PumpAsync();
+                phases.Add(await IdleAsync("diagnostic-after-forced-gc"));
             }
             return new
             {
@@ -155,7 +187,8 @@ internal static partial class ArmoryLauncherTests
                 logicalProcessors = Environment.ProcessorCount, webViewVersion = LauncherWebViewRuntime.InstalledVersion(),
                 method = "Release integration process; WPF offscreen inactive WS_EX_NOACTIVATE; local synthetic state/media/RPC; private committed bytes summed across owned processes; no authentication, network service, disk-cache flush or live desktop input.",
                 fixtureSetupMs, hasRendered3DModel = fixture.HasModel, friendFixtureHas3DModel = false,
-                timings, navigationMs, ownProfileMs, friendProfileMs, phases
+                timings, navigationMs, navigationDetails, ownProfileMs, friendProfileMs, phases,
+                diagnostics, retiredBeforeGc, retiredAfterGc = diagnostics ? retiredBrowsers.Count(reference => reference.IsAlive) : (int?)null
             };
         }
         finally
@@ -203,7 +236,7 @@ internal static partial class ArmoryLauncherTests
             Stopwatch elapsed = Stopwatch.StartNew();
             List<double> privateMiB = [], workingMiB = [];
             double shellPrivateMiB = 0;
-            for (int sample = 0; sample < 16; sample++)
+            for (int sample = 0; sample < (diagnostics ? 2 : 16); sample++)
             {
                 await Task.Delay(500);
                 var values = Sample();

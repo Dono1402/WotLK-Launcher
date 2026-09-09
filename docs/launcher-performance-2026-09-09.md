@@ -153,3 +153,7 @@ JSON contient aussi le pourcentage équivalent d'un cœur logique.
 Ces relevés établissent une référence de la version courante. Ils ne quantifient
 pas un gain avant/après et ne prédisent pas les performances sur une autre
 machine, en fenêtre active ou pendant la préparation de nouveaux modèles.
+
+Le [suivi navigation et profils](launcher-navigation-profile-performance-2026-09-09.md)
+présente les modifications suivantes, leur comparaison avant/après et les
+limites encore observées dans le parcours avec l'armurerie 3D.

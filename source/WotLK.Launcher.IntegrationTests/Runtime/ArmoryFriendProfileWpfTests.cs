@@ -107,8 +107,19 @@ internal static partial class ArmoryLauncherTests
 
             FriendUiItem second = friend with { AccountId = 92, Username = "SecondFriend", Bio = "Autre profil" };
             window.FriendsState.ApplyRuntimeView(window.FriendsState.Current with { Friends = [friend, second] });
+            object previousBrowser = armory.Browser!;
+            Uri previousOrigin = new(armory.Browser!.CoreWebView2.Source);
+            await ScriptAsync(armory, "window.oldProfileLifetimeProbe='private previous profile'; true");
             OpenFriend(92, "SecondFriend");
+            True(ReferenceEquals(previousBrowser, armory.Browser) && armory.Browser!.Visibility != Visibility.Visible,
+                "Changer d ami conserve la surface de composition mais masque immediatement l ancien document.");
             await WaitForScriptAsync(armory, "document.getElementById('profile-name').textContent==='SecondFriend' && document.querySelector('.character strong')?.textContent==='Mage92'", "Changer d'ami doit renouveler le helper et son roster.");
+            True(ReferenceEquals(previousBrowser, armory.Browser) && armory.Browser!.Visibility == Visibility.Visible
+                && new Uri(armory.Browser.CoreWebView2.Source).Authority != previousOrigin.Authority,
+                "Le nouveau profil reutilise le navigateur avec une nouvelle origine de helper autorisee.");
+            await WaitForScriptAsync(armory, "typeof window.oldProfileLifetimeProbe==='undefined'",
+                "La reutilisation ne conserve pas le document ni les variables du profil precedent.");
+            await AssertStoppedAsync(previousOrigin);
             window.FriendsState.ApplyRuntimeView(window.FriendsState.Current with { Friends = [friend] });
             await WaitUntilAsync(() => window.CurrentPage == LauncherShellPage.Game && !armory.IsReadOnlyProfile && armory.Browser is null,
                 "Retirer l'ami doit fermer son profil et vider la WebView.");

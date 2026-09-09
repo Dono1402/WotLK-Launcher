@@ -32,6 +32,8 @@ internal sealed class LauncherLocalizationBridge : IDisposable
     private int _translationDepth;
     private int _disposeState;
     private bool _prunePending;
+    private readonly HashSet<DependencyObject> _pendingDiscovery = [];
+    private bool _discoveryPending;
 
     internal LauncherLocalizationBridge(Window window)
     {
@@ -76,11 +78,13 @@ internal sealed class LauncherLocalizationBridge : IDisposable
         _propertySubscriptions.Clear();
         _generatorSubscriptions.Clear();
         _knownObjects.Clear();
+        _pendingDiscovery.Clear();
         _originalValues.Clear();
     }
 
     internal void Refresh()
     {
+        _pendingDiscovery.Clear();
         DiscoverAndTranslate(_window);
         PruneDetachedObjects();
     }
@@ -109,15 +113,17 @@ internal sealed class LauncherLocalizationBridge : IDisposable
     }
 
     private void DiscoverAndTranslate(DependencyObject root)
+        => DiscoverAndTranslate([root]);
+
+    private void DiscoverAndTranslate(IEnumerable<DependencyObject> roots)
     {
         if (Volatile.Read(ref _disposeState) != 0)
         {
             return;
         }
 
-        Stack<DependencyObject> pending = new();
+        Stack<DependencyObject> pending = new(roots);
         HashSet<DependencyObject> visited = [];
-        pending.Push(root);
         while (pending.Count > 0)
         {
             DependencyObject current = pending.Pop();
@@ -152,14 +158,36 @@ internal sealed class LauncherLocalizationBridge : IDisposable
     {
         if (sender is FrameworkElement element && Volatile.Read(ref _disposeState) == 0
             && (Window.GetWindow(element) is not Window owner || ReferenceEquals(owner, _window)))
-            DiscoverAndTranslate(element);
+        {
+            // Restore recycled text immediately; coalesce descendant discovery
+            // across the Loaded broadcast instead of walking every subtree again.
+            TranslateObject(element);
+            QueueDiscovery(element);
+        }
     }
 
     private void TrackedElement_Unloaded(object? sender, RoutedEventArgs e)
     {
-        if (sender is not DependencyObject target || Volatile.Read(ref _disposeState) != 0) return;
+        if (sender is not DependencyObject target || Volatile.Read(ref _disposeState) != 0
+            || !_knownObjects.Contains(target)) return;
         HashSet<DependencyObject> removed = CollectTree(target);
         ForgetObjects(removed);
+    }
+
+    private void QueueDiscovery(DependencyObject root)
+    {
+        if (Volatile.Read(ref _disposeState) != 0 || _window.Dispatcher.HasShutdownStarted) return;
+        _pendingDiscovery.Add(root);
+        if (_discoveryPending) return;
+        _discoveryPending = true;
+        _ = _window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.DataBind, () =>
+        {
+            _discoveryPending = false;
+            DependencyObject[] roots = _pendingDiscovery.Where(target => _knownObjects.Contains(target)
+                || target is FrameworkElement { IsLoaded: true }).ToArray();
+            _pendingDiscovery.Clear();
+            if (roots.Length > 0) DiscoverAndTranslate(roots);
+        });
     }
 
     private void SchedulePrune()
@@ -183,17 +211,20 @@ internal sealed class LauncherLocalizationBridge : IDisposable
     private void ForgetObjects(HashSet<DependencyObject> removed)
     {
         if (removed.Count == 0) return;
-        foreach (PropertySubscription subscription in _propertySubscriptions.Where(s => removed.Contains(s.Target)).ToArray())
+        _propertySubscriptions.RemoveAll(subscription =>
         {
+            if (!removed.Contains(subscription.Target)) return false;
             subscription.Descriptor.RemoveValueChanged(subscription.Target, subscription.Handler);
-            _propertySubscriptions.Remove(subscription);
-        }
-        foreach (GeneratorSubscription subscription in _generatorSubscriptions.Where(s => removed.Contains(s.Target)).ToArray())
+            return true;
+        });
+        _generatorSubscriptions.RemoveAll(subscription =>
         {
+            if (!removed.Contains(subscription.Target)) return false;
             subscription.Generator.StatusChanged -= subscription.Handler;
-            _generatorSubscriptions.Remove(subscription);
-        }
+            return true;
+        });
         _knownObjects.ExceptWith(removed);
+        _pendingDiscovery.ExceptWith(removed);
         // Original strings are weakly attached to each control so recycling can
         // restore French without keeping old containers alive.
     }
@@ -255,7 +286,7 @@ internal sealed class LauncherLocalizationBridge : IDisposable
                 return;
             }
 
-            DiscoverAndTranslate(itemsControl);
+            QueueDiscovery(itemsControl);
             SchedulePrune();
         };
         generator.StatusChanged += handler;
@@ -379,15 +410,8 @@ internal sealed class LauncherLocalizationBridge : IDisposable
             }
         }
 
-        int visualChildren = 0;
-        try
-        {
-            visualChildren = VisualTreeHelper.GetChildrenCount(target);
-        }
-        catch (InvalidOperationException)
-        {
-            // Content elements can exist in the logical tree without a visual peer.
-        }
+        int visualChildren = target is Visual or System.Windows.Media.Media3D.Visual3D
+            ? VisualTreeHelper.GetChildrenCount(target) : 0;
 
         for (int index = 0; index < visualChildren; index++)
         {

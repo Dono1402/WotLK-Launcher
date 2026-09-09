@@ -74,6 +74,20 @@ internal static class OptimizationMemoryTests
         kept.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent, kept));
         Check(kept.Text == "Paramètres", "Recycled controls recover the original French text after a locale change while detached.");
 
+        LauncherLocalization.SetLocale(LauncherLocalization.EnglishLocale);
+        // A template creates descendants after its parent has already been discovered.
+        StackPanel newRow = new();
+        TextBlock newText = new() { Text = "Paramètres" };
+        newRow.Children.Add(newText);
+        panel.Children.Add(newRow);
+        panel.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent, panel));
+        DispatcherFrame frame = new();
+        _ = panel.Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => frame.Continue = false);
+        Dispatcher.PushFrame(frame);
+        Check(newText.Text == "Settings", "New descendants are translated when their existing page loads, without a manual refresh.");
+        LauncherLocalization.SetLocale(LauncherLocalization.FrenchLocale);
+        Check(newText.Text == "Paramètres", "Deferred descendants retain the French source for later locale changes.");
+
         List<WeakReference> removed = ReplaceRows(panel, bridge);
         for (int i = 0; i < 3; i++) { GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect(); }
         Check(removed.All(reference => !reference.IsAlive), "Removed translated rows are collectable while the shell and bridge remain alive.");

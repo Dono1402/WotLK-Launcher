@@ -40,6 +40,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
     private AccountUiState? _state;
     private LauncherArmoryLocalHost? _host;
     private WebView2CompositionControl? _browser;
+    private Action? _detachBrowserEvents;
     private CancellationTokenSource? _lifetime;
     private Func<LauncherArmoryLocalConfiguration> _loadConfiguration = LauncherArmoryLocalHost.LoadConfiguration;
     private Func<string> _loadFriendCacheRoot = LauncherArmoryLocalHost.LoadFriendDataRoot;
@@ -87,7 +88,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
             if (IsVisible)
             {
                 _browser?.CoreWebView2?.Resume();
-                if (_browser is null) _ = OpenAsync();
+                if (_lifetime is null) _ = OpenAsync();
                 else PublishProfile();
             }
         };
@@ -150,7 +151,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
             PublishProfile();
             return;
         }
-        ResetSession();
+        ResetSession(preserveBrowser: true);
         _friendProfile = friend;
         CustomizeButton.Visibility = Visibility.Collapsed;
         if (IsVisible) _ = OpenAsync();
@@ -166,7 +167,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
     internal void ShowOwnProfile()
     {
         if (_friendProfile is null) return;
-        ResetSession();
+        ResetSession(preserveBrowser: true);
         _friendProfile = null;
         CustomizeButton.Visibility = Visibility.Collapsed;
         if (IsVisible) _ = OpenAsync();
@@ -278,17 +279,18 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
                     ? (request, requestToken) => _readFriendData!(account.Value, friend.AccountId, request, requestToken)
                     : _readData is null ? null : (request, requestToken) => _readData(account.Value, request, requestToken));
             token.ThrowIfCancellationRequested();
-            WebView2CompositionControl browser = _browser = new WebView2CompositionControl
+            WebView2CompositionControl browser = _browser ??= new WebView2CompositionControl
             {
                 DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 16, 20, 24)
             };
-            BrowserHost.Children.Add(browser);
-            CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(
+            if (!BrowserHost.Children.Contains(browser)) BrowserHost.Children.Add(browser);
+            bool hasCore = browser.CoreWebView2 is not null;
+            CoreWebView2Environment environment = browser.CoreWebView2?.Environment ?? await CoreWebView2Environment.CreateAsync(
                 userDataFolder: _userDataFolder ?? Path.GetFullPath(Path.Combine(LauncherBuildFlavor.GetAvatarCacheRoot(), "..", "armory-webview")));
             token.ThrowIfCancellationRequested();
-            await browser.EnsureCoreWebView2Async(environment);
+            if (!hasCore) await browser.EnsureCoreWebView2Async(environment);
             token.ThrowIfCancellationRequested();
-            CoreWebView2 core = browser.CoreWebView2;
+            CoreWebView2 core = browser.CoreWebView2 ?? throw new InvalidOperationException("Armory browser initialization failed.");
             core.Settings.AreDefaultContextMenusEnabled = false;
             core.Settings.AreDevToolsEnabled = false;
             core.Settings.AreBrowserAcceleratorKeysEnabled = false;
@@ -296,41 +298,9 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
             core.Settings.AreDefaultScriptDialogsEnabled = false;
             core.Settings.IsGeneralAutofillEnabled = false;
             core.Settings.IsPasswordAutosaveEnabled = false;
-            core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All,
+            if (!hasCore) core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All,
                 CoreWebView2WebResourceRequestSourceKinds.All);
-            core.WebResourceRequested += (_, args) =>
-            {
-                if (!token.IsCancellationRequested && host.Owns(args.Request.Uri)) args.Request.Headers.SetHeader("X-Atlas-Armory-Key", host.Key);
-                else args.Response = environment.CreateWebResourceResponse(null, 403, "Forbidden", "");
-            };
-            core.NavigationStarting += (_, args) => args.Cancel = !host.Owns(args.Uri);
-            core.FrameNavigationStarting += (_, args) => args.Cancel = args.Uri != "about:blank" && !host.Owns(args.Uri);
-            core.NewWindowRequested += (_, args) => args.Handled = true;
-            core.PermissionRequested += (_, args) => args.State = CoreWebView2PermissionState.Deny;
-            core.DownloadStarting += (_, args) => args.Cancel = true;
-            core.WebMessageReceived += (_, args) =>
-            {
-                HandleProfileMessage(args.Source, args.WebMessageAsJson, host, token);
-            };
-            core.NavigationCompleted += (_, args) =>
-            {
-                if (token.IsCancellationRequested) return;
-                ProfileLoadingIndicator.Visibility = Visibility.Collapsed;
-                StatusPanel.Visibility = args.IsSuccess ? Visibility.Collapsed : Visibility.Visible;
-                if (args.IsSuccess) PublishProfile();
-                else ShowFailure();
-            };
-            core.ProcessFailed += (_, _) =>
-            {
-                if (token.IsCancellationRequested || !ReferenceEquals(browser, _browser)) return;
-                // WebView forbids disposing its controller from inside a browser callback.
-                Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    if (token.IsCancellationRequested || !ReferenceEquals(browser, _browser)) return;
-                    ResetSession(preserveSharedCharacter: true, preserveDraft: true);
-                    ShowFailure();
-                }));
-            };
+            BindBrowserSession(browser, host, environment, token);
             core.Navigate(new Uri(host.Origin!, "?lang=" + (LauncherLocalization.IsEnglish ? "en" : "fr")).AbsoluteUri);
         }
         catch (OperationCanceledException) { }
@@ -749,7 +719,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
         if (!IsReadOnlyProfile) CustomizeRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    internal void ResetSession(bool preserveSharedCharacter = false, bool preserveDraft = false)
+    internal void ResetSession(bool preserveSharedCharacter = false, bool preserveDraft = false, bool preserveBrowser = false)
     {
         // An opening failure/retry still targets the same profile and shared
         // character. Navigation, account changes and disposal clear the target.
@@ -775,7 +745,21 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
         _bannerBusy = false;
         _sessionAccountId = null;
         lifetime?.Cancel();
-        _browser?.Dispose(); _browser = null; BrowserHost.Children.Clear();
+        bool browserRetained = false;
+        if (preserveBrowser && !_disposed && _browser?.CoreWebView2 is not null)
+        {
+            // Keep one composition surface while switching profiles. The old
+            // document is hidden, and its cancelled session denies all requests
+            // until the new host replaces the handlers and navigates afresh.
+            _browser.Visibility = Visibility.Hidden;
+            try { _browser.CoreWebView2.Stop(); browserRetained = true; }
+            catch (InvalidOperationException) { } // A failed controller must be recreated.
+        }
+        if (!browserRetained)
+        {
+            DetachBrowserSession();
+            _browser?.Dispose(); _browser = null; BrowserHost.Children.Clear();
+        }
         if (_host is { } host) _helperCleanup = Task.WhenAll(_helperCleanup, host.StopAsync());
         _host = null;
         lifetime?.Dispose();

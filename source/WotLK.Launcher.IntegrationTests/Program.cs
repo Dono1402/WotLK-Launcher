@@ -7,6 +7,9 @@ using System.Text.RegularExpressions;
 using WotLK.Launcher;
 using WotLK.Launcher.Server;
 
+if (args.Length == 3 && string.Equals(args[0], "--launcher-performance", StringComparison.OrdinalIgnoreCase))
+    return await ArmoryLauncherTests.RunPerformanceAsync(args[1], args[2]);
+
 if (args.Length == 1 && string.Equals(args[0], "--optimization-ui", StringComparison.OrdinalIgnoreCase))
     return await ShellNavigationWpfTests.RunAsync(optimizationsOnly: true);
 

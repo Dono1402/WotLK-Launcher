@@ -292,7 +292,7 @@ internal static class ChatFullShellWpfTests
         Check(!shell.IsActive, "Search keyboard events target only WebView DOM and never activate the native fixture.");
     }
 
-    private static object Snapshot(string language, int imageLength)
+    internal static object Snapshot(string language, int imageLength)
     {
         bool en = language == "en";
         ChatProfileDto self = new() { AccountId = 42, Username = "Aster", Presence = "online", AvatarUrl = RichAvatar(42), AvatarVersion = "1" };

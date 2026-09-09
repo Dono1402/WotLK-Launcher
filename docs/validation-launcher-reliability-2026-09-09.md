@@ -34,3 +34,6 @@ Les comptes, fichiers et services de ces tests sont synthétiques. Les tests gra
 Une sauvegarde de brouillon n’est durable qu’après son écriture native : un crash peut encore faire perdre la saisie qui n’a pas atteint ce point. La reprise du stockage local retente une lecture ; elle ne remplace pas silencieusement un document Messages définitivement corrompu par un document vide. Si le défaut persiste, l’erreur reste explicite et les données originales restent intactes. La copie de secours mentionnée ci-dessus concerne les réglages.
 
 Ces tests vérifient le comportement et la réactivité sous panne simulée. Aucun gain de démarrage, de CPU ou de mémoire globale n’est chiffré dans cette livraison.
+
+Le changement de langue du jeu et des mesures globales ont ensuite été ajoutés :
+voir le [rapport de performance du 9 septembre](launcher-performance-2026-09-09.md).

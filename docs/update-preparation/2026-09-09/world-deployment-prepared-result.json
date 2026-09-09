@@ -1,0 +1,102 @@
+{
+  "verifiedAtUtc": "2026-09-09T12:18:15.098345+00:00",
+  "preparedAtUtc": "2026-09-09T12:17:27.140499+00:00",
+  "configFilesBackedUp": 14,
+  "unitFilesBackedUp": 6,
+  "metadata": [
+    {
+      "path": "/opt/arthas-next/candidates/modules-update-20260909T1035Z",
+      "mode": "0o711",
+      "uid": 1000,
+      "gid": 1000,
+      "size": 4096
+    },
+    {
+      "path": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/server",
+      "mode": "0o750",
+      "uid": 0,
+      "gid": 987,
+      "size": 4096
+    },
+    {
+      "path": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/server/bin",
+      "mode": "0o750",
+      "uid": 0,
+      "gid": 987,
+      "size": 4096
+    },
+    {
+      "path": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/server/etc",
+      "mode": "0o750",
+      "uid": 0,
+      "gid": 987,
+      "size": 4096
+    },
+    {
+      "path": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/server/bin/worldserver",
+      "mode": "0o550",
+      "uid": 0,
+      "gid": 987,
+      "size": 2472074992
+    },
+    {
+      "path": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/server/etc/worldserver.conf",
+      "mode": "0o640",
+      "uid": 0,
+      "gid": 987,
+      "size": 170938
+    },
+    {
+      "path": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/deployment",
+      "mode": "0o700",
+      "uid": 0,
+      "gid": 0,
+      "size": 4096
+    },
+    {
+      "path": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/deployment/backup",
+      "mode": "0o700",
+      "uid": 0,
+      "gid": 0,
+      "size": 4096
+    },
+    {
+      "path": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/build-isolated",
+      "mode": "0o700",
+      "uid": 1000,
+      "gid": 1000,
+      "size": 4096
+    }
+  ],
+  "acoreAccessChecks": {
+    "/opt/arthas-next/candidates/modules-update-20260909T1035Z/server/bin/worldserver": true,
+    "/opt/arthas-next/candidates/modules-update-20260909T1035Z/server/etc/worldserver.conf": true,
+    "/opt/arthas-next/candidates/modules-update-20260909T1035Z/deployment": false,
+    "/opt/arthas-next/candidates/modules-update-20260909T1035Z/build-isolated": false
+  },
+  "copiedConfigSha256": "770dcd97377a2f421d302e7240830bb8c39705f09fddcf57d9f2b12aa9e85016",
+  "copiedBinarySha256": "428e92b4498312593ea44f6c0d2870519a43af65acf68be3567890d178cd87d6",
+  "binaryDistinctInode": true,
+  "binarySize": 2472074992,
+  "diskFreeBytes": 12496912384,
+  "services": {
+    "arthas-worldserver.service": {
+      "MainPID": "1910234",
+      "NRestarts": "0",
+      "ExecStart": "{ path=/opt/arthas-next/candidates/atlas-chat-whispers-20260907/server/bin/worldserver ; argv[]=/opt/arthas-next/candidates/atlas-chat-whispers-20260907/server/bin/worldserver --config /opt/arthas-next/candidates/atlas-chat-whispers-20260907/server/etc/worldserver.conf ; ignore_errors=no ; start_time=[Mon 2026-09-07 18:06:58 UTC] ; stop_time=[n/a] ; pid=1910234 ; code=(null) ; status=0/0 }",
+      "WorkingDirectory": "/opt/arthas-next/candidates/modules-update-20260905T1016Z/server/bin",
+      "ActiveState": "active",
+      "SubState": "running"
+    },
+    "hermesproxy-wotlk.service": {
+      "MainPID": "1910530",
+      "NRestarts": "0",
+      "ExecStart": "{ path=/opt/hermesproxy-wotlk/releases/atlas-chat-whispers-20260907/HermesProxy ; argv[]=/opt/hermesproxy-wotlk/releases/atlas-chat-whispers-20260907/HermesProxy --config /opt/hermesproxy-wotlk/appsettings.atlas.json ; ignore_errors=no ; start_time=[Mon 2026-09-07 18:07:52 UTC] ; stop_time=[n/a] ; pid=1910530 ; code=(null) ; status=0/0 }",
+      "WorkingDirectory": "/opt/hermesproxy-wotlk/releases/atlas-chat-whispers-20260907",
+      "ActiveState": "active",
+      "SubState": "running"
+    }
+  },
+  "dropInNotInstalled": true,
+  "credentialsIncluded": false
+}

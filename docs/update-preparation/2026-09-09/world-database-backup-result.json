@@ -1,0 +1,51 @@
+{
+  "verifiedAtUtc": "2026-09-09T12:28:29.572612+00:00",
+  "backup": {
+    "completedAt": "2026-09-09T12:28:07.729656+00:00",
+    "databases": [
+      "arthas_chars",
+      "arthas_playerbots"
+    ],
+    "worldStopped": true,
+    "gzipCrcVerified": true,
+    "completionFooterVerified": true,
+    "bytesCompressed": 106295150,
+    "bytesUncompressed": 481495812,
+    "sha256": "139881af316f21bef3c6eee3b2d29e7e3f5eefb4f4ca71a9a4b4b74ec0d6d04f",
+    "diskFree": 12361568256,
+    "deploymentBytes": 2579307676,
+    "maximumDeploymentBytes": 3221225472,
+    "restoreRequiresSeparateApproval": true
+  },
+  "backupPath": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/deployment/backup/characters-playerbots.sql.gz",
+  "backupMode": "0o600",
+  "backupUid": 0,
+  "backupGid": 0,
+  "backupSha256IndependentlyVerified": true,
+  "worldCgroupExists": false,
+  "worldCgroupProcesses": [],
+  "services": {
+    "arthas-worldserver.service": {
+      "MainPID": "0",
+      "Result": "success",
+      "NRestarts": "0",
+      "ExecMainExitTimestamp": "Wed 2026-09-09 12:27:57 UTC",
+      "ExecMainStatus": "0",
+      "ControlGroup": "",
+      "ActiveState": "inactive",
+      "SubState": "dead"
+    },
+    "hermesproxy-wotlk.service": {
+      "MainPID": "2286032",
+      "Result": "success",
+      "NRestarts": "0",
+      "ExecMainExitTimestamp": "",
+      "ExecMainStatus": "0",
+      "ControlGroup": "/system.slice/hermesproxy-wotlk.service",
+      "ActiveState": "active",
+      "SubState": "running"
+    }
+  },
+  "newDropInAbsent": true,
+  "databaseContentsIncluded": false
+}

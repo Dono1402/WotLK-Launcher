@@ -1,5 +1,10 @@
 # Préparation des mises à jour WotLK — 9 septembre 2026
 
+Ce document conserve les constats de la phase de préparation. Le
+[compte rendu de déploiement](WOTLK-DEPLOYMENT-2026-09-09.md) décrit
+l'installation autorisée ensuite et distingue les contrôles effectivement
+réalisés des vérifications en jeu restant à faire.
+
 ## Périmètre
 
 Préparation et tests de candidats séparés après l'audit du 9 septembre. Cette

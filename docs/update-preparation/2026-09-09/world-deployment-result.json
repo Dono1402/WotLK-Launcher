@@ -1,0 +1,96 @@
+{
+  "verifiedAtUtc": "2026-09-09T12:32:30.631341+00:00",
+  "worldService": {
+    "MainPID": "2287415",
+    "NRestarts": "0",
+    "ExecMainStartTimestamp": "Wed 2026-09-09 12:29:27 UTC",
+    "ExecStart": "{ path=/opt/arthas-next/candidates/modules-update-20260909T1035Z/server/bin/worldserver ; argv[]=/opt/arthas-next/candidates/modules-update-20260909T1035Z/server/bin/worldserver --config /opt/arthas-next/candidates/modules-update-20260909T1035Z/server/etc/worldserver.conf ; ignore_errors=no ; start_time=[Wed 2026-09-09 12:29:27 UTC] ; stop_time=[n/a] ; pid=2287415 ; code=(null) ; status=0/0 }",
+    "WorkingDirectory": "/opt/arthas-next/candidates/modules-update-20260905T1016Z/server/bin",
+    "ActiveState": "active",
+    "SubState": "running"
+  },
+  "actualExecutable": "/opt/arthas-next/candidates/modules-update-20260909T1035Z/server/bin/worldserver",
+  "actualExecutableSha256": "428e92b4498312593ea44f6c0d2870519a43af65acf68be3567890d178cd87d6",
+  "actualWorkingDirectory": "/opt/arthas-next/candidates/modules-update-20260905T1016Z/server/bin",
+  "actualArguments": [
+    "/opt/arthas-next/candidates/modules-update-20260909T1035Z/server/bin/worldserver",
+    "--config",
+    "/opt/arthas-next/candidates/modules-update-20260909T1035Z/server/etc/worldserver.conf"
+  ],
+  "serviceEnvironmentUnchanged": true,
+  "actualDatabaseUpdateEnvironment": {
+    "AC_UPDATES_ENABLE_DATABASES": "0",
+    "AC_PLAYERBOTS_UPDATES_ENABLE_DATABASES": "0"
+  },
+  "mainConfigUnchanged": true,
+  "all14OriginalConfigsUnchanged": true,
+  "all6OriginalUnitFilesUnchanged": true,
+  "newDropInSha256": "e2e7568cb67539fb56ab0410dd77d8ad29305aa4bfd664af6e4d7d7b4dc99384",
+  "port4000Connect": true,
+  "onlineCharacters": {
+    "total": 1500,
+    "randomBotAccountPrefix": 1500,
+    "otherAccountPrefixes": 0,
+    "targetRandomBots": 1500
+  },
+  "logs": {
+    "worldInitialized": [
+      [
+        "0",
+        "53"
+      ]
+    ],
+    "dungeonClearRegistered": true,
+    "atlasChatReady": true,
+    "fatalMarkerCount": 0,
+    "sqlErrorMarkerCount": 0,
+    "mmapErrorMarkerCount": 0,
+    "errorLogBytes": 0,
+    "serverLogBytes": 104070
+  },
+  "worldRssKiB": 8625004,
+  "hermesService": {
+    "MainPID": "2286032",
+    "NRestarts": "0",
+    "ExecMainStartTimestamp": "Wed 2026-09-09 12:22:48 UTC",
+    "ExecStart": "{ path=/opt/hermesproxy-wotlk/releases/hermes-f859d0c-20260909/HermesProxy ; argv[]=/opt/hermesproxy-wotlk/releases/hermes-f859d0c-20260909/HermesProxy --config /opt/hermesproxy-wotlk/appsettings.atlas.json ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }",
+    "WorkingDirectory": "/opt/hermesproxy-wotlk/releases/hermes-f859d0c-20260909",
+    "ActiveState": "active",
+    "SubState": "running"
+  },
+  "diskFreeBytes": 12314234880,
+  "gameplayTestPerformed": false,
+  "linuxGTestsExecuted": 0,
+  "databaseRestorePerformed": false,
+  "secretsOrDatabaseContentsIncluded": false,
+  "status": "deployed_runtime_readiness_passed_no_gameplay_test",
+  "targetDungeonClearCommit": "3dd90f7c1122abc291edcbd9d3dc68f6c8fed0bc",
+  "previousDungeonClearCommit": "c32a38436567328d4f8f9a6ee0d221f19d58301e",
+  "deploymentScriptSha256": "c514e9cdebdda8dfb424a2ce52be2ebf76be9f4e26de4d69f4baf6241c9d89ae",
+  "previousWorldStoppedAtUtc": "2026-09-09T12:27:57+00:00",
+  "databaseBackupCompletedAtUtc": "2026-09-09T12:28:07.729656+00:00",
+  "databaseBackupSha256": "139881af316f21bef3c6eee3b2d29e7e3f5eefb4f4ca71a9a4b4b74ec0d6d04f",
+  "previousWorldRetainedForCodeRollback": true,
+  "databaseRollbackRequiresSeparateAuthorization": true,
+  "lastReadinessCheck": {
+    "atUtc": "2026-09-09T12:33:49.717109+00:00",
+    "knownStartupLinesOnly": [
+      "WORLD: World Initialized In 0 Minutes 53 Seconds",
+      "Atlas chat bridge ready for realm 1 (named #Launcher whispers).",
+      "mod-dungeon-clear: registered DungeonClear contexts (strategy/action/trigger/value) into all class registries of mod-playerbots."
+    ],
+    "service": {
+      "MainPID": "2287415",
+      "NRestarts": "0",
+      "ActiveState": "active",
+      "SubState": "running"
+    },
+    "fatalSystemdEventCountSinceStart": 0,
+    "errorLogBytes": 0
+  },
+  "limitations": [
+    "No Linux GTest executed: test translation units compiled but test executable link failed; user authorized deployment without rerunning them.",
+    "No gameplay, dungeon route, encounter or user-to-user chat test performed.",
+    "Old module configuration, working directory and data candidates remain production dependencies; do not remove them."
+  ]
+}

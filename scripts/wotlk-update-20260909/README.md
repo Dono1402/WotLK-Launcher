@@ -1,6 +1,6 @@
-# Recettes natives figées du 9 septembre 2026
+# Recettes de préparation et de déploiement figées du 9 septembre 2026
 
-Ces recettes de préparation sont spécifiques aux sources, candidats et
+Ces recettes sont spécifiques aux sources, candidats et
 archives Atlas identifiés dans le [rapport](../../docs/WOTLK-UPDATE-PREPARATION-2026-09-09.md).
 Elles ne sont pas des installateurs génériques et n'autorisent aucune bascule
 ou interruption de service. Les recettes de build ne démarrent pas Hermes ou
@@ -8,9 +8,38 @@ worldserver, ne lisent aucune configuration privée et n'importent aucun SQL.
 Le smoke Hermes séparé démarre uniquement une copie isolée, avec configuration
 synthétique ; il ne constitue pas une commande de déploiement.
 
+Les scripts d'installation ajoutés après l'autorisation distincte sont
+identifiés dans le [compte rendu de déploiement](../../docs/WOTLK-DEPLOYMENT-2026-09-09.md).
+Contrairement aux recettes de build, ils peuvent copier des configurations
+privées, arrêter des services, sauvegarder des bases et activer les candidats.
+Ils sont conservés comme recettes historiques, pas comme commandes à rejouer
+sans nouvelle revue et autorisation. L'installateur WeakAuras exige également
+que le jeu et le launcher soient fermés et conserve les sauvegardes privées
+hors Git.
+
 Les sources/exécutables de production, données de navigation, dépendances
 et sorties de compilation ne sont pas dans ce dépôt. Un clone de ce dépôt
 seul ne suffit donc pas à reconstruire ces candidats historiques.
+
+## Recettes d'installation exécutées après autorisation
+
+- `hermes/prepare-production-release.sh` prépare exclusivement une nouvelle
+  release immuable ; `hermes/switch-production-hermes.sh` réalise la bascule
+  de l'unité Hermes et possède un retour binaire limité à son propre drop-in.
+  Le fichier `hermes/90-hermes-update-20260909.conf` est le drop-in exact.
+- `world/deploy_world_dc.py` et `world/deployment-plan.md` séparent la copie
+  runtime, l'arrêt avec dump privé, le démarrage et le retour binaire. Le
+  script exige le mode Python `-I -B`, sans optimisation, et les identités
+  figées ; il ne restaure jamais une base automatiquement.
+- `addons/install-weakauras-5.12.9.ps1` remplace uniquement les cinq racines
+  WeakAuras du client local, avec sauvegardes privées et contrôle des hashes.
+  Il ne publie pas de catalogue et ne modifie pas le registre des addons.
+
+Les dates, SHA256 et limites des validations effectivement réalisées sont
+dans le compte rendu de déploiement. Les fichiers et preuves de cette
+campagne ont un attribut Git LF explicite pour préserver leurs empreintes
+sur Windows comme sur Linux. Ils ne doivent pas être réexécutés simplement
+parce qu'ils sont présents dans ce dépôt.
 
 ## Hermes
 

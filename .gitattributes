@@ -8,3 +8,7 @@ mod-atlas-chat/hermes/*.patch text eol=lf whitespace=-blank-at-eol,-space-before
 
 # Migration manifests hash these bytes; keep the same LF form on every platform.
 source/WotLK.Launcher.Server/Database/Migrations/*.sql text eol=lf
+
+# Historical deployment recipes and sanitized proofs carry exact file hashes.
+scripts/wotlk-update-20260909/** text eol=lf
+docs/update-preparation/2026-09-09/*.json text eol=lf

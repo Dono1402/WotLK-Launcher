@@ -39,7 +39,7 @@ internal static class LocalPatchNotesDraft
             ]),
             new("Audio et vidéo",
             [
-                "Lecteurs intégrés avec lecture/pause, progression, durée, volume, agrandissement et plein écran vidéo, dans le fil comme dans le brouillon.",
+                "Lecteurs intégrés avec lecture/pause, progression, durée, volume, agrandissement et plein écran vidéo, dans le fil comme dans le brouillon. Navigation dans la barre améliorée, y compris pendant les glissements.",
                 "Les commandes vidéo apparaissent en transparence sur l’image et se masquent automatiquement pendant la lecture.",
                 "L’agrandissement et le retour au fil conservent la position de lecture et le volume. L’arrivée de nouveaux messages ne recrée plus le lecteur.",
                 "La lecture continue lorsque le launcher perd le focus ou est réduit. Elle s’arrête en quittant Messages ou en changeant de conversation.",

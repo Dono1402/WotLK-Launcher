@@ -16,7 +16,7 @@ using WotLK.Launcher.UI.V2;
 using WotLK.Launcher.UI.V2.Presentation;
 using WotLK.Launcher.UI.V2.Views;
 
-internal static class ChatRichHostWpfTests
+internal static partial class ChatRichHostWpfTests
 {
     private static int _checks;
     private static readonly Guid Session = Guid.Parse("9cad51dc-e38c-4db6-8e2d-a2f86d7abc11");
@@ -145,6 +145,7 @@ internal static class ChatRichHostWpfTests
             True(mediaRequests.Count > 0 && mediaRequests.All(key => key == "attachments/native-activity-wave"),
                 "Background playback uses only its authorized relative native fixture key.");
             mediaRequests.Clear();
+            await ValidateLocalMediaSeekingAsync(view, window, core, directory);
             ValidateNativeDrops(view, directory);
             BitmapSource decoded = await Task.Run(() =>
             {

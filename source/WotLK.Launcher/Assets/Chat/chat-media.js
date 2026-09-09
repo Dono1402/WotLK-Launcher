@@ -106,7 +106,7 @@
     const expand = button('media-expand'), fullscreen = button('media-fullscreen'), save = button('media-save');
     const status = element('div', 'media-status');
     const state = { shell, player, kind, options: { mode: 'inline', locale: 'fr', ...initialOptions }, listeners: [],
-      disposed: false, pendingPlay: false, waiting: false, playError: false, playToken: 0, scrubbing: false, volumeOpen: false, previousVolume: player.volume || 1,
+      disposed: false, pendingPlay: false, waiting: false, playError: false, playToken: 0, scrubbing: false, scrubWasPlaying: false, volumeOpen: false, previousVolume: player.volume || 1,
       progressFrame: 0, range: null, hideControlsTimer: 0, preparing: false, pointerOver: false };
 
     shell.setAttribute('role', 'group'); shell.tabIndex = 0;
@@ -181,8 +181,18 @@
     }
     function seekTo(value) {
       const range = bounds(); if (!range || !Number.isFinite(value) || player.error) return;
-      try { player.currentTime = Math.max(range.start, Math.min(range.end, value)); } catch (_) {}
+      const target = Math.max(range.start, Math.min(range.end, value));
+      // Native ranges emit input and change for the same gesture. Reassigning
+      // currentTime would restart decoding (and potentially a byte-range fetch).
+      if (Math.abs(player.currentTime - target) >= .001) try { player.currentTime = target; } catch (_) {}
       sync();
+    }
+    function finishScrubbing(commit = true) {
+      if (!state.scrubbing) return;
+      const target = Number(seek.value), resume = commit && state.scrubWasPlaying && player.ended;
+      state.scrubbing = false; state.scrubWasPlaying = false;
+      if (commit) seekTo(target); else syncProgress();
+      if (resume && player.paused && !player.ended) togglePlay();
     }
     function setVolume(value) {
       const amount = Math.max(0, Math.min(1, value)); if (!Number.isFinite(amount)) return;
@@ -308,16 +318,22 @@
       activate(stage, togglePlay);
       for (const event of ['pointermove', 'pointerdown', 'focusin', 'focusout', 'keydown']) listen(shell, event, revealControls);
     }
-    listen(seek, 'pointerdown', () => { state.scrubbing = true; });
-    listen(seek, 'input', () => seekTo(Number(seek.value)));
-    listen(seek, 'change', () => { seekTo(Number(seek.value)); state.scrubbing = false; sync(); });
-    listen(seek, 'pointerup', () => { state.scrubbing = false; sync(); });
-    listen(seek, 'pointercancel', () => { state.scrubbing = false; sync(); });
-    listen(seek, 'blur', () => { state.scrubbing = false; sync(); });
+    listen(seek, 'pointerdown', event => {
+      if (event.button !== 0) return;
+      state.scrubbing = true; state.scrubWasPlaying = !player.paused && !player.ended;
+    });
+    // During a drag only preview the chosen position. Commit the final target
+    // on release rather than issuing an expensive seek at every pointer step.
+    listen(seek, 'input', () => { if (state.scrubbing) syncProgress(); else seekTo(Number(seek.value)); });
+    listen(seek, 'change', () => { if (state.scrubbing) finishScrubbing(); else seekTo(Number(seek.value)); });
+    listen(seek, 'pointerup', () => finishScrubbing());
+    listen(seek, 'pointercancel', () => finishScrubbing(false));
+    listen(seek, 'blur', () => finishScrubbing());
     listen(seek, 'keydown', event => {
       const range = bounds(); if (!range) return;
       const value = Number(seek.value), amounts = { ArrowLeft: -5, ArrowDown: -5, ArrowRight: 5, ArrowUp: 5, PageDown: -(range.end - range.start) / 10, PageUp: (range.end - range.start) / 10 };
       if (event.key === 'Home' || event.key === 'End' || Object.hasOwn(amounts, event.key)) {
+        state.scrubbing = false; state.scrubWasPlaying = false;
         event.preventDefault(); event.stopPropagation(); seekTo(event.key === 'Home' ? range.start : event.key === 'End' ? range.end : value + amounts[event.key]);
       }
     });
@@ -340,7 +356,7 @@
     listen(player, 'ended', () => { state.waiting = false; state.pendingPlay = false; sync(); });
     listen(player, 'emptied', () => { state.waiting = false; state.playError = false; sync(); });
     listen(player, 'error', () => { state.waiting = false; state.pendingPlay = false; sync(); });
-    state.sync = sync; state.closeVolume = closeVolume; state.positionVolume = positionVolume; state.updateProgressLoop = updateProgressLoop; state.stopProgress = stopProgress; state.stopHideControls = stopHideControls; state.finishPreparation = finishPreparation;
+    state.sync = sync; state.closeVolume = closeVolume; state.positionVolume = positionVolume; state.updateProgressLoop = updateProgressLoop; state.stopProgress = stopProgress; state.stopHideControls = stopHideControls; state.finishPreparation = finishPreparation; state.cancelScrubbing = () => finishScrubbing(false);
     state.dismissVolume = target => { if (state.volumeOpen && !volumeGroup.contains(target)) closeVolume(); };
     state.weakReference = new WeakRef(state); liveControllers.add(state.weakReference);
     controllers.set(shell, state); shells.set(player, shell);
@@ -357,11 +373,12 @@
   }
   function pause(value) {
     const state = controllerFor(value); if (!state || state.disposed) return;
-    ++state.playToken; state.pendingPlay = false; state.waiting = false; state.player.pause(); state.finishPreparation(); state.closeVolume(); state.sync();
+    ++state.playToken; state.pendingPlay = false; state.waiting = false; state.cancelScrubbing(); state.player.pause(); state.finishPreparation(); state.closeVolume(); state.sync();
   }
   function dispose(value, options = {}) {
     const state = controllerFor(value); if (!state || state.disposed) return;
     if (options.pause !== false) pause(state.shell);
+    state.cancelScrubbing();
     state.closeVolume(); state.disposed = true; ++state.playToken;
     state.stopProgress();
     state.stopHideControls();

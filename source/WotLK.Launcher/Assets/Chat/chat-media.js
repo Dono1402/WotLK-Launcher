@@ -5,23 +5,25 @@
   let nextVolumeId = 0;
   const motionPreference = global.matchMedia('(prefers-reduced-motion: reduce)');
   const pendingPreviews = new Set();
-  function stopPreview(player) { previewObserver?.unobserve(player); pendingPreviews.delete(player); }
-  // Let Chromium request metadata/first-frame byte ranges as a video approaches
-  // the viewport. Older messages keep preload=none; no background playback.
+  function stopPreview(shell) { previewObserver?.unobserve(shell); pendingPreviews.delete(shell); }
+  // Observe the visible shell: audio elements themselves have no layout box.
+  // Nearby files can prepare metadata before a click; distant history stays lazy.
   const previewObserver = typeof global.IntersectionObserver === 'function' ? new global.IntersectionObserver(entries => {
     for (const entry of entries) if (!entry.target.isConnected) stopPreview(entry.target);
     else if (entry.isIntersecting && !document.hidden) {
-      entry.target.preload = 'metadata'; stopPreview(entry.target);
+      const player = controllers.get(entry.target)?.player;
+      if (player?.preload === 'none') player.preload = 'metadata';
+      stopPreview(entry.target);
     }
   }, { rootMargin: '240px 0px' }) : null;
-  // IntersectionObserver retains its targets. Release distant videos when their
+  // IntersectionObserver retains its targets. Release distant players when their
   // messages are removed, including callers that simply replace DOM children.
   if (previewObserver) new MutationObserver(records => {
     if (!pendingPreviews.size) return;
     for (const record of records) for (const node of record.removedNodes) {
       if (node.nodeType !== 1 || node.isConnected) continue;
-      if (node.tagName === 'VIDEO') stopPreview(node);
-      else for (const video of node.querySelectorAll('video')) if (!video.isConnected) stopPreview(video);
+      if (node.matches('.media-player')) stopPreview(node);
+      for (const shell of node.querySelectorAll('.media-player')) if (!shell.isConnected) stopPreview(shell);
     }
   }).observe(document, { childList: true, subtree: true });
   const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -82,7 +84,10 @@
   document.addEventListener('scroll', () => eachController(state => state.positionVolume()), true);
   global.addEventListener('resize', () => eachController(state => state.positionVolume()));
   document.addEventListener('fullscreenchange', () => eachController(state => state.sync()));
-  document.addEventListener('visibilitychange', () => eachController(state => state.updateProgressLoop()));
+  document.addEventListener('visibilitychange', () => {
+    eachController(state => { state.updateProgressLoop(); if (document.hidden) state.finishPreparation(); });
+    if (!document.hidden) for (const shell of pendingPreviews) { previewObserver.unobserve(shell); previewObserver.observe(shell); }
+  });
   motionPreference.addEventListener('change', () => eachController(state => state.updateProgressLoop()));
 
   function create(player, initialOptions = {}) {
@@ -102,15 +107,12 @@
     const status = element('div', 'media-status');
     const state = { shell, player, kind, options: { mode: 'inline', locale: 'fr', ...initialOptions }, listeners: [],
       disposed: false, pendingPlay: false, waiting: false, playError: false, playToken: 0, scrubbing: false, volumeOpen: false, previousVolume: player.volume || 1,
-      progressFrame: 0, range: null, hideControlsTimer: 0 };
+      progressFrame: 0, range: null, hideControlsTimer: 0, preparing: false, pointerOver: false };
 
     shell.setAttribute('role', 'group'); shell.tabIndex = 0;
     player.controls = false; player.classList.add('media-element'); player.setAttribute('controlsList', 'nodownload');
     if (kind === 'video') {
       player.playsInline = true; player.disablePictureInPicture = true;
-      if (player.preload === 'none') {
-        if (previewObserver) { pendingPreviews.add(player); previewObserver.observe(player); } else player.preload = 'metadata';
-      }
     }
     stage.append(player);
     seek.type = 'range'; seek.min = '0'; seek.max = '0'; seek.step = 'any'; seek.value = '0'; seek.disabled = true;
@@ -132,6 +134,17 @@
         : words[key]?.[String(state.options.locale).startsWith('en') ? 1 : 0] || key;
     };
     function listen(node, type, handler, options) { node.addEventListener(type, handler, options); state.listeners.push(() => node.removeEventListener(type, handler, options)); }
+    function preparePlayback() {
+      if (state.disposed || document.hidden || !shell.isConnected || !player.paused || player.error || player.readyState >= 3 || player.preload === 'auto') return;
+      // A preload hint only: never play/load here, so no autoplay or seek reset.
+      // Return to metadata as soon as playback is ready or the user moves away.
+      stopPreview(shell); state.preparing = true; player.preload = 'auto';
+    }
+    function finishPreparation() {
+      if (!state.preparing) return;
+      state.preparing = false;
+      if (player.preload === 'auto') player.preload = 'metadata';
+    }
     function stopHideControls() { global.clearTimeout(state.hideControlsTimer); state.hideControlsTimer = 0; }
     function revealControls() {
       if (kind !== 'video' || state.disposed) return;
@@ -285,6 +298,12 @@
     activate(expand, () => { closeVolume(); state.options.onExpand?.(player, expand, shell); });
     activate(save, () => { closeVolume(); if (kind !== 'video') state.options.onSave?.(player, save, shell); });
     activate(fullscreen, toggleFullscreen);
+    listen(shell, 'pointerenter', () => { state.pointerOver = true; preparePlayback(); });
+    listen(shell, 'pointerleave', () => { state.pointerOver = false; if (!shell.contains(document.activeElement)) finishPreparation(); });
+    listen(shell, 'focusin', preparePlayback);
+    listen(shell, 'focusout', event => { if (!state.pointerOver && !shell.contains(event.relatedTarget)) finishPreparation(); });
+    listen(player, 'canplay', finishPreparation);
+    listen(player, 'error', finishPreparation);
     if (kind === 'video') {
       activate(stage, togglePlay);
       for (const event of ['pointermove', 'pointerdown', 'focusin', 'focusout', 'keydown']) listen(shell, event, revealControls);
@@ -317,14 +336,18 @@
     listen(player, 'play', () => { sync(); revealControls(); state.options.onPlay?.(player, shell); });
     listen(player, 'playing', () => { state.waiting = false; state.pendingPlay = false; state.playError = false; sync(); });
     listen(player, 'waiting', () => { state.waiting = true; sync(); });
-    listen(player, 'pause', () => { state.waiting = false; state.pendingPlay = false; sync(); });
+    listen(player, 'pause', () => { state.waiting = false; state.pendingPlay = false; finishPreparation(); sync(); });
     listen(player, 'ended', () => { state.waiting = false; state.pendingPlay = false; sync(); });
     listen(player, 'emptied', () => { state.waiting = false; state.playError = false; sync(); });
     listen(player, 'error', () => { state.waiting = false; state.pendingPlay = false; sync(); });
-    state.sync = sync; state.closeVolume = closeVolume; state.positionVolume = positionVolume; state.updateProgressLoop = updateProgressLoop; state.stopProgress = stopProgress; state.stopHideControls = stopHideControls;
+    state.sync = sync; state.closeVolume = closeVolume; state.positionVolume = positionVolume; state.updateProgressLoop = updateProgressLoop; state.stopProgress = stopProgress; state.stopHideControls = stopHideControls; state.finishPreparation = finishPreparation;
     state.dismissVolume = target => { if (state.volumeOpen && !volumeGroup.contains(target)) closeVolume(); };
     state.weakReference = new WeakRef(state); liveControllers.add(state.weakReference);
-    controllers.set(shell, state); shells.set(player, shell); sync(); return shell;
+    controllers.set(shell, state); shells.set(player, shell);
+    if (player.preload === 'none') {
+      if (previewObserver) { pendingPreviews.add(shell); previewObserver.observe(shell); } else player.preload = 'metadata';
+    }
+    sync(); return shell;
   }
 
   function update(value, options = {}) {
@@ -334,7 +357,7 @@
   }
   function pause(value) {
     const state = controllerFor(value); if (!state || state.disposed) return;
-    ++state.playToken; state.pendingPlay = false; state.waiting = false; state.player.pause(); state.closeVolume(); state.sync();
+    ++state.playToken; state.pendingPlay = false; state.waiting = false; state.player.pause(); state.finishPreparation(); state.closeVolume(); state.sync();
   }
   function dispose(value, options = {}) {
     const state = controllerFor(value); if (!state || state.disposed) return;
@@ -342,7 +365,7 @@
     state.closeVolume(); state.disposed = true; ++state.playToken;
     state.stopProgress();
     state.stopHideControls();
-    stopPreview(state.player);
+    state.finishPreparation(); stopPreview(state.shell);
     for (const remove of state.listeners) remove(); state.listeners.length = 0;
     liveControllers.delete(state.weakReference);
     controllers.delete(state.shell); shells.delete(state.player);

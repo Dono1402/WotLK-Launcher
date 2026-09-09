@@ -24,7 +24,7 @@ const check = (name, condition) => { assert.ok(condition, name); checks.push(nam
     await page.evaluate(data => {
       window.calls = {play:0,expand:0,save:0}; window.instances = {};
       for (const [name,kind,mode] of [['audio','audio','inline'],['video','video','inline'],['draft-audio','audio','draft'],['draft-video','video','draft']]) {
-        const player = document.createElement(kind); player.preload = kind === 'video' ? 'none' : 'metadata'; player.muted = true;
+        const player = document.createElement(kind); player.preload = 'none'; player.muted = true;
         player.src = 'data:'+(kind==='audio'?'audio/wav':'video/webm')+';base64,'+data[kind];
         const shell = AtlasChatMedia.create(player,{kind,mode,locale:'fr',fileName:'private-test.'+(kind==='audio'?'wav':'webm'),onPlay:(p,s)=>{calls.play++;calls.lastPlay=p===player&&s===shell;},onExpand:(p,b,s)=>{calls.expand++;calls.lastExpand=p===player&&s===shell&&b.classList.contains('media-expand');}});
         instances[name] = {player,shell}; document.getElementById(name).append(shell);
@@ -35,6 +35,7 @@ const check = (name, condition) => { assert.ok(condition, name); checks.push(nam
     check('Stable shell holds the original player with native controls disabled',await page.evaluate(()=>Object.values(instances).every(({player,shell})=>shell.contains(player)&&!player.controls&&AtlasChatMedia.shellFor(player)===shell)));
     check('No visible filenames or file size chrome',await page.evaluate(()=>Object.values(instances).every(({shell})=>!shell.innerText.includes('private-test')&&shell.getAttribute('aria-label').startsWith('private-test'))));
     check('Finite metadata enables the real seek controls',await page.evaluate(()=>Object.values(instances).every(({shell})=>!shell.querySelector('.media-seek').disabled&&Number(shell.querySelector('.media-seek').max)>3)));
+    check('Visible audio prepares metadata without playback despite its hidden media element',await page.evaluate(()=>instances.audio.player.preload==='metadata'&&instances.audio.player.paused&&instances.audio.player.currentTime===0&&instances.audio.player.getBoundingClientRect().height===0));
     check('Draft audio and video fit their exact reserved dimensions',await page.evaluate(()=>['draft-audio','draft-video'].every(name=>{const {shell}=instances[name],r=shell.getBoundingClientRect(),host=shell.parentElement.getBoundingClientRect();return Math.abs(r.height-104)<1&&Math.abs(r.width-host.width)<1&&shell.scrollWidth<=Math.ceil(r.width)&&shell.scrollHeight<=Math.ceil(r.height);} )));
     const draftLongTimes = await page.evaluate(()=>{
       const {player,shell}=instances['draft-video'];
@@ -84,6 +85,13 @@ const check = (name, condition) => { assert.ok(condition, name); checks.push(nam
     await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
     const previewCdp = await page.context().newCDPSession(page);await previewCdp.send('HeapProfiler.collectGarbage');await previewCdp.detach();
     check('Removing an unplayed distant video releases its preview observer',await page.evaluate(()=>distantVideoReference.deref()===undefined));
+    await page.evaluate(data=>{const player=document.createElement('audio');player.preload='none';player.src='data:audio/wav;base64,'+data;const shell=AtlasChatMedia.create(player);shell.style.cssText='position:absolute;top:6000px;width:300px';document.body.append(shell);instances.distantAudio={player,shell};},fixture.viewerAudioBytes.toString('base64'));
+    await page.waitForTimeout(100);
+    check('Distant history audio keeps preload none',await page.evaluate(()=>instances.distantAudio.player.preload==='none'));
+    await page.evaluate(()=>{window.distantAudioReference=new WeakRef(instances.distantAudio.player);instances.distantAudio.shell.remove();delete instances.distantAudio;});
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    const audioPreviewCdp=await page.context().newCDPSession(page);await audioPreviewCdp.send('HeapProfiler.collectGarbage');await audioPreviewCdp.detach();
+    check('Removing an unplayed distant audio releases its preview observer',await page.evaluate(()=>distantAudioReference.deref()===undefined));
     await page.locator('#audio .media-play').click();
     await page.waitForFunction(()=>!instances.audio.player.paused&&calls.play===1);
     check('Play operates the real audio and invokes onPlay with stable arguments',await page.evaluate(()=>calls.lastPlay&&instances.audio.shell.classList.contains('is-playing')&&instances.audio.shell.querySelector('.media-play').getAttribute('aria-label')==='Mettre en pause'));

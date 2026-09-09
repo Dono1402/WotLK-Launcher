@@ -43,7 +43,7 @@ internal static class LocalPatchNotesDraft
                 "Les commandes vidéo apparaissent en transparence sur l’image et se masquent automatiquement pendant la lecture.",
                 "L’agrandissement et le retour au fil conservent la position de lecture et le volume. L’arrivée de nouveaux messages ne recrée plus le lecteur.",
                 "La lecture continue lorsque le launcher perd le focus ou est réduit. Elle s’arrête en quittant Messages ou en changeant de conversation.",
-                "Les aperçus YouTube et Vimeo démarrent depuis leur vignette. Les vidéos proches de la zone visible préparent leur aperçu plus tôt.",
+                "Les aperçus YouTube et Vimeo démarrent depuis leur vignette. Les fichiers audio et vidéo proches de la zone visible se préparent plus tôt, avec un chargement anticipé au survol ou au focus clavier.",
                 "Prise en charge élargie des pièces jointes audio et vidéo, notamment M4A, FLAC, MOV et MKV. La lecture intégrée dépend du codec contenu dans le fichier."
             ]),
             new("Présence et notifications",

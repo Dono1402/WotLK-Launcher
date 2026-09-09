@@ -1,6 +1,10 @@
 # Modèles HD Leeviathan : préparation et limite de compatibilité
 
-## Résultat au 9 septembre 2026
+## État initial du 9 septembre 2026, avant le prototype
+
+Suite de cette préparation : un [prototype hors client pour l'humain homme](WOTLK-HD-MODELS-PILOT-2026-09-09.md)
+a depuis été produit et contrôlé. Il reste non installable et non validé en jeu.
+Les constats ci-dessous décrivent uniquement l'état antérieur à cette étape.
 
 Le pack correspondant au choix de l'utilisateur a été identifié et son inventaire
 ZIP contrôlé. **Il n'est pas installé et aucun portage compatible n'est prêt.**

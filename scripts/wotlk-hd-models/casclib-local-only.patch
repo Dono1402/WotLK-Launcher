@@ -1,0 +1,68 @@
+diff --git a/CascLib/CASCConfig.cs b/CascLib/CASCConfig.cs
+--- a/CascLib/CASCConfig.cs
++++ b/CascLib/CASCConfig.cs
+@@ -277,4 +277,4 @@
+-            using (Stream buildInfoStream = new FileStream(buildInfoPath, FileMode.Open))
++            using (Stream buildInfoStream = File.OpenRead(buildInfoPath))
+             {
+                 config._BuildInfo = VerBarConfig.ReadVerBarConfig(buildInfoStream);
+             }
+@@ -318,7 +318,7 @@
+             {
+                 string buildKey = BuildConfigKeyOverride;
+                 string buildCfgPath = Path.Combine(basePath, dataFolder, "config", buildKey.Substring(0, 2), buildKey.Substring(2, 2), buildKey);
+-                using (Stream stream = new FileStream(buildCfgPath, FileMode.Open))
++                using (Stream stream = File.OpenRead(buildCfgPath))
+                 {
+                     config._Builds.Add(KeyValueConfig.ReadKeyValueConfig(stream));
+                 }
+@@ -327,7 +327,7 @@
+             {
+                 string buildKey = config.GetBuildInfoVariable("BuildKey");
+                 string buildCfgPath = Path.Combine(basePath, dataFolder, "config", buildKey.Substring(0, 2), buildKey.Substring(2, 2), buildKey);
+-                using (Stream stream = new FileStream(buildCfgPath, FileMode.Open))
++                using (Stream stream = File.OpenRead(buildCfgPath))
+                 {
+                     config._Builds.Add(KeyValueConfig.ReadKeyValueConfig(stream));
+                 }
+@@ -344,7 +344,7 @@
+             {
+                 string cdnKey = CDNConfigKeyOverride;
+                 string cdnCfgPath = Path.Combine(basePath, dataFolder, "config", cdnKey.Substring(0, 2), cdnKey.Substring(2, 2), cdnKey);
+-                using (Stream stream = new FileStream(cdnCfgPath, FileMode.Open))
++                using (Stream stream = File.OpenRead(cdnCfgPath))
+                 {
+                     config._CDNConfig = KeyValueConfig.ReadKeyValueConfig(stream);
+                 }
+@@ -353,7 +353,7 @@
+             {
+                 string cdnKey = config.GetBuildInfoVariable("CDNKey");
+                 string cdnCfgPath = Path.Combine(basePath, dataFolder, "config", cdnKey.Substring(0, 2), cdnKey.Substring(2, 2), cdnKey);
+-                using (Stream stream = new FileStream(cdnCfgPath, FileMode.Open))
++                using (Stream stream = File.OpenRead(cdnCfgPath))
+                 {
+                     config._CDNConfig = KeyValueConfig.ReadKeyValueConfig(stream);
+                 }
+diff --git a/CascLib/CASCHandlerBase.cs b/CascLib/CASCHandlerBase.cs
+--- a/CascLib/CASCHandlerBase.cs
++++ b/CascLib/CASCHandlerBase.cs
+@@ -89,6 +89,8 @@
+             }
+             catch// (Exception exc) when (!(exc is BLTEDecoderException))
+             {
++                if (!Config.OnlineMode && !CASCConfig.UseOnlineFallbackForMissingFiles)
++                    throw;
+                 return OpenFileOnline(tempEKey);
+             }
+         }
+diff --git a/CascLib/CDNIndexHandler.cs b/CascLib/CDNIndexHandler.cs
+--- a/CascLib/CDNIndexHandler.cs
++++ b/CascLib/CDNIndexHandler.cs
+@@ -33,3 +33,7 @@
++            // Local-only pilot: local .idx files are sufficient; never fetch CDN indices.
++            if (!config.OnlineMode && !CASCConfig.UseOnlineFallbackForMissingFiles)
++                return handler;
++
+             if (!config.OnlineMode && !string.IsNullOrEmpty(config.ArchiveGroup))
+             {
+                 string groupArchivePath = Path.Combine(config.BasePath, CASCGame.GetDataFolder(config.GameType), "indices", config.ArchiveGroup + ".index");

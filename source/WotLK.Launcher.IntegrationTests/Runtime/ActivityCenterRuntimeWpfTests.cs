@@ -184,7 +184,7 @@ internal static class ActivityCenterRuntimeWpfTests
                 && window.ActivityOverlay.IsHitTestVisible,
                 "Le panneau runtime doit s'ouvrir sans remplacer la page Jeu.");
             True(Descendants<TextBlock>(window.ActivityOverlay).Any(text =>
-                    text.Text == "Téléchargement des fichiers du client"),
+                    text.Text == "Téléchargement"),
                 "La phase métier réelle doit être visible dans le panneau.");
 
             Button cancel = Descendants<Button>(window.ActivityOverlay).First(button =>
@@ -209,7 +209,7 @@ internal static class ActivityCenterRuntimeWpfTests
             True(activityState.Current.TopBarIsIndeterminate
                 && Required<TextBlock>(window, "ActivityPercentText").Visibility == Visibility.Collapsed,
                 "Une vérification indéterminée doit retirer immédiatement l'ancien pourcentage.");
-            Equal(40d, Required<Button>(window, "ActivityButton").ActualWidth,
+            Equal(44d, Required<Button>(window, "ActivityButton").ActualWidth,
                 "Une activité indéterminée doit conserver l'icône compacte seule.");
             True(Descendants<ProgressBar>(window.ActivityOverlay).Any(progress =>
                     progress.IsVisible && progress.IsIndeterminate),
@@ -228,7 +228,7 @@ internal static class ActivityCenterRuntimeWpfTests
                 && activityState.Current.RecentOperations.Length == 2,
                 "La fin doit retirer En cours et conserver seulement les contrats terminaux.");
             True(Required<TextBlock>(window, "ActivityPercentText").Visibility == Visibility.Collapsed
-                && Required<Button>(window, "ActivityButton").ActualWidth == 40d,
+                && Required<Button>(window, "ActivityButton").ActualWidth == 44d,
                 "La top bar ne doit jamais conserver le dernier pourcentage après terminaison.");
             True(!activityState.IsOpen || window.ActivityOverlay.IsHitTestVisible,
                 "Une mise à jour runtime ne doit pas fermer ou désynchroniser le panneau.");

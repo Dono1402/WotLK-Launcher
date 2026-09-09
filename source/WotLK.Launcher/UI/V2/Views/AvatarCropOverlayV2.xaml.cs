@@ -214,15 +214,16 @@ public partial class AvatarCropOverlayV2 : UserControl
             or AvatarCropPreviewStatus.Cancelling
             or AvatarCropPreviewStatus.Reconciling;
         bool error = state.Status == AvatarCropPreviewStatus.Error;
-        bool feedbackWasVisible = CropErrorBanner.Visibility == Visibility.Visible
-            || UploadStatusBanner.Visibility == Visibility.Visible;
+        bool feedbackWasVisible = CropErrorBanner.Visibility == Visibility.Visible;
         CropErrorBanner.Visibility = error ? Visibility.Visible : Visibility.Collapsed;
-        UploadStatusBanner.Visibility = uploading ? Visibility.Visible : Visibility.Collapsed;
-        if (feedbackWasVisible != (error || uploading))
+        UploadStatusBanner.Visibility = uploading && state.UploadPercentage is not null ? Visibility.Visible : Visibility.Collapsed;
+        if (feedbackWasVisible != error)
         {
             ApplyLayout(LayoutMode);
         }
-        SaveCropLabel.Text = uploading ? "Envoi…" : "Utiliser la photo";
+        SaveCropLabel.Text = "Utiliser la photo";
+        SaveCropIcon.Visibility = uploading ? Visibility.Hidden : Visibility.Visible;
+        SaveCropBusyIndicator.IsIndeterminate = uploading;
         SaveCropButton.IsEnabled = !uploading;
         bool canCancelRealUpload = !state.IsPreview
             && state.Status is AvatarCropPreviewStatus.Preparing

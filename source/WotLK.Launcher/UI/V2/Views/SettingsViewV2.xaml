@@ -491,7 +491,7 @@
                                 <TextBlock x:Name="LauncherVersionText" Margin="0,0,12,8"
                                            Text="{Binding State.Current.Updates.InstalledLauncherVersion, ElementName=SettingsRoot}"
                                            Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
-                                <TextBlock Margin="0,0,12,8" Text="·" Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
+                                <ProgressBar x:Name="LauncherUpdateBusyIndicator" Margin="0,0,0,8" Style="{StaticResource AtlasV2.Progress.Inline}" IsIndeterminate="{Binding State.Current.Updates.IsBusy, ElementName=SettingsRoot}" AutomationProperties.Name="Mise à jour du launcher"/>
                                 <TextBlock x:Name="LauncherUpdateStatusText" Margin="0,0,0,8"
                                            Text="{Binding State.Current.Updates.StatusText, ElementName=SettingsRoot}">
                                     <TextBlock.Style>

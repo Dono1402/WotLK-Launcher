@@ -509,3 +509,15 @@ dialog::backdrop{animation:none!important;transition:none!important}
 .armory-picker{gap:7px;padding:10px 12px}
 .armory-picker-heading p{display:none}
 }
+/* Reserve feedback space; reveal only operations lasting longer than 350 ms. */
+.inline-busy { display:inline-block; width:16px; height:16px; flex:none; padding:0; border:1.6px solid currentColor; border-right-color:transparent; border-radius:50%; color:var(--muted,#aabac7); opacity:0; animation:quiet-reveal .1s .35s forwards,quiet-spin 1s .35s linear infinite; }
+.inline-busy[hidden] { display:none; }
+#load-earlier-button[aria-busy="true"]::after,.search-busy::after { content:""; display:inline-block; width:12px; height:12px; margin-left:8px; border:1.5px solid currentColor; border-right-color:transparent; border-radius:50%; opacity:0; animation:quiet-reveal .1s .35s forwards,quiet-spin 1s .35s linear infinite; }
+@keyframes quiet-reveal { to { opacity:1; } }
+@keyframes quiet-spin { to { transform:rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { .inline-busy,#load-earlier-button[aria-busy="true"]::after,.search-busy::after { opacity:1; animation:none; } }
+.timeline-busy { position:absolute; left:calc(50% - 8px); top:40%; }
+.sidebar-status.inline-busy { margin:16px auto; padding:0; }
+#load-earlier-button { padding-right:30px; position:relative; }
+#load-earlier-button[aria-busy="true"]::after { position:absolute; right:10px; top:calc(50% - 7px); margin:0; }
+#conversation-search-count::after { content:""; display:inline-block; width:12px; height:12px; margin-left:8px; }

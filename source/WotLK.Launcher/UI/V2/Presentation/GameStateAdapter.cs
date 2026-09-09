@@ -128,21 +128,8 @@ internal sealed class GameStateAdapter : IDisposable
                 100)
             : 0;
         string primaryDetail = fullRepair
-            ? snapshot.MaintenancePhase switch
-            {
-                GameClientMaintenancePhase.LoadingManifest => "Chargement du manifeste",
-                GameClientMaintenancePhase.ManifestLoaded => "Manifeste reçu",
-                GameClientMaintenancePhase.FullVerification => "Rehachage des fichiers gérés",
-                GameClientMaintenancePhase.ComparisonCompleted => "Plan de réparation prêt",
-                _ => "Analyse complète du client"
-            }
-            : snapshot.Phase switch
-        {
-            GameVerificationPhase.LoadingManifest => "Chargement du manifeste",
-            GameVerificationPhase.ComparingManifest => "Comparaison avec le cache local",
-            GameVerificationPhase.ScanningFiles => "Analyse des fichiers locaux",
-            _ => "Analyse du client"
-        };
+            ? GetMaintenanceDetail(snapshot.MaintenancePhase)
+            : snapshot.Phase == GameVerificationPhase.LoadingManifest ? "Préparation" : "Vérification";
 
         bool canPlayDuringAutomaticVerification = !fullRepair
             && snapshot.Action == GameAction.Play
@@ -465,18 +452,14 @@ internal sealed class GameStateAdapter : IDisposable
     {
         return phase switch
         {
-            GameClientMaintenancePhase.LoadingManifest => "Chargement du manifeste",
-            GameClientMaintenancePhase.ManifestLoaded => "Manifeste reçu",
-            GameClientMaintenancePhase.GameProcessesStopped => "Préparation des fichiers",
-            GameClientMaintenancePhase.ComparingManifest => "Comparaison du client local",
-            GameClientMaintenancePhase.ScanningFiles => "Analyse des fichiers locaux",
-            GameClientMaintenancePhase.FullVerification => "Rehachage des fichiers gérés",
-            GameClientMaintenancePhase.ComparisonCompleted => "Analyse terminée",
-            GameClientMaintenancePhase.Cleaning => "Nettoyage des anciens fichiers",
-            GameClientMaintenancePhase.CleanupCompleted => "Nettoyage terminé",
-            GameClientMaintenancePhase.RepairDownloading => "Téléchargement de la réparation",
-            GameClientMaintenancePhase.RepairApplying => "Application des fichiers réparés",
-            _ => "Préparation du client"
+            GameClientMaintenancePhase.LoadingManifest or GameClientMaintenancePhase.ManifestLoaded
+                or GameClientMaintenancePhase.GameProcessesStopped => "Préparation",
+            GameClientMaintenancePhase.ComparingManifest or GameClientMaintenancePhase.ScanningFiles
+                or GameClientMaintenancePhase.FullVerification or GameClientMaintenancePhase.ComparisonCompleted => "Vérification",
+            GameClientMaintenancePhase.Cleaning or GameClientMaintenancePhase.CleanupCompleted => "Nettoyage",
+            GameClientMaintenancePhase.RepairDownloading => "Téléchargement",
+            GameClientMaintenancePhase.RepairApplying => "Installation",
+            _ => "Préparation"
         };
     }
 

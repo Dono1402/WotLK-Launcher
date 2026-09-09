@@ -375,7 +375,7 @@ public sealed record AddonsViewState(
         : UpdateCount == 1 ? "Mettre à jour" : "Tout mettre à jour";
 
     public string EmptyTitle => IsCatalogLoading
-        ? "Chargement du catalogue…"
+        ? string.Empty
         : TotalCount == 0
             ? "Aucun addon disponible"
             : !string.IsNullOrWhiteSpace(SearchText)
@@ -383,7 +383,7 @@ public sealed record AddonsViewState(
                 : "Aucun addon ne correspond à ce filtre.";
 
     public string EmptyDescription => IsCatalogLoading
-        ? "Atlas récupère les informations disponibles."
+        ? string.Empty
         : TotalCount == 0
             ? "Le catalogue ne contient actuellement aucun addon."
             : "Modifie la recherche ou le filtre sélectionné.";

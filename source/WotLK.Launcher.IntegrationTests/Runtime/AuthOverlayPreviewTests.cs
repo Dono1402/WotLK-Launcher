@@ -451,7 +451,7 @@ internal static class AuthOverlayPreviewTests
         if (scenario == AuthPreviewScenario.Loading)
         {
             True(!window.AuthState.SubmitCommand.CanExecute(null), "Le bouton Loading doit rester désactivé.");
-            Equal("Connexion…", window.AuthState.PrimaryActionLabel, "Le libellé Loading est incorrect.");
+            Equal("Se connecter", window.AuthState.PrimaryActionLabel, "Le libellé reste stable pendant la connexion.");
         }
 
         if (scenario == AuthPreviewScenario.EmailWarning)

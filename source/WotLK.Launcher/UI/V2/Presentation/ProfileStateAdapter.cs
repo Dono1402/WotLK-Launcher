@@ -44,7 +44,7 @@ internal sealed class ProfileStateAdapter : IDisposable
                 ? "Adresse e-mail vérifiée"
                 : "Adresse e-mail non vérifiée",
             CanLogout: snapshot.CanLogout,
-            LogoutLabel: snapshot.IsLoggingOut ? "Déconnexion…" : "Déconnexion",
+            LogoutLabel: "Déconnexion",
             LogoutToolTip: snapshot.LogoutUnavailableReason,
             ErrorMessage: error);
     }

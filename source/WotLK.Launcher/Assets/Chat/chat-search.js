@@ -9,16 +9,12 @@
     next: ['Résultat suivant (Entrée)', 'Next result (Enter)'],
     close: ['Fermer la recherche (Échap)', 'Close search (Escape)'],
     hint: ['Texte des messages · les spoilers masqués sont exclus', 'Message text · concealed spoilers are excluded'],
-    loading: ['Recherche dans l’historique…', 'Searching conversation history…'],
-    complete: ['Tout l’historique parcouru', 'Entire history searched'],
     partial: ['Historique partiel', 'Partial history'],
-    scanned: ['messages parcourus', 'messages searched'],
     results: ['résultats', 'results'],
     none: ['Aucun résultat', 'No results'],
     continue: ['Continuer dans l’historique', 'Continue through history'],
     retry: ['Réessayer', 'Retry'],
     failed: ['Chargement interrompu', 'History loading interrupted'],
-    waiting: ['Réponse en attente', 'Waiting for a response'],
     offline: ['Connexion indisponible', 'Connection unavailable']
   };
   function create(options) {
@@ -118,11 +114,11 @@
       input.placeholder = t('find'); input.setAttribute('aria-label', t('find')); bar.setAttribute('aria-label', t('find'));
       for (const name of ['previous', 'next', 'close']) { $(name).title = t(name); $(name).setAttribute('aria-label', t(name)); }
       bar.title = t('hint');
-      const value = snapshot(), loaded = (value.messages || []).filter(message => !message.deletedAt && message.threadId === value.selectedThreadId).length;
+      const value = snapshot();
       const full = !value.isLoading && !value.hasEarlier && !flight;
       const running = !!flight || value.isLoadingEarlier || value.isLoading;
-      const partial = !query ? t('hint') : full ? t('complete') : failure ? t('failed') : !value.isAvailable ? t('offline') : flight?.timedOut ? t('waiting') : running || pages < 20 ? t('loading') : t('partial');
-      status.textContent = partial + (query ? ' · ' + loaded + ' ' + t('scanned') + (full ? '' : ' · ' + t('partial')) : '');
+      status.textContent = !query || full ? '' : failure ? t('failed') + ' · ' + t('partial') : !value.isAvailable ? t('offline') : t('partial');
+      count.classList.toggle('search-busy', !!query && running);
       const canRetry = !flight && !running && !!query && !full;
       resume.hidden = !canRetry || !failure && pages < 20;
       resume.disabled = !value.isAvailable;

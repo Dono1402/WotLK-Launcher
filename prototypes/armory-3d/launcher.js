@@ -6,7 +6,7 @@ const text = {
     loading:'Chargement des personnages…',refreshing:'Actualisation…',unavailable:'Personnages indisponibles',cached:'Dernières données enregistrées',select:'Sélectionne un personnage',pending:'Données du personnage en cours de récupération',noMatch:'Aucun résultat',level:'Niveau',armory:'Armurerie',profile:'Profil',
     statusLabel:'Statut',bioLabel:'Bio',statusPlaceholder:'Ton statut du moment',bioPlaceholder:'Quelques mots pour te présenter',profilePicture:'Photo de profil',
     changeAvatar:'Changer la photo',
-    save:'Enregistrer',cancel:'Annuler',saving:'Enregistrement…',saved:'✓ Enregistré',dismissNotice:'Fermer la notification',apply:'Appliquer',applying:'Application…',back:'Retour',
+    save:'Enregistrer',cancel:'Annuler',dismissNotice:'Fermer la notification',apply:'Appliquer',back:'Retour',
     editingUnavailable:'La modification du profil est actuellement indisponible.',saveRejected:'Le profil n’a pas pu être enregistré. Réessaie.',bridgeUnavailable:'La personnalisation est momentanément indisponible.',
     profileTooLong:'Le statut est limité à 80 caractères et la bio à 280 caractères.',
     editText:'Modifier le statut et la bio',bannerMenu:'Modifier la bannière',cropBanner:'Recadrer la bannière',cropArea:'Zone de recadrage',chooseBanner:'Changer l’image',resetBanner:'Supprimer la bannière',
@@ -16,7 +16,7 @@ const text = {
     loading:'Loading characters…',refreshing:'Refreshing…',unavailable:'Characters unavailable',cached:'Last saved data',select:'Select a character',pending:'Retrieving character data',noMatch:'No results',level:'Level',armory:'Armory',profile:'Profile',
     statusLabel:'Status',bioLabel:'Bio',statusPlaceholder:'Your current status',bioPlaceholder:'A few words about yourself',profilePicture:'Profile picture',
     changeAvatar:'Change picture',
-    save:'Save',cancel:'Cancel',saving:'Saving…',saved:'✓ Saved',dismissNotice:'Dismiss notification',apply:'Apply',applying:'Applying…',back:'Back',
+    save:'Save',cancel:'Cancel',dismissNotice:'Dismiss notification',apply:'Apply',back:'Back',
     editingUnavailable:'Profile editing is currently unavailable.',saveRejected:'Your profile could not be saved. Please try again.',bridgeUnavailable:'Customization is temporarily unavailable.',
     profileTooLong:'Your status is limited to 80 characters and your bio to 280 characters.',
     editText:'Edit status and bio',bannerMenu:'Edit banner',cropBanner:'Crop banner',cropArea:'Crop area',chooseBanner:'Change image',resetBanner:'Remove the banner',
@@ -30,7 +30,7 @@ let characterFrame = $('character-view'), pendingCharacterFrame, previousCharact
 const reducedCharacterMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let editing = false, draft, profileSave, profileFeedback, profileNotice, avatarPending, avatarFeedback, avatarRestoreFocus = false;
 let bannerEditing = false, bannerDraft, bannerPicking = false, bannerRequest, bannerFeedback, bannerRestoreFocus = false, bannerDrag;
-let profileTrigger, notificationSource, notificationTimer, characterFeedback;
+let profileTrigger, notificationSource, characterFeedback;
 const announcedFeedback = new WeakSet();
 const label = key => text[locale][key];
 const icons = () => window.lucide.createIcons();
@@ -56,26 +56,22 @@ function postProfileAction(message) {
   } catch { return false; }
 }
 function dismissNotification() {
-  clearTimeout(notificationTimer); notificationSource = undefined; renderNotification();
+  notificationSource = undefined; renderNotification();
 }
 function renderNotification() {
-  const sources = [profileFeedback,avatarFeedback,bannerFeedback,profileNotice,characterFeedback].filter(Boolean);
+  const sources = [profileFeedback,avatarFeedback,bannerFeedback,profileNotice,characterFeedback].filter(source => source?.kind==='error');
   if (notificationSource && !sources.includes(notificationSource)) {
-    clearTimeout(notificationTimer); notificationSource = undefined;
+    notificationSource = undefined;
   }
   for (const source of sources) if (!announcedFeedback.has(source)) {
-    announcedFeedback.add(source); clearTimeout(notificationTimer); notificationSource = source;
-    if (source.kind!=='error') notificationTimer = setTimeout(() => {
-      if (notificationSource===source) { notificationSource = undefined; renderNotification(); }
-    },4000);
+    announcedFeedback.add(source); notificationSource = source;
   }
   const container = $('profile-notice');
   const destination = $('banner-editor').open ? $('banner-notification-slot') : document.querySelector('.hero-feedbacks');
   if (container.parentElement!==destination) destination.append(container);
   container.hidden = !notificationSource;
-  const isError = notificationSource?.kind==='error';
-  container.dataset.kind = isError?'error':'success';
-  $('notification-text').textContent = notificationSource ? isError ? notificationSource.message || label(notificationSource.key) : label('saved') : '';
+  container.dataset.kind = 'error';
+  $('notification-text').textContent = notificationSource ? notificationSource.message || label(notificationSource.key) : '';
   $('dismiss-notification').ariaLabel = $('dismiss-notification').title = label('dismissNotice');
 }
 function closeBannerConfirmation(restoreFocus=false) {
@@ -160,7 +156,9 @@ function renderBanner() {
   $('banner-zoom-out').disabled = busy || !ready || !canCrop || value.zoom<=1;
   $('banner-zoom-in').disabled = busy || !ready || !canCrop || value.zoom>=3;
   $('cancel-banner').disabled = busy;
-  $('save-banner').textContent = label(bannerIsBusy()?'applying':'apply');
+  $('save-banner').textContent = label('apply');
+  $('save-banner').setAttribute('aria-busy',String(bannerIsBusy()));
+  $('banner-image-loading').setAttribute('aria-label',label('loadingImage'));
   $('banner-zoom').value = String(zoomValue(value.zoom));
   const zoomText = Math.round(zoomValue(value.zoom)*100)+' %';
   $('banner-zoom').setAttribute('aria-valuetext',zoomText);
@@ -185,7 +183,7 @@ function renderEditor() {
   $('profile-permission').hidden = profile.canUpdateSocialProfile===true || busy;
   $('save-profile').disabled = busy || profile.canUpdateSocialProfile!==true || !draft || sameValues(normalized(draft),normalized(profileValues(profile)));
   $('save-profile').setAttribute('aria-busy',String(profileIsBusy()));
-  $('save-profile').querySelector('span').textContent = label(profileIsBusy()?'saving':'save');
+  $('save-profile').querySelector('span').textContent = label('save');
   $('cancel-profile').disabled = busy;
   $('change-avatar').disabled = busy || profile.canModifyAvatar!==true;
   $('change-avatar').setAttribute('aria-busy',String(avatarIsBusy()));
@@ -485,7 +483,7 @@ function select(id,force=false) {
     }
   } else {
     clearCharacterView();
-    $('empty-state').hidden = false; $('empty-state').textContent=label('pending');
+    $('empty-state').hidden = true; $('empty-state').textContent='';
   }
   render();
 }
@@ -508,6 +506,8 @@ function applySharedCharacterRequest() {
 }
 
 function render() {
+  $('character-busy').hidden = !selected || roster.find(row => row.id===selected)?.available!==false;
+  $('character-busy').setAttribute('aria-label',label('pending'));
   $('character-count').textContent = String(roster.length);
   document.querySelector('.search').hidden = roster.length<=1;
   if (roster.length<=1) $('search').value = '';
@@ -527,13 +527,18 @@ function render() {
     copy.append(name,subtitle); button.append(icon,copy); button.addEventListener('click',() => { sharedCharacterRequest=undefined; select(row.id); }); return button;
   }));
   if (focused) $('characters').querySelector(`[data-id="${focused}"]`)?.focus({preventScroll:true});
-  const message = syncing ? 'refreshing' : status==='unavailable' ? 'unavailable' : status==='loading' ? 'loading' : status==='cached' ? 'cached' : !roster.length ? 'empty' : !visible.length ? 'noMatch' : null;
+  const loading = syncing || status==='loading';
+  const message = status==='unavailable' ? 'unavailable' : status==='cached' ? 'cached' : loading ? null : !roster.length ? 'empty' : !visible.length ? 'noMatch' : null;
+  $('roster-busy').hidden = !loading;
+  $('roster-busy').setAttribute('aria-label',label('loading'));
+  $('characters').setAttribute('aria-busy',String(loading));
   $('roster-status').textContent = message ? label(message) : '';
+  $('roster-status').hidden = !message;
   $('retry').hidden = !['cached','unavailable'].includes(status);
   $('retry').disabled = Boolean(pending || syncing);
   $('retry').ariaBusy = String(Boolean(pending || syncing));
-  $('retry').querySelector('[data-label]').textContent = label(syncing ? 'refreshing' : 'retry');
-  if (!selected) { $('empty-state').hidden=false; $('empty-state').textContent=label(roster.length?'select':message || 'empty'); }
+  $('retry').querySelector('[data-label]').textContent = label('retry');
+  if (!selected) { $('empty-state').hidden=loading && !roster.length; $('empty-state').textContent=label(roster.length?'select':message || 'empty'); }
 }
 
 async function refresh(force=false) {
@@ -719,7 +724,7 @@ document.addEventListener('visibilitychange',() => {
 });
 window.addEventListener('pagehide',() => {
   rosterPaused = true;
-  clearTimeout(timer); clearTimeout(notificationTimer);
+  clearTimeout(timer);
   cancelPendingCharacter(); finishCharacterTransition();
 });
 window.addEventListener('pageshow',event => { rosterPaused = false; if (event.persisted) void refresh(); });

@@ -220,6 +220,7 @@
     </Grid>
         <Grid x:Name="RichHost" Visibility="Collapsed" ClipToBounds="True"/>
         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+        <ProgressBar x:Name="RichLoadingIndicator" Style="{StaticResource AtlasV2.Progress.Inline}" Width="24" Height="24" AutomationProperties.Name="Chargement des messages"/>
         <TextBlock x:Name="RichStatus" Visibility="Collapsed" Margin="36,12" HorizontalAlignment="Center"
                    TextWrapping="Wrap" Foreground="{StaticResource AtlasV2.Brush.TextSecondary}" FontSize="14"/>
         <Button x:Name="RichRetryButton" Content="Réessayer" Visibility="Collapsed" HorizontalAlignment="Center"

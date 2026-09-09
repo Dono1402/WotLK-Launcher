@@ -34,6 +34,7 @@ public partial class ChatViewV2
     private readonly HashSet<string> _richClipboardFiles = new(StringComparer.OrdinalIgnoreCase);
     private bool _richMode, _richInitializing, _richReady, _richActive, _richMediaActive, _richDisposed, _richPickerOpen;
     private Window? _richWindow;
+    private bool _richLoading, _richFailed;
 
     public event EventHandler<ChatRichActionEventArgs>? RichActionRequested;
     public event EventHandler<ChatFilesAddedEventArgs>? FilesAddedRequested;
@@ -72,7 +73,7 @@ public partial class ChatViewV2
         _richMode = enabled;
         PageGrid.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
         RichHost.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
-        if (!enabled) { RichStatus.Visibility = Visibility.Collapsed; RichRetryButton.Visibility = Visibility.Collapsed; }
+        UpdateRichFeedback();
         if (enabled && IsLoaded) _ = EnsureRichBrowserAsync();
         PublishRichSnapshot();
     }
@@ -151,9 +152,10 @@ public partial class ChatViewV2
     {
         if (_richDisposed || _richInitializing || _richBrowser is not null) return;
         _richInitializing = true;
-        RichRetryButton.Visibility = Visibility.Collapsed;
-        RichStatus.Text = LauncherLocalization.IsEnglish ? "Loading messages…" : "Chargement des messages…";
-        RichStatus.Visibility = Visibility.Visible;
+        _richLoading = true;
+        _richFailed = false;
+        RichStatus.Text = string.Empty;
+        UpdateRichFeedback();
         try
         {
             WebView2CompositionControl browser = _richBrowser = new()
@@ -213,12 +215,20 @@ public partial class ChatViewV2
     private void ShowRichFailure()
     {
         _richReady = false;
+        _richLoading = false;
+        _richFailed = true;
         RichStatus.Text = LauncherLocalization.IsEnglish
             ? "Messages could not be loaded. Try loading the page again."
             : "La page Messages n’a pas pu être chargée. Réessayez de la charger.";
-        RichStatus.Visibility = _richMode ? Visibility.Visible : Visibility.Collapsed;
-        RichRetryButton.Visibility = RichStatus.Visibility;
+        UpdateRichFeedback();
         RichRetryButton.IsEnabled = !_richInitializing;
+    }
+
+    private void UpdateRichFeedback()
+    {
+        RichLoadingIndicator.IsIndeterminate = _richMode && _richLoading;
+        RichStatus.Visibility = _richMode && _richFailed ? Visibility.Visible : Visibility.Collapsed;
+        RichRetryButton.Visibility = RichStatus.Visibility;
     }
 
     private async void RichRetryButton_Click(object sender, RoutedEventArgs args)
@@ -233,6 +243,8 @@ public partial class ChatViewV2
     private void ReleaseRichBrowser()
     {
         _richReady = false;
+        _richLoading = _richFailed = false;
+        UpdateRichFeedback();
         ResetRichComposerState();
         _richMediaLifetime.Cancel();
         _richMediaLifetime.Dispose();
@@ -335,6 +347,8 @@ public partial class ChatViewV2
             if (action == "ready")
             {
                 _richReady = true;
+                _richLoading = _richFailed = false;
+                UpdateRichFeedback();
                 ResetRichComposerState();
                 RichStatus.Visibility = Visibility.Collapsed;
                 RichRetryButton.Visibility = Visibility.Collapsed;

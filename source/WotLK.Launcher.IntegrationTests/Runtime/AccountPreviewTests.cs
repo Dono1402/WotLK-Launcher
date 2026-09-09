@@ -432,10 +432,10 @@ internal static class AccountPreviewTests
             await PumpAsync(DispatcherPriority.Render);
             var layout = window.AvatarCropState.Current.Layout;
             Rect expectedViewbox = new(
-                layout.PixelCrop.X,
-                layout.PixelCrop.Y,
-                layout.PixelCrop.Size,
-                layout.PixelCrop.Size);
+                layout.PixelCrop.X / (double)window.AvatarCropState.Current.OrientedPixelWidth,
+                layout.PixelCrop.Y / (double)window.AvatarCropState.Current.OrientedPixelHeight,
+                layout.PixelCrop.Size / (double)window.AvatarCropState.Current.OrientedPixelWidth,
+                layout.PixelCrop.Size / (double)window.AvatarCropState.Current.OrientedPixelHeight);
             ImageBrush editor = Required<ImageBrush>(overlay, "CropEditorBrush");
             ImageBrush preview = Required<ImageBrush>(overlay, "Preview128Brush");
             Equal(expectedViewbox, editor.Viewbox, "Le déplacement fictif doit mettre à jour le cadrage principal.");
@@ -516,9 +516,13 @@ internal static class AccountPreviewTests
                     ? "UploadStatusBanner"
                     : "CropErrorBanner";
                 Rect feedbackBounds = BoundsInAncestor(
-                    Required<Border>(window.AvatarCropPreviewOverlay, feedbackName), window);
-                True(feedbackBounds.Top >= 0 && feedbackBounds.Bottom <= saveBounds.Top - 8,
-                    "La progression et l'erreur doivent rester intégralement visibles au-dessus des actions du recadrage.");
+                    Required<FrameworkElement>(window.AvatarCropPreviewOverlay, feedbackName), window);
+                True(feedbackBounds.Top >= 0 && feedbackBounds.Bottom <= window.ActualHeight,
+                    "La progression et l'erreur restent intégralement visibles.");
+                if (scenario == AccountPreviewScenario.Uploading)
+                    True(feedbackBounds.Right <= saveBounds.Left, "La progression reste dans le pied du recadrage sans recouvrir le bouton.");
+                else
+                    True(feedbackBounds.Bottom <= saveBounds.Top - 8, "L’erreur reste au-dessus des actions.");
             }
             if (window.ActualWidth >= 1080)
             {
@@ -565,7 +569,8 @@ internal static class AccountPreviewTests
         if (scenario == AccountPreviewScenario.Uploading)
         {
             True(window.AvatarCropPreviewOverlay.IsBusy, "L'envoi fictif doit être occupé.");
-            Equal("Envoi…", Required<TextBlock>(window.AvatarCropPreviewOverlay, "SaveCropLabel").Text, "Le libellé d'envoi est incorrect.");
+            Equal("Utiliser la photo", Required<TextBlock>(window.AvatarCropPreviewOverlay, "SaveCropLabel").Text, "Le libellé reste stable pendant l’envoi.");
+            True(Required<ProgressBar>(window.AvatarCropPreviewOverlay, "SaveCropBusyIndicator").IsIndeterminate, "L’envoi active l’indicateur dans le bouton.");
         }
 
         if (scenario == AccountPreviewScenario.UploadError)
@@ -606,8 +611,8 @@ internal static class AccountPreviewTests
                 "Le formulaire ne doit pas préremplir l'adresse e-mail actuelle.");
             True(Required<Border>(window.AccountPage, "NewEmailField").BorderThickness.Left >= 1,
                 "La nouvelle adresse doit disposer d'une zone de saisie délimitée.");
-            Equal("Enregistrement…", Required<Button>(window.AccountPage, "ConfirmEmailChangeButton").Content,
-                "Le changement d'e-mail occupé doit afficher un retour d'état explicite.");
+            True(Required<ProgressBar>(window.AccountPage, "EmailBusyIndicator").IsIndeterminate,
+                "Le changement d’e-mail occupé utilise l’indicateur intégré.");
         }
 
         if (scenario == AccountPreviewScenario.SessionRevokeError)

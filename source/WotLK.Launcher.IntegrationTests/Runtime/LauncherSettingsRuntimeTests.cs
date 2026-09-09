@@ -595,7 +595,8 @@ internal static class LauncherSettingsRuntimeTests
                 "Le bouton doit déléguer une seule fois au coordinateur partagé.");
             True(settingsState.Current.Updates.IsChecking,
                 "L'état Checking doit être projeté sans créer une opération Activity.");
-            Equal("Recherche en cours…", Required<TextBlock>(view, "LauncherUpdateStatusText").Text,
+            True(Required<ProgressBar>(view, "LauncherUpdateBusyIndicator").IsIndeterminate, "La recherche active l’indicateur discret.");
+            Equal(string.Empty, Required<TextBlock>(view, "LauncherUpdateStatusText").Text,
                 "Un check ne doit jamais être présenté comme À jour.");
             True(!settingsState.CheckLauncherUpdateCommand.CanExecute(null),
                 "Un deuxième check doit être refusé pendant la requête active.");

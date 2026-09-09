@@ -74,7 +74,8 @@ internal static class SettingsPreviewTests
         UpdateSettingsViewState current = unknown with { HasChecked = true };
         Equal("À jour", current.StatusText, "Une recherche réussie doit afficher À jour.");
         True(current.IsUpToDate, "Le statut à jour doit être positif.");
-        Equal("Recherche en cours…", (current with { IsChecking = true }).StatusText, "La recherche reste visible.");
+        Equal(string.Empty, (current with { IsChecking = true }).StatusText, "La recherche ne crée pas de ligne temporaire.");
+        True((current with { IsChecking = true }).IsBusy, "La recherche active l’indicateur du contrôle.");
         Equal("Mise à jour en cours…", (current with { IsUpdating = true }).StatusText, "Le téléchargement reste visible.");
         Equal("Vérification indisponible", (current with { HasError = true }).StatusText, "Une erreur ne doit pas afficher À jour.");
         True(!(current with { HasError = true }).IsUpToDate, "L'erreur retire le statut à jour.");

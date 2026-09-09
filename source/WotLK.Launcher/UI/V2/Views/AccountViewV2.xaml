@@ -166,12 +166,9 @@
                                 <TextBlock Text="{Binding Current.AvatarErrorMessage}" TextWrapping="Wrap" Style="{StaticResource AtlasV2.Account.Text.Caption}" Foreground="#F1A7AE" />
                             </Border>
 
-                            <Border x:Name="AvatarOperationBanner" Margin="0,16,0,0" Padding="12,10" HorizontalAlignment="Stretch" Background="{StaticResource AtlasV2.Brush.CyanSurface}" BorderBrush="{StaticResource AtlasV2.Brush.CyanBorder}" BorderThickness="1" CornerRadius="6" Visibility="Collapsed">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding Current.AvatarStatusMessage}" Style="{StaticResource AtlasV2.Account.Text.Caption}" Foreground="{StaticResource AtlasV2.Brush.Cyan}" />
-                                    <ProgressBar x:Name="AvatarOperationProgress" Height="3" Margin="0,8,0,0" IsIndeterminate="True" Style="{StaticResource AtlasV2.Progress.Compact}" />
-                                </StackPanel>
-                            </Border>
+                            <Grid x:Name="AvatarOperationBanner" Margin="0,12,0,0" HorizontalAlignment="Center" Visibility="Collapsed">
+                                <ProgressBar x:Name="AvatarOperationProgress" Style="{StaticResource AtlasV2.Progress.Inline}" />
+                            </Grid>
                         </StackPanel>
                     </Border>
 
@@ -229,7 +226,14 @@
 
                                 <Grid Margin="0,16,0,0">
                                     <TextBlock x:Name="SocialProfileFeedbackText" MaxWidth="420" Margin="0,0,16,0" VerticalAlignment="Center" TextWrapping="Wrap" Style="{StaticResource AtlasV2.Account.Text.Caption}" Visibility="Collapsed" />
-                                    <Button x:Name="SaveSocialProfileButton" Width="150" Height="42" HorizontalAlignment="Right" Style="{StaticResource AtlasV2.Account.Button.Primary}" IsEnabled="{Binding CanSaveSocialProfile}" Content="Enregistrer" Click="SaveSocialProfileButton_Click" />
+                                    <Button x:Name="SaveSocialProfileButton" Width="150" Height="42" HorizontalAlignment="Right" Style="{StaticResource AtlasV2.Account.Button.Primary}" IsEnabled="{Binding CanSaveSocialProfile}" AutomationProperties.Name="Enregistrer" Click="SaveSocialProfileButton_Click">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Grid Width="20" Margin="0,0,6,0">
+                                                <ProgressBar x:Name="SocialProfileBusyIndicator" Foreground="#111318" Style="{StaticResource AtlasV2.Progress.Inline}" />
+                                            </Grid>
+                                            <TextBlock Text="Enregistrer" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
                                 </Grid>
                             </StackPanel>
                         </Border>
@@ -403,21 +407,23 @@
                                                 <Run Text="{Binding CreatedText}" /><Run Text=" · " /><Run Text="{Binding ExpiresText}" />
                                             </TextBlock>
                                         </StackPanel>
-                                        <Button Grid.Column="2" Tag="{Binding Id}" IsEnabled="{Binding CanRevoke}" Click="RevokeSessionButton_Click">
+                                        <Button Grid.Column="2" Tag="{Binding Id}" IsEnabled="{Binding CanRevoke}" AutomationProperties.Name="Déconnecter" Click="RevokeSessionButton_Click">
                                             <Button.Style>
                                                 <Style TargetType="{x:Type Button}" BasedOn="{StaticResource AtlasV2.Account.Button.Compact}">
-                                                    <Setter Property="Content" Value="Déconnecter" />
                                                     <Setter Property="Visibility" Value="Visible" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsCurrent}" Value="True">
                                                             <Setter Property="Visibility" Value="Collapsed" />
                                                         </DataTrigger>
-                                                        <DataTrigger Binding="{Binding IsRevoking}" Value="True">
-                                                            <Setter Property="Content" Value="Déconnexion…" />
-                                                        </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Button.Style>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Grid Width="20" Margin="0,0,6,0">
+                                                    <ProgressBar Style="{StaticResource AtlasV2.Progress.Inline}" IsIndeterminate="{Binding IsRevoking}"/>
+                                                </Grid>
+                                                <TextBlock Text="Déconnecter" VerticalAlignment="Center"/>
+                                            </StackPanel>
                                         </Button>
                                     </Grid>
                                 </Border>
@@ -425,6 +431,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
+                    <ProgressBar x:Name="SessionsLoadingIndicator" Margin="0,16" Style="{StaticResource AtlasV2.Progress.Inline}" AutomationProperties.Name="Chargement des appareils" />
                     <Border x:Name="SessionsMessageCard" Padding="20" Visibility="Collapsed" Background="{StaticResource AtlasV2.Brush.GlassRaised}" BorderBrush="{StaticResource AtlasV2.Brush.GlassBorder}" BorderThickness="1" CornerRadius="12">
                         <TextBlock Text="{Binding Current.SessionsMessage}" TextWrapping="Wrap" Style="{StaticResource AtlasV2.Account.Text.Body}" />
                     </Border>
@@ -460,7 +467,14 @@
                     </Border>
                     <StackPanel Margin="0,22,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
                         <Button x:Name="CancelEmailChangeButton" MinWidth="108" Content="Annuler" Style="{StaticResource AtlasV2.Account.Button.Secondary}" Click="CancelEmailChangeButton_Click" />
-                        <Button x:Name="ConfirmEmailChangeButton" MinWidth="128" Margin="10,0,0,0" Content="Enregistrer" Style="{StaticResource AtlasV2.Account.Button.Primary}" Click="ConfirmEmailChangeButton_Click" />
+                        <Button x:Name="ConfirmEmailChangeButton" MinWidth="128" Margin="10,0,0,0" Style="{StaticResource AtlasV2.Account.Button.Primary}" AutomationProperties.Name="Enregistrer" Click="ConfirmEmailChangeButton_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <Grid Width="20" Margin="0,0,6,0">
+                                    <ProgressBar x:Name="EmailBusyIndicator" Foreground="#111318" Style="{StaticResource AtlasV2.Progress.Inline}" />
+                                </Grid>
+                                <TextBlock Text="Enregistrer" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -488,13 +502,17 @@
                     <Border x:Name="PasswordEditorErrorBanner" Margin="0,14,0,0" Style="{StaticResource AtlasV2.Banner.Error}" Visibility="Collapsed">
                         <TextBlock Text="{Binding Current.AccountErrorMessage}" TextWrapping="Wrap" Style="{StaticResource AtlasV2.Account.Text.Caption}" Foreground="#F1A7AE" />
                     </Border>
-                    <StackPanel x:Name="PasswordBusyPanel" Margin="0,14,0,0" Visibility="Collapsed">
-                        <TextBlock Text="Modification en cours…" Style="{StaticResource AtlasV2.Account.Text.Caption}" Foreground="{StaticResource AtlasV2.Brush.Cyan}" />
-                        <ProgressBar Height="3" Margin="0,7,0,0" IsIndeterminate="True" Style="{StaticResource AtlasV2.Progress.Compact}" />
-                    </StackPanel>
+
                     <StackPanel Margin="0,22,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
                         <Button x:Name="CancelPasswordChangeButton" MinWidth="108" Content="Annuler" Style="{StaticResource AtlasV2.Account.Button.Secondary}" Click="CancelPasswordChangeButton_Click" />
-                        <Button x:Name="ConfirmPasswordChangeButton" MinWidth="128" Margin="10,0,0,0" Content="Modifier" Style="{StaticResource AtlasV2.Account.Button.Primary}" Click="ConfirmPasswordChangeButton_Click" />
+                        <Button x:Name="ConfirmPasswordChangeButton" MinWidth="128" Margin="10,0,0,0" Style="{StaticResource AtlasV2.Account.Button.Primary}" AutomationProperties.Name="Modifier" Click="ConfirmPasswordChangeButton_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <Grid Width="20" Margin="0,0,6,0">
+                                    <ProgressBar x:Name="PasswordBusyIndicator" Foreground="#111318" Style="{StaticResource AtlasV2.Progress.Inline}" />
+                                </Grid>
+                                <TextBlock Text="Modifier" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </StackPanel>
             </Border>

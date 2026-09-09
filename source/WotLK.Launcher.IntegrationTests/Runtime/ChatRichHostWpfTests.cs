@@ -202,6 +202,11 @@ internal static class ChatRichHostWpfTests
             _ = core.CallDevToolsProtocolMethodAsync("Page.crash", "{}").ContinueWith(task => { _ = task.Exception; }, TaskScheduler.Default);
             System.Windows.Controls.Button retry = (System.Windows.Controls.Button)view.FindName("RichRetryButton");
             await Until(() => retry.IsVisible, "Renderer failure offers an in-place retry.");
+            view.SetRichMode(false);
+            True(!retry.IsVisible, "Leaving rich mode hides its retry feedback.");
+            view.SetRichMode(true);
+            True(retry.IsVisible && !((System.Windows.Controls.ProgressBar)view.FindName("RichLoadingIndicator")).IsIndeterminate,
+                "Returning to a failed renderer retains retry without a false loading indicator.");
             retry.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
             await Until(() => view.RichBrowser?.CoreWebView2 is { } current && !ReferenceEquals(current, core), "Retry recreates a fresh browser control.");
             core = view.RichBrowser!.CoreWebView2;

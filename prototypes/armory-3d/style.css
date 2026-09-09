@@ -310,3 +310,7 @@ html.embedded .scene-toolbar .icon-button { flex-basis:27px; }
 .scene-toolbar .weapon-mode { display:flex; gap:5px; align-items:center; width:auto; min-width:70px; padding:0 7px; flex:0 0 auto; font-size:11px; white-space:nowrap; }
 .scene-toolbar .weapon-mode svg { width:13px; height:13px; flex:0 0 13px; }
 .scene-toolbar:has(.weapon-mode:not([hidden])) { flex-wrap:wrap; justify-content:center; width:max-content; max-width:calc(100% - 8px); }
+#loading.is-preparing::after { content:""; width:20px; height:20px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; opacity:0; animation:model-busy-reveal .1s .35s forwards,model-busy-spin 1s .35s linear infinite; }
+@keyframes model-busy-reveal { to { opacity:1; } }
+@keyframes model-busy-spin { to { transform:rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { #loading.is-preparing::after { opacity:1; animation:none; } }

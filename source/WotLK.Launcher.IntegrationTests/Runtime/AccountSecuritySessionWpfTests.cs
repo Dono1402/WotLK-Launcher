@@ -282,9 +282,8 @@ internal static class AccountSecuritySessionWpfTests
                     "Les champs secrets doivent être désactivés pendant la requête.");
                 False(Required<Button>(window.AccountPage, "ConfirmPasswordChangeButton").IsEnabled,
                     "Une deuxième validation doit être impossible.");
-                Equal(Visibility.Visible,
-                    Required<StackPanel>(window.AccountPage, "PasswordBusyPanel").Visibility,
-                    "L'indicateur de chargement mot de passe doit être visible.");
+                True(Required<ProgressBar>(window.AccountPage, "PasswordBusyIndicator").IsIndeterminate,
+                    "L’indicateur du mot de passe doit rester intégré au bouton.");
                 SaveCapture(window, captureDirectory, "01-account-security-password-busy-1440x860.png");
                 passwordRelease.TrySetResult();
                 await WaitUntilAsync(

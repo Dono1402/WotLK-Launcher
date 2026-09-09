@@ -181,6 +181,9 @@
                                                     <Style TargetType="{x:Type Ellipse}">
                                                         <Setter Property="Fill" Value="{StaticResource AtlasV2.Brush.TextMuted}"/>
                                                         <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding DashboardState.Current.IsLoading, ElementName=Root}" Value="True">
+                                                                <Setter Property="Visibility" Value="Hidden"/>
+                                                            </DataTrigger>
                                                             <DataTrigger Binding="{Binding DashboardState.Current.RealmState, ElementName=Root}" Value="{x:Static dashboard:DashboardRealmState.Online}">
                                                                 <Setter Property="Fill" Value="{StaticResource GamePilot.Online}"/>
                                                             </DataTrigger>
@@ -194,6 +197,7 @@
                                                     </Style>
                                                 </Ellipse.Style>
                                             </Ellipse>
+                                            <ProgressBar x:Name="RealmBusyIndicator" Margin="0,0,16,0" Style="{StaticResource AtlasV2.Progress.Inline}" IsIndeterminate="{Binding DashboardState.Current.IsLoading, ElementName=Root}" AutomationProperties.Name="Serveur de jeu"/>
                                             <TextBlock x:Name="RealmStatusText"
                                                        Grid.Column="1"
                                                        VerticalAlignment="Center"

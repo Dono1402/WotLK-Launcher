@@ -74,6 +74,7 @@ internal static class LocalPatchNotesDraft
             ]),
             new("Fluidité et finitions",
             [
+                "Retrait des messages d’attente et confirmations superflus dans le profil, les amis, Messages, le compte et les addons. Les indicateurs sont intégrés aux contrôles ; les erreurs et progressions utiles restent visibles.",
                 "Menus, transitions et aperçus de Messages plus fluides, avec respect du réglage Windows de réduction des animations.",
                 "Amélioration de la cadence d’affichage de Messages sur les écrans à fréquence élevée, lorsque la version de Windows le permet.",
                 "Libellés, commandes de lecture et nouveaux états disponibles en français et en anglais."

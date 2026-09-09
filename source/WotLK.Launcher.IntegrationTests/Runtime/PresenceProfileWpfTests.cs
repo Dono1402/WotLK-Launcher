@@ -120,7 +120,7 @@ internal static class PresenceProfileWpfTests
                 .Single(dot => BindingPath(dot, Shape.FillProperty) == "ProfileState.PresenceBrush");
             Ellipse menuDot = Descendants<Ellipse>(menu).Single(dot => BindingPath(dot, Shape.FillProperty) == "PresenceBrush");
             TextBlock statusLabel = Descendants<TextBlock>(menu).Single(text => BindingPath(text, TextBlock.TextProperty) == "PresenceLabel");
-            TextBlock progress = Descendants<TextBlock>(menu).Single(text => BindingPath(text, TextBlock.TextProperty) == "PresenceProgress");
+            ProgressBar progress = (ProgressBar)menu.FindName("PresenceBusyIndicator");
             TextBlock errorText = Descendants<TextBlock>(menu).Single(text => BindingPath(text, TextBlock.TextProperty) == "PresenceError");
             ScrollViewer scroll = Descendants<ScrollViewer>(menu).First();
 
@@ -144,9 +144,12 @@ internal static class PresenceProfileWpfTests
             profile.ApplyPresence(new(++sequence, 42, "dnd", "dnd", false, true, true, null));
             await Layout(shell);
             ValidateVisibleState("dnd", Colors[2], FrenchLabels[2], enabled: false);
-            Check(progress.Text == LauncherLocalization.Text("Enregistrement…"), "Pending indicator is translated.");
-            AssertSingleLineFits(progress);
-            Check(Bounds(progress, content).Right <= Bounds(menu, content).Right - 15, "Pending text fits the menu beside the confirmed status.");
+            Check(progress.IsIndeterminate && progress.IsVisible, "Pending feedback stays inside the presence control.");
+            Check(Bounds(progress, content).Right <= Bounds(presenceToggle, content).Right, "Pending indicator fits inside the presence button.");
+            Check(!Descendants<TextBlock>(menu).Any(text => text.Text == LauncherLocalization.Text("Enregistrement…")), "No saving footnote is rendered.");
+            await Task.Delay(500);
+            await Layout(shell);
+            Check(progress.Template.FindName("Glyph", progress) is Shape { Opacity: > .95 }, "The delayed busy glyph actually becomes visible.");
             int pendingRequests = requests.Count;
             foreach (Button choice in choices) choice.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, choice));
             Check(requests.Count == pendingRequests, "Even an injected click cannot emit another request while pending.");
@@ -156,7 +159,7 @@ internal static class PresenceProfileWpfTests
             profile.ApplyPresence(new(++sequence, 42, "dnd", "dnd", false, true, false, "request-failed"));
             await Layout(shell);
             ValidateVisibleState("dnd", Colors[2], FrenchLabels[2], enabled: true);
-            Check(progress.Text.Length == 0 && errorText.Text == LauncherLocalization.Text("Impossible de confirmer le statut. Réessayez."),
+            Check(!progress.IsIndeterminate && !progress.IsVisible && errorText.Text == LauncherLocalization.Text("Impossible de confirmer le statut. Réessayez."),
                 "Failed update retains the confirmed status, removes pending and shows the translated retry message.");
             AssertWrappedFits(errorText);
             states.Add(MeasureState("failure"));
@@ -183,7 +186,7 @@ internal static class PresenceProfileWpfTests
             object MeasureState(string state) => new
             {
                 state, menu = Rectangle(Bounds(menu, content)), viewport = scroll.ViewportHeight, extent = scroll.ExtentHeight,
-                label = statusLabel.Text, progress = progress.Text, error = errorText.Text,
+                label = statusLabel.Text, busy = progress.IsIndeterminate, error = errorText.Text,
                 choices = choices.Select(button => new { status = (string)button.Tag, enabled = button.IsEnabled, bounds = Rectangle(Bounds(button, content)) }).ToArray()
             };
             void ValidateVisibleState(string? selected, string color, string label, bool enabled)

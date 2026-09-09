@@ -136,14 +136,13 @@
                                 <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Current.ErrorMessage}" TextWrapping="Wrap" Style="{StaticResource AtlasV2.Account.Text.Caption}" Foreground="#F1A7AE" />
                             </Grid>
                         </Border>
-                        <Border x:Name="UploadStatusBanner" Margin="0,0,0,14" Padding="14,12" Background="{StaticResource AtlasV2.Brush.CyanSurface}" BorderBrush="{StaticResource AtlasV2.Brush.CyanBorder}" BorderThickness="1" CornerRadius="6" Visibility="Collapsed">
-                            <StackPanel>
-                                <TextBlock Text="{Binding Current.StatusMessage}" TextWrapping="Wrap" Style="{StaticResource AtlasV2.Account.Text.Caption}" Foreground="{StaticResource AtlasV2.Brush.Cyan}" />
-                                <ProgressBar x:Name="UploadProgressBar" Height="3" Margin="0,9,0,0" IsIndeterminate="True" Style="{StaticResource AtlasV2.Progress.Compact}" />
-                            </StackPanel>
-                        </Border>
                     </StackPanel>
-                    <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Atlas Launcher" Style="{StaticResource AtlasV2.Account.Text.Caption}" Visibility="Collapsed" />
+                    <Grid x:Name="UploadStatusBanner" Grid.Row="1" MaxWidth="150" HorizontalAlignment="Left" VerticalAlignment="Center" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="100"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <ProgressBar x:Name="UploadProgressBar" Height="3" Style="{StaticResource AtlasV2.Progress.Compact}"/>
+                        <TextBlock Grid.Column="1" Margin="10,0,0,0" Text="{Binding Current.UploadPercentage, StringFormat={}{0:0} %}"
+                                   Style="{StaticResource AtlasV2.Account.Text.Caption}"/>
+                    </Grid>
                     <Button x:Name="CancelCropButton" Grid.Row="1" Grid.Column="1" MinWidth="112" Margin="12,0,0,0" Content="Annuler" Style="{StaticResource AtlasV2.Account.Button.Secondary}" Click="CloseButton_Click" />
                     <Button x:Name="SaveCropButton" Grid.Row="1" Grid.Column="2" MinWidth="164" Margin="10,0,0,0" Style="{StaticResource AtlasV2.Account.Button.Primary}" Click="SaveCropButton_Click">
                         <Grid>
@@ -151,7 +150,10 @@
                                 <ColumnDefinition Width="18" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <Path Width="16" Height="16" Data="{StaticResource AtlasV2.Icon.Upload}" Stroke="#111318" Style="{StaticResource AtlasV2.Icon.Stroke}" />
+                            <Grid Width="18" Height="18">
+                                <Path x:Name="SaveCropIcon" Width="16" Height="16" Data="{StaticResource AtlasV2.Icon.Upload}" Stroke="#111318" Style="{StaticResource AtlasV2.Icon.Stroke}" />
+                                <ProgressBar x:Name="SaveCropBusyIndicator" Style="{StaticResource AtlasV2.Progress.Inline}" Foreground="#111318" AutomationProperties.Name="Envoi de la photo"/>
+                            </Grid>
                             <TextBlock x:Name="SaveCropLabel" Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center" Text="Utiliser la photo" FontWeight="SemiBold" />
                         </Grid>
                     </Button>

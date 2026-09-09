@@ -494,6 +494,9 @@
                 <Grid Grid.Row="0">
                     <TextBlock Text="Mes amis" Margin="0,0,82,0" VerticalAlignment="Center"
                                FontSize="24" Style="{StaticResource AtlasV2.Overlay.Title}"/>
+                    <ProgressBar x:Name="FriendsBusyProgress" Margin="0,0,86,0" HorizontalAlignment="Right"
+                                 Style="{StaticResource AtlasV2.Progress.Inline}" IsIndeterminate="{Binding State.Current.IsWorking, ElementName=Root}"
+                                 AutomationProperties.Name="Actualisation des amis"/>
                     <StackPanel HorizontalAlignment="Right"
                                 VerticalAlignment="Top"
                                 Orientation="Horizontal">
@@ -610,8 +613,14 @@
                                     Command="{Binding State.SendRequestCommand, ElementName=Root}"
                                     ToolTip="Envoyer la demande"
                                     AutomationProperties.Name="Envoyer la demande d’ami">
-                                <Path Data="{StaticResource AtlasV2.Icon.ArrowRight}"
-                                      Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                                <Grid Width="18" Height="18">
+                                    <Path Data="{StaticResource AtlasV2.Icon.ArrowRight}">
+                                        <Path.Style><Style TargetType="{x:Type Path}" BasedOn="{StaticResource AtlasV2.Icon.Stroke}"><Style.Triggers>
+                                            <DataTrigger Binding="{Binding State.Current.IsSendingRequest, ElementName=Root}" Value="True"><Setter Property="Visibility" Value="Hidden"/></DataTrigger>
+                                        </Style.Triggers></Style></Path.Style>
+                                    </Path>
+                                    <ProgressBar Style="{StaticResource AtlasV2.Progress.Inline}" IsIndeterminate="{Binding State.Current.IsSendingRequest, ElementName=Root}"/>
+                                </Grid>
                             </Button>
                         </Grid>
                     </Border>
@@ -623,11 +632,6 @@
 
                 <StackPanel Grid.Row="4" Margin="0,0,0,6"
                             Visibility="{Binding State.Current.ShowsFeedback, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
-                    <ProgressBar x:Name="FriendsBusyProgress"
-                                 Margin="0,0,0,8"
-                                 IsIndeterminate="True"
-                                 Visibility="{Binding State.Current.IsLoading, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"
-                                 Style="{StaticResource AtlasV2.Progress.Compact}"/>
                     <Border Margin="0,0,0,7"
                             Style="{StaticResource AtlasV2.Banner.Error}"
                             Visibility="{Binding State.Current.ShowsError, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
@@ -635,18 +639,6 @@
                                    TextWrapping="Wrap"
                                    Style="{StaticResource AtlasV2.Text.Caption}"
                                    Foreground="{StaticResource AtlasV2.Brush.Danger}"/>
-                    </Border>
-                    <Border Margin="0,0,0,7"
-                            Padding="12,9"
-                            Background="{StaticResource AtlasV2.Brush.SuccessSurface}"
-                            BorderBrush="{StaticResource AtlasV2.Brush.SuccessBorder}"
-                            BorderThickness="1"
-                            CornerRadius="10"
-                            Visibility="{Binding State.Current.ShowsNotice, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
-                        <TextBlock Text="{Binding State.Current.NoticeMessage, ElementName=Root}"
-                                   TextWrapping="Wrap"
-                                   Style="{StaticResource AtlasV2.Text.Caption}"
-                                   Foreground="{StaticResource AtlasV2.Brush.Success}"/>
                     </Border>
                     <TextBlock Text="{Binding State.Current.StatusMessage, ElementName=Root}"
                                Visibility="{Binding State.Current.HasStatusMessage, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"

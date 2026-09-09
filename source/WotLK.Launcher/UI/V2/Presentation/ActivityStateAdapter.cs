@@ -160,40 +160,19 @@ internal sealed class ActivityStateAdapter : IDisposable
         if (operation.IsCancellationRequested
             || operation.Phase == LauncherActivityPhase.Cancelling)
         {
-            return "Arrêt de l’opération en cours…";
+            return "Arrêt";
         }
 
         return operation.Phase switch
         {
-            LauncherActivityPhase.CheckingLocalClient => "Analyse du client local…",
-            LauncherActivityPhase.LoadingManifest => "Chargement du manifeste…",
-            LauncherActivityPhase.ComparingManifest => "Comparaison des fichiers…",
-            LauncherActivityPhase.ScanningFiles =>
-                operation.OperationType == LauncherOperationType.GameRepair
-                    ? "Vérification complète des fichiers…"
-                    : "Analyse des fichiers locaux…",
-            LauncherActivityPhase.Cleaning => "Nettoyage des anciens fichiers…",
-            LauncherActivityPhase.Downloading => operation.OperationType switch
-            {
-                LauncherOperationType.LauncherAutoUpdate =>
-                    "Téléchargement d’Atlas Launcher…",
-                LauncherOperationType.AddonInstall
-                    or LauncherOperationType.AddonUpdate
-                    or LauncherOperationType.AddonRepair
-                    or LauncherOperationType.AddonBatchUpdate =>
-                    "Téléchargement de l’addon",
-                _ => "Téléchargement des fichiers du client"
-            },
-            LauncherActivityPhase.Applying =>
-                operation.OperationType == LauncherOperationType.LauncherAutoUpdate
-                    ? "Validation de la mise à jour…"
-                    : "Application des fichiers réparés…",
-            LauncherActivityPhase.Finalizing =>
-                operation.OperationType == LauncherOperationType.LauncherAutoUpdate
-                    ? "Préparation du redémarrage…"
-                    : "Finalisation de l’installation…",
-            LauncherActivityPhase.Removing => "Suppression des fichiers gérés…",
-            _ => "Préparation de l’opération…"
+            LauncherActivityPhase.CheckingLocalClient or LauncherActivityPhase.ComparingManifest
+                or LauncherActivityPhase.ScanningFiles => "Vérification",
+            LauncherActivityPhase.LoadingManifest => "Préparation",
+            LauncherActivityPhase.Cleaning => "Nettoyage",
+            LauncherActivityPhase.Downloading => "Téléchargement",
+            LauncherActivityPhase.Applying or LauncherActivityPhase.Finalizing => "Installation",
+            LauncherActivityPhase.Removing => "Suppression",
+            _ => "Préparation"
         };
     }
 

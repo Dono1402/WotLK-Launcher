@@ -90,7 +90,7 @@ public static class LauncherV2PreviewData
                 ? "Adresse e-mail vérifiée"
                 : "Adresse e-mail non vérifiée",
             CanLogout: !loggingOut,
-            LogoutLabel: loggingOut ? "Déconnexion…" : "Déconnexion",
+            LogoutLabel: "Déconnexion",
             LogoutToolTip: loggingOut ? "Déconnexion en cours." : string.Empty,
             ErrorMessage: scenario == ProfilePreviewScenario.LogoutError
                 ? "Atlas est indisponible. Ta session reste active."

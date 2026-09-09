@@ -2,6 +2,56 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
                     xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework">
+    <!-- Delayed, text-free feedback. The owning control reserves its slot so
+         short operations neither flash nor move the surrounding content. -->
+    <Style x:Key="AtlasV2.Progress.Inline" TargetType="{x:Type ProgressBar}">
+        <Setter Property="Width" Value="16"/>
+        <Setter Property="Height" Value="16"/>
+        <Setter Property="Foreground" Value="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+        <Setter Property="Visibility" Value="Collapsed"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ProgressBar}">
+                    <Viewbox>
+                        <Path x:Name="Glyph" Width="16" Height="16" Opacity="0"
+                              Data="M 8,1 A 7,7 0 1 1 1,8" Stroke="{TemplateBinding Foreground}"
+                              StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              RenderTransformOrigin="0.5,0.5">
+                            <Path.RenderTransform><RotateTransform/></Path.RenderTransform>
+                        </Path>
+                    </Viewbox>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsVisible" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard x:Name="RevealBusyGlyph">
+                                    <Storyboard><DoubleAnimation Storyboard.TargetName="Glyph" Storyboard.TargetProperty="Opacity"
+                                        From="0" To="1" BeginTime="0:0:0.35" Duration="0:0:0.1"/></Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions><RemoveStoryboard BeginStoryboardName="RevealBusyGlyph"/></Trigger.ExitActions>
+                        </Trigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsVisible, RelativeSource={RelativeSource TemplatedParent}}" Value="True"/>
+                                <Condition Binding="{Binding Source={x:Static SystemParameters.ClientAreaAnimation}}" Value="True"/>
+                            </MultiDataTrigger.Conditions>
+                            <MultiDataTrigger.EnterActions>
+                                <BeginStoryboard x:Name="RotateBusyGlyph">
+                                    <Storyboard><DoubleAnimation Storyboard.TargetName="Glyph" Storyboard.TargetProperty="RenderTransform.Angle"
+                                        From="0" To="360" BeginTime="0:0:0.35" Duration="0:0:1" RepeatBehavior="Forever"/></Storyboard>
+                                </BeginStoryboard>
+                            </MultiDataTrigger.EnterActions>
+                            <MultiDataTrigger.ExitActions><RemoveStoryboard BeginStoryboardName="RotateBusyGlyph"/></MultiDataTrigger.ExitActions>
+                        </MultiDataTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers><Trigger Property="IsIndeterminate" Value="True"><Setter Property="Visibility" Value="Visible"/></Trigger></Style.Triggers>
+    </Style>
+
     <Style x:Key="AtlasV2.FocusVisual.Button">
         <Setter Property="Control.Template">
             <Setter.Value>

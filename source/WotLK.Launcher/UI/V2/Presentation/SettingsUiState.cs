@@ -48,8 +48,9 @@ public sealed record UpdateSettingsViewState(
 {
     public bool IsUpToDate => HasChecked && !HasError && !IsChecking && !IsUpdating && !IsUpdateAvailable;
 
-    public string StatusText => IsUpdating ? "Mise à jour en cours…"
-        : IsChecking ? "Recherche en cours…"
+    public bool IsBusy => IsUpdating || IsChecking;
+
+    public string StatusText => IsBusy ? string.Empty
         : HasError ? ErrorStatusText
         : IsUpdateAvailable ? $"Mise à jour disponible · {AvailableLauncherVersion}"
         : IsUpToDate ? "À jour"

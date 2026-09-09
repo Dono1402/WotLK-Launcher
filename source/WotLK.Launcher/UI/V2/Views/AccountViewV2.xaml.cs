@@ -353,11 +353,11 @@ public partial class AccountViewV2 : UserControl
         AccountViewState state = State.Current;
         bool operationActive = state.AvatarOperation != AvatarPreviewOperation.None;
         AvatarOperationBanner.Visibility = operationActive ? Visibility.Visible : Visibility.Collapsed;
-        AvatarOperationProgress.IsIndeterminate = true;
+        AvatarOperationProgress.IsIndeterminate = operationActive;
         ModifyAvatarButton.IsEnabled = state.CanModifyAvatar;
         RemoveAvatarButton.IsEnabled = state.CanRemoveAvatar;
         bool updatingProfile = state.AccountOperation == AccountOperationViewState.UpdatingProfile;
-        SaveSocialProfileButton.Content = updatingProfile ? "Enregistrement…" : "Enregistrer";
+        SocialProfileBusyIndicator.IsIndeterminate = updatingProfile;
         SocialStatusBox.IsEnabled = state.CanUpdateSocialProfile;
         SocialBioBox.IsEnabled = state.CanUpdateSocialProfile;
         if (state.AccountErrorOperation == AccountOperationViewState.UpdatingProfile
@@ -365,12 +365,6 @@ public partial class AccountViewV2 : UserControl
         {
             SocialProfileFeedbackText.Text = state.AccountErrorMessage;
             SocialProfileFeedbackText.Foreground = (Brush)FindResource("AtlasV2.Brush.Danger");
-            SocialProfileFeedbackText.Visibility = Visibility.Visible;
-        }
-        else if (state.AccountNotice == AccountNoticeViewState.ProfileUpdated)
-        {
-            SocialProfileFeedbackText.Text = state.AccountNoticeMessage;
-            SocialProfileFeedbackText.Foreground = (Brush)FindResource("AtlasV2.Brush.Success");
             SocialProfileFeedbackText.Visibility = Visibility.Visible;
         }
         else
@@ -412,10 +406,8 @@ public partial class AccountViewV2 : UserControl
                 && state.AccountErrorOperation == AccountOperationViewState.ChangingPassword
             ? Visibility.Collapsed
             : Visibility.Visible;
-        SessionsNoticeBanner.Visibility = state.AccountNotice == AccountNoticeViewState.SessionRevoked
-            && !string.IsNullOrWhiteSpace(state.AccountNoticeMessage)
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+        SessionsNoticeBanner.Visibility = Visibility.Collapsed;
+        SessionsLoadingIndicator.IsIndeterminate = state.SessionsState == AccountSessionsViewState.Loading;
         SessionsErrorBanner.Visibility = !string.IsNullOrWhiteSpace(state.AccountErrorMessage)
             && (state.AccountErrorOperation == AccountOperationViewState.RevokingSession
                 || state.SessionsState == AccountSessionsViewState.Failed)
@@ -464,13 +456,13 @@ public partial class AccountViewV2 : UserControl
         NewEmailBox.IsEnabled = !emailBusy;
         CancelEmailChangeButton.IsEnabled = !emailBusy;
         ConfirmEmailChangeButton.IsEnabled = !emailBusy && state.CanChangeEmail;
-        ConfirmEmailChangeButton.Content = emailBusy ? "Enregistrement…" : "Enregistrer";
+        EmailBusyIndicator.IsIndeterminate = emailBusy;
         CurrentPasswordBoxV2.IsEnabled = !passwordBusy;
         NewPasswordBoxV2.IsEnabled = !passwordBusy;
         ConfirmPasswordBoxV2.IsEnabled = !passwordBusy;
         CancelPasswordChangeButton.IsEnabled = !passwordBusy;
         ConfirmPasswordChangeButton.IsEnabled = !passwordBusy && state.CanChangePassword;
-        PasswordBusyPanel.Visibility = passwordBusy ? Visibility.Visible : Visibility.Collapsed;
+        PasswordBusyIndicator.IsIndeterminate = passwordBusy;
         EmailEditorErrorBanner.Visibility = emailOpen
             && !string.IsNullOrWhiteSpace(state.AccountErrorMessage)
             && state.AccountErrorOperation == AccountOperationViewState.ChangingEmail

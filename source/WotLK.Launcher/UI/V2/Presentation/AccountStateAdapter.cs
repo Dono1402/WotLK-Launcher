@@ -120,7 +120,7 @@ internal sealed class AccountStateAdapter : IDisposable
         };
         string sessionsMessage = snapshot.SessionsState switch
         {
-            AccountSessionsState.Loading => "Chargement des appareils connectés…",
+            AccountSessionsState.Loading => string.Empty,
             AccountSessionsState.Failed => "Les sessions Atlas sont temporairement indisponibles.",
             AccountSessionsState.Loaded when sessions.IsEmpty => "Aucune autre session active.",
             _ => string.Empty

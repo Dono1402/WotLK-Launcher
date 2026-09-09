@@ -252,24 +252,7 @@ internal sealed class AddonsStateAdapter : IDisposable
 
     private static string MapNotice(AddonsRuntimeSnapshot snapshot)
     {
-        if (snapshot.OperationState != AddonsOperationState.None)
-        {
-            string addonName = snapshot.Items.FirstOrDefault(item =>
-                string.Equals(item.Id, snapshot.ActiveAddonId, StringComparison.OrdinalIgnoreCase))?.Name
-                ?? "l’addon";
-            return snapshot.OperationState switch
-            {
-                AddonsOperationState.Installing => $"Installation de {addonName}…",
-                AddonsOperationState.Updating => $"Mise à jour de {addonName}…",
-                AddonsOperationState.Removing => $"Suppression de {addonName}…",
-                AddonsOperationState.Repairing => $"Réparation de {addonName}…",
-                AddonsOperationState.UpdatingAll => $"Mise à jour de {addonName}…",
-                AddonsOperationState.Verifying => $"Vérification de {addonName}…",
-                AddonsOperationState.Reinstalling => $"Réinstallation de {addonName}…",
-                AddonsOperationState.InstallingSelection => $"Installation de la sélection · {addonName}…",
-                _ => string.Empty
-            };
-        }
+        if (snapshot.OperationState != AddonsOperationState.None) return string.Empty;
         if (snapshot.Error.Category != AddonsErrorCategory.None)
         {
             string remaining = snapshot.UnprocessedAddonIds.IsEmpty ? string.Empty
@@ -291,20 +274,9 @@ internal sealed class AddonsStateAdapter : IDisposable
                 or AddonsNoticeKind.SelectionInstalled
                     ? " Utilise /reload dans le jeu pour l’activer."
                     : string.Empty;
-        return snapshot.Notice switch
-        {
-            AddonsNoticeKind.Installed => "Addon installé." + suffix,
-            AddonsNoticeKind.Updated => "Addon mis à jour." + suffix,
-            AddonsNoticeKind.Removed => "Addon supprimé.",
-            AddonsNoticeKind.Repaired => "Addon réparé." + suffix,
-            AddonsNoticeKind.BatchUpdated => "Tous les addons disponibles ont été mis à jour." + suffix,
-            AddonsNoticeKind.SelectionInstalled => "La sélection d’addons a été installée." + suffix,
-            AddonsNoticeKind.Reinstalled => "Addon réinstallé." + suffix,
-            AddonsNoticeKind.Verified => "Vérification terminée : les fichiers correspondent à leur référence.",
-            AddonsNoticeKind.VerificationIncomplete => "Vérification terminée : consulte l’état de chaque addon.",
-            AddonsNoticeKind.Cancelled => "Opération annulée.",
-            _ => string.Empty
-        };
+        return snapshot.Notice == AddonsNoticeKind.VerificationIncomplete
+            ? "Consulte l’état des addons à vérifier."
+            : suffix.Trim();
     }
 
     internal static string MapItemError(AddonsErrorCategory category) => category switch

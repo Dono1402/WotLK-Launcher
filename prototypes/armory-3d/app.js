@@ -778,12 +778,14 @@ try {
 icons();
 
 function showModelState() {
-  // A ready disk export still needs a few frames to download/compile. Keep that
-  // short transition empty; only actual preparation or unavailability has a label.
+  // Short transitions stay empty; longer preparation uses a quiet indicator.
+  const preparing = !initialLoadFailed && !body && modelStatus==='building';
+  loading.classList.toggle('is-preparing',preparing);
+  loading.setAttribute('aria-label',preparing?t('modelBuilding'):'');
   loading.hidden = !initialLoadFailed && (Boolean(body) || ['loading','ready'].includes(modelStatus));
   if (!loading.hidden) {
     loading.removeAttribute('data-i18n');
-    loading.textContent = t(initialLoadFailed?'loadFailed':modelStatus==='building'?'modelBuilding':modelStatus==='client-missing'?'modelClientMissing':modelStatus==='graphics-unavailable'?'modelGraphicsUnavailable':'modelUnavailable');
+    loading.textContent = preparing?'':t(initialLoadFailed?'loadFailed':modelStatus==='client-missing'?'modelClientMissing':modelStatus==='graphics-unavailable'?'modelGraphicsUnavailable':'modelUnavailable');
   }
   else loading.textContent = '';
   document.querySelector('.scene-toolbar').hidden = !body;

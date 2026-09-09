@@ -45,7 +45,7 @@
   <dialog id="banner-editor" class="banner-editor" aria-labelledby="banner-editor-title" aria-describedby="banner-hint">
     <header class="banner-dialog-heading"><button tabindex="-1" id="cancel-banner" class="dialog-back" type="button" aria-label="Retour"><i data-lucide="arrow-left"></i></button><h2 id="banner-editor-title" data-label="cropBanner">Recadrer la bannière</h2><button tabindex="-1" id="save-banner" class="banner-apply" type="button" data-label="apply">Appliquer</button></header>
     <p id="banner-hint" class="visually-hidden" data-label="dragBanner">Glisse l’image ou utilise les flèches pour la déplacer.</p>
-    <div id="banner-crop-stage" class="banner-crop-stage" tabindex="0" role="group" aria-label="Zone de recadrage" aria-describedby="banner-hint"><div id="banner-crop-backdrop" class="banner-preview-background" aria-hidden="true"><img class="banner-backdrop" alt=""></div><img id="banner-crop-image" alt="" draggable="false"><div id="banner-crop-frame" class="banner-crop-frame" aria-hidden="true"></div><p id="banner-image-loading" data-label="loadingImage">Chargement de l’image…</p></div>
+    <div id="banner-crop-stage" class="banner-crop-stage" tabindex="0" role="group" aria-label="Zone de recadrage" aria-describedby="banner-hint"><div id="banner-crop-backdrop" class="banner-preview-background" aria-hidden="true"><img class="banner-backdrop" alt=""></div><img id="banner-crop-image" alt="" draggable="false"><div id="banner-crop-frame" class="banner-crop-frame" aria-hidden="true"></div><p id="banner-image-loading" role="status"><span class="inline-busy" aria-hidden="true"></span></p></div>
     <div id="banner-notification-slot"></div>
     <footer class="banner-editor-options">
       <div id="banner-zoom-controls" class="banner-zoom-control"><button tabindex="-1" id="banner-zoom-out" class="zoom-command" type="button" aria-label="Réduire le zoom"><i data-lucide="zoom-out"></i></button><label for="banner-zoom" class="visually-hidden" data-label="zoom">Zoom</label><input id="banner-zoom" type="range" min="1" max="3" step="0.01" value="1"><button tabindex="-1" id="banner-zoom-in" class="zoom-command" type="button" aria-label="Augmenter le zoom"><i data-lucide="zoom-in"></i></button></div>
@@ -53,13 +53,14 @@
   </dialog>
   <main class="profile-content">
     <aside class="roster">
-      <header><h2 data-label="characters">Mes personnages</h2><span id="character-count"></span></header>
+      <header><h2 data-label="characters">Mes personnages</h2><span id="roster-busy" class="inline-busy" role="status" hidden></span><span id="character-count"></span></header>
       <div class="search"><i data-lucide="search"></i><input id="search" type="search" autocomplete="off" aria-label="Rechercher un personnage"></div>
       <div id="characters" role="group" aria-label="Mes personnages"></div>
       <p id="roster-status" role="status"></p>
       <button tabindex="-1" id="retry" class="retry" hidden><i data-lucide="rotate-cw"></i><span data-label="retry">Réessayer</span></button>
     </aside>
     <section id="character-panel" aria-label="Armurerie">
+      <span id="character-busy" class="inline-busy" role="status" hidden></span>
       <p id="empty-state" role="status"></p>
       <iframe id="character-view" class="character-frame" title="Armurerie du personnage" allow="fullscreen" hidden></iframe>
     </section>

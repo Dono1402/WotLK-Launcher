@@ -198,7 +198,7 @@ internal sealed class DashboardStateAdapter : IDisposable
             DashboardRealmState.Online => "En ligne",
             DashboardRealmState.Degraded => "Services dégradés",
             DashboardRealmState.Offline => "Hors ligne",
-            DashboardRealmState.Loading => "Actualisation…",
+            DashboardRealmState.Loading => "Serveur de jeu",
             DashboardRealmState.Unavailable => "Statut indisponible",
             _ => "Non vérifié"
         };
@@ -211,7 +211,7 @@ internal sealed class DashboardStateAdapter : IDisposable
             DashboardRealmState.Online => "Serveur de jeu en ligne",
             DashboardRealmState.Degraded => "Services de jeu dégradés",
             DashboardRealmState.Offline => "Serveur de jeu hors ligne",
-            DashboardRealmState.Loading => "Vérification du serveur de jeu…",
+            DashboardRealmState.Loading => "Serveur de jeu",
             DashboardRealmState.Unavailable => "État du serveur de jeu indisponible",
             _ => "Serveur de jeu non vérifié"
         };

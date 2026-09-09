@@ -145,7 +145,7 @@ internal static class LauncherDashboardTests
             new[] { "Messages et conversations", "Images et pièces jointes", "Audio et vidéo", "Présence et notifications", "Profils, armurerie et avatars", "Chuchotements avec le jeu", "Compte, paramètres et addons en jeu", "Fluidité et finitions" }),
             "Le brouillon doit couvrir les nouveautés depuis la version 1.4.0.");
         string[] draftItems = draft.Sections.SelectMany(section => section.Items).ToArray();
-        Equal(37, draftItems.Length, "Le bilan 1.5.0 doit conserver tous ses points.");
+        Equal(38, draftItems.Length, "Le bilan 1.5.0 conserve ses points et le nettoyage des messages temporaires.");
         True(draftItems.Any(item => item.Contains("codec", StringComparison.Ordinal)),
             "La lecture intégrée doit conserver sa limite de compatibilité des codecs.");
         True(draftItems.Any(item => item.Contains("Pseudo#Launcher", StringComparison.Ordinal)),

@@ -814,7 +814,17 @@
                     <Grid x:Name="EmptyState"
                           Background="{StaticResource AtlasV2.Brush.GlassSurface}"
                           Visibility="{Binding State.Current.ShowsEmpty, ElementName=AddonsRoot, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                        <ProgressBar x:Name="CatalogLoadingIndicator" Style="{StaticResource AtlasV2.Progress.Inline}" Width="24" Height="24" IsIndeterminate="{Binding State.Current.IsCatalogLoading, ElementName=AddonsRoot}" AutomationProperties.Name="Chargement du catalogue"/>
                         <StackPanel Width="360" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <StackPanel.Style>
+                                <Style TargetType="{x:Type StackPanel}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding State.Current.IsCatalogLoading, ElementName=AddonsRoot}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
                             <Border Width="58" Height="58" HorizontalAlignment="Center" Background="{StaticResource AtlasV2.Brush.SurfaceRaised}" BorderBrush="{StaticResource AtlasV2.Brush.Border}" BorderThickness="1" CornerRadius="7">
                                 <Path Width="25" Height="25" Data="{StaticResource AtlasV2.Icon.Package}" Style="{StaticResource AtlasV2.Icon.Stroke}" Stroke="{StaticResource AtlasV2.Brush.TextMuted}"/>
                             </Border>

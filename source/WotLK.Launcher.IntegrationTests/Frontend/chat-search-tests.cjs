@@ -70,7 +70,7 @@ let browser;
   });
   await find('ecole');
   check('Literal case/accent insensitive find excludes deleted messages and concealed spoilers', await marks() === 3 && await page.locator('#conversation-search-count').innerText() === '1 / 3');
-  check('Coverage explicitly confirms only a fully loaded history', await page.locator('#conversation-search-status').innerText().then(text => text.includes('Tout l’historique parcouru')));
+  check('Completed coverage keeps only the result counter', await page.locator('#conversation-search-status').innerText() === '' && await page.locator('#conversation-search').getAttribute('data-coverage') === 'complete');
   await page.locator('#conversation-search-input').press('Enter');
   check('Enter moves forward without sending the composer draft', await page.locator('#conversation-search-count').innerText() === '2 / 3' && await page.evaluate(() => !__actions.some(action => action.action === 'send')));
   await page.locator('#conversation-search-input').press('Shift+Enter');
@@ -122,7 +122,7 @@ let browser;
   await page.screenshot({ path: path.join(output, 'chat-search-history.png'), omitBackground: true });
   check('The search bar keeps the fixed launcher free of horizontal overflow', await page.evaluate(() => document.documentElement.scrollWidth === innerWidth && document.querySelector('#conversation-search-close').getBoundingClientRect().right <= innerWidth));
   state.locale = 'en'; await apply(state);
-  check('Live locale updates translate search status and accessible controls', await page.locator('#conversation-search-status').innerText().then(text => text.includes('Entire history searched')) && await page.locator('#conversation-search-next').getAttribute('aria-label') === 'Next result (Enter)');
+  check('Completed search stays quiet and live locale updates accessible controls', await page.locator('#conversation-search-status').innerText() === '' && await page.locator('#conversation-search-next').getAttribute('aria-label') === 'Next result (Enter)');
   state.locale = 'fr'; await apply(state);
 
   // Failed pages keep the partial results and offer a user-controlled retry.
@@ -191,7 +191,7 @@ let browser;
   await page.waitForFunction(total => __actions.filter(action => action.action === 'loadEarlier').length > total, beforeTimed);
   const timedLoad = (await loads()).at(-1), timedCount = (await loads()).length;
   await page.clock.fastForward(15100);
-  check('A missing bridge result reports waiting without permitting overlapping retry', (await loads()).length === timedCount && await page.locator('#conversation-search-status').innerText().then(text => text.includes('Réponse en attente') && text.includes('partiel')) && !await page.locator('#conversation-search-continue').isVisible());
+  check('A missing bridge result retains partial coverage and busy state without permitting overlapping retry', (await loads()).length === timedCount && await page.locator('#conversation-search-status').innerText().then(text => text.includes('partiel')) && await page.locator('#conversation-search').getAttribute('aria-busy') === 'true' && !await page.locator('#conversation-search-continue').isVisible());
   await result(timedLoad);
   check('A timed-out result without history progress permits a safe explicit retry', await page.locator('#conversation-search-continue').isVisible() && await page.locator('#conversation-search-status').innerText().then(text => text.includes('interrompu')));
   await page.keyboard.press('Escape');

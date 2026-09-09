@@ -158,9 +158,7 @@ public sealed class AuthUiState : BindableUiState, IDisposable
         ? "Retrouve ton compte Atlas et continue vers Arthas."
         : "Crée ton compte Atlas pour rejoindre le royaume Arthas.";
 
-    public string PrimaryActionLabel => IsBusy
-        ? Mode == AuthMode.Login ? "Connexion…" : "Création…"
-        : Mode == AuthMode.Login ? "Se connecter" : "Créer mon compte";
+    public string PrimaryActionLabel => Mode == AuthMode.Login ? "Se connecter" : "Créer mon compte";
 
     public bool IsFormEnabled => !IsBusy;
 

@@ -208,6 +208,8 @@ public sealed record FriendsViewState(
     public bool HasOutgoingRequests => !OutgoingRequests.IsDefaultOrEmpty;
 
     public bool IsLoading => LoadState == FriendsViewLoadState.Loading;
+    public bool IsSendingRequest => Operation == FriendsViewOperation.SendingRequest;
+    public bool IsWorking => IsLoading || Operation != FriendsViewOperation.None;
 
     public bool ShowsGlobalEmpty => LoadState == FriendsViewLoadState.Loaded
         && !HasFriends
@@ -220,7 +222,7 @@ public sealed record FriendsViewState(
 
     public bool HasStatusMessage => !string.IsNullOrWhiteSpace(StatusMessage);
 
-    public bool ShowsFeedback => IsLoading || ShowsError || ShowsNotice || HasStatusMessage;
+    public bool ShowsFeedback => ShowsError || HasStatusMessage;
 }
 
 public sealed class FriendsUiState : BindableUiState

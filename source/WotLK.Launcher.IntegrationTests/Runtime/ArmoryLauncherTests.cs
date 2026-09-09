@@ -324,11 +324,17 @@ internal static partial class ArmoryLauncherTests
     private static async Task ValidateEmbeddedShellAsync(ArmoryFixture fixture, string? captureDirectory)
     {
         AccountUiState state = ConnectedAccount("FirstAccount");
+        // A fresh account has no banner. Give this layout fixture its own image;
+        // the separate banner bridge fixture must retain an empty store.
+        ArmoryBannerStore layoutBanners = new(Path.Combine(fixture.BannerStoreDirectory, "layout"));
+        byte[] bannerPng = ArmoryBannerStore.Normalize(System.Windows.Media.Imaging.BitmapSource.Create(
+            2, 1, 96, 96, PixelFormats.Bgra32, null, new byte[] { 86, 63, 38, 255, 65, 46, 28, 255 }, 8));
+        await layoutBanners.SaveAsync(42, new(bannerPng, .5, .5, 1, "cover"), CancellationToken.None);
         LauncherShellV2 window = CreateShell(state);
         ArmoryViewV2 armory = Required<ArmoryViewV2>(window, "ArmoryView");
         uint accountId = 42;
         armory.Configure(_ => Task.FromResult<uint?>(accountId), state, () => fixture.Configuration,
-            fixture.WebViewDataDirectory, bannerStore: new ArmoryBannerStore(fixture.BannerStoreDirectory));
+            fixture.WebViewDataDirectory, bannerStore: layoutBanners);
         ShowOffscreen(window);
         Uri? finalOrigin = null;
         try
@@ -362,7 +368,7 @@ internal static partial class ArmoryLauncherTests
             armory.SelectSharedCharacter(accountId, 999999);
             await WaitForScriptAsync(armory, "!document.querySelector('.character[aria-pressed=\"true\"]') && document.body.textContent.includes('Le personnage partagé est indisponible.')", "Un GUID partagé absent n'affiche pas un autre personnage par défaut.");
             await ScriptAsync(armory, "document.querySelector('.character[data-id=\"13\"]').click(); true");
-            await WaitForScriptAsync(armory, "document.getElementById('character-view').hidden && !document.getElementById('empty-state').hidden", "Le personnage en attente doit rester sélectionnable avec un état clair.");
+            await WaitForScriptAsync(armory, "document.getElementById('character-view').hidden && !document.getElementById('character-busy').hidden && document.getElementById('empty-state').hidden", "Le personnage en attente conserve un indicateur sans phrase temporaire.");
 
             LauncherLocalization.SetLocale(LauncherLocalization.EnglishLocale);
             await WaitForScriptAsync(armory, "document.documentElement.lang === 'en' && document.getElementById('edit-profile') && !document.getElementById('customize')", "Changer de langue doit actualiser la page intégrée sans rétablir l'ancien bouton.");

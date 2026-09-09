@@ -179,12 +179,19 @@
                             AutomationProperties.Name="Modifier mon statut" KeyboardNavigation.TabIndex="1"
                             Click="PresenceToggleButton_Click">
                         <DockPanel LastChildFill="True">
-                            <TextBlock x:Name="PresenceChevron" DockPanel.Dock="Right" Text="⌄" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            <Grid DockPanel.Dock="Right" Width="18" Margin="10,0,0,0">
+                                <TextBlock x:Name="PresenceChevron" Text="⌄" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsPresenceUpdating}" Value="True"><Setter Property="Visibility" Value="Hidden"/></DataTrigger>
+                                    </Style.Triggers></Style></TextBlock.Style>
+                                </TextBlock>
+                                <ProgressBar x:Name="PresenceBusyIndicator" Style="{StaticResource AtlasV2.Progress.Inline}"
+                                             IsIndeterminate="{Binding IsPresenceUpdating}" AutomationProperties.Name="Modification du statut"/>
+                            </Grid>
                             <Ellipse Width="9" Height="9" Fill="{Binding PresenceBrush}" Margin="0,0,8,0"/>
                             <TextBlock Text="{Binding PresenceLabel}" VerticalAlignment="Center" Foreground="{StaticResource AtlasV2.Brush.Text}" FontWeight="SemiBold"/>
                         </DockPanel>
                     </Button>
-                    <TextBlock Text="{Binding PresenceProgress}" Margin="10,4,0,0" Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
                     <StackPanel x:Name="PresenceChoicesPanel" Visibility="Collapsed" IsEnabled="{Binding CanChangePresence}">
                         <Button KeyboardNavigation.TabIndex="2" Tag="online" Click="PresenceButton_Click" Style="{StaticResource PresenceOption}" AutomationProperties.Name="En ligne" ToolTip="Disponible. Passage automatique à Absent après 20 minutes sans activité.">
                             <StackPanel Orientation="Horizontal"><Ellipse Fill="#48C78E" Width="9" Height="9" Margin="0,0,10,0"/><TextBlock Text="En ligne"/><TextBlock Text=" ✓" Visibility="{Binding IsPresenceOnline, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/></StackPanel>
@@ -199,7 +206,11 @@
                             <StackPanel Orientation="Horizontal"><Ellipse Fill="#8995A8" Width="9" Height="9" Margin="0,0,10,0"/><TextBlock Text="Apparaître hors ligne"/><TextBlock Text=" ✓" Visibility="{Binding IsPresenceOffline, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/></StackPanel>
                         </Button>
                     </StackPanel>
-                    <TextBlock Text="{Binding PresenceError}" TextWrapping="Wrap" Margin="0,7,0,0" Foreground="#EE8790" FontSize="12"/>
+                    <TextBlock Text="{Binding PresenceError}" TextWrapping="Wrap" Margin="0,7,0,0" Foreground="#EE8790" FontSize="12">
+                        <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers>
+                            <Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger>
+                        </Style.Triggers></Style></TextBlock.Style>
+                    </TextBlock>
                 </StackPanel>
 
                 <Button x:Name="ManageProfileButton"
@@ -316,22 +327,9 @@
                                    Text="{Binding Current.LogoutLabel}"
                                    FontWeight="SemiBold"/>
                         <ProgressBar Grid.Column="2"
-                                     Width="34"
-                                     Height="3"
                                      VerticalAlignment="Center"
-                                     IsIndeterminate="True">
-                            <ProgressBar.Style>
-                                <Style TargetType="{x:Type ProgressBar}"
-                                       BasedOn="{StaticResource AtlasV2.Progress.Compact}">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Current.IsLoggingOut}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </ProgressBar.Style>
-                        </ProgressBar>
+                                     IsIndeterminate="{Binding Current.IsLoggingOut}"
+                                     Style="{StaticResource AtlasV2.Progress.Inline}"/>
                     </Grid>
                 </Button>
             </StackPanel>

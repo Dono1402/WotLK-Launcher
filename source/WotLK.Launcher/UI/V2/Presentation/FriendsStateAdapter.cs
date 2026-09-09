@@ -220,12 +220,7 @@ internal sealed class FriendsStateAdapter : IDisposable
         }
         return snapshot.OperationState switch
         {
-            FriendsOperationState.Refreshing => "Actualisation des amis…",
-            FriendsOperationState.SendingRequest => "Envoi de la demande…",
-            FriendsOperationState.AcceptingRequest => "Acceptation de la demande…",
-            FriendsOperationState.RejectingRequest => "Refus de la demande…",
-            FriendsOperationState.CancellingRequest => "Annulation de la demande…",
-            FriendsOperationState.RemovingFriend => "Retrait de l’ami…",
+            not FriendsOperationState.None => string.Empty,
             _ when snapshot.LoadState == FriendsLoadState.Idle =>
                 "Ouvre ou actualise le panneau pour charger tes amis.",
             _ when snapshot.LoadState == FriendsLoadState.Loaded && snapshot.IsStale =>

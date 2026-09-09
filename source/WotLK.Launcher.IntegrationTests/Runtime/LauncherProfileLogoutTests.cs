@@ -478,7 +478,7 @@ internal static class LauncherProfileLogoutTests
                 ShellOverlayKind.Profile,
                 preview.CurrentOverlay,
                 "Le preview logging-out doit ouvrir le panneau malgré son état busy fictif.");
-            Equal("Déconnexion…", preview.ProfileState.Current.LogoutLabel, "Le preview busy doit être visible.");
+            Equal("Déconnexion", preview.ProfileState.Current.LogoutLabel, "Le libellé reste stable pendant la déconnexion.");
         }
         finally
         {
@@ -690,7 +690,7 @@ internal static class LauncherProfileLogoutTests
             ExecuteBoundCommand(logoutButton);
             await logoutStarted.Task;
             await WaitForAsync(() => profile.Current.IsLoggingOut);
-            Equal("Déconnexion…", profile.Current.LogoutLabel, "L'état busy doit être explicite.");
+            Equal("Déconnexion", profile.Current.LogoutLabel, "Le libellé reste stable pendant la déconnexion.");
             True(!logoutButton.IsEnabled, "Le second clic doit être refusé pendant la déconnexion.");
             int callsDuringBusy = environment.Authentication.LogoutCalls;
             ExecuteBoundCommand(logoutButton);

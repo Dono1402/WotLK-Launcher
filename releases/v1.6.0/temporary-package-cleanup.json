@@ -1,0 +1,11 @@
+{
+  "completed": true,
+  "checkedAt": "2026-09-10T13:32:14.654916+00:00",
+  "removedCount": 8,
+  "freedBytes": 3322667572,
+  "freeBefore": 1981108224,
+  "freeAfter": 5303742464,
+  "previousReleasesRetained": true,
+  "rollbackBackupsRetained": true,
+  "publishedFilesRetained": true
+}

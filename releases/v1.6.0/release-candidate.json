@@ -1,5 +1,5 @@
 {
-  "status": "prepared-not-published",
+  "status": "published",
   "version": "1.6.0",
   "releaseId": "client-1.6.0-20260910T131528Z",
   "preparedAt": "2026-09-10T13:20:21Z",
@@ -159,7 +159,10 @@
       "PATCH-NOTES.en.md",
       "SHA256SUMS.txt"
     ],
-    "onlyPlayerExecutable": "AtlasLauncherSetup.exe"
+    "onlyPlayerExecutable": "AtlasLauncherSetup.exe",
+    "published": true,
+    "isLatest": true,
+    "report": "github-publication.json"
   },
   "scope": {
     "clientPublication": true,
@@ -174,5 +177,11 @@
     "No real player account, launcher or game was opened.",
     "The complete all-pages WPF suite is not asserted green; its known unrelated SettingsToggleDisabled baseline failure remains.",
     "Game/addon feed signatures and PE Authenticode certificates are not introduced by this release."
-  ]
+  ],
+  "sourceCommit": "2dbf8f7a7499c4ae609afac17fe7eb3c638e2fe2",
+  "publishedAt": "2026-09-10T13:20:21Z",
+  "completedAt": "2026-09-10T13:29:20.861006+00:00",
+  "publicationReport": "publication-result.json",
+  "publicVerificationReport": "public-verification.json",
+  "temporaryPackageCleanup": "temporary-package-cleanup.json"
 }

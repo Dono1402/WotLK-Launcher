@@ -1,6 +1,6 @@
 # Livraison Atlas Launcher 1.6.0
 
-État : candidat compilé, vérifié et signé dans un espace privé ; publication publique en cours de préparation.
+**Publication terminée le 10 septembre 2026.** Le serveur propose la 1.6.0 depuis 13:29 UTC et la release GitHub est publique et marquée comme dernière version depuis 13:30 UTC (15:30 à Paris).
 
 ## Distribution
 
@@ -39,3 +39,17 @@ Les tests de migration sont simulés ; aucune validation UAC complète sous `Pro
 Les exécutables ne disposent pas d'une signature Authenticode. Le manifeste de mise à jour du launcher est signé ECDSA P-256 avec la clé de production existante ; les signatures des flux du jeu et des addons restent un travail distinct.
 
 Les empreintes exactes et les contrôles sont consignés dans [release-candidate.json](release-candidate.json). Le manifeste et les fichiers de version précédents sont conservés pour permettre un retour contrôlé.
+
+## Vérifications après publication
+
+- [Release GitHub v1.6.0](https://github.com/Dono1402/WotLK-Launcher/releases/tag/v1.6.0), compte **Dono1402**, six fichiers dont un seul exécutable joueur : **AtlasLauncherSetup.exe**.
+- Les six tailles et empreintes publiées par GitHub correspondent aux fichiers gelés ; le lien de téléchargement de la dernière version répond **200**, avec **507 033 689 octets**.
+- Le client et l'installateur versionnés ont été téléchargés intégralement par HTTPS et hachés avant l'annonce de la mise à jour.
+- Le manifeste HTTPS a été vérifié depuis Windows avec le code de validation du client : signature ECDSA P-256, version, taille, URL et SHA-256 conformes. L'ancien endpoint de transition sert exactement les mêmes octets.
+- Les trois adresses stables de téléchargement du serveur sont synchronisées. Les fichiers versionnés de la 1.5.0 et les cinq notes précédentes sont conservés.
+- Les processus de l'API, du royaume, d'HermesProxy et de l'authentification ainsi que la configuration Caddy sont restés inchangés pendant la publication.
+- Les huit copies binaires temporaires propres à cette livraison ont été comparées aux fichiers conservés, puis supprimées : **3 322 667 572 octets récupérés**. Les fichiers publiés, les versions précédentes et les sauvegardes de retour arrière sont conservés.
+
+Le tag `v1.6.0` désigne le commit `2dbf8f7a7499c4ae609afac17fe7eb3c638e2fe2`. Les documents et preuves de fin de publication sont enregistrés dans un commit suivant, sans reconstruire ni remplacer les exécutables gelés.
+
+Preuves : [publication serveur](publication-result.json), [publication GitHub](github-publication.json), [vérification publique](public-verification.json) et [nettoyage temporaire](temporary-package-cleanup.json).

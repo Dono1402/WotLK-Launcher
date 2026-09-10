@@ -1,0 +1,49 @@
+{
+  "checkedAtUtc": "2026-09-10T13:33:07.0850402Z",
+  "anonymousGitHubVerified": true,
+  "tag": "v1.6.0",
+  "releaseUrl": "https://github.com/Dono1402/WotLK-Launcher/releases/tag/v1.6.0",
+  "author": "Dono1402",
+  "assets": 6,
+  "assetDigestsMatch": true,
+  "latestInstallerStatus": 200,
+  "latestInstallerBytes": 507033689,
+  "onlyPlayerExecutable": [
+    "AtlasLauncherSetup.exe"
+  ],
+  "legacyManifestMatches": true,
+  "legacyManifestSha256": "e94b7634cc4be0271754ed4a6e5c945661f11a8795d1e9beb187dfebf9ae9a42",
+  "clientManifestVerification": {
+    "checkedAtUtc": "2026-09-10T13:30:45.6536420+00:00",
+    "manifestUri": "https://animeclub.fr/wotlk/launcher/launcher-update.json",
+    "manifestHttpStatus": 200,
+    "manifestBytes": 424,
+    "manifestFileSha256": "e94b7634cc4be0271754ed4a6e5c945661f11a8795d1e9beb187dfebf9ae9a42",
+    "canonicalPayloadSha256": "b42660a677faa3270016e4c6a7e8c74926b43ad1069530c7670fe262aa6b6897",
+    "trustStoreSha256": "f5db6823f8a23a6f6c6ededa95bc2f3f2cad12397f76dc54d76358fb8e221618",
+    "publicKeySha256": "32bb4355e1b49ec59ad757e4bb83ed231da80a2ceae986d2abca89e6fe6faa32",
+    "signatureAlgorithm": "ECDSA-P256-SHA256-DER",
+    "signatureVerified": true,
+    "signedFieldsValidatedByClientContract": true,
+    "releaseExpectationChecked": true,
+    "expectedRelease": {
+      "version": "1.6.0",
+      "size": 401669959,
+      "sha256": "e8f3f3dd231581f12475271ce07ff1bf2d61e030449d0670bba9d4abec19e935"
+    },
+    "packageHeadChecked": true,
+    "packageHeadContentLength": 401669959,
+    "executableBytesDownloaded": 0,
+    "executableExecuted": false,
+    "manifest": {
+      "schemaVersion": 1,
+      "keyId": "atlas-prod-p256-2026-01",
+      "version": "1.6.0",
+      "url": "https://animeclub.fr/wotlk/launcher/releases/1.6.0/WotLK-Launcher.exe",
+      "size": 401669959,
+      "sha256": "e8f3f3dd231581f12475271ce07ff1bf2d61e030449d0670bba9d4abec19e935",
+      "publishedAt": "2026-09-10T13:20:21Z",
+      "signature": "MEUCIQC22wCsPDUGpo7V8PdVuKNymQFJLM805CLnc4swoYpHSAIgX5hdbwZcxAX6aTZCXUhMYRrgj0Fb3jVONvoMv9YlsyU="
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "published": true,
+  "release": "client-1.6.0-20260910T131528Z",
+  "version": "1.6.0",
+  "publishedAt": "2026-09-10T13:20:21Z",
+  "completedAt": "2026-09-10T13:29:20.861006+00:00",
+  "signedManifestVerified": true,
+  "launcherSha256": "e8f3f3dd231581f12475271ce07ff1bf2d61e030449d0670bba9d4abec19e935",
+  "setupSha256": "1429b4cc9951200815f590f426c5226df9203a0aaba249626358721eca24a00e",
+  "patchNoteSections": 9,
+  "patchNoteItems": 55,
+  "historicalPatchNotesPreserved": true,
+  "previousVersionArtifactsPreserved": true,
+  "publicManifestMatches": true,
+  "publicPackagesDownloadedAndHashedBeforeAnnouncement": true,
+  "validationNetworkFamily": "IPv4",
+  "publicPackagesHeadVerified": true,
+  "threeRootAliasesUpdated": true,
+  "servicesUnchanged": true,
+  "caddyUnchanged": true,
+  "authenticatedPatchNotesObserved": false,
+  "backup": "/srv/wotlk/launcher-release-backups/client-1.6.0-20260910T131528Z-ipv4"
+}

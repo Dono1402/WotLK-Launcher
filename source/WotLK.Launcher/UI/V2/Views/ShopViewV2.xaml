@@ -34,16 +34,16 @@
             <DataTrigger Binding="{Binding IsWalletOpen}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
         </Style.Triggers></Style></ScrollViewer.Style>
         <ScrollViewer.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/></ScrollViewer.Resources>
-        <Grid x:Name="ContentFrame" Margin="60,12,60,24" MaxWidth="1700">
+        <Grid x:Name="ContentFrame" Margin="64,6,64,24" MaxWidth="1440">
             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-            <StackPanel Margin="0,0,0,28">
+            <StackPanel Margin="0,0,0,20">
                 <Grid x:Name="CatalogueHeader">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="20"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                     <StackPanel>
-                        <StackPanel Orientation="Horizontal"><Border Width="36" Height="1.5" Background="{StaticResource ShopIce}" Margin="0,0,16,0"/><TextBlock Text="ATLAS LAUNCHER" Style="{StaticResource ShopEyebrow}"/></StackPanel>
-                        <TextBlock x:Name="PageTitle" Text="{Binding PageHeading}" FontSize="60" FontWeight="ExtraBold" Foreground="{StaticResource AtlasV2.Brush.TitlePearl}"/>
-                        <TextBlock Text="{Binding Subtitle}" Style="{StaticResource ShopBody}" FontSize="17" Margin="2,0,0,22"/>
-                        <TextBlock Text="{Binding ServicesHeading}" Style="{StaticResource ShopHeading}" FontSize="22"/>
+                        <StackPanel Orientation="Horizontal"><Border Width="34" Height="2" Background="{StaticResource AtlasV2.Brush.Cyan}" Margin="0,0,20,0"/><TextBlock Text="ATLAS LAUNCHER" Style="{StaticResource AtlasV2.Text.Eyebrow}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Cyan}"/></StackPanel>
+                        <TextBlock x:Name="PageTitle" Text="{Binding PageHeading}" Style="{StaticResource AtlasV2.Text.Hero}" FontSize="48" Foreground="{StaticResource AtlasV2.Brush.TitleIce}"/>
+                        <TextBlock x:Name="PageDescription" Text="{Binding Subtitle}" Style="{StaticResource AtlasV2.Text.Body}" FontSize="14" Margin="0,0,0,20"/>
+                        <TextBlock Text="{Binding ServicesHeading}" Style="{StaticResource ShopHeading}" FontSize="20"/>
                     </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Bottom">
                         <Border x:Name="ConversionBanner">
@@ -52,7 +52,11 @@
                                     <Image x:Name="ConversionCoins" Source="/WotLK.Launcher;component/Assets/Shop/Conversion_or_transparent.png" Width="92" Height="56" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0">
                                         <TextBlock Text="{Binding ConversionShortcutLabel}" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.TitlePearl}"/>
-                                        <TextBlock Text="{Binding ConversionRate}" FontSize="12" Foreground="{StaticResource ShopGold}" Margin="0,5,0,0"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,5,0,0" ToolTip="{Binding ConversionRateDescription}" AutomationProperties.Name="{Binding ConversionRateDescription}">
+                                            <TextBlock x:Name="ShortcutRateNumber" Text="{Binding ConversionRateNumber}" FontSize="12" Foreground="{StaticResource ShopGold}" VerticalAlignment="Center"/>
+                                            <Image x:Name="ShortcutGoldCoin" Source="{StaticResource ShopGoldCoin}" Width="15" Height="15" Margin="4,0,5,0" AutomationProperties.Name="{Binding ConversionGoldUnitLabel}"/>
+                                            <TextBlock Text="{Binding ConversionRateValue}" FontSize="12" Foreground="{StaticResource ShopGold}" VerticalAlignment="Center"/>
+                                        </StackPanel>
                                     </StackPanel>
                                 </Grid>
                             </Button>
@@ -63,19 +67,19 @@
                 <ProgressBar Height="3" Margin="0,10,0,0" IsIndeterminate="True" Style="{StaticResource AtlasV2.Progress.Compact}" Visibility="{Binding IsLoading, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
                 <Border Background="#DA071925" CornerRadius="6" Padding="14" Margin="0,12,0,0" Visibility="{Binding ShowStatus, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"><TextBlock x:Name="StatusText" Text="{Binding Status}" Style="{StaticResource ShopBody}"/></Border>
             </StackPanel>
-            <ItemsControl x:Name="ProductList" Grid.Row="1" ItemsSource="{Binding Offers}" Margin="0,0,-24,0" AutomationProperties.Name="{Binding CategoryLabel}">
+            <ItemsControl x:Name="ProductList" Grid.Row="1" ItemsSource="{Binding Offers}" Margin="0,0,-18,0" AutomationProperties.Name="{Binding CategoryLabel}">
                 <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate><DataTemplate>
-                    <Button Style="{StaticResource ServiceCardButton}" Margin="0,0,24,24" Width="{Binding CardWidth, RelativeSource={RelativeSource AncestorType=views:ShopViewV2}}" Click="Service_Click" AutomationProperties.Name="{Binding Name}">
-                        <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="214"/></Grid.RowDefinitions>
+                    <Button Style="{StaticResource ServiceCardButton}" Margin="0,0,18,18" Width="{Binding CardWidth, RelativeSource={RelativeSource AncestorType=views:ShopViewV2}}" Click="Service_Click" AutomationProperties.Name="{Binding Name}">
+                        <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="168"/></Grid.RowDefinitions>
                             <Border Height="{Binding CardImageHeight, RelativeSource={RelativeSource AncestorType=views:ShopViewV2}}" CornerRadius="13,13,0,0" RenderOptions.BitmapScalingMode="HighQuality"><Border.Background><ImageBrush ImageSource="{Binding Artwork}" Stretch="UniformToFill"/></Border.Background></Border>
                             <Border Grid.Row="1" Height="1" Background="{StaticResource AtlasV2.Brush.GlassHighlight}" VerticalAlignment="Top"/>
-                            <Grid Grid.Row="1" Margin="24,22,24,24">
-                                <Grid.RowDefinitions><RowDefinition Height="22"/><RowDefinition Height="62"/><RowDefinition Height="*"/><RowDefinition Height="30"/></Grid.RowDefinitions>
-                                <StackPanel Orientation="Horizontal"><Image Source="/WotLK.Launcher;component/Assets/Shop/Logo_Atlas_transparent.png" Width="18" Height="18" Margin="0,0,9,0"/><TextBlock Text="{Binding Realm}" FontSize="11.5" FontWeight="SemiBold" Foreground="#9FBBD0" VerticalAlignment="Center"/></StackPanel>
-                                <TextBlock Grid.Row="1" Text="{Binding Name}" TextWrapping="Wrap" FontSize="24" FontWeight="Bold" LineHeight="29" Foreground="{StaticResource AtlasV2.Brush.TitlePearl}" Margin="0,8,0,0"/>
-                                <TextBlock Grid.Row="2" Text="{Binding Category}" Foreground="#AACCE3" FontSize="14" Margin="0,8,0,0"/>
-                                <TextBlock Grid.Row="3" Text="{Binding DisplayPrice}" Foreground="#EAD391" FontSize="23" FontWeight="SemiBold" VerticalAlignment="Bottom"/>
+                            <Grid Grid.Row="1" Margin="16,14,16,14">
+                                <Grid.RowDefinitions><RowDefinition Height="18"/><RowDefinition Height="54"/><RowDefinition Height="24"/><RowDefinition Height="44"/></Grid.RowDefinitions>
+                                <StackPanel Orientation="Horizontal"><Image Source="/WotLK.Launcher;component/Assets/Shop/Logo_Atlas_transparent.png" Width="16" Height="16" Margin="0,0,7,0"/><TextBlock Text="{Binding Realm}" FontSize="10" FontWeight="SemiBold" Foreground="#9FBBD0" VerticalAlignment="Center"/></StackPanel>
+                                <TextBlock Grid.Row="1" Text="{Binding Name}" TextWrapping="Wrap" FontSize="20" FontWeight="Bold" LineHeight="24" Foreground="{StaticResource AtlasV2.Brush.TitlePearl}" Margin="0,4,0,0"/>
+                                <TextBlock Grid.Row="2" Text="{Binding Category}" Foreground="#AACCE3" FontSize="13" Margin="0,4,0,0"/>
+                                <TextBlock Grid.Row="3" Text="{Binding DisplayPrice}" TextWrapping="Wrap" LineHeight="21" Foreground="#EAD391" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Bottom"/>
                             </Grid>
                         </Grid>
                     </Button>

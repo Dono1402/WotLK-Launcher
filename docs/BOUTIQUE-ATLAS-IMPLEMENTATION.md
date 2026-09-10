@@ -9,9 +9,11 @@ Aucun service de production ni client installé n'a été modifié.
 
 ## Fonctionnement présent
 
-- Onglet **Boutique** reprenant la nouvelle référence de catalogue : grandes
-  cartes en grille, illustration panoramique en haut, identité du jeu, nom du
-  service, catégorie puis prix. Trois colonnes dès 1320 DIPs, deux en dessous.
+- Onglet **Boutique** reprenant la référence de catalogue avec des cartes
+  compactes en grille, illustration panoramique en haut, identité du jeu, nom du
+  service, catégorie puis prix. Quatre cartes compactes tiennent sur une rangée
+  de 1080 à 1672 DIPs, sans défilement ; la grille peut revenir à trois/deux
+  colonnes si son espace utile descend sous 1000/720 DIPs.
   Les quatre cartes appartiennent au catalogue partagé entre le serveur et l'aperçu.
 - **Changement de nom** à **5 € depuis les Crédits Atlas ou le portefeuille en euros**.
 - **Sésame niveau 70**, **Changement de faction** et **Changement de race** :
@@ -34,7 +36,9 @@ Aucun service de production ni client installé n'a été modifié.
   affiché `—`, puisque leur persistance n'est pas encore implémentée.
 - Raccourci **Convertir mon or** placé à droite au-dessus des services,
   dans la zone demandée, avec l'illustration de pièces fournie. Ses dimensions
-  restent de 260/280 × 72 DIPs et il est accessible sans défiler.
+  restent de 260/280 × 72 DIPs et il est accessible sans défiler. Une pièce
+  d’or apparaît immédiatement après le nombre du taux ; une infobulle précise
+  « 100 pièces d’or = 1,00 € de Crédits Atlas » pour le taux actuel.
   Il remplace le catalogue par une interface
   centrée dans la page du launcher. Présentation horizontale : or disponible à
   gauche, montant numérique au centre, flèche et Crédits Atlas en euros à droite.
@@ -69,7 +73,14 @@ Aucun service de production ni client installé n'a été modifié.
 
 ## Présentation et ressources
 
-La référence du 11 septembre est une grille de grandes cartes de services.
+La grille du 11 septembre a été compactée après retour sur la taille des cadres.
+Sa largeur est plafonnée à 1440 DIPs, les espacements sont de 18 DIPs et le
+bloc de texte de chaque carte passe de 214 à 168 DIPs. Les quatre services
+sont visibles d’emblée, avec des cadres de 244 à 346 DIPs de large aux tailles
+contrôlées, au lieu des grandes cartes de 3/2 colonnes précédentes.
+Le titre Boutique partage la taille adaptative 48/42/38, la graisse et le
+dégradé TitleIce d’Addons et Notes de version. Le mode vient directement du
+Shell, avec les mêmes marges et le même traitement du surtitre.
 Les illustrations occupent une zone 16:9. Les cartes utilisent les surfaces
 vitrées bleu nuit, les bordures bleues et les coins arrondis de 14 DIPs du launcher,
 avec des titres nacrés et des tarifs dorés. Les surfaces grises de la référence
@@ -77,7 +88,7 @@ ont été remplacées. Les illustrations restent intactes, avec des angles supé
 arrondis par le contrôle WPF.
 
 Le raccourci de conversion est aligné à droite de l'en-tête du catalogue, au-dessus
-de la grille. Le défilement sert à voir les services suivants. Le catalogue,
+de la grille. Le défilement reste disponible si le catalogue s’agrandit. Le catalogue,
 la fiche de service, le convertisseur et la recharge sont des vues exclusives
 de la même page. Cliquer l'un des soldes supérieurs active directement sa vue.
 Quitter la conversion pour la recharge annule aussi tout transfert animé en
@@ -227,7 +238,7 @@ d'intégration sans erreur ni avertissement.
 | Suite | Résultat et portée |
 | --- | --- |
 | `--shop` | 148 assertions : brouillons de recharge, précision des centimes, absence de crédit local, reset de session, quatre offres, tarifs futurs absents, ouverture et fermeture des fiches, taux de 100 po par euro, deux soldes, limites par personnage, précision, débit/crédit simulé conservatif, refus du dépassement, saisie, session, erreurs HTTP et séparation du mode réel |
-| `--shop-wpf <dossier>` | Accès compact à la conversion visible au-dessus des cartes ; clics des deux soldes depuis Jeu/Addons ; page de recharge avec trois moyens, saisie, Retour/Échap, paiement fermé et reset de session ; quatre cartes en 3/2 colonnes à 1586×992 puis quatre tailles FR/EN ; ouverture de chaque fiche, prix futurs localisés, retour/Échap et position de défilement conservée ; deux soldes supérieurs, conversion horizontale intégrée de 1080×680 à 1586×992, frappe/collage entiers, Max par personnage, en-tête identique à Addons, navigation libre/retour/Escape, animation interne annulable, maintien dans la conversion après réussite, sélection conservée et actualisation des soldes à la connexion ; captures PNG et aucune erreur de binding |
+| `--shop-wpf <dossier>` | Accès compact à la conversion visible au-dessus des cartes ; clics des deux soldes depuis Jeu/Addons ; page de recharge avec trois moyens, saisie, Retour/Échap, paiement fermé et reset de session ; quatre cartes compactes sur une rangée dès 1080×680, titre identique à Addons et pièce d’or à côté du taux, puis quatre tailles FR/EN ; ouverture de chaque fiche, prix futurs localisés, retour/Échap et position de défilement conservée ; deux soldes supérieurs, conversion horizontale intégrée de 1080×680 à 1586×992, frappe/collage entiers, Max par personnage, en-tête identique à Addons, navigation libre/retour/Escape, animation interne annulable, maintien dans la conversion après réussite, sélection conservée et actualisation des soldes à la connexion ; captures PNG et aucune erreur de binding |
 | `--shop-mysql` | API HTTP réelle et MySQL 8.4.11 jetable sur loopback : authentification, appartenance Atlas, personnages autorisés, soldes, prix, taux, absence de mutation, limites et erreurs |
 | `--armory-session` | Régressions de session et tests boutique : refus du refresh, 401, reconnexion au même compte ou à un autre, réponse tardive et annulation |
 | `--shell-navigation-wpf` | 898 assertions incluant le nouvel onglet et les panneaux existants |

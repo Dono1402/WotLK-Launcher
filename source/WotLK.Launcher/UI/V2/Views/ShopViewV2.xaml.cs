@@ -11,6 +11,10 @@ public partial class ShopViewV2 : UserControl, IDisposable
     internal ShopConversionViewV2 ConversionPage => ConversionView;
     internal ShopWalletViewV2 WalletPage => WalletView;
     internal event EventHandler? ConversionRequested;
+    public static readonly DependencyProperty LayoutModeProperty = DependencyProperty.Register(
+        nameof(LayoutMode), typeof(AdaptiveLayoutMode), typeof(ShopViewV2),
+        new PropertyMetadata(AdaptiveLayoutMode.Wide, (target, _) => ((ShopViewV2)target).ApplyLayout()));
+    public AdaptiveLayoutMode LayoutMode { get => (AdaptiveLayoutMode)GetValue(LayoutModeProperty); set => SetValue(LayoutModeProperty, value); }
     public ShopViewV2()
     {
         InitializeComponent();
@@ -32,8 +36,8 @@ public partial class ShopViewV2 : UserControl, IDisposable
         if (Dispatcher.CheckAccess()) State.RefreshLocale();
         else if (!Dispatcher.HasShutdownStarted) _ = Dispatcher.BeginInvoke(State.RefreshLocale);
     }
-    public static readonly DependencyProperty CardWidthProperty = DependencyProperty.Register(nameof(CardWidth), typeof(double), typeof(ShopViewV2), new PropertyMetadata(420d));
-    public static readonly DependencyProperty CardImageHeightProperty = DependencyProperty.Register(nameof(CardImageHeight), typeof(double), typeof(ShopViewV2), new PropertyMetadata(235d));
+    public static readonly DependencyProperty CardWidthProperty = DependencyProperty.Register(nameof(CardWidth), typeof(double), typeof(ShopViewV2), new PropertyMetadata(320d));
+    public static readonly DependencyProperty CardImageHeightProperty = DependencyProperty.Register(nameof(CardImageHeight), typeof(double), typeof(ShopViewV2), new PropertyMetadata(178.875d));
     public double CardWidth { get => (double)GetValue(CardWidthProperty); private set => SetValue(CardWidthProperty, value); }
     public double CardImageHeight { get => (double)GetValue(CardImageHeightProperty); private set => SetValue(CardImageHeightProperty, value); }
     private void Service_Click(object sender, RoutedEventArgs e)
@@ -62,17 +66,20 @@ public partial class ShopViewV2 : UserControl, IDisposable
     public void Dispose() { LauncherLocalization.LocaleChanged -= LocaleChanged; State.Dispose(); }
     private void ApplyLayout()
     {
+        if (!IsInitialized) return;
         bool compact = ActualWidth < 1250;
-        double inset = compact ? 24 : 60;
-        ContentFrame.Margin = new Thickness(inset, 12, inset, 24);
-        ServiceFrame.Margin = new Thickness(inset, 18, inset, 30);
-        PageTitle.FontSize = compact ? 48 : 60;
+        double inset = LayoutMode switch { AdaptiveLayoutMode.Wide => 64, AdaptiveLayoutMode.Compact => 36, _ => 24 };
+        double top = LayoutMode switch { AdaptiveLayoutMode.Wide => 6, AdaptiveLayoutMode.Compact => 10, _ => 12 };
+        ContentFrame.Margin = new Thickness(inset, top, inset, 24);
+        ServiceFrame.Margin = new Thickness(compact ? 24 : 60, 18, compact ? 24 : 60, 30);
+        PageTitle.FontSize = LayoutMode switch { AdaptiveLayoutMode.Wide => 48, AdaptiveLayoutMode.Compact => 42, _ => 38 };
+        PageDescription.FontSize = LayoutMode == AdaptiveLayoutMode.Wide ? 14 : 13;
         DetailColumn.Width = new GridLength(compact ? 340 : 400);
         // Account for the actual viewport, including its vertical scrollbar.
         double viewport = PageScroll.ViewportWidth > 0 ? PageScroll.ViewportWidth : ActualWidth - SystemParameters.VerticalScrollBarWidth;
-        double available = Math.Min(1700, Math.Max(600, viewport - inset * 2));
-        int columns = ActualWidth >= 1320 ? 3 : 2;
-        CardWidth = Math.Floor((available - (columns - 1) * 24) / columns);
+        double available = Math.Min(ContentFrame.MaxWidth, Math.Max(600, viewport - inset * 2));
+        int columns = available >= 1000 ? 4 : available >= 720 ? 3 : 2;
+        CardWidth = Math.Floor((available - (columns - 1) * 18) / columns);
         CardImageHeight = (CardWidth - 2) * 9 / 16;
         MoreConversionButton.Width = compact ? 260 : 280;
     }

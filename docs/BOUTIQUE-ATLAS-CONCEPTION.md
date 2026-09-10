@@ -120,8 +120,9 @@ la page Boutique, avec Retour et Échap.
 
 Le catalogue présente quatre offres : changement de nom à 5 €, sésame niveau 70,
 changement de faction et changement de race. Les trois dernières ont un tarif
-à venir. Leurs fiches sont affichées dès ce jalon, avec une grille de grandes
-cartes et un détail au clic, selon la nouvelle référence fournie.
+à venir. Leurs fiches sont affichées dès ce jalon, avec une grille de quatre
+cartes compactes sur une rangée et un détail au clic. Le titre reprend le style
+d’Addons et Notes de version ; une pièce d’or précise l’unité du taux de conversion.
 
 Le core contient les mécanismes de niveau, race et faction, mais leur présence
 ne constitue pas un service de vente livré. Le raccordement boutique et la

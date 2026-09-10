@@ -125,11 +125,27 @@ internal static class ShopWpfTests
                             Check(HeaderGeometry(shell).SequenceEqual(shopChrome), "Returning to Shop does not restyle or move the header.");
                             Check(!Get<Button>(shop, "PurchaseButton").IsEnabled, "Purchases remain closed.");
                             Check(Get<ScrollViewer>(shop, "PageScroll").ScrollableWidth == 0, "No horizontal overflow.");
-                            Button firstCard = ServiceButton(shop, 0), nextCard = ServiceButton(shop, 1), thirdCard = ServiceButton(shop, 2);
-                            Point first = firstCard.TranslatePoint(new Point(), shop), next = nextCard.TranslatePoint(new Point(), shop), third = thirdCard.TranslatePoint(new Point(), shop);
-                            Check(next.X > first.X && Math.Abs(next.Y - first.Y) < 1, "Cards form a full-width grid.");
-                            Check(width >= 1440 ? Math.Abs(third.Y - first.Y) < 1 : third.Y > first.Y, "Grid adapts from three columns to two.");
-                            Check(firstCard.ActualWidth >= 350 && Math.Abs(shop.CardImageHeight / (firstCard.ActualWidth - 2) - 9d / 16) < .001, "Large card artwork keeps the requested landscape ratio.");
+                            Button firstCard = ServiceButton(shop, 0);
+                            Point first = firstCard.TranslatePoint(new Point(), shop);
+                            foreach (int index in Enumerable.Range(0, 4))
+                            {
+                                Button card = ServiceButton(shop, index);
+                                Rect bounds = new(card.TranslatePoint(new Point(), shop), card.RenderSize);
+                                Check(Math.Abs(bounds.Top - first.Y) < 1 && bounds.Right <= shop.ActualWidth && bounds.Bottom <= shop.ActualHeight,
+                                    "All four compact service cards fit on one row in the first viewport.");
+                                Check(card.ActualWidth is >= 230 and <= 350 && card.ActualHeight <= 370,
+                                    "Compact cards retain readable widths without the previous oversized frames.");
+                            }
+                            Check(Math.Abs(shop.CardImageHeight / (firstCard.ActualWidth - 2) - 9d / 16) < .001, "Smaller artwork preserves the landscape ratio.");
+                            TextBlock shopTitle = Get<TextBlock>(shop, "PageTitle");
+                            TextBlock addonsTitle = Get<TextBlock>(Get<AddonsViewV2>(shell, "AddonsView"), "PageTitle");
+                            Check(shopTitle.FontSize == addonsTitle.FontSize && shopTitle.FontWeight == addonsTitle.FontWeight && ReferenceEquals(shopTitle.Foreground, addonsTitle.Foreground),
+                                "Shop uses exactly the same adaptive title size, weight and ice gradient as Addons.");
+                            Image rateCoin = Get<Image>(shop, "ShortcutGoldCoin");
+                            TextBlock rateNumber = Get<TextBlock>(shop, "ShortcutRateNumber");
+                            Check(rateCoin.IsVisible && rateCoin.Source is DrawingImage && rateCoin.ActualWidth >= 14
+                                && rateCoin.TranslatePoint(new Point(), shop).X > rateNumber.TranslatePoint(new Point(rateNumber.ActualWidth, 0), shop).X,
+                                "A visible gold coin immediately follows the conversion rate number.");
                             Check(Texts(firstCard).Any(t => t.Text == shop.State.Offers[0].DisplayPrice), "Rendered catalog price follows the active locale.");
                             ServiceButton(shop, 3).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
                             Check(shop.State.PriceLabel == (LauncherLocalization.IsEnglish ? "Price to be announced" : "Tarif à venir"), "Future service pricing is localized.");

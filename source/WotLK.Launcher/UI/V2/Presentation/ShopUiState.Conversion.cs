@@ -74,7 +74,10 @@ internal sealed partial class ShopUiState
     public string ConversionGoldAfter => _lastConversion is not null ? ConversionMaximum : HasValidConversionAmount ? FormatGoldNumber(AvailableCopper!.Value - ConversionQuote!.DebitedCopper) : "—";
     public string ConversionBalanceAfter => _lastConversion is not null ? CreditBalance : HasValidConversionAmount ? FormatEuros(_snapshot!.CreditBalanceEuroCents!.Value + ConversionQuote!.CreditEuroCents) : "—";
     public string ConversionRateNumber => _snapshot is null ? "—" : FormatGoldNumber(_snapshot.GoldConversion.CopperPerEuroCent * 100L);
-    public string ConversionRate => ConversionRateNumber + " = " + FormatEuros(100);
+    public string ConversionRateValue => "= " + FormatEuros(100);
+    public string ConversionRate => ConversionRateNumber + " " + ConversionRateValue;
+    public string ConversionGoldUnitLabel => L("Pièces d’or", "Gold coins");
+    public string ConversionRateDescription => L($"{ConversionRateNumber} pièces d’or = {FormatEuros(100)} de Crédits Atlas.", $"{ConversionRateNumber} gold coins = {FormatEuros(100)} in Atlas credits.");
     public double ConversionPercent => AvailableCopper is >= 10000 && RequestedCopper is uint copper
         ? Math.Clamp(copper * 100d / (AvailableCopper.Value / 10000 * 10000), 0, 100) : 0;
     public string ConversionHint => _lastConversion is not null ? L("Conversion effectuée. Vous pouvez saisir un nouveau montant.", "Conversion complete. You can enter another amount.")

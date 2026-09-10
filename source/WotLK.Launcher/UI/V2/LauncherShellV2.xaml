@@ -491,7 +491,7 @@
             </Border>
 
             <Grid Grid.Row="1" Panel.ZIndex="30">
-                <views:ShopViewV2 x:Name="ShopView" Visibility="Collapsed"/>
+                <views:ShopViewV2 x:Name="ShopView" Visibility="Collapsed" LayoutMode="{Binding ShellState.LayoutMode, ElementName=ShellWindow}"/>
                 <views:AddonsViewV2 x:Name="AddonsView"
                                     Visibility="Collapsed"
                                     State="{Binding AddonsState}"

@@ -5,8 +5,9 @@ pas encore implémentée ou publiée. Le propriétaire a demandé une présentat
 comme celle de Blizzard dans WoW et confirmé **les deux accès, launcher et jeu,
 avec les mêmes produits et le même solde**. Les crédits pourront être gagnés en
 jeu et achetés avec de l'argent réel. Certaines offres pourront également être
-payées avec l'or du jeu. Le catalogue commercial, les tarifs, les récompenses
-de jeu et le prestataire de paiement restent à définir.
+payées avec l'or du jeu. Les prestataires retenus sont **Stripe et PayPal**,
+avec **Bancontact** parmi les moyens de paiement. Le catalogue commercial,
+les tarifs et les récompenses de jeu restent à définir.
 
 ## Expérience proposée
 
@@ -155,13 +156,22 @@ personnage**. Aucun portefeuille d'or partagé entre personnages n'a été deman
 Une écriture directe de l'or en base pendant la connexion du personnage pourrait
 être écrasée par sa sauvegarde en mémoire ; l'opération relève du core.
 
-L'achat de crédits en argent réel utilisera un prestataire à choisir. Il faut
-définir les packs, tarifs et règles de remboursement avant activation. Les
+L'achat de crédits en argent réel proposera Stripe et PayPal. Bancontact sera
+intégré via Stripe, qui le prend en charge dans Checkout pour les paiements en
+euros. Son activation sur le compte marchand et le parcours réel doivent être
+vérifiés avant ouverture. Il faut définir les packs, tarifs et règles de
+remboursement avant activation. Les
 crédits seront accordés sur confirmation serveur vérifiée du paiement, avec
 traitement des événements répétés et des remboursements. Un retour du navigateur
 ne sera pas une preuve de paiement. Une annulation de paiement dont les crédits
 ont déjà été dépensés doit déclencher un traitement explicite, pas un nouveau
 crédit ni un effacement silencieux de l'historique.
+
+La carte bancaire et Bancontact suivent la confirmation serveur Stripe.
+PayPal possède son propre parcours de capture et ses notifications vérifiées.
+Tous aboutissent au même journal de crédits et au même solde Atlas. Les références
+des prestataires sont dédupliquées séparément ; aucun événement de test ne doit
+alimenter un portefeuille de production.
 
 ## Validation attendue avant ouverture
 
@@ -204,3 +214,11 @@ activation. Cette étude ne modifie aucun service, compte, personnage ou solde.
 - [Boutique ACore CMS](https://www.azerothcore.org/acore-cms/configure-cms.html) :
   solution distincte fondée sur WordPress/WooCommerce et SOAP. Son installation
   n'est pas retenue implicitement pour étendre le launcher existant.
+- [Bancontact avec Stripe](https://docs.stripe.com/payments/bancontact) :
+  disponibilité dans Checkout, paiements en euros et activation du moyen de
+  paiement sur le compte Stripe.
+- [Vérification des notifications Stripe](https://docs.stripe.com/webhooks/signature)
+  et [notifications PayPal](https://developer.paypal.com/api/rest/webhooks/) :
+  authenticité des événements à vérifier avant tout crédit.
+- [Commandes PayPal v2](https://developer.paypal.com/api/orders/v2) : création,
+  consultation et capture du paiement côté serveur.

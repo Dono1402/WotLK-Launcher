@@ -192,6 +192,12 @@
                             <TextBlock x:Name="PatchNotesNavigationLabel"
                                        Text="Notes de version"/>
                         </Button>
+                        <Button x:Name="ShopNavigationButton"
+                                Style="{StaticResource AtlasV2.Pilot.Shell.Nav}"
+                                Content="Boutique"
+                                IsEnabled="{Binding ShellState.IsNavigationEnabled}"
+                                Focusable="True"
+                                Click="ShopNavigationButton_Click"/>
                     </StackPanel>
 
                     <StackPanel x:Name="TopBarActions" Grid.Column="3"
@@ -469,6 +475,7 @@
             </Border>
 
             <Grid Grid.Row="1" Panel.ZIndex="30">
+                <views:ShopViewV2 x:Name="ShopView" Visibility="Collapsed"/>
                 <views:AddonsViewV2 x:Name="AddonsView"
                                     Visibility="Collapsed"
                                     State="{Binding AddonsState}"

@@ -90,6 +90,9 @@ builder.Services.AddSingleton(services => new LauncherDatabase(
     services.GetRequiredService<LauncherSchemaMigrator>()));
 builder.Services.AddSingleton<AtlasStatusService>();
 builder.Services.AddSingleton<ArmoryReadLimiter>();
+builder.Services.AddSingleton(new ShopCatalog(
+    builder.Configuration.GetValue<long?>("AtlasShop:Rename:EuroCents") ?? 500,
+    builder.Configuration.GetValue<long?>("AtlasShop:Rename:GoldCopper") ?? 3_000_000));
 builder.Services.AddSingleton<ChatRequestLimiter>();
 builder.Services.AddSingleton<ChatAttachmentStorage>();
 builder.Services.AddSingleton<ChatLinkPreviewService>();
@@ -120,6 +123,7 @@ await database.InitializeAsync();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapAtlasAvatarEndpoints();
 app.MapArmoryEndpoints();
+app.MapShopEndpoints();
 app.MapChatEndpoints();
 app.MapChatV2Endpoints();
 app.MapPresenceEndpoints();

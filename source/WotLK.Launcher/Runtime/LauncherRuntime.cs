@@ -276,6 +276,7 @@ internal sealed partial class LauncherRuntime : IDisposable
     private readonly ILauncherAuthService _authentication;
     private readonly HttpClient _clientHttpClient;
     private readonly LauncherArmoryApiClient _armoryApi;
+    private readonly LauncherShopApiClient _shopApi;
     private readonly LauncherSessionCoordinator _sessionCoordinator;
     private readonly Action<string> _writeRuntimeLog;
     private Task<LauncherSessionRestoreResult>? _initializeTask;
@@ -303,6 +304,7 @@ internal sealed partial class LauncherRuntime : IDisposable
         _clientHttpClient = dependencies.CreateAuthorizedHttpClient(
             () => _authentication.AccessToken);
         _armoryApi = new LauncherArmoryApiClient(_clientHttpClient, dependencies.AvatarApiBaseUri);
+        _shopApi = new LauncherShopApiClient(_clientHttpClient, dependencies.AvatarApiBaseUri);
         AvatarMedia = dependencies.CreateAvatarMediaClient(
             _clientHttpClient,
             dependencies.AvatarApiBaseUri);

@@ -7,6 +7,10 @@ using System.Text.RegularExpressions;
 using WotLK.Launcher;
 using WotLK.Launcher.Server;
 
+if (args.Length == 1 && args[0] == "--shop") return await ShopRuntimeTests.RunAsync();
+if (args.Length == 1 && args[0] == "--shop-mysql") return await ShopApiMySqlTests.RunAsync();
+if (args.Length == 2 && args[0] == "--shop-wpf") return await ShopWpfTests.RunAsync(args[1]);
+
 if (args.Length == 3 && string.Equals(args[0], "--launcher-performance", StringComparison.OrdinalIgnoreCase))
     return await ArmoryLauncherTests.RunPerformanceAsync(args[1], args[2]);
 

@@ -10,6 +10,21 @@ internal static class LauncherLocalization
     private static readonly IReadOnlyDictionary<string, string> EnglishByFrench =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            ["Boutique"] = "Shop",
+            ["CATALOGUE"] = "CATALOG",
+            ["VOTRE SÉLECTION"] = "YOUR SELECTION",
+            ["Personnage bénéficiaire"] = "Receiving character",
+            ["Moyen de paiement"] = "Payment method",
+            ["Produits de la boutique"] = "Shop products",
+            ["Obtenir des crédits"] = "Get credits",
+            ["Convertir de l’or"] = "Convert gold",
+            ["Convertir mon or en crédit Atlas"] = "Convert my gold into Atlas credit",
+            ["Personnage dont l’or sera converti"] = "Character whose gold will be converted",
+            ["Montant d’or à convertir"] = "Gold amount to convert",
+            ["Crédit Atlas obtenu"] = "Atlas credit received",
+            ["Or débité"] = "Gold debited",
+            ["Reste conservé"] = "Remainder kept",
+            ["Conversion bientôt disponible"] = "Conversion coming soon",
             ["Packs et profils"] = "Packs and profiles",
             ["Importer"] = "Import",
             ["Exporter"] = "Export",

@@ -17,6 +17,7 @@ internal static partial class ShellNavigationWpfTests
         ("SettingsButton", LauncherShellPage.Settings),
         ("PatchNotesNavigationButton", LauncherShellPage.PatchNotes),
         ("AddonsNavigationButton", LauncherShellPage.Addons),
+        ("ShopNavigationButton", LauncherShellPage.Shop),
         ("MessagesNavigationButton", LauncherShellPage.Chat),
         ("GameNavigationButton", LauncherShellPage.Game)
     ];

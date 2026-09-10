@@ -6,7 +6,7 @@ using WotLK.Launcher.Account;
 using WotLK.Launcher.Game;
 using WotLK.Launcher.Runtime;
 
-internal static class ArmorySessionTests
+internal static partial class ArmorySessionTests
 {
     internal static async Task<int> RunAsync()
     {
@@ -18,6 +18,7 @@ internal static class ArmorySessionTests
         await CancellationDoesNotExpireSessionAsync();
         await InvalidAccountAndUnavailableServiceKeepSessionAsync();
         await FriendReadsGuardViewerSessionAsync();
+        await ShopReadsGuardSessionAsync();
         Console.WriteLine("Armory session OK: rejected refresh, profile/API 401, same-account and different-account reconnect races, cancellation, successful token renewal and non-authentication failures. Fake authentication and HTTP only.");
         return 0;
     }

@@ -1,13 +1,37 @@
 # Boutique Atlas : conception initiale
 
-État au 10 septembre 2026 : étude des points d'intégration. La boutique n'est
-pas encore implémentée ou publiée. Le propriétaire a demandé une présentation
+État au 10 septembre 2026 : premier jalon implémenté et testé localement : page
+WPF, catalogue authentifié, choix du personnage et calculateur de conversion.
+Les achats, les débits d'or, le portefeuille persistant et l'accès en jeu ne sont
+pas encore actifs. Aucun élément de ce jalon n'est publié en production.
+Le propriétaire a demandé une présentation
 comme celle de Blizzard dans WoW et confirmé **les deux accès, launcher et jeu,
 avec les mêmes produits et le même solde**. Les crédits pourront être gagnés en
 jeu et achetés avec de l'argent réel. Certaines offres pourront également être
 payées avec l'or du jeu. Les prestataires retenus sont **Stripe et PayPal**,
-avec **Bancontact** parmi les moyens de paiement. Le catalogue commercial,
-les tarifs et les récompenses de jeu restent à définir.
+avec **Bancontact** parmi les moyens de paiement. Le premier produit et son
+tarif sont maintenant définis ci-dessous. Les autres
+produits et les règles d'attribution complémentaires restent à définir.
+
+### Décisions commerciales confirmées
+
+- Premier produit : **changement de nom**, puis élargissement progressif.
+- Tarif : **5 € en paiement direct** par carte, Bancontact ou PayPal, **ou 300 po**.
+  Ce produit n'exige pas d'acheter des crédits au préalable.
+- Le **crédit Atlas est un solde affiché en euros**, conservé en centimes entiers.
+  Il pourra servir à de futurs achats de la boutique.
+- Conversion volontaire de l'or d'un personnage : **400 po = 5 € de crédit Atlas**,
+  soit **80 po = 1 €**, ou 8 000 pièces de cuivre pour un centime.
+- Le montant saisi est libre : **212 po donnent 2,65 €**. Le calcul ne se limite
+  pas à des lots de 400 po.
+- Une fraction de centime reste sur le personnage : pour 1 po proposé, 80 pa
+  sont converties en 0,01 € et les 20 pa restantes sont conservées. Aucun arrondi
+  ne donne de crédit supplémentaire ou ne consomme ce reste.
+- Le propriétaire a explicitement confirmé le maintien du renommage à 300 po,
+  malgré le taux de conversion de 400 po pour 5 €. Les deux tarifs sont distincts.
+
+Le [suivi d'implémentation](BOUTIQUE-ATLAS-IMPLEMENTATION.md) précise les fonctions
+présentes, les tests et les travaux restant avant activation.
 
 ## Expérience proposée
 
@@ -65,16 +89,16 @@ un habillage identique à deux environnements graphiques différents.
 
 ## Constats dans le projet
 
-- `source/WotLK.Launcher/UI/V2/Presentation/LauncherShellPage.cs` ne contient pas
-  de page Boutique. La navigation principale est portée par
-  `LauncherShellV2.xaml` et son code associé.
+- La navigation `LauncherShellV2` comprend désormais la page `ShopViewV2`, avec
+  les mêmes ressources visuelles que les autres pages. L'API authentifiée
+  `GET /api/v1/shop` fournit le catalogue et les personnages du compte.
 - L'API possède déjà l'authentification des requêtes dans
   `source/WotLK.Launcher.Server/AtlasRequestAuthentication.cs` et la lecture des
   personnages du compte dans `ArmoryEndpoints.cs` et `ArmoryDatabase.cs`.
   Ces lectures ne constituent pas une autorisation d'achat : celle-ci devra être
   revalidée à la création de commande et à la livraison.
-- Aucun portefeuille, catalogue marchand ou traitement de commande n'a été
-  trouvé dans les sources applicatives examinées.
+- Le catalogue initial est défini côté serveur. Aucun portefeuille persistant,
+  traitement de commande ou débit d'or n'est encore implémenté dans ce jalon.
 - Le code AzerothCore du candidat de livraison du 9 septembre contient
   `HandleCharacterRenameCommand`, qui peut accorder `AT_LOGIN_RENAME`. Le serveur
   conserve aussi la possibilité d'imposer un nom, distincte du parcours proposé.
@@ -125,8 +149,8 @@ La présence d'une commande serveur ou d'un bouton client ne suffit pas.
 ## Fonctionnement commun à construire
 
 1. **Catalogue serveur** : identifiant stable, révision, traductions, catégorie,
-   disponibilité, prix, type de monnaie et conditions. Aucun tarif de production
-   n'est fixé dans cette étude.
+   disponibilité, prix, type de monnaie et conditions. Le premier catalogue
+   implémente le tarif de renommage confirmé, sans activer les achats.
 2. **Commande authentifiée** : l'interface envoie l'offre, sa révision, le
    personnage et un identifiant de requête réutilisé en cas de nouvel essai.
    Le serveur déduit le compte de la session et calcule le prix lui-même.
@@ -152,21 +176,25 @@ utiliser les mêmes règles de validation et de concurrence.
 
 ## Économie retenue
 
-Deux moyens de paiement doivent être représentés sans les confondre :
+Trois moyens de paiement doivent être représentés sans les confondre :
 
 | Moyen | Propriétaire du solde | Origine | Règle d'achat |
 | --- | --- | --- | --- |
-| Crédits Atlas | Compte Atlas, commun aux deux interfaces | Récompenses de jeu ou achat en argent réel | Débit et attribution centralisés et traçables |
+| Crédit Atlas affiché en euros | Compte Atlas, commun aux deux interfaces | Conversion volontaire d'or, achats de crédit et éventuelles récompenses définies ultérieurement | Montants en centimes, débit et attribution centralisés et traçables |
 | Or du jeu | Personnage explicitement sélectionné | Économie du jeu existante | Seulement sur les offres qui acceptent l'or ; validation et débit par le serveur de jeu |
+| Paiement direct en euros | Paiement d'une commande précise | Carte, Bancontact via Stripe ou PayPal | Le renommage coûte 5 € ; la confirmation vérifiée finance cette commande sans alimenter implicitement le portefeuille |
 
-Une offre pourra être proposée en crédits, en or, ou avec deux tarifs au choix.
+Une offre pourra être proposée en crédit Atlas, en or ou en paiement direct,
+avec plusieurs tarifs au choix selon sa configuration.
 Dans ce dernier cas, le joueur choisit son moyen de paiement avant de confirmer.
-Il ne s'agit pas d'une conversion automatique entre or et crédits. Le paiement
+La conversion de l'or en crédit Atlas est une opération distincte, volontaire,
+avec prévisualisation du montant libre et confirmation. Le paiement
 partiel d'un même achat en or et en crédits n'a pas été demandé.
 
-Le journal des crédits conserve leur origine : récompense, paiement, dépense,
-annulation et correction administrative. Les événements de récompense et de
-paiement possèdent des identifiants durables pour empêcher un crédit répété.
+Le journal du crédit conserve son origine : conversion d'or, récompense,
+paiement, dépense, annulation et correction administrative. Les événements de
+conversion, récompense et paiement possèdent des identifiants durables pour
+empêcher un crédit répété.
 Les règles d'attribution en jeu doivent être définies avant activation ; aucun
 bonus de connexion, gain par minute ou tarif de récompense n'est présumé.
 
@@ -188,7 +216,8 @@ crédit ni un effacement silencieux de l'historique.
 
 La carte bancaire et Bancontact suivent la confirmation serveur Stripe.
 PayPal possède son propre parcours de capture et ses notifications vérifiées.
-Tous aboutissent au même journal de crédits et au même solde Atlas. Les références
+Les achats de crédit aboutissent au même journal et au même solde Atlas.
+Un paiement direct finance sa commande sans créditer ce solde. Les références
 des prestataires sont dédupliquées séparément ; aucun événement de test ne doit
 alimenter un portefeuille de production.
 

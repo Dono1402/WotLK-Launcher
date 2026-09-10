@@ -58,6 +58,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\WotLK.Launcher.Chat.Contracts\WotLK.Launcher.Chat.Contracts.csproj" />
+    <ProjectReference Include="..\WotLK.Launcher.Shop.Contracts\WotLK.Launcher.Shop.Contracts.csproj" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3856.49" />
   </ItemGroup>

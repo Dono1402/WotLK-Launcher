@@ -8,5 +8,6 @@ internal enum LauncherShellPage
     Settings,
     Account,
     Armory,
-    Chat
+    Chat,
+    Shop
 }

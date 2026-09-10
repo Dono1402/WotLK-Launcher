@@ -662,6 +662,7 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_Closed(object? sender, EventArgs e)
     {
+        ShopView.Dispose();
         DetachChatPresentation();
         Loaded -= LauncherShellV2_Loaded;
         SizeChanged -= LauncherShellV2_SizeChanged;
@@ -755,12 +756,12 @@ public partial class LauncherShellV2 : Window
         LocalBuildBadge.Padding = spacious ? new Thickness(8, 4, 8, 4) : new Thickness(5, 3, 5, 3);
         LocalBuildBadgeText.FontSize = spacious ? 12 : compact ? 9 : 10;
         ProductDivider.Margin = new Thickness(spacious ? 14 : 10, 0, spacious ? 14 : 10, 0);
-        ProductGameName.Visibility = ProductDivider.Visibility = Visibility.Visible;
+        ProductGameName.Visibility = ProductDivider.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         ProductGameName.FontSize = spacious ? 16 : compact ? 12 : 13;
         PatchNotesNavigationLabel.Text = compact ? "Notes" : "Notes de version";
         PatchNotesNavigationButton.ToolTip = "Notes de version";
         TopNavigation.Margin = new Thickness(0);
-        foreach (Button navigation in new[] { GameNavigationButton, AddonsNavigationButton, PatchNotesNavigationButton })
+        foreach (Button navigation in new[] { GameNavigationButton, AddonsNavigationButton, PatchNotesNavigationButton, ShopNavigationButton })
         {
             navigation.Height = barHeight - 2;
             navigation.FontSize = spacious ? 16 : compact ? 13 : 14;
@@ -1687,6 +1688,7 @@ public partial class LauncherShellV2 : Window
     {
         AuthOverlay.CanClose = CanCloseAuthentication;
         bool required = IsAuthenticationRequired;
+        if (required) ShopView.ResetSession();
         LauncherSurface.IsEnabled = !required;
         LauncherSurface.IsHitTestVisible = !required;
         LauncherSurface.Visibility = required ? Visibility.Hidden : Visibility.Visible;
@@ -1753,11 +1755,13 @@ public partial class LauncherShellV2 : Window
         AccountView.Visibility = showAccount ? Visibility.Visible : Visibility.Collapsed;
         ChatView.Visibility = page == LauncherShellPage.Chat ? Visibility.Visible : Visibility.Collapsed;
         ArmoryView.Visibility = page == LauncherShellPage.Armory ? Visibility.Visible : Visibility.Collapsed;
+        ShopView.Visibility = page == LauncherShellPage.Shop ? Visibility.Visible : Visibility.Collapsed;
         RefreshProfileTitleBarMode();
         GameNavigationButton.Tag = showGame ? "Active" : null;
         AddonsNavigationButton.Tag = showAddons ? "Active" : null;
         PatchNotesNavigationButton.Tag = showPatchNotes ? "Active" : null;
         MessagesNavigationButton.Tag = page == LauncherShellPage.Chat ? "Active" : null;
+        ShopNavigationButton.Tag = page == LauncherShellPage.Shop ? "Active" : null;
         SettingsButton.Tag = showSettings ? "Active" : null;
         RefreshChatViewActivation();
     }

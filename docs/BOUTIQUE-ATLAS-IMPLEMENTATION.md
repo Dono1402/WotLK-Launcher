@@ -1,8 +1,10 @@
-# Boutique Atlas : premier jalon local
+# Boutique Atlas : catalogue, soldes et conversion locale
 
 État au 10 septembre 2026. Ce jalon fournit les écrans WPF, le catalogue
-authentifié et le calculateur de conversion. Il ne permet pas encore de payer,
-de débiter de l'or, de créditer un portefeuille ou de renommer un personnage.
+authentifié, deux soldes distincts et le convertisseur centré. Le mode de
+prévisualisation peut simuler un débit d'or et un crédit Atlas en mémoire.
+Il ne permet pas encore de payer, de débiter l'or d'un véritable personnage,
+de créditer un portefeuille persistant ou de renommer un personnage.
 Aucun service de production ni client installé n'a été modifié.
 
 ## Fonctionnement présent
@@ -10,18 +12,29 @@ Aucun service de production ni client installé n'a été modifié.
 - Onglet **Boutique** reproduisant la composition de la maquette fournie :
   catalogue à gauche, trois cartes illustrées, sélection à droite et bandeau
   de conversion en bas. Les deux services futurs sont uniquement des annonces.
-- Fiche **Changement de nom** à **5 € en paiement direct ou 300 po**, conditions,
-  choix explicite du personnage et récapitulatif du moyen de paiement.
-- Indication carte, Bancontact et PayPal pour l'option directe en euros.
+- Fiche **Changement de nom** à **5 € depuis les Crédits Atlas ou le
+  portefeuille en euros**, conditions, personnage bénéficiaire et récapitulatif.
+  L'ancien tarif de 300 po est retiré.
 - Page et données en français/anglais ; conservation de la sélection lors du
   changement de langue et de l'actualisation. Un personnage disparu ne peut
   pas être remplacé silencieusement par un autre bénéficiaire.
-- Solde Atlas exprimé en euros. Le serveur renvoie actuellement `null`, affiché
-  `—`, puisque le portefeuille n'est pas encore implémenté. Il ne renvoie pas
-  un faux solde nul.
-- Panneau **Convertir mon or en crédit Atlas**, avec montant libre, crédit
-  obtenu, or à débiter et reste conservé. Le calcul est immédiat et n'effectue
-  aucune opération sur le compte.
+- **Crédits Atlas** dans la barre supérieure, immédiatement à gauche de
+  Messages. Le menu permet aussi de consulter et sélectionner le
+  **portefeuille en euros**, un solde indépendant. Les deux sont exprimés en
+  centimes entiers. Le serveur renvoie actuellement `null` pour chacun,
+  affiché `—`, puisque leur persistance n'est pas encore implémentée.
+- Bandeau inférieur **Convertir** remplaçant le catalogue par une interface
+  centrée dans la page du launcher. Présentation horizontale : or disponible à
+  gauche, montant numérique au centre, flèche et Crédits Atlas en euros à droite.
+  La navigation et les soldes restent accessibles ; **Retour à la boutique**
+  et Escape restaurent le catalogue. Choix séparé du
+  personnage source, maximum connu propre à ce personnage, saisie uniquement
+  numérique, bouton Max, curseur et raccourcis 25/50/75/100 %, crédit obtenu,
+  or restant et nouveau solde Atlas. Les personnages connectés n'exposent pas
+  de solde d'or périmé et ne peuvent pas convertir.
+- Après une conversion réussie dans la prévisualisation, une pastille de crédit
+  rejoint le solde supérieur, puis son compteur augmente. L'animation respecte
+  le réglage Windows de réduction des animations et disparaît à la déconnexion.
 - États de chargement, catalogue vide, absence de personnages, session expirée,
   débit de requêtes excessif et boutique indisponible. Un ancien backend sans
   cette route n'entraîne pas l'affichage d'un catalogue d'exemple dans la session.
@@ -38,9 +51,12 @@ Les conditions du service sont consultables dans l'infobulle du récapitulatif.
 À 1586 × 992, l'ensemble du catalogue et du bandeau tient sans défilement.
 Sous 1480 DIPs de largeur, le récapitulatif passe sous les cartes pour conserver
 leur lisibilité ; le défilement vertical permet d'accéder au reste de la page.
-Les deux boutons de conversion ouvrent le même calculateur existant.
+Le bouton Convertir du bandeau ouvre la conversion dans la zone de contenu,
+sans fenêtre, voile sombre ni comportement modal. Le contenu central défile si
+nécessaire sur un petit écran ; le bouton de confirmation reste visible.
 La barre supérieure adopte les proportions et le logo du pack sur cette page.
-Les autres pages conservent leur présentation habituelle.
+Le solde supérieur reste accessible sur les autres pages ; l'en-tête s'adapte
+pour conserver l'espace nécessaire à la navigation.
 
 Le pack ne contient pas le décor complet sans interface : son fond reconstitué
 est moins détaillé que la référence. Le fragment original de citadelle est
@@ -48,10 +64,9 @@ réintégré à sa position native avec des bords fondus. La texture du fond et 
 police d'origine non identifiée empêchent une identité stricte pixel par pixel.
 
 Vérifications propres à cette refonte : compilation, `--shop`, `--shop-wpf`
-et `--shell-navigation-wpf`. Les contrôles API/MySQL et de session ci-dessous
-correspondent au premier jalon ; aucun code serveur n'a changé dans la refonte.
-La suite de navigation a terminé ses 898 assertions en 215 secondes sur cette
-machine. Sa limite globale est portée à cinq minutes pour couvrir les deux
+et `--shell-navigation-wpf`. Le catalogue serveur et le contrat partagé ont
+également évolué pour les deux portefeuilles ; le contrôle API/MySQL est rejoué.
+La limite globale de la suite de navigation est de huit minutes pour couvrir les deux
 tailles et les attentes d'animation, avec progression par taille et résultat
 retourné après la fermeture du dispatcher WPF.
 
@@ -78,8 +93,12 @@ du champ `money` du jeu sont refusés. Le montant minimal effectivement
 convertible correspond à un centime. Le débit réel devra recalculer ce devis
 côté serveur ; le montant affiché par le launcher ne fera pas autorité.
 
-Le tarif du renommage à 300 po est distinct du taux de conversion de 400 po
-pour 5 €, comme confirmé par le propriétaire.
+Le montant à convertir doit être inférieur ou égal à l'or connu du personnage.
+Passer à un personnage moins riche réduit la saisie à son maximum. Le champ
+refuse les lettres à la frappe et au collage ; les montants d'or sont présentés
+en chiffres avec jusqu'à quatre décimales, sans unités écrites dans les valeurs.
+Le devis ne peut pas dépasser le plafond des Crédits Atlas. La conversion
+n'affecte jamais le portefeuille en euros.
 
 ## API et session
 
@@ -98,12 +117,16 @@ contenu. Les tarifs peuvent être configurés via :
 
 ```text
 AtlasShop:Rename:EuroCents = 500
-AtlasShop:Rename:GoldCopper = 3000000
+AtlasShop:Rename:CreditEuroCents = 500
 ```
 
 Les tarifs non positifs et les montants hors limites empêchent l'initialisation
 du catalogue. Il n'existe aucun endpoint d'achat ou de conversion dans ce jalon.
-Le DTO partagé est dans `WotLK.Launcher.Shop.Contracts`. Le client limite les
+Le DTO partagé est dans `WotLK.Launcher.Shop.Contracts`, **schéma 2**. Les devises
+de prix sont `credits` et `eur` ; `gold` n'est plus accepté. Les deux champs
+`CreditBalanceEuroCents` et `EuroBalanceCents` sont indépendants et facultatifs.
+Un client de ce jalon refuse le schéma 1 : le déploiement futur doit donc
+coordonner les versions serveur/client. Le client limite les
 réponses à 256 Kio, y compris sans `Content-Length`, valide le schéma et refuse
 les réponses d'une session devenue obsolète pendant le chargement. Une
 déconnexion efface le catalogue, le personnage, le montant saisi et le solde.
@@ -118,8 +141,12 @@ Après compilation, le mode suivant ouvre la boutique avec des exemples :
 
 Ce mode passe par la route de prévisualisation existante. Il ne crée pas le
 runtime réel, ne charge pas le compte et ne contacte pas l'API. Son solde de
-2,65 € et ses personnages sont fictifs. Les boutons de paiement et conversion
-restent désactivés. Les contrôles hors écran testent aussi l'isolation de cette
+2,65 € de Crédits Atlas, ses 10,00 € de portefeuille et ses personnages sont
+fictifs. Le bouton Convertir simule une opération en mémoire : seuls l'or du
+personnage choisi et les Crédits Atlas changent. L'actualisation conserve ce
+résultat jusqu'à la fin de la session de prévisualisation. Les achats restent
+désactivés. En mode connecté réel, la conversion reste fermée. Les contrôles
+hors écran testent aussi l'isolation de cette
 route et son incompatibilité avec une autre prévisualisation dédiée.
 
 Le lancement normal utilise l'API configurée du launcher. Tant que le nouveau
@@ -132,8 +159,8 @@ d'intégration sans erreur ni avertissement.
 
 | Suite | Résultat et portée |
 | --- | --- |
-| `--shop` | 53 assertions : montants approuvés, conversion libre, reste, précision, bornes HTTP, erreurs, sélection et réponses tardives |
-| `--shop-wpf <dossier>` | Référence 1586×992 sans barre de défilement, puis français/anglais à 1672×941, 1440×860, 1280×760 et 1080×680 ; navigation, listes, actualisation, conversion et captures PNG ; absence d'erreurs de binding |
+| `--shop` | 98 assertions : deux soldes, limites par personnage, précision, débit/crédit simulé conservatif, refus du dépassement, saisie, session, erreurs HTTP et séparation du mode réel |
+| `--shop-wpf <dossier>` | Catalogue à 1586×992 puis quatre tailles FR/EN ; deux soldes supérieurs, conversion horizontale intégrée de 1080×680 à 1586×992, frappe/collage numériques, Max par personnage, navigation libre/retour/Escape, animation, sélection conservée et actualisation des soldes à la connexion ; captures PNG et aucune erreur de binding |
 | `--shop-mysql` | API HTTP réelle et MySQL 8.4.11 jetable sur loopback : authentification, appartenance Atlas, personnages autorisés, soldes, prix, taux, absence de mutation, limites et erreurs |
 | `--armory-session` | Régressions de session et tests boutique : refus du refresh, 401, reconnexion au même compte ou à un autre, réponse tardive et annulation |
 | `--shell-navigation-wpf` | 898 assertions incluant le nouvel onglet et les panneaux existants |
@@ -146,13 +173,13 @@ launcher utilisateur, jeu ou navigateur n'a été ouvert. Les bases jetables ont
 
 ## Suite avant activation
 
-1. Portefeuille persistant en centimes, journal des mouvements, commandes et
+1. Deux portefeuilles persistants en centimes, journal des mouvements, commandes et
    identifiants idempotents pour achats, conversions et notifications répétées.
 2. Module du core pour contrôler l'or, exécuter le renommage et enregistrer un
    résultat durable. Tester les connexions concurrentes et les interruptions
    entre débit, sauvegarde et confirmation ; aucune écriture directe de l'or
    d'un personnage connecté depuis l'API.
-3. Paiements directs Stripe/PayPal/Bancontact, validation serveur des événements,
+3. Recharge du portefeuille en euros via Stripe/PayPal/Bancontact, validation serveur des événements,
    reprise après interruption et traitement des remboursements.
 4. Boutique et conversion accessibles en jeu, reliées aux mêmes données et aux
    mêmes opérations, avec test sur le client 3.4.3 et Hermes retenus.

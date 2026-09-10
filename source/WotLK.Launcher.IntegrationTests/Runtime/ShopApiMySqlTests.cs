@@ -74,10 +74,10 @@ internal static class ShopApiMySqlTests
                     ShopSnapshot snapshot = (await response.Content.ReadFromJsonAsync<ShopSnapshot>())!; snapshot.Validate();
                     Check(snapshot.Characters.Select(c=>c.Guid).SequenceEqual(new uint[]{101,102}), "Only owned characters are returned.");
                     Check(snapshot.Characters[0].GoldCopper==4235067 && snapshot.Characters[1].GoldCopper is null, "Offline copper is exact; live gold is not fabricated.");
-                    Check(snapshot.CreditBalanceEuroCents is null && !snapshot.CheckoutAvailable, "No wallet or purchase is fabricated.");
+                    Check(snapshot.CreditBalanceEuroCents is null && snapshot.EuroBalanceCents is null && !snapshot.CheckoutAvailable, "Neither wallet nor purchases are fabricated.");
                     Check(snapshot.GoldConversion.Quote(2120000).CreditEuroCents==265, "Server supplies the agreed arbitrary-amount conversion rate.");
                     Check(snapshot.Offers.Single().Prices.Single(p=>p.Currency=="eur").Amount==500
-                        && snapshot.Offers.Single().Prices.Single(p=>p.Currency=="gold").Amount==3000000, "The server owns both approved prices.");
+                        && snapshot.Offers.Single().Prices.Single(p=>p.Currency=="credits").Amount==500, "The server owns both approved wallet prices.");
                 }
                 using (HttpResponseMessage response = await Read("/api/v1/shop","two"))
                     Check((await response.Content.ReadFromJsonAsync<ShopSnapshot>())!.Characters.Single().Guid==201, "A second account receives a distinct roster.");

@@ -4,7 +4,6 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using WotLK.Launcher.Shop.Contracts;
 using WotLK.Launcher.UI.V2.Localization;
 
@@ -21,15 +20,18 @@ internal sealed class ShopOfferRow(ShopOffer offer) : ShopLocalizedRow
     public ShopOffer Offer { get; } = offer;
     public string Name => ShopUiState.Text(Offer.Name);
     public string Description => ShopUiState.Text(Offer.Description);
-    public string EuroPrice => Offer.Prices.FirstOrDefault(p => p.Currency == "eur") is { } price ? ShopUiState.FormatPrice(price) : "—";
-    public string GoldPrice => Offer.Prices.FirstOrDefault(p => p.Currency == "gold") is { } price ? ShopUiState.FormatPrice(price) : "—";
-    public string OrLabel => ShopUiState.L("ou", "or");
+    public string DisplayPrice => Offer.Prices.FirstOrDefault() is { } price ? ShopUiState.FormatEuros(price.Amount) : "—";
     public string Price => Offer.Prices.Count == 0 ? ShopUiState.L("Tarif à venir", "Price to be announced")
         : string.Join(ShopUiState.L(" ou ", " or "), Offer.Prices.Select(ShopUiState.FormatPrice));
 }
 internal sealed class ShopCharacterRow(ShopCharacter character) : ShopLocalizedRow
 {
-    public ShopCharacter Character { get; } = character;
+    public ShopCharacter Character { get; private set; } = character;
+    internal void Update(ShopCharacter character)
+    {
+        if (character.Guid != Character.Guid) throw new InvalidOperationException("A shop row cannot change its character identity.");
+        Character = character; RefreshLocale();
+    }
     public string Label => $"{Character.Name} - {ShopUiState.L("Niv.", "Lv.")} {Character.Level}";
 }
 internal sealed class ShopPriceRow(ShopPrice price) : ShopLocalizedRow
@@ -71,35 +73,6 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     public string WalletDescription => L("Un solde commun au launcher et au jeu.", "One balance shared by the launcher and the game.");
     public string CreditsInformation => L("Transformez l’or de vos personnages en crédit Atlas. Votre solde est affiché en euros et pourra servir aux futurs achats de la boutique.",
         "Turn your characters’ gold into Atlas credit. Your balance is displayed in euros and can be used for future shop purchases.");
-    public string ConversionGold
-    {
-        get => _conversionGold;
-        set { if (_conversionGold == value) return; _conversionGold = value; Changed(); }
-    }
-    public bool CanConvert => false;
-    public bool CanPreviewConversion => _snapshot is not null;
-    public ShopGoldConversionQuote? ConversionQuote
-    {
-        get
-        {
-            if (_snapshot is null || !Regex.IsMatch(_conversionGold, "^[0-9]{1,6}([.,][0-9]{1,4})?$", RegexOptions.CultureInvariant)
-                || !decimal.TryParse(_conversionGold.Replace(',', '.'), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out decimal gold)
-                || gold * 10_000 > uint.MaxValue) return null;
-            return _snapshot.GoldConversion.Quote((uint)(gold * 10_000));
-        }
-    }
-    public string ConversionRate => _snapshot is null ? "—" : FormatGold(_snapshot.GoldConversion.CopperPerEuroCent * 100L)
-        + " = " + FormatEuros(100) + L(" de crédit Atlas", " Atlas credit");
-    public string ConversionCredit => ConversionQuote is { } quote ? FormatEuros(quote.CreditEuroCents) : "—";
-    public string ConversionDebit => ConversionQuote is { } quote ? FormatGold(quote.DebitedCopper) : "—";
-    public string ConversionRemainder => ConversionQuote is { } quote ? FormatGold(quote.RemainingCopper) : "—";
-    public string ConversionHint => ConversionQuote is not { } quote
-        ? L("Saisissez un montant d’or. Les pièces d’argent et de cuivre peuvent être indiquées après la virgule.", "Enter a gold amount. Silver and copper can be entered after the decimal point.")
-        : quote.CreditEuroCents == 0 ? L("Le montant doit permettre d’obtenir au moins 0,01 € de crédit Atlas.", "The amount must yield at least €0.01 of Atlas credit.")
-        : _character is null ? L("Choisissez le personnage dont l’or sera converti.", "Choose the character whose gold will be converted.")
-        : _character.Character.GoldCopper is uint balance && quote.DebitedCopper > balance
-            ? L("Le solde d’or sauvegardé de ce personnage est insuffisant.", "This character’s saved gold balance is insufficient.")
-        : L("Le reste est conservé sur le personnage. Son solde sera vérifié au moment de la conversion.", "The remainder stays on your character. Their balance will be checked when converting.");
     public string Status => _status switch
     {
         "loading" => L("Chargement de la boutique…", "Loading the shop…"),
@@ -116,13 +89,13 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     public string PriceLabel => _price?.Label ?? L("Tarif à venir", "Price to be announced");
     public string CharacterHint => !HasCharacters ? L("Aucun personnage sur ce compte.", "No characters on this account.")
         : _character?.Character.Online == true ? L("En ligne · le solde d’or sera vérifié en jeu.", "Online · your gold balance will be checked in game.")
-        : _character?.Character.GoldCopper is uint gold ? L("Or sauvegardé : ", "Saved gold: ") + FormatGold(gold)
+        : _character?.Character.GoldCopper is uint gold ? L("Or sauvegardé : ", "Saved gold: ") + FormatGoldNumber(gold)
         : L("Sélectionnez le personnage bénéficiaire.", "Select the character receiving this service.");
     public string Summary => _offer is null ? "" : $"{OfferName}\n{_character?.Character.Name ?? L("Personnage à choisir", "Choose a character")} · {PriceLabel}";
     public string PurchaseHint => L("Les achats ouvriront une fois le service disponible sur le royaume.", "Purchases will open once the service is available on the realm.");
     public string PaymentHint => _price?.Price.Currency == "eur"
-        ? L("Paiement direct · Carte bancaire, Bancontact ou PayPal.", "Direct payment · Card, Bancontact or PayPal.")
-        : _price?.Price.Currency == "gold" ? L("Or du personnage sélectionné · aucun échange avec les crédits.", "Gold from the selected character · no credit conversion.") : "";
+        ? L("Utilisez le solde en euros de votre portefeuille.", "Use the euro balance in your wallet.")
+        : _price?.Price.Currency == "credits" ? L("Utilisez vos Crédits Atlas obtenus en convertissant de l’or.", "Use Atlas credits obtained by converting gold.") : "";
 
     public ShopOfferRow? SelectedOffer
     {
@@ -146,7 +119,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
         set { if (Equals(value, _price)) return; _price = value is not null && Prices.Contains(value) ? value : null; Changed(); }
     }
 
-    internal void Configure(Func<CancellationToken, Task<ShopSnapshot>> read) { _read = read; Changed(); }
+    internal void Configure(Func<CancellationToken, Task<ShopSnapshot>> read) { _previewSnapshot = null; _read = read; Changed(); }
 
     internal async Task RefreshAsync()
     {
@@ -195,6 +168,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
         // Never silently assign a different beneficiary after a character disappears.
         _character = Characters.FirstOrDefault(c => c.Character.Guid == characterId);
         _price = Prices.FirstOrDefault(p => p.Price.Currency == currency) ?? Prices.FirstOrDefault();
+        _conversionCharacter = Characters.FirstOrDefault(c => c.Character.Guid == _conversionCharacterId);
         _status = Offers.Count == 0 ? "empty" : "ready";
     }
 
@@ -209,18 +183,16 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
         ++_generation;
         CancellationTokenSource? pending = _pending; _pending = null;
         pending?.Cancel();
-        Clear(); _conversionGold = ""; IsLoading = false; _status = "unavailable"; Changed();
+        if (_previewSnapshot is not null) _read = null;
+        Clear(); _previewSnapshot = null; _conversionCharacterId = null; _conversionGold = ""; IsConversionOpen = false; IsLoading = false; _status = "unavailable"; Changed();
     }
-    private void Clear() { _snapshot = null; Offers = []; Characters = []; Prices = []; _offer = null; _character = null; _price = null; }
+    private void Clear() { _snapshot = null; Offers = []; Characters = []; Prices = []; _offer = null; _character = null; _conversionCharacter = null; _price = null; }
     private void Changed() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));
     public void Dispose() { if (_disposed) return; _disposed = true; ResetSession(); _read = null; }
     internal static string Text(ShopText text) => LauncherLocalization.IsEnglish ? text.En : text.Fr;
     internal static string L(string fr, string en) => LauncherLocalization.IsEnglish ? en : fr;
     internal static CultureInfo Culture => CultureInfo.GetCultureInfo(LauncherLocalization.CurrentLocale);
-    internal static string FormatPrice(ShopPrice price) => price.Currency == "gold" ? FormatGold(price.Amount)
-        : price.Currency == "eur" ? FormatEuros(price.Amount)
-        : FormatEuros(price.Amount) + L(" de crédit Atlas", " Atlas credit");
+    internal static string FormatPrice(ShopPrice price) => (price.Currency == "credits"
+        ? L("Crédits Atlas", "Atlas credits") : L("Portefeuille en euros", "Euro wallet")) + " · " + FormatEuros(price.Amount);
     internal static string FormatEuros(long euroCents) => (euroCents / 100m).ToString("N2", Culture) + " €";
-    internal static string FormatGold(long copper) => (copper / 10000).ToString("N0", Culture) + L(" po", " gold")
-        + (copper % 10000 == 0 ? "" : $" {copper / 100 % 100}{L(" pa", " silver")} {copper % 100}{L(" pc", " copper")}");
 }

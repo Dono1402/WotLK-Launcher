@@ -9,9 +9,9 @@ internal sealed class ShopCatalog
     private readonly ShopOffer[] _offers;
     private readonly string _revision;
 
-    internal ShopCatalog(long renameEuroCents = 500, long renameGoldCopper = 3_000_000)
+    internal ShopCatalog(long renameEuroCents = 500, long renameCreditEuroCents = 500)
     {
-        ShopPrice[] prices = [new("eur", renameEuroCents), new("gold", renameGoldCopper)];
+        ShopPrice[] prices = [new("credits", renameCreditEuroCents), new("eur", renameEuroCents)];
         _offers = [new("character-rename", "services",
             new("Changement de nom", "Name change"),
             new("Un nouveau nom, la même aventure. Conservez votre personnage, son équipement et sa progression.",
@@ -24,5 +24,5 @@ internal sealed class ShopCatalog
     }
 
     internal ShopSnapshot CreateSnapshot(IReadOnlyList<ShopCharacter> characters) =>
-        new(1, _revision, DateTimeOffset.UtcNow, false, null, _offers, characters, new(8_000));
+        new(ShopSnapshot.CurrentSchemaVersion, _revision, DateTimeOffset.UtcNow, false, null, _offers, characters, new(8_000));
 }

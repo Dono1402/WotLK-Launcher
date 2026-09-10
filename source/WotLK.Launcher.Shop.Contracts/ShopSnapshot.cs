@@ -10,14 +10,17 @@ public sealed record ShopCharacter(uint Guid, string Name, byte Level, bool Onli
 // Checkout is deliberately closed until reservation, fulfillment and payment handling exist.
 public sealed record ShopSnapshot(int SchemaVersion, string CatalogRevision, DateTimeOffset ObservedAtUtc,
     bool CheckoutAvailable, long? CreditBalanceEuroCents, IReadOnlyList<ShopOffer> Offers,
-    IReadOnlyList<ShopCharacter> Characters, ShopGoldConversionRate GoldConversion)
+    IReadOnlyList<ShopCharacter> Characters, ShopGoldConversionRate GoldConversion, long? EuroBalanceCents = null)
 {
+    public const int CurrentSchemaVersion = 2;
+    public const long MaximumBalanceCents = 1_000_000_000;
     public const int MaximumResponseBytes = 256 * 1024;
 
     public void Validate()
     {
-        if (SchemaVersion != 1 || string.IsNullOrWhiteSpace(CatalogRevision) || CatalogRevision.Length > 80
-            || CreditBalanceEuroCents is < 0 || GoldConversion is null || GoldConversion.CopperPerEuroCent == 0
+        if (SchemaVersion != CurrentSchemaVersion || string.IsNullOrWhiteSpace(CatalogRevision) || CatalogRevision.Length > 80
+            || CreditBalanceEuroCents is < 0 or > MaximumBalanceCents || EuroBalanceCents is < 0 or > MaximumBalanceCents
+            || GoldConversion is null || GoldConversion.CopperPerEuroCent == 0
             || Offers is null || Characters is null || Offers.Count > 100 || Characters.Count > 50)
             throw new InvalidDataException("Invalid shop snapshot.");
         HashSet<string> offers = new(StringComparer.Ordinal);
@@ -30,8 +33,8 @@ public sealed record ShopSnapshot(int SchemaVersion, string CatalogRevision, Dat
                 throw new InvalidDataException("Invalid shop offer.");
             HashSet<string> currencies = new(StringComparer.Ordinal);
             foreach (ShopPrice price in offer.Prices)
-                if (price is null || price.Currency is not ("credits" or "gold" or "eur") || price.Amount <= 0
-                    || price.Amount > (price.Currency == "gold" ? uint.MaxValue : 1_000_000_000L)
+                if (price is null || price.Currency is not ("credits" or "eur") || price.Amount <= 0
+                    || price.Amount > MaximumBalanceCents
                     || !currencies.Add(price.Currency))
                     throw new InvalidDataException("Invalid shop price.");
         }

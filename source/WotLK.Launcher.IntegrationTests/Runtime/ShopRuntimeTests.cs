@@ -25,12 +25,14 @@ internal static class ShopRuntimeTests
             LauncherLocalization.SetLocale(LauncherLocalization.FrenchLocale);
             ShopSnapshot snapshot = Snapshot;
             snapshot.Validate();
-            Check(snapshot.Offers.Single().Prices.SequenceEqual(new ShopPrice[] { new("eur", 500), new("gold", 3_000_000) }), "Approved prices: 5 EUR or 300 gold, no implied credit conversion.");
-            Check(!snapshot.CheckoutAvailable && snapshot.CreditBalanceEuroCents is null, "Checkout closed and wallet unknown.");
+            Check(snapshot.Offers.Single().Prices.SequenceEqual(new ShopPrice[] { new("credits", 500), new("eur", 500) }), "Approved prices: EUR 5 from either Atlas credits or the euro wallet.");
+            Check(!snapshot.CheckoutAvailable && snapshot.CreditBalanceEuroCents is null && snapshot.EuroBalanceCents is null, "Checkout closed and both wallets unknown.");
             Check(new ShopCatalog(600).CreateSnapshot([]).CatalogRevision != snapshot.CatalogRevision, "Price change changes revision.");
             foreach (ShopSnapshot invalid in new[]
             {
-                snapshot with { SchemaVersion = 2 }, snapshot with { CreditBalanceEuroCents = -1 }, snapshot with { Offers = null! },
+                snapshot with { SchemaVersion = 1 }, snapshot with { CreditBalanceEuroCents = -1 }, snapshot with { EuroBalanceCents = -1 }, snapshot with { Offers = null! },
+                snapshot with { CreditBalanceEuroCents = ShopSnapshot.MaximumBalanceCents + 1 }, snapshot with { EuroBalanceCents = ShopSnapshot.MaximumBalanceCents + 1 },
+                snapshot with { Offers = [snapshot.Offers[0] with { Prices = [new("gold", 3_000_000)] }] },
                 snapshot with { Characters = [snapshot.Characters[0], snapshot.Characters[0]] },
                 snapshot with { Characters = [snapshot.Characters[1] with { GoldCopper = 300 }] },
                 snapshot with { Offers = [snapshot.Offers[0] with { Prices = [new("eur", -500)] }] },
@@ -74,7 +76,7 @@ internal static class ShopRuntimeTests
             await state.RefreshAsync();
             Check(state.HasOffers && !state.ShowStatus && state.SelectedCharacter is null && state.CreditBalance == "—", "Ready view has explicit beneficiary selection and unknown wallet.");
             state.ConversionGold = "212";
-            Check(state.ConversionCredit == "2,65 €" && state.ConversionDebit == "212 po", "Arbitrary amount preview follows the server rate.");
+            Check(state.ConversionCredit == "2,65 €" && state.ConversionDebit == "212", "Numeric-only amounts follow the server rate.");
             state.ConversionGold = "0,8";
             Check(state.ConversionCredit == "0,01 €", "Silver precision is supported.");
             foreach (string invalid in new[] { "", "-1", "NaN", "1e3", "212,00001", "429496.7296", "1 000", "1,2.3" })
@@ -83,15 +85,15 @@ internal static class ShopRuntimeTests
             Check(state.CreditBalance == "2,65 €", "Atlas balance is denominated in euro cents.");
             state.Configure(_ => Task.FromResult(snapshot));
             state.SelectedCharacter = state.Characters[0];
-            state.SelectedPrice = state.Prices.Single(p => p.Price.Currency == "gold");
-            Check(state.Summary.Contains("Asteria") && state.Summary.Contains("300 po"), "Summary uses selected character and gold price.");
-            Check(state.CharacterHint.Contains("423 po 50 pa 67 pc"), "Offline gold remains in copper precision.");
+            state.SelectedPrice = state.Prices.Single(p => p.Price.Currency == "eur");
+            Check(state.Summary.Contains("Asteria") && state.Summary.Contains("5,00 €"), "Summary uses selected character and wallet price.");
+            Check(state.CharacterHint.Contains("423,5067"), "Offline gold remains in numeric copper precision.");
             await state.RefreshAsync();
-            Check(state.SelectedCharacter?.Character.Guid == 101 && state.SelectedPrice?.Price.Currency == "gold", "Refresh preserves existing beneficiary and currency.");
+            Check(state.SelectedCharacter?.Character.Guid == 101 && state.SelectedPrice?.Price.Currency == "eur", "Refresh preserves existing beneficiary and currency.");
             state.SelectedCharacter = state.Characters[1];
             Check(state.CharacterHint.Contains("En ligne") && !state.CharacterHint.Contains("4 235"), "Online character never reuses offline gold.");
             LauncherLocalization.SetLocale(LauncherLocalization.EnglishLocale); state.RefreshLocale();
-            Check(state.OfferName == "Name change" && state.SelectedCharacter?.Character.Guid == 202 && state.PriceLabel == "300 gold", "Language change preserves selection and translates currency.");
+            Check(state.OfferName == "Name change" && state.SelectedCharacter?.Character.Guid == 202 && state.PriceLabel == "Euro wallet · 5.00 €", "Language change preserves selection and translates the wallet.");
             Check(!state.CanPurchase, "Browsing milestone never initiates a purchase.");
             state.Configure(_ => Task.FromResult(snapshot with { Characters = [] })); await state.RefreshAsync();
             Check(!state.HasCharacters && state.SelectedCharacter is null, "Removed character clears beneficiary.");
@@ -109,10 +111,60 @@ internal static class ShopRuntimeTests
             await state.RefreshAsync(); late.SetResult(snapshot); await pending;
             Check(state.Characters.Single().Character.Guid == 303, "Late account response cannot replace the reconnected account.");
             state.ResetSession(); Check(!state.HasOffers && !state.HasCharacters && state.CreditBalance == "—", "Logout removes every account value.");
-            Console.WriteLine($"Shop runtime PASS: {_checks} assertions; approved prices, response bounds, unknown balances, errors, selections, localization and late responses. Fake HTTP only.");
+            await VerifyConversionAsync(snapshot);
+            Console.WriteLine($"Shop runtime PASS: {_checks} assertions; two wallets, character gold limits, numeric precision, preview credit/debit conservation, production gate, response bounds and account isolation. Fake HTTP only.");
             return 0;
         }
         finally { LauncherLocalization.SetLocale(locale); }
+    }
+
+    private static async Task VerifyConversionAsync(ShopSnapshot catalog)
+    {
+        LauncherLocalization.SetLocale(LauncherLocalization.FrenchLocale);
+        ShopSnapshot preview = catalog with { CreditBalanceEuroCents = 265, EuroBalanceCents = 1000,
+            Characters = [catalog.Characters[0], new(202, "Boréal", 70, false, 1_208_000), new(303, "Elune", 80, true, null), new(404, "Empty", 1, false, 0)] };
+        using ShopUiState state = new();
+        state.ConfigurePreview(preview); await state.RefreshAsync();
+        int notifications = 0; ShopCreditChange? granted = null;
+        state.CreditGranted += change => { notifications++; granted = change; };
+        state.OpenConversion();
+        Check(state.SelectedConversionCharacter?.Character.Guid == 101 && state.SelectedCharacter is null, "Converter defaults to an eligible source independently of the purchase beneficiary.");
+        state.ConversionGold = "424";
+        Check(!state.CanConvert && !state.TryConvertPreview(), "Overdraw cannot credit or debit anything.");
+        state.SetConversionPercent(100);
+        Check(state.ConversionGold == "423,5067" && state.ConversionCredit == "5,29 €" && state.ConversionGoldAfter == "0,3067", "Max respects exact character funds and preserves sub-cent gold.");
+        state.SelectedConversionCharacter = state.Characters[1];
+        Check(state.ConversionGold == "120,8" && state.ConversionMaximum == "120,8", "Changing to a poorer character clamps the amount to that character's maximum.");
+        state.SetConversionPercent(25);
+        Check(state.ConversionGold == "30,2" && state.RequestedCopper <= state.AvailableCopper, "Percent shortcuts use integer copper.");
+        state.SelectedConversionCharacter = state.Characters[2];
+        Check(!state.CanPreviewConversion && !state.CanConvert && state.ConversionMaximum == "—", "Online gold is unknown and cannot be spent.");
+        state.SelectedConversionCharacter = state.Characters[3]; state.SetConversionPercent(100);
+        Check(!state.HasConvertibleGold && !state.CanConvert && state.ConversionGold == "0", "Empty characters cannot convert.");
+        state.SelectedConversionCharacter = state.Characters[0];
+        foreach (string invalid in new[] { "-1", "+1", "1e3", "1 000", "NaN", "212 po", "1,2.3", "1.00001", "\n212", "212\n" })
+        {
+            Check(!ShopUiState.IsNumericGoldInput(invalid), "Letters, signs, exponent, whitespace and excess precision cannot be typed or pasted.");
+            state.ConversionGold = invalid; Check(!state.CanConvert, "Invalid externally assigned text is also rejected.");
+        }
+        foreach (string valid in new[] { "", "212", "0,8", "423.5067" }) Check(ShopUiState.IsNumericGoldInput(valid), "Numeric entry permits editing and both decimal separators.");
+        state.ConversionGold = "0,7999"; Check(!state.CanConvert, "A sub-cent amount cannot convert.");
+        state.ConversionGold = "212";
+        Check(state.CanConvert && state.ConversionBalanceAfter == "5,30 €" && state.ConversionGoldAfter == "211,5067", "Quote previews the exact resulting balances.");
+        Check(state.TryConvertPreview() && !state.IsConversionOpen && !state.TryConvertPreview(), "One click commits exactly once and returns to the catalog.");
+        Check(notifications == 1 && granted == new ShopCreditChange(265, 530, 101, 2_120_000), "Animation is notified only after a successful credit.");
+        Check(state.CreditBalance == "5,30 €" && state.EuroBalance == "10,00 €", "Only Atlas credits increase; the euro wallet is unchanged.");
+        await state.RefreshAsync(); state.OpenConversion();
+        Check(state.AvailableCopper == 2_115_067 && state.Characters[1].Character.GoldCopper == 1_208_000 && state.CreditBalance == "5,30 €", "Refresh preserves the demo ledger and only the selected character was debited.");
+        state.Configure(_ => Task.FromResult(preview)); await state.RefreshAsync(); state.OpenConversion(); state.ConversionGold = "212";
+        Check(state.HasValidConversionAmount && !state.CanConvert && !state.TryConvertPreview() && notifications == 1, "Real API mode never enables the in-memory demo or fires a credit animation.");
+        state.ConfigurePreview(preview with { CreditBalanceEuroCents = ShopSnapshot.MaximumBalanceCents });
+        Check(!state.HasCharacters && !state.CanConvert, "Entering preview clears all previous account data before loading.");
+        await state.RefreshAsync(); state.OpenConversion(); state.ConversionGold = "212";
+        Check(!state.CanConvert, "Wallet ceiling is checked before crediting.");
+        state.ConfigurePreview(preview); await state.RefreshAsync(); state.OpenConversion(); state.ConversionGold = "212";
+        state.ResetSession(); await state.RefreshAsync();
+        Check(!state.IsConversionOpen && !state.CanConvert && !state.CanRefresh && state.EuroBalance == "—" && state.ConversionGold == "", "Logout ends the preview capability, clears both wallets and cancels conversion.");
     }
 
     private static HttpResponseMessage Json(ShopSnapshot value) => new(HttpStatusCode.OK)

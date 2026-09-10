@@ -379,6 +379,7 @@ public partial class LauncherShellV2 : Window
                 : "Atlas Launcher";
         DataContext = this;
         InitializeChatPresentation();
+        InitializeShopPresentation();
 
         SizeChanged += LauncherShellV2_SizeChanged;
         StateChanged += LauncherShellV2_StateChanged;
@@ -662,6 +663,7 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_Closed(object? sender, EventArgs e)
     {
+        DisposeShopPresentation();
         ShopView.Dispose();
         DetachChatPresentation();
         Loaded -= LauncherShellV2_Loaded;
@@ -761,9 +763,10 @@ public partial class LauncherShellV2 : Window
         LocalBuildBadge.Padding = spacious ? new Thickness(8, 4, 8, 4) : new Thickness(5, 3, 5, 3);
         LocalBuildBadgeText.FontSize = spacious ? 12 : compact ? 9 : 10;
         ProductDivider.Margin = new Thickness(spacious ? 14 : 10, 0, spacious ? 14 : 10, 0);
-        ProductGameName.Visibility = ProductDivider.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        bool hideProduct = ActualWidth < 1400 || (!shop && ActualWidth < 1750);
+        ProductGameName.Visibility = ProductDivider.Visibility = hideProduct ? Visibility.Collapsed : Visibility.Visible;
         if (shop) ProductDivider.Visibility = Visibility.Collapsed;
-        ProductGamePill.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        ProductGamePill.Visibility = hideProduct ? Visibility.Collapsed : Visibility.Visible;
         ProductGamePill.Margin = new Thickness(shop ? 15 : 0, 0, 0, 0);
         ProductGamePill.Padding = shop ? new Thickness(12, 8, 12, 8) : new Thickness(0);
         ProductGamePill.BorderThickness = new Thickness(shop ? 1 : 0);
@@ -1437,6 +1440,11 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (CurrentPage == LauncherShellPage.Shop && ShopView.State.IsConversionOpen && _overlayCoordinator.Current == ShellOverlayKind.None && e.Key == Key.Escape)
+        {
+            ShopView.State.CloseConversion(); e.Handled = true;
+            return;
+        }
         if (IsAuthenticationRequired)
         {
             if (e.Key == Key.Escape)
@@ -1695,13 +1703,14 @@ public partial class LauncherShellV2 : Window
         }
 
         ApplyAuthenticationGate();
+        _ = RefreshShopHeaderAsync();
     }
 
     private void ApplyAuthenticationGate(bool openWhenRequired = true)
     {
         AuthOverlay.CanClose = CanCloseAuthentication;
         bool required = IsAuthenticationRequired;
-        if (required) ShopView.ResetSession();
+        if (required) { _shopHeaderRequested = false; ShopView.ResetSession(); }
         LauncherSurface.IsEnabled = !required;
         LauncherSurface.IsHitTestVisible = !required;
         LauncherSurface.Visibility = required ? Visibility.Hidden : Visibility.Visible;
@@ -1743,6 +1752,8 @@ public partial class LauncherShellV2 : Window
         }
 
         DismissNavigationPanels();
+
+        if (page != LauncherShellPage.Shop && ShopView.State.IsConversionOpen) ShopView.State.CloseConversion();
 
         if (CurrentPage == LauncherShellPage.Account && page != LauncherShellPage.Account)
         {

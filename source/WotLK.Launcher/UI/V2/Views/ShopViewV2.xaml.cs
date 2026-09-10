@@ -8,6 +8,8 @@ namespace WotLK.Launcher.UI.V2.Views;
 public partial class ShopViewV2 : UserControl, IDisposable
 {
     internal ShopUiState State { get; } = new();
+    internal ShopConversionViewV2 ConversionPage => ConversionView;
+    internal event EventHandler? ConversionRequested;
     public ShopViewV2()
     {
         InitializeComponent();
@@ -31,10 +33,9 @@ public partial class ShopViewV2 : UserControl, IDisposable
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await State.RefreshAsync();
     private void Credits_Click(object sender, RoutedEventArgs e)
     {
-        CreditsPanel.Visibility = CreditsPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
-        if (CreditsPanel.IsVisible) CreditsPanel.BringIntoView();
+        ConversionRequested?.Invoke(this, EventArgs.Empty);
     }
-    internal void ResetSession() { State.ResetSession(); CreditsPanel.Visibility = Visibility.Collapsed; }
+    internal void ResetSession() => State.ResetSession();
     public void Dispose() { LauncherLocalization.LocaleChanged -= LocaleChanged; State.Dispose(); }
     private void ApplyLayout()
     {

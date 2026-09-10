@@ -7,8 +7,8 @@ pas encore actifs. Aucun élément de ce jalon n'est publié en production.
 Le propriétaire a demandé une présentation
 comme celle de Blizzard dans WoW et confirmé **les deux accès, launcher et jeu,
 avec les mêmes produits et le même solde**. Les crédits pourront être gagnés en
-jeu et achetés avec de l'argent réel. Certaines offres pourront également être
-payées avec l'or du jeu. Les prestataires retenus sont **Stripe et PayPal**,
+jeu par conversion d'or. Un second portefeuille contient les euros déposés
+sur le compte. Les prestataires retenus pour sa recharge sont **Stripe et PayPal**,
 avec **Bancontact** parmi les moyens de paiement. Le premier produit et son
 tarif sont maintenant définis ci-dessous. Les autres
 produits et les règles d'attribution complémentaires restent à définir.
@@ -16,10 +16,14 @@ produits et les règles d'attribution complémentaires restent à définir.
 ### Décisions commerciales confirmées
 
 - Premier produit : **changement de nom**, puis élargissement progressif.
-- Tarif : **5 € en paiement direct** par carte, Bancontact ou PayPal, **ou 300 po**.
-  Ce produit n'exige pas d'acheter des crédits au préalable.
+- Tarif confirmé le 10 septembre au soir : **5 € depuis les Crédits Atlas ou
+  5 € depuis le portefeuille en euros**, au choix. Cette décision remplace
+  l'ancien tarif de 300 po et le parcours de paiement direct de cette offre.
 - Le **crédit Atlas est un solde affiché en euros**, conservé en centimes entiers.
-  Il pourra servir à de futurs achats de la boutique.
+  Il pourra servir aux achats de la boutique, dont le changement de nom.
+- Le **portefeuille en euros est un solde distinct** sur le compte, comparable
+  au portefeuille Blizzard. Les deux soldes se consultent en haut à droite,
+  immédiatement à gauche de Messages ; les Crédits Atlas sont affichés par défaut.
 - Conversion volontaire de l'or d'un personnage : **400 po = 5 € de crédit Atlas**,
   soit **80 po = 1 €**, ou 8 000 pièces de cuivre pour un centime.
 - Le montant saisi est libre : **212 po donnent 2,65 €**. Le calcul ne se limite
@@ -27,8 +31,14 @@ produits et les règles d'attribution complémentaires restent à définir.
 - Une fraction de centime reste sur le personnage : pour 1 po proposé, 80 pa
   sont converties en 0,01 € et les 20 pa restantes sont conservées. Aucun arrondi
   ne donne de crédit supplémentaire ou ne consomme ce reste.
-- Le propriétaire a explicitement confirmé le maintien du renommage à 300 po,
-  malgré le taux de conversion de 400 po pour 5 €. Les deux tarifs sont distincts.
+- Le bandeau inférieur ouvre un convertisseur centré via **Convertir**.
+  Il remplace le catalogue directement dans la page du launcher, sans fenêtre.
+  L'or est à gauche, la saisie au centre et le résultat en euros à droite ;
+  la navigation supérieure et les soldes restent accessibles. Il comprend :
+  personnage source, maximum propre à ce personnage, saisie numérique,
+  raccourcis de pourcentage, aperçu du solde final et animation du crédit vers
+  le solde Atlas après réussite. Le portefeuille en euros n'est pas crédité
+  par une conversion d'or.
 
 Le [suivi d'implémentation](BOUTIQUE-ATLAS-IMPLEMENTATION.md) précise les fonctions
 présentes, les tests et les travaux restant avant activation.
@@ -176,20 +186,18 @@ utiliser les mêmes règles de validation et de concurrence.
 
 ## Économie retenue
 
-Trois moyens de paiement doivent être représentés sans les confondre :
+Deux portefeuilles et l'or du personnage doivent être représentés séparément :
 
 | Moyen | Propriétaire du solde | Origine | Règle d'achat |
 | --- | --- | --- | --- |
-| Crédit Atlas affiché en euros | Compte Atlas, commun aux deux interfaces | Conversion volontaire d'or, achats de crédit et éventuelles récompenses définies ultérieurement | Montants en centimes, débit et attribution centralisés et traçables |
-| Or du jeu | Personnage explicitement sélectionné | Économie du jeu existante | Seulement sur les offres qui acceptent l'or ; validation et débit par le serveur de jeu |
-| Paiement direct en euros | Paiement d'une commande précise | Carte, Bancontact via Stripe ou PayPal | Le renommage coûte 5 € ; la confirmation vérifiée finance cette commande sans alimenter implicitement le portefeuille |
+| Crédits Atlas affichés en euros | Compte Atlas, commun aux deux interfaces | Conversion volontaire d'or et éventuelles récompenses définies ultérieurement | Renommage à 5 €, débit et attribution centralisés et traçables |
+| Portefeuille en euros | Compte Atlas, commun aux deux interfaces | Recharge du compte ; prestataires retenus Stripe et PayPal | Renommage à 5 € prélevés sur ce solde distinct |
+| Or du jeu | Personnage explicitement sélectionné | Économie du jeu existante | Source de la conversion en Crédits Atlas ; validation et débit par le serveur de jeu |
 
-Une offre pourra être proposée en crédit Atlas, en or ou en paiement direct,
-avec plusieurs tarifs au choix selon sa configuration.
-Dans ce dernier cas, le joueur choisit son moyen de paiement avant de confirmer.
+Le joueur choisit le portefeuille utilisé pour l'achat avant de confirmer.
 La conversion de l'or en crédit Atlas est une opération distincte, volontaire,
 avec prévisualisation du montant libre et confirmation. Le paiement
-partiel d'un même achat en or et en crédits n'a pas été demandé.
+partiel d'un même achat depuis les deux portefeuilles n'a pas été demandé.
 
 Le journal du crédit conserve son origine : conversion d'or, récompense,
 paiement, dépense, annulation et correction administrative. Les événements de
@@ -203,21 +211,21 @@ personnage**. Aucun portefeuille d'or partagé entre personnages n'a été deman
 Une écriture directe de l'or en base pendant la connexion du personnage pourrait
 être écrasée par sa sauvegarde en mémoire ; l'opération relève du core.
 
-L'achat de crédits en argent réel proposera Stripe et PayPal. Bancontact sera
+La recharge du portefeuille en euros proposera Stripe et PayPal. Bancontact sera
 intégré via Stripe, qui le prend en charge dans Checkout pour les paiements en
 euros. Son activation sur le compte marchand et le parcours réel doivent être
 vérifiés avant ouverture. Il faut définir les packs, tarifs et règles de
 remboursement avant activation. Les
-crédits seront accordés sur confirmation serveur vérifiée du paiement, avec
+euros seront accordés sur confirmation serveur vérifiée du paiement, avec
 traitement des événements répétés et des remboursements. Un retour du navigateur
-ne sera pas une preuve de paiement. Une annulation de paiement dont les crédits
+ne sera pas une preuve de paiement. Une annulation de paiement dont les euros
 ont déjà été dépensés doit déclencher un traitement explicite, pas un nouveau
 crédit ni un effacement silencieux de l'historique.
 
 La carte bancaire et Bancontact suivent la confirmation serveur Stripe.
 PayPal possède son propre parcours de capture et ses notifications vérifiées.
-Les achats de crédit aboutissent au même journal et au même solde Atlas.
-Un paiement direct finance sa commande sans créditer ce solde. Les références
+Les recharges aboutissent au journal du portefeuille en euros, séparé des
+Crédits Atlas issus de l'or. Les références
 des prestataires sont dédupliquées séparément ; aucun événement de test ne doit
 alimenter un portefeuille de production.
 

@@ -92,7 +92,7 @@ builder.Services.AddSingleton<AtlasStatusService>();
 builder.Services.AddSingleton<ArmoryReadLimiter>();
 builder.Services.AddSingleton(new ShopCatalog(
     builder.Configuration.GetValue<long?>("AtlasShop:Rename:EuroCents") ?? 500,
-    builder.Configuration.GetValue<long?>("AtlasShop:Rename:GoldCopper") ?? 3_000_000));
+    builder.Configuration.GetValue<long?>("AtlasShop:Rename:CreditEuroCents") ?? 500));
 builder.Services.AddSingleton<ChatRequestLimiter>();
 builder.Services.AddSingleton<ChatAttachmentStorage>();
 builder.Services.AddSingleton<ChatLinkPreviewService>();

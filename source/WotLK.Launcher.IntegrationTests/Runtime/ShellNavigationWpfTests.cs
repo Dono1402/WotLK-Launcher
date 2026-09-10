@@ -63,7 +63,7 @@ internal static partial class ShellNavigationWpfTests
         thread.Start();
         // Both viewport matrices include real animation settling and software rendering.
         // Keep a bounded deadline without cancelling the second matrix near completion.
-        return await completion.Task.WaitAsync(TimeSpan.FromMinutes(5));
+        return await completion.Task.WaitAsync(TimeSpan.FromMinutes(8));
     }
 
     private static async Task ValidateAsync(Size size, bool optimizationsOnly)
@@ -120,7 +120,13 @@ internal static partial class ShellNavigationWpfTests
                         Check(shell.CurrentOverlay == ShellOverlayKind.None, "Page navigation closes every shell panel immediately.");
                         Check(Panels.All(kind => !View(kind).IsHitTestVisible), "Closing panels immediately release hit testing during animation.");
                         await Settle();
-                        Check(Panels.All(kind => View(kind).Visibility == Visibility.Collapsed), "No transparent panel survives its closing animation.");
+                        // Inactive software-rendered windows can receive animation ticks late.
+                        // Wait for the actual completion, with a strict bound, rather than one nominal duration.
+                        long closingDeadline = Environment.TickCount64 + 2000;
+                        while (Panels.Any(kind => View(kind).Visibility != Visibility.Collapsed) && Environment.TickCount64 < closingDeadline)
+                        { await Task.Delay(50); await Dispatcher.Yield(DispatcherPriority.ApplicationIdle); }
+                        Check(Panels.All(kind => View(kind).Visibility == Visibility.Collapsed),
+                            $"No transparent panel survives closing {panel} -> {name}: {string.Join(", ", Panels.Select(kind => $"{kind}={View(kind).Visibility}"))}.");
                     }
 
             Console.WriteLine($"Navigation fixture: page/panel matrix complete at {size.Width} ({_checks} assertions).");

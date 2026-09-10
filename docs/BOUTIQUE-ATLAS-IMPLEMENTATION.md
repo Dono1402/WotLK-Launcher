@@ -74,10 +74,10 @@ réintégré à sa position native avec des bords fondus. La texture du fond et 
 police d'origine non identifiée empêchent une identité stricte pixel par pixel.
 
 Vérifications propres à cette refonte : compilation, `--shop`, `--shop-wpf`
-et `--shell-navigation-wpf`. Le catalogue serveur et le contrat partagé restent
-ceux du jalon précédent :
-leurs contrôles API/MySQL et de session sont conservés comme résultats de ce
-jalon, sans être présentés comme rejoués pour cette refonte de présentation.
+et `--shell-navigation-wpf`. Le serveur et l'aperçu utilisent le même taux partagé de 100 po par euro.
+La révision du catalogue inclut désormais ce taux, en plus des offres.
+Le contrôle API/MySQL a été rejoué après ce changement : 1, 10, 100 et 400 po
+donnent exactement autant de centimes depuis le catalogue HTTP authentifié.
 La limite globale de la suite de navigation est de huit minutes pour couvrir les deux
 tailles et les attentes d'animation, avec progression par taille et résultat
 retourné après la fermeture du dispatcher WPF.
@@ -88,15 +88,16 @@ Les montants d'or sont des entiers en pièces de cuivre ; les montants en euros,
 y compris le crédit Atlas, sont des entiers en centimes. Aucun calcul de solde
 ne dépend de nombres à virgule flottante.
 
-Le serveur fournit le taux de **8 000 pièces de cuivre par centime**, soit
-80 po par euro. Le calcul partagé `ShopGoldConversionRate.Quote` produit :
+Le serveur fournit le taux de **10 000 pièces de cuivre par centime**, soit
+100 po par euro, selon la décision du 11 septembre. Le calcul partagé `ShopGoldConversionRate.Quote` produit :
 
 | Montant proposé | Crédit obtenu | Or débité | Reste conservé |
 | --- | --- | --- | --- |
-| 400 po | 5,00 € | 400 po | 0 po |
-| 212 po | 2,65 € | 212 po | 0 po |
-| 1 po | 0,01 € | 80 pa | 20 pa |
-| 79 pa 99 pc | 0,00 € | 0 po | 79 pa 99 pc |
+| 400 po | 4,00 € | 400 po | 0 po |
+| 212 po | 2,12 € | 212 po | 0 po |
+| 10 po | 0,10 € | 10 po | 0 po |
+| 1 po | 0,01 € | 1 po | 0 po |
+| 99 pa 99 pc | 0,00 € | 0 po | 99 pa 99 pc |
 
 Le champ n'accepte que des pièces d'or entières, sans point ni virgule.
 Max et les pourcentages ignorent les pièces d'argent/cuivre du solde disponible.
@@ -104,8 +105,8 @@ Exemple : 423,5067 po donnent un maximum saisissable de 423 po ; 25 % de 120,8 p
 proposent 30 po. Les valeurs négatives, la notation scientifique, les séparateurs
 de milliers et les montants dépassant la capacité du champ `money` sont refusés.
 Le minimum saisissable est 1 po. Le calcul partagé conserve toutefois toute sa
-précision en cuivre : 423 po proposés donnent 5,28 € et débitent 422,4 po ; le
-reste non crédité demeure sur le personnage. La dernière ligne du tableau
+précision en cuivre : 423 po proposés donnent 4,23 € et débitent exactement
+423 po. Le solde initial de 423,5067 po conserve donc 50 pa et 67 pc. La dernière ligne du tableau
 teste le calcul interne, pas une saisie permise par l'interface. Le débit réel
 devra recalculer ce devis côté serveur ; le montant affiché par le launcher ne fera pas autorité.
 
@@ -175,7 +176,7 @@ d'intégration sans erreur ni avertissement.
 
 | Suite | Résultat et portée |
 | --- | --- |
-| `--shop` | 105 assertions : deux soldes, limites par personnage, précision, débit/crédit simulé conservatif, refus du dépassement, saisie, session, erreurs HTTP et séparation du mode réel |
+| `--shop` | 113 assertions : taux de 100 po par euro, deux soldes, limites par personnage, précision, débit/crédit simulé conservatif, refus du dépassement, saisie, session, erreurs HTTP et séparation du mode réel |
 | `--shop-wpf <dossier>` | Catalogue à 1586×992 puis quatre tailles FR/EN ; deux soldes supérieurs, conversion horizontale intégrée de 1080×680 à 1586×992, frappe/collage entiers, Max par personnage, en-tête identique à Addons, navigation libre/retour/Escape, animation interne annulable, maintien dans la conversion après réussite, sélection conservée et actualisation des soldes à la connexion ; captures PNG et aucune erreur de binding |
 | `--shop-mysql` | API HTTP réelle et MySQL 8.4.11 jetable sur loopback : authentification, appartenance Atlas, personnages autorisés, soldes, prix, taux, absence de mutation, limites et erreurs |
 | `--armory-session` | Régressions de session et tests boutique : refus du refresh, 401, reconnexion au même compte ou à un autre, réponse tardive et annulation |

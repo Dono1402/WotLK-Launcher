@@ -9,6 +9,7 @@ using WotLK.Launcher.Server;
 using WotLK.Launcher.Shop.Contracts;
 using WotLK.Launcher.UI.V2.Localization;
 using WotLK.Launcher.UI.V2.Presentation;
+using WotLK.Launcher.UI.V2.Preview;
 
 internal static class ShopRuntimeTests
 {
@@ -40,12 +41,15 @@ internal static class ShopRuntimeTests
                 snapshot with { Offers = [snapshot.Offers[0] with { Name = null! }] }
             }) Throws<InvalidDataException>(invalid.Validate);
 
-            Check(snapshot.GoldConversion.Quote(2_120_000) == new ShopGoldConversionQuote(265, 2_120_000, 0), "212 gold yields exactly EUR 2.65.");
-            Check(snapshot.GoldConversion.Quote(4_000_000) == new ShopGoldConversionQuote(500, 4_000_000, 0), "400 gold yields EUR 5.00.");
-            Check(snapshot.GoldConversion.Quote(10_000) == new ShopGoldConversionQuote(1, 8_000, 2_000), "1 gold yields one cent; 20 silver stays on the character.");
-            Check(snapshot.GoldConversion.Quote(7_999) == new ShopGoldConversionQuote(0, 0, 7_999), "Sub-cent gold is never consumed.");
+            Check(snapshot.GoldConversion.CopperPerEuroCent == 10_000
+                && ShopPreviewData.Create().GoldConversion == snapshot.GoldConversion, "Server and preview both use 100 gold per euro.");
+            foreach (uint gold in new uint[] { 1, 10, 80, 100, 212, 400, 500, 429_496 })
+                Check(snapshot.GoldConversion.Quote(gold * 10_000) == new ShopGoldConversionQuote(gold, gold * 10_000, 0),
+                    $"{gold} whole gold gives exactly {gold} cents and consumes no fractional gold.");
+            Check(snapshot.GoldConversion.Quote(9_999) == new ShopGoldConversionQuote(0, 0, 9_999), "Silver and copper alone are never converted.");
             ShopGoldConversionQuote maximum = snapshot.GoldConversion.Quote(uint.MaxValue);
-            Check(maximum.DebitedCopper + (long)maximum.RemainingCopper == uint.MaxValue && maximum.RemainingCopper < 8_000, "Conversion conserves all copper up to the game money limit.");
+            Check(maximum.DebitedCopper + (long)maximum.RemainingCopper == uint.MaxValue && maximum.RemainingCopper < 10_000,
+                "Conversion preserves all fractional gold up to the game money limit.");
 
             Callback handler = new();
             using HttpClient http = new(handler);
@@ -76,7 +80,7 @@ internal static class ShopRuntimeTests
             await state.RefreshAsync();
             Check(state.HasOffers && !state.ShowStatus && state.SelectedCharacter is null && state.CreditBalance == "—", "Ready view has explicit beneficiary selection and unknown wallet.");
             state.ConversionGold = "212";
-            Check(state.ConversionCredit == "2,65 €" && state.ConversionDebit == "212", "Numeric-only amounts follow the server rate.");
+            Check(state.ConversionCredit == "2,12 €" && state.ConversionDebit == "212", "Numeric-only amounts follow the server rate.");
             state.ConversionGold = "0,8";
             Check(state.ConversionQuote is null, "Gold entry excludes silver and copper.");
             foreach (string invalid in new[] { "", "-1", "NaN", "1e3", "212,00001", "429496.7296", "1 000", "1,2.3" })
@@ -132,7 +136,7 @@ internal static class ShopRuntimeTests
         state.ConversionGold = "424";
         Check(!state.CanConvert && !state.TryConvertPreview(), "Overdraw cannot credit or debit anything.");
         state.SetConversionPercent(100);
-        Check(state.ConversionGold == "423" && state.ConversionCredit == "5,28 €" && state.ConversionGoldAfter == "1", "Max excludes fractional gold while the quote preserves uncredited copper.");
+        Check(state.ConversionGold == "423" && state.ConversionCredit == "4,23 €" && state.ConversionGoldAfter == "0", "Max converts all whole gold and leaves the original silver and copper.");
         state.SelectedConversionCharacter = state.Characters[1];
         Check(state.ConversionGold == "120" && state.ConversionMaximum == "120", "Changing to a poorer character clamps the amount to that character's maximum.");
         state.SetConversionPercent(25);
@@ -150,18 +154,25 @@ internal static class ShopRuntimeTests
         foreach (string valid in new[] { "", "212", "0", "423" }) Check(ShopUiState.IsNumericGoldInput(valid), "Numeric entry permits editing whole gold only.");
         state.ConversionGold = "0,7999"; Check(!state.CanConvert, "A sub-cent amount cannot convert.");
         state.ConversionGold = "212";
-        Check(state.CanConvert && state.ConversionBalanceAfter == "5,30 €" && state.ConversionGoldAfter == "211", "Quote previews the exact resulting balances.");
+        Check(state.CanConvert && state.ConversionBalanceAfter == "4,77 €" && state.ConversionGoldAfter == "211", "Quote previews the exact resulting balances.");
         Check(state.TryConvertPreview() && state.IsConversionOpen && !state.TryConvertPreview(), "One click commits exactly once and stays in the converter.");
-        Check(notifications == 1 && granted == new ShopCreditChange(265, 530, 101, 2_120_000), "Animation is notified only after a successful credit.");
-        Check(state.CreditBalance == "5,30 €" && state.EuroBalance == "10,00 €", "Only Atlas credits increase; the euro wallet is unchanged.");
-        Check(state.HasConversionReceipt && state.ConversionCredit == "2,65 €" && state.ConversionBalanceBefore == "2,65 €"
-            && state.ConversionBalanceAfter == "5,30 €" && state.ConversionGoldAfter == "211", "The retained receipt describes the completed conversion.");
-        state.ConversionGold = "80";
+        Check(notifications == 1 && granted == new ShopCreditChange(265, 477, 101, 2_120_000), "Animation is notified only after a successful credit.");
+        Check(state.CreditBalance == "4,77 €" && state.EuroBalance == "10,00 €", "Only Atlas credits increase; the euro wallet is unchanged.");
+        Check(state.HasConversionReceipt && state.ConversionCredit == "2,12 €" && state.ConversionBalanceBefore == "2,65 €"
+            && state.ConversionBalanceAfter == "4,77 €" && state.ConversionGoldAfter == "211", "The retained receipt describes the completed conversion.");
+        state.ConversionGold = "100";
         Check(!state.HasConversionReceipt && state.CanConvert && state.ConversionCredit == "1,00 €", "Another amount clears the receipt and prepares a fresh conversion.");
         await state.RefreshAsync(); state.OpenConversion();
-        Check(state.AvailableCopper == 2_115_067 && state.Characters[1].Character.GoldCopper == 1_208_000 && state.CreditBalance == "5,30 €", "Refresh preserves the demo ledger and only the selected character was debited.");
+        Check(state.AvailableCopper == 2_115_067 && state.Characters[1].Character.GoldCopper == 1_208_000 && state.CreditBalance == "4,77 €", "Refresh preserves the demo ledger and only the selected character was debited.");
         state.Configure(_ => Task.FromResult(preview)); await state.RefreshAsync(); state.OpenConversion(); state.ConversionGold = "212";
         Check(state.HasValidConversionAmount && !state.CanConvert && !state.TryConvertPreview() && notifications == 1, "Real API mode never enables the in-memory demo or fires a credit animation.");
+        foreach (uint gold in new uint[] { 1, 10 })
+        {
+            state.ConfigurePreview(preview); await state.RefreshAsync(); state.OpenConversion(); state.ConversionGold = gold.ToString();
+            Check(state.TryConvertPreview() && state.AvailableCopper == preview.Characters[0].GoldCopper - gold * 10_000
+                && state.CreditBalance == ShopUiState.FormatEuros(265 + gold) && state.IsConversionOpen,
+                "Reported small conversions debit the full whole-gold input, add the exact cents and stay on the result.");
+        }
         state.ConfigurePreview(preview with { Characters = [new(505, "Silver", 1, false, 9_999)] });
         await state.RefreshAsync(); state.OpenConversion(); state.SetConversionPercent(100);
         Check(state.ConversionMaximum == "0" && state.ConversionGold == "0" && !state.HasConvertibleGold && !state.CanConvert,

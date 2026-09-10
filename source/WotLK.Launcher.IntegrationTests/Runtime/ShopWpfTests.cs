@@ -124,8 +124,13 @@ internal static class ShopWpfTests
                     Get<Button>(shell, "ShopNavigationButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
                     Get<Button>(shop, "MoreConversionButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
                     TextBox amount = Get<TextBox>(conversion, "ConversionAmount");
+                    foreach ((string gold, string euros) in new[] { ("1", "0.01 €"), ("10", "0.10 €"), ("100", "1.00 €"), ("400", "4.00 €") })
+                    {
+                        amount.Text = gold; await Pump();
+                        Check(Get<TextBlock>(conversion, "ConversionCreditText").Text == euros, $"{gold} gold renders {euros} at the agreed rate.");
+                    }
                     amount.Text = "212"; await Pump();
-                    Check(Get<TextBlock>(conversion, "ConversionCreditText").Text == "2.65 €", "212 gold renders EUR 2.65 in the integrated conversion view.");
+                    Check(Get<TextBlock>(conversion, "ConversionCreditText").Text == "2.12 €", "212 gold renders EUR 2.12 in the integrated conversion view.");
                     Check(Get<Button>(conversion, "ConvertButton").IsEnabled, "Only the isolated demo permits simulated conversion.");
                     amount.SelectAll();
                     TextCompositionEventArgs letters = new(InputManager.Current.PrimaryKeyboardDevice, new TextComposition(InputManager.Current, amount, "gold")) { RoutedEvent = TextCompositionManager.PreviewTextInputEvent };
@@ -153,7 +158,7 @@ internal static class ShopWpfTests
                         foreach ((int width, int height) in new[] { (1586, 992), (1440, 860), (1280, 760), (1080, 680) })
                         {
                             shell.Width = width; shell.Height = height; await Pump();
-                            Check(Get<TextBlock>(conversion, "ConversionRateText").Text == (LauncherLocalization.IsEnglish ? "80 = 1.00 €" : "80 = 1,00 €"),
+                            Check(Get<TextBlock>(conversion, "ConversionRateText").Text == (LauncherLocalization.IsEnglish ? "100 = 1.00 €" : "100 = 1,00 €"),
                                 $"Rate retains the decimal separator after resizing to {width}: {Get<TextBlock>(conversion, "ConversionRateText").Text}.");
                             Border dialog = Get<Border>(conversion, "ConversionFrame");
                             Point center = dialog.TranslatePoint(new Point(dialog.ActualWidth / 2, dialog.ActualHeight / 2), shop);
@@ -165,7 +170,7 @@ internal static class ShopWpfTests
                             Capture(shell, Path.Combine(captureDirectory, $"shop-conversion-{selectedLocale}-{width}.png"));
                         }
                     }
-                    Check(Get<TextBlock>(conversion, "ConversionCreditText").Text == "2,65 €", "French formatting follows the active locale.");
+                    Check(Get<TextBlock>(conversion, "ConversionCreditText").Text == "2,12 €", "French formatting follows the active locale.");
                     HwndSource hwnd = (HwndSource)PresentationSource.FromVisual(shell);
                     shell.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, hwnd, Environment.TickCount, Key.Escape) { RoutedEvent = Keyboard.PreviewKeyDownEvent }); await Pump();
                     Check(!conversion.IsVisible && Get<ScrollViewer>(shop, "PageScroll").IsVisible, "Escape returns to the catalog.");
@@ -192,16 +197,16 @@ internal static class ShopWpfTests
                         await Task.Delay(500); await Pump();
                     }
                     Check(conversion.IsVisible && shop.State.IsConversionOpen && shop.State.HasConversionReceipt
-                        && shop.State.CreditBalance == "5,30 €" && shop.State.EuroBalance == "10,00 €",
+                        && shop.State.CreditBalance == "4,77 €" && shop.State.EuroBalance == "10,00 €",
                         "Success stays in conversion with a receipt and updates only Atlas credits.");
                     Check(!Get<Button>(conversion, "ConvertButton").IsEnabled && amount.Text == "", "Success requires a fresh amount before another conversion.");
                     Check(shop.State.HasSelection && character.SelectedIndex == 0 && currency.SelectedIndex == 1,
                         "Crediting the wallet preserves product, beneficiary and payment selections.");
-                    Check(Get<TextBlock>(wallet, "WalletAmountText").Text == "5,30 €" && !Get<TextBlock>(wallet, "AnimatedAmountText").IsVisible
+                    Check(Get<TextBlock>(wallet, "WalletAmountText").Text == "4,77 €" && !Get<TextBlock>(wallet, "AnimatedAmountText").IsVisible
                         && Get<Canvas>(conversion, "TransferLayer").Children.Count == 0, "Animations release their visuals and end at the credited amount.");
                     Check(Get<Button>(conversion, "CancelConversionButton").Content.ToString() == "Terminé", "Completed conversion offers Done instead of implying it can be undone.");
                     Capture(shell, Path.Combine(captureDirectory, "shop-credit-complete.png"));
-                    amount.Text = "80"; await Pump();
+                    amount.Text = "100"; await Pump();
                     Check(Get<Button>(conversion, "ConvertButton").IsEnabled && !shop.State.HasConversionReceipt
                         && Get<TextBlock>(conversion, "ConversionCreditText").Text == "1,00 €", "Another amount starts a fresh quote without leaving the converter.");
                     Get<Button>(conversion, "CloseConversionButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
@@ -212,7 +217,7 @@ internal static class ShopWpfTests
                     if (SystemParameters.ClientAreaAnimation)
                     {
                         Get<Button>(shop, "MoreConversionButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
-                        amount.Text = "80"; await Pump();
+                        amount.Text = "100"; await Pump();
                         Get<Button>(conversion, "ConvertButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
                         shop.State.ConfigurePreview(ShopPreviewData.Create()); await shop.State.RefreshAsync();
                         await Task.Delay(920); await Pump();
@@ -239,6 +244,10 @@ internal static class ShopWpfTests
                                 "Even maximum balances remain inside the compact wallet; the full value is available in its tooltip.");
                         }
                     }
+                    shop.State.ConfigurePreview(ShopPreviewData.Create()); await shop.State.RefreshAsync(); shop.State.OpenConversion();
+                    shell.Width = 1586; shell.Height = 992; amount.Text = "10"; await Pump();
+                    Check(Get<TextBlock>(conversion, "ConversionCreditText").Text == "0,10 €", "The reported ten-gold case now displays ten cents in French.");
+                    Capture(shell, Path.Combine(captureDirectory, "shop-rate-10-gold.png"));
                     await VerifyHeaderSessionAsync();
                     Check(errors.Messages.Count == 0, "No WPF binding errors: " + string.Join("\n", errors.Messages));
                     Console.WriteLine("Shop WPF PASS: two header wallets, FR/EN at four adaptive widths, integrated horizontal conversion, freely accessible navigation, return/Escape, numeric typing/paste, per-character max and overdraw, cancellable internal coin transfer, subtle header counter, retained success receipt, refresh and session changes; offscreen inactive fixtures only.");

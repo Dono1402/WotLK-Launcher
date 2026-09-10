@@ -24,13 +24,14 @@ produits et les règles d'attribution complémentaires restent à définir.
 - Le **portefeuille en euros est un solde distinct** sur le compte, comparable
   au portefeuille Blizzard. Les deux soldes se consultent en haut à droite,
   immédiatement à gauche de Messages ; ils sont visibles simultanément sur toutes les pages.
-- Conversion volontaire de l'or d'un personnage : **400 po = 5 € de crédit Atlas**,
-  soit **80 po = 1 €**, ou 8 000 pièces de cuivre pour un centime.
-- Le montant saisi est libre : **212 po donnent 2,65 €**. Le calcul ne se limite
-  pas à des lots de 400 po.
-- Une fraction de centime reste sur le personnage : pour 1 po proposé, 80 pa
-  sont converties en 0,01 € et les 20 pa restantes sont conservées. Aucun arrondi
-  ne donne de crédit supplémentaire ou ne consomme ce reste.
+- Taux confirmé le 11 septembre : **100 po = 1 € de crédit Atlas**, soit
+  **1 po = 0,01 €** et 10 000 pièces de cuivre par centime.
+  Ce taux remplace les 80 po par euro initialement retenues.
+- Le montant saisi est libre : **10 po donnent 0,10 €**, **212 po donnent 2,12 €**
+  et **400 po donnent 4 €**. Le changement de nom reste à 5 € ; convertir
+  500 po permet donc d'obtenir 5 € de Crédits Atlas.
+- Chaque pièce d'or entière saisie est entièrement convertie en un centime.
+  Les pièces d'argent/cuivre déjà présentes restent sur le personnage.
 - Le bandeau inférieur ouvre un convertisseur centré via **Convertir**.
   Il remplace le catalogue directement dans la page du launcher, sans fenêtre.
   L'or est à gauche, la saisie au centre et le résultat en euros à droite ;

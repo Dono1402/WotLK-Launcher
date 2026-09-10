@@ -75,7 +75,10 @@ internal static class ShopApiMySqlTests
                     Check(snapshot.Characters.Select(c=>c.Guid).SequenceEqual(new uint[]{101,102}), "Only owned characters are returned.");
                     Check(snapshot.Characters[0].GoldCopper==4235067 && snapshot.Characters[1].GoldCopper is null, "Offline copper is exact; live gold is not fabricated.");
                     Check(snapshot.CreditBalanceEuroCents is null && snapshot.EuroBalanceCents is null && !snapshot.CheckoutAvailable, "Neither wallet nor purchases are fabricated.");
-                    Check(snapshot.GoldConversion.Quote(2120000).CreditEuroCents==265, "Server supplies the agreed arbitrary-amount conversion rate.");
+                    Check(snapshot.GoldConversion.Quote(2120000).CreditEuroCents==212, "Server supplies the agreed arbitrary-amount conversion rate.");
+                    foreach (uint gold in new uint[] { 1, 10, 100, 400 })
+                        Check(snapshot.GoldConversion.Quote(gold * 10_000) == new ShopGoldConversionQuote(gold, gold * 10_000, 0),
+                            "The authenticated HTTP catalog converts each whole gold coin into exactly one cent.");
                     Check(snapshot.Offers.Single().Prices.Single(p=>p.Currency=="eur").Amount==500
                         && snapshot.Offers.Single().Prices.Single(p=>p.Currency=="credits").Amount==500, "The server owns both approved wallet prices.");
                 }

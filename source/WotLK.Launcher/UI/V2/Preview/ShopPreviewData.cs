@@ -13,5 +13,5 @@ internal static class ShopPreviewData
                 "Choose your new name on the character selection screen after logging out. Realm naming rules apply. Complete any pending name change before purchasing another."),
             [new("credits", 500), new("eur", 500)])],
         [new(101, "Asteria", 80, false, 4_235_067), new(202, "Boreal", 70, false, 1_208_000),
-            new(303, "Elune", 60, true, null)], new(8_000), EuroBalanceCents: 1000);
+            new(303, "Elune", 60, true, null)], ShopGoldConversionRate.Default, EuroBalanceCents: 1000);
 }

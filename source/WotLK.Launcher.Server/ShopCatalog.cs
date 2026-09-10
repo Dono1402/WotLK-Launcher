@@ -19,10 +19,10 @@ internal sealed class ShopCatalog
             new("Le nouveau nom se choisit à l’écran de sélection des personnages, après déconnexion. Il doit respecter les règles de nommage du royaume. Un renommage déjà en attente doit être terminé avant un nouvel achat.",
                 "Choose your new name on the character selection screen after logging out. Realm naming rules apply. Complete any pending name change before purchasing another."),
             prices)];
-        _revision = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(_offers))).ToLowerInvariant();
+        _revision = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { Offers = _offers, GoldConversion = ShopGoldConversionRate.Default }))).ToLowerInvariant();
         CreateSnapshot([]).Validate();
     }
 
     internal ShopSnapshot CreateSnapshot(IReadOnlyList<ShopCharacter> characters) =>
-        new(ShopSnapshot.CurrentSchemaVersion, _revision, DateTimeOffset.UtcNow, false, null, _offers, characters, new(8_000));
+        new(ShopSnapshot.CurrentSchemaVersion, _revision, DateTimeOffset.UtcNow, false, null, _offers, characters, ShopGoldConversionRate.Default);
 }

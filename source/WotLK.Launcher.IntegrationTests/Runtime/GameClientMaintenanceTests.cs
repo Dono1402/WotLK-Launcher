@@ -11,6 +11,25 @@ using WotLK.Launcher.UI.V2.Preview;
 
 internal static class GameClientMaintenanceTests
 {
+    internal static async Task<int> VerifyManifestFileAsync(string path)
+    {
+        byte[] payload = await File.ReadAllBytesAsync(path);
+        using ScriptedDownloadHandler handler = new((_, _, _) => Response(payload));
+        using HttpClient http = new(handler);
+        LauncherManifest manifest = await new GameManifestClient(http).LoadAsync(
+            "https://animeclub.fr/wotlk/manifest.json", CancellationToken.None);
+        True(manifest.Files.Count > 0, "Le manifeste de livraison doit contenir des fichiers.");
+        GameFileTransferService transfer = new(http);
+        foreach (LauncherFile file in manifest.Files)
+        {
+            Uri uri = transfer.BuildFileUri(manifest, file);
+            True(uri.Scheme == "https" && uri.Host == "animeclub.fr" && uri.Port == 443,
+                "Chaque téléchargement du manifeste doit cibler l'origine HTTPS officielle.");
+        }
+        Console.WriteLine($"Deployed game manifest OK ({manifest.Files.Count} files; HTTPS-only URLs; strict JSON).");
+        return 0;
+    }
+
     internal static async Task<int> RunAsync()
     {
         CharacterizeFileUriConstruction();
@@ -123,6 +142,9 @@ internal static class GameClientMaintenanceTests
                      "http://animeclub.fr:81/client/",
                      "http://user@animeclub.fr/client/",
                      "http://animeclub.fr/client/#fragment",
+                     "http://152.228.225.7/wotlk/other/",
+                     "http://152.228.225.7:81/wotlk/",
+                     "http://152.228.225.8/wotlk/",
                      "http://evil.example/client/"
                  })
         {
@@ -143,7 +165,8 @@ internal static class GameClientMaintenanceTests
                 "Data/client.bin",
                 payload,
                 url: "http://animeclub.fr/wotlk/files/client.bin?source=legacy"));
-        legacyManifest.BaseUrl = "http://animeclub.fr:80/wotlk/";
+        legacyManifest.BaseUrl = "http://152.228.225.7/wotlk/";
+        legacyManifest.GeneratedAt = "2026-08-31T02:44:44Z";
         List<Uri> requests = [];
         ScriptedDownloadHandler manifestHandler = new((_, request, _) =>
         {
@@ -161,6 +184,8 @@ internal static class GameClientMaintenanceTests
 
         Equal("https://animeclub.fr/wotlk/", loaded.BaseUrl,
             "Le manifeste chargé par HTTPS doit normaliser son baseUrl Atlas legacy avant validation.");
+        Equal("2026-08-31T02:44:44Z", loaded.GeneratedAt,
+            "La date générée par le flux déployé doit rester compatible avec le contrat JSON strict.");
         Equal("https://animeclub.fr/wotlk/files/client.bin?source=legacy", loaded.Files[0].Url,
             "Le manifeste chargé par HTTPS doit normaliser ses URL absolues Atlas legacy avant validation.");
 

@@ -86,7 +86,7 @@ internal static class AllPagesVisualWpfTests
                     await ValidateSettingsAsync(window, directory, captures);
                     await ValidateAddonsAsync(window, directory, captures);
                     await InvokeAsync(Required<Button>(window, "PatchNotesNavigationButton"), window);
-                    ScrollViewer notes = Descendants<ScrollViewer>(window).Single(scroll => scroll.IsVisible && scroll.Name == "PatchNotesScrollViewer");
+                    ScrollViewer notes = window.PatchNotesPage.ScrollHost;
                     notes.ScrollToBottom();
                     await PumpAsync(window);
                     True(notes.ScrollableHeight <= .5 || notes.VerticalOffset > 0, "Long release notes must remain vertically reachable.");

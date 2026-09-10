@@ -10,6 +10,9 @@ public sealed class LauncherManifest
     [JsonPropertyName("baseUrl")]
     public string BaseUrl { get; set; } = "";
 
+    [JsonPropertyName("generatedAt")]
+    public string GeneratedAt { get; set; } = "";
+
     [JsonPropertyName("files")]
     public List<LauncherFile> Files { get; set; } = [];
 }

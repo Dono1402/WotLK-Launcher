@@ -4,7 +4,7 @@ Le launcher Windows du royaume **Arthas**, pour **World of Warcraft: Wrath of th
 
 **[Télécharger Atlas Launcher pour Windows](https://github.com/Dono1402/WotLK-Launcher/releases/latest/download/AtlasLauncherSetup.exe)**
 
-Windows 64 bits · Version actuelle : **1.5.0**
+Windows 64 bits · Version actuelle : **1.6.0**
 
 ## Installation
 
@@ -25,9 +25,9 @@ Si Atlas Launcher est déjà installé, les nouvelles versions sont proposées d
 
 ## Nouveautés
 
-La **1.5.0** apporte la messagerie, les lecteurs audio et vidéo intégrés, de nouveaux statuts de présence et des améliorations des profils et des avatars.
+La **1.6.0** améliore la fluidité des pages, les recherches dans Messages et les addons, la fiabilité des réglages et des installations, ainsi que les contrôles de sécurité des sessions et des mises à jour.
 
-[Notes de version en français](releases/v1.5.0/PATCH-NOTES.md) · [English release notes](releases/v1.5.0/PATCH-NOTES.en.md) · [Versions précédentes](https://github.com/Dono1402/WotLK-Launcher/releases)
+[Notes de version en français](releases/v1.6.0/PATCH-NOTES.md) · [English release notes](releases/v1.6.0/PATCH-NOTES.en.md) · [Versions précédentes](https://github.com/Dono1402/WotLK-Launcher/releases)
 
 ## Besoin d’aide ?
 

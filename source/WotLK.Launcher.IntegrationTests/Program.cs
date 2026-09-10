@@ -47,6 +47,9 @@ if (args.Length == 1 && string.Equals(args[0], "--addon-integrity", StringCompar
     return 0;
 }
 
+if (args.Length == 2 && string.Equals(args[0], "--addon-catalog-file", StringComparison.OrdinalIgnoreCase))
+    return await AddonIntegrityTests.VerifyCatalogFileAsync(args[1]);
+
 if (args.Length == 1 && string.Equals(args[0], "--auth-session-mysql", StringComparison.OrdinalIgnoreCase))
     return await AuthSessionSecurityMySqlTests.RunAsync();
 
@@ -180,7 +183,7 @@ if (args.Length == 1
     && string.Equals(args[0], "--patch-notes", StringComparison.OrdinalIgnoreCase))
 {
     LauncherDashboardTests.ProjectCategorizedPatchNotesWithLegacyFallback();
-    Console.WriteLine("Patch notes OK (version 1.5.0, complete local draft, English translations, published notes preserved).");
+    Console.WriteLine("Patch notes OK (version 1.6.0, 9 sections, 55 entries, English translations, published notes preserved).");
     return 0;
 }
 
@@ -276,6 +279,12 @@ if (args.Length == 1
     && string.Equals(args[0], "--game-maintenance", StringComparison.OrdinalIgnoreCase))
 {
     return await GameClientMaintenanceTests.RunAsync();
+}
+
+if (args.Length == 2
+    && string.Equals(args[0], "--game-manifest-file", StringComparison.OrdinalIgnoreCase))
+{
+    return await GameClientMaintenanceTests.VerifyManifestFileAsync(args[1]);
 }
 
 if (args.Length == 1

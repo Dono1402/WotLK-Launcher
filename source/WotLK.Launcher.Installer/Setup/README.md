@@ -6,7 +6,7 @@ Launcher. Its stable distribution filename is `AtlasLauncherSetup.exe`.
 ## Product contract
 
 - Product: **Atlas Launcher**
-- Bootstrap payload: **1.5.0**
+- Bootstrap payload: **1.6.0**
 - Payload size and SHA-256: generated from the supplied canonical launcher during setup compilation
 - Technical launcher filename: `WotLK.Launcher.exe`
 - Default destination: `%ProgramFiles%\Atlas Launcher`
@@ -58,8 +58,8 @@ only in the isolated test harness under its temporary root.
 The installed `Uninstall.exe` is an exact copy of the standalone setup. This
 keeps uninstall independent of an installed .NET runtime and avoids a fifth
 project, but it duplicates the full setup size inside the installation. For the
-1.5.0 release, sizes and hashes are recorded in
-`releases/v1.5.0/release-candidate.json` and `releases/v1.5.0/LIVRAISON.md`.
+1.6.0 release, sizes and hashes are recorded in
+`releases/v1.6.0/release-candidate.json` and `releases/v1.6.0/LIVRAISON.md`.
 
 The setup executable is opened with read-only sharing at the beginning of
 `App.OnStartup`; size calculation and the `Uninstall.exe` copy use that retained

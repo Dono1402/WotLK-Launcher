@@ -6,21 +6,21 @@ Cette page s’adresse aux personnes qui développent ou publient le launcher. P
 
 Prérequis : Windows, SDK .NET 8 et paquet `armory-runtime.zip` de la version concernée, disponible dans les fichiers de la release GitHub. Vérifier son empreinte dans `SHA256SUMS.txt` avant de l’utiliser. Le paquet comprend les dépendances de l’armurerie et leurs licences ; les fichiers du jeu et les données de compte en sont exclus.
 
-Depuis la racine du dépôt, avec le paquet enregistré sous `artifacts/atlas-release-150/armory-runtime.zip` :
+Depuis la racine du dépôt, avec le paquet enregistré sous `artifacts/atlas-release-160/armory-runtime.zip` :
 
 ```powershell
 ./scripts/build-public-client.ps1 `
   -DotnetPath (Get-Command dotnet).Source `
-  -ArmoryPayloadPath "$PWD/artifacts/atlas-release-150/armory-runtime.zip" `
-  -OutputDirectory "$PWD/artifacts/atlas-release-150/public-client"
+  -ArmoryPayloadPath "$PWD/artifacts/atlas-release-160/armory-runtime.zip" `
+  -OutputDirectory "$PWD/artifacts/atlas-release-160/public-client"
 
 ./scripts/build-atlas-installer.ps1 `
   -DotnetPath (Get-Command dotnet).Source `
-  -LauncherPayloadPath "$PWD/artifacts/atlas-release-150/public-client/WotLK-Launcher.exe" `
-  -OutputDirectory "$PWD/artifacts/atlas-release-150/setup"
+  -LauncherPayloadPath "$PWD/artifacts/atlas-release-160/public-client/WotLK-Launcher.exe" `
+  -OutputDirectory "$PWD/artifacts/atlas-release-160/setup"
 ```
 
-L’installateur contient le client public final. Les exécutables, caches et fichiers générés restent hors Git. Le [compte rendu 1.5.0](../releases/v1.5.0/LIVRAISON.md) précise les versions, empreintes et vérifications de la livraison. Les [instructions 1.4.0](../releases/v1.4.0/BUILD.md) restent disponibles pour cette version historique.
+L’installateur contient le client public final. Les exécutables, caches et fichiers générés restent hors Git. Le [compte rendu 1.6.0](../releases/v1.6.0/LIVRAISON.md) précise les versions, empreintes et vérifications de la livraison. Les [instructions 1.4.0](../releases/v1.4.0/BUILD.md) restent disponibles pour cette version historique.
 
 ## Identité Git et GitHub
 
@@ -45,4 +45,4 @@ Le fichier `WotLK-Launcher.exe` est conservé sur le serveur de distribution à 
 
 `scripts/release-launcher.sh` est un outil d’administration du serveur : il copie les fichiers de livraison, prépare les métadonnées, crée un commit et un tag, pousse `main` et publie sur GitHub. Il peut aussi récupérer des fichiers depuis la configuration du serveur. Son exécution modifie donc davantage que la présentation d’une release ; relire les fichiers préparés et leur périmètre avant de l’utiliser.
 
-Pour la version 1.5.0, la préparation isolée, la bascule atomique et les vérifications HTTPS sont décrites dans le [compte rendu de livraison](../releases/v1.5.0/LIVRAISON.md).
+Pour la version 1.6.0, la préparation isolée, la bascule atomique et les vérifications HTTPS sont décrites dans le [compte rendu de livraison](../releases/v1.6.0/LIVRAISON.md).

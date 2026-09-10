@@ -19,6 +19,7 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         ValidateInternalCommandLineContract();
         ValidateHelperRequesterBoundary();
         ValidateHelperHashDoesNotCaptureWpfContext();
+        await PreserveLegacyStartupHandshakeWithoutLegacyElevationAsync();
         await RejectElevatedUpdatedProcessAndReleaseTargetAsync();
         await PrepareTransactionWithoutTouchingActiveReleaseAsync();
         await RejectInvalidAuthenticatedVersionBeforeTransactionAsync();
@@ -55,6 +56,89 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         await LeaveReleaseUntouchedWhenParentDoesNotExitAsync();
         Console.WriteLine("Launcher self-update atomic replacement OK (04B.3a).");
         return 0;
+    }
+
+    private static async Task PreserveLegacyStartupHandshakeWithoutLegacyElevationAsync()
+    {
+        using AtomicUpdateEnvironment environment = new();
+        File.Copy(typeof(LauncherManifest).Assembly.Location, environment.TargetPath, overwrite: true);
+        LauncherUpdateTransaction original = environment.Transaction;
+        LauncherUpdateTransaction legacy = original with
+        {
+            SchemaVersion = 1,
+            HelperPath = Path.Combine(original.WorkspacePath, "updater.exe"),
+            HelperAcceptedSignalPath = Path.Combine(original.WorkspacePath, "helper-accepted.json"),
+            ExpectedSize = new FileInfo(environment.TargetPath).Length,
+            CandidateSha256 = await LauncherUpdateTransactionStore.ComputeSha256Async(
+                environment.TargetPath, CancellationToken.None),
+            AuthenticatedTargetVersion = FileVersionInfo.GetVersionInfo(environment.TargetPath).FileVersion,
+            AuthenticatedManifest = null,
+            Phase = LauncherUpdateTransactionPhase.SwappedAwaitingStart
+        };
+
+        void WriteLegacy(LauncherUpdateTransaction transaction)
+        {
+            JsonSerializerOptions options = new()
+            {
+                Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+            };
+            System.Text.Json.Nodes.JsonObject json =
+                System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(transaction, options))!.AsObject();
+            // These fields did not exist in the serializer shipped in version 1.5.0.
+            json.Remove("AuthenticatedManifest");
+            json.Remove("NewProcessStartedAt");
+            File.WriteAllText(original.TransactionPath, json.ToJsonString());
+        }
+
+        WriteLegacy(legacy);
+        string before = File.ReadAllText(original.TransactionPath);
+        Throws<InvalidDataException>(() => environment.Store.Load(original.TransactionPath),
+            "Le helper élevé et la récupération doivent continuer à refuser le schéma historique.");
+        Throws<InvalidDataException>(() => environment.Store.Save(legacy),
+            "Aucune nouvelle transaction historique ne doit pouvoir être enregistrée.");
+
+        LauncherUpdateStartupSession withoutMarker = LauncherUpdateStartupSession.BeginForTests(
+            [], true, environment.Store, environment.TargetPath);
+        True(!withoutMarker.HasPendingTransactions && !withoutMarker.RecoveryOccurred,
+            "Un démarrage normal ne doit pas relancer le helper historique.");
+        True(!File.Exists(legacy.StartedSignalPath), "Le signal historique nécessite le marqueur explicite.");
+
+        LauncherUpdateStartupSession startup = LauncherUpdateStartupSession.BeginForTests(
+            [LauncherUpdateCommandLine.BuildPostUpdateArgument(legacy.TransactionId)],
+            true, environment.Store, environment.TargetPath);
+        True(startup.HasPendingTransactions && !startup.RecoveryOccurred,
+            "La transition 1.5.0 doit uniquement participer au handshake explicite.");
+        True(environment.Store.TryReadStartedSignal(legacy)?.ProcessId == Environment.ProcessId,
+            "L'ancien helper doit pouvoir lire le signal Started du nouveau client.");
+        await startup.ConfirmReadyAsync(() => true);
+        True(environment.Store.TryReadReadySignal(legacy)?.ProcessId == Environment.ProcessId,
+            "L'ancien helper doit pouvoir lire le signal Ready après stabilisation.");
+        Equal(before, File.ReadAllText(original.TransactionPath),
+            "Le nouveau client ne doit ni migrer ni réécrire la transaction pilotée par l'ancien helper.");
+
+        LauncherUpdateTransaction[] invalid =
+        [
+            legacy with { SchemaVersion = 0 },
+            legacy with { CandidateSha256 = new string('0', 64) },
+            legacy with { ExpectedSize = legacy.ExpectedSize + 1 },
+            legacy with { AuthenticatedTargetVersion = "99.0.0" },
+            legacy with { Phase = LauncherUpdateTransactionPhase.Prepared },
+            legacy with { TargetPath = Path.Combine(environment.Root, "another.exe") },
+            legacy with { ReadySignalPath = Path.Combine(environment.Root, "outside.json") },
+            legacy with { HelperPath = original.HelperPath },
+            legacy with { NewProcessId = int.MaxValue }
+        ];
+        foreach (LauncherUpdateTransaction transaction in invalid)
+        {
+            WriteLegacy(transaction);
+            Throws<InvalidDataException>(
+                () => environment.Store.LoadForStartup(original.TransactionPath, environment.TargetPath),
+                "La compatibilité historique doit refuser une cible, une version ou un chemin incohérent.");
+        }
+        WriteLegacy(legacy with { Phase = LauncherUpdateTransactionPhase.StartedAwaitingReady,
+            NewProcessId = Environment.ProcessId });
+        Equal(1, environment.Store.LoadForStartup(original.TransactionPath, environment.TargetPath).SchemaVersion,
+            "Le signal Ready doit rester compatible lorsque l'ancien helper a déjà enregistré le PID.");
     }
 
     internal static int RunCommandLineSecurity()

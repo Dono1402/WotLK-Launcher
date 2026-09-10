@@ -9,6 +9,19 @@ using WotLK.Launcher;
 
 internal static class AddonIntegrityTests
 {
+    internal static async Task<int> VerifyCatalogFileAsync(string path)
+    {
+        const string catalogUrl = "https://animeclub.fr/wotlk/addons/catalog.json";
+        using FixtureHttpHandler handler = new();
+        handler.Responses[catalogUrl] = await File.ReadAllBytesAsync(path);
+        using HttpClient http = new(handler);
+        AddonCatalog catalog = await AddonInstallServices.LoadCatalogAsync(
+            http, new Uri(catalogUrl), CancellationToken.None);
+        if (catalog.Addons.Count == 0) throw new InvalidDataException("Catalogue de livraison vide.");
+        Console.WriteLine($"Deployed addon catalog OK ({catalog.Addons.Count} addons; strict JSON and package validation).");
+        return 0;
+    }
+
     internal static async Task<int> RunAsync()
     {
         int checks = 0;

@@ -39,7 +39,12 @@ internal sealed class LauncherUpdateTransactionStore
     internal LauncherUpdateTransaction Load(string transactionPath) =>
         _userOperations.Run(() => LoadCore(transactionPath));
 
-    private LauncherUpdateTransaction LoadCore(string transactionPath)
+    // Only the new, unelevated application's startup handshake may read schema 1.
+    // Apply, recovery and Save continue to require the authenticated schema 2.
+    internal LauncherUpdateTransaction LoadForStartup(string transactionPath, string currentExecutable) =>
+        _userOperations.Run(() => LoadCore(transactionPath, currentExecutable));
+
+    private LauncherUpdateTransaction LoadCore(string transactionPath, string? startupExecutable = null)
     {
         string canonicalPath = Path.GetFullPath(transactionPath);
         byte[] json = ReadStableBoundedJson(canonicalPath);
@@ -48,8 +53,13 @@ internal sealed class LauncherUpdateTransactionStore
             json,
             JsonOptions)
             ?? throw new InvalidDataException("Transaction de mise à jour illisible.");
-        ValidateShape(transaction, canonicalPath);
+        bool legacyStartup = startupExecutable is not null && transaction.SchemaVersion == 1;
+        ValidateShape(transaction, canonicalPath, legacyStartup);
         LauncherUpdateElevationSecurity.DemandNoReparseTransactionPaths(transaction);
+        if (legacyStartup)
+        {
+            ValidateLegacyStartupTarget(transaction, startupExecutable!);
+        }
         return transaction;
     }
 
@@ -274,9 +284,10 @@ internal sealed class LauncherUpdateTransactionStore
 
     private void ValidateShape(
         LauncherUpdateTransaction transaction,
-        string expectedTransactionPath)
+        string expectedTransactionPath,
+        bool legacyStartup = false)
     {
-        if (transaction.SchemaVersion != LauncherUpdateTransaction.CurrentSchemaVersion)
+        if (transaction.SchemaVersion != (legacyStartup ? 1 : LauncherUpdateTransaction.CurrentSchemaVersion))
         {
             throw new InvalidDataException("Version de transaction de mise à jour non prise en charge.");
         }
@@ -295,9 +306,9 @@ internal sealed class LauncherUpdateTransactionStore
         }
 
         RequireExactChild(transaction.CandidatePath, workspace, "candidate.exe");
-        string expectedHelperPath = LauncherUpdateElevationSecurity.GetProtectedHelperPath(
-            target,
-            transaction.TransactionId);
+        string expectedHelperPath = legacyStartup
+            ? Path.Combine(workspace, "updater.exe")
+            : LauncherUpdateElevationSecurity.GetProtectedHelperPath(target, transaction.TransactionId);
         if (!SamePath(transaction.HelperPath, expectedHelperPath))
         {
             throw new InvalidDataException("Chemin du helper protégé incohérent.");
@@ -340,6 +351,11 @@ internal sealed class LauncherUpdateTransactionStore
             throw new InvalidDataException("Métadonnées de validation incomplètes.");
         }
 
+        if (legacyStartup)
+        {
+            return;
+        }
+
         bool hasNewProcess = transaction.NewProcessId is > 0;
         if (transaction.NewProcessId is <= 0
             || hasNewProcess != transaction.NewProcessStartedAt.HasValue)
@@ -363,6 +379,42 @@ internal sealed class LauncherUpdateTransactionStore
             || string.IsNullOrWhiteSpace(manifest.Signature))
         {
             throw new InvalidDataException("Preuve signée de mise à jour incohérente.");
+        }
+    }
+
+    private static void ValidateLegacyStartupTarget(
+        LauncherUpdateTransaction transaction,
+        string currentExecutable)
+    {
+        if (LauncherUpdateSecurity.IsCurrentProcessElevated()
+            || !SamePath(transaction.TargetPath, currentExecutable)
+            || transaction.Phase is not (LauncherUpdateTransactionPhase.SwappedAwaitingStart
+                or LauncherUpdateTransactionPhase.StartedAwaitingReady)
+            || transaction.ParentProcessId <= 0
+            || transaction.NewProcessId is int processId && processId != Environment.ProcessId
+            || transaction.AuthenticatedManifest is not null
+            || transaction.NewProcessStartedAt is not null
+            || !Version.TryParse(transaction.AuthenticatedTargetVersion, out Version? targetVersion))
+        {
+            throw new InvalidDataException("Transaction historique incompatible avec ce démarrage.");
+        }
+
+        string? versionText = System.Diagnostics.FileVersionInfo.GetVersionInfo(currentExecutable).FileVersion;
+        if (!Version.TryParse(versionText, out Version? currentVersion)
+            || currentVersion.Major != targetVersion.Major
+            || currentVersion.Minor != targetVersion.Minor
+            || Math.Max(currentVersion.Build, 0) != Math.Max(targetVersion.Build, 0)
+            || Math.Max(currentVersion.Revision, 0) != Math.Max(targetVersion.Revision, 0))
+        {
+            throw new InvalidDataException("La version démarrée diffère de la mise à jour historique.");
+        }
+
+        using FileStream executable = OpenStableRead(currentExecutable);
+        if (executable.Length != transaction.ExpectedSize
+            || !CryptographicOperations.FixedTimeEquals(
+                SHA256.HashData(executable), Convert.FromHexString(transaction.CandidateSha256)))
+        {
+            throw new InvalidDataException("Le launcher démarré diffère du paquet historique.");
         }
     }
 

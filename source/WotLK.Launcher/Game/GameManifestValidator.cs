@@ -162,6 +162,13 @@ internal static class GameManifestValidator
 
     private static void CanonicalizeLegacyAtlasUrl(LauncherManifest manifest)
     {
+        // The deployed game feed still uses this exact historical base address.
+        // Convert it before validation; no request is ever sent to the IP address.
+        if (string.Equals(manifest.BaseUrl, "http://152.228.225.7/wotlk/", StringComparison.Ordinal))
+        {
+            manifest.BaseUrl = "https://animeclub.fr/wotlk/";
+        }
+
         if (AtlasLegacyUrlCanonicalizer.TryCanonicalize(manifest.BaseUrl, out string canonicalUrl))
         {
             manifest.BaseUrl = canonicalUrl;

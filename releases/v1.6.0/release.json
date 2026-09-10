@@ -1,0 +1,26 @@
+{
+  "version": "1.6.0",
+  "tag": "v1.6.0",
+  "keyId": "atlas-prod-p256-2026-01",
+  "createdAt": "2026-09-10T13:20:25Z",
+  "publishedRoot": "/var/www/wotlk-launcher/launcher",
+  "artifactStore": "/srv/wotlk/launcher-releases/v1.6.0",
+  "assets": [
+    {
+      "name": "WotLK-Launcher.exe",
+      "size": 401669959,
+      "sha256": "e8f3f3dd231581f12475271ce07ff1bf2d61e030449d0670bba9d4abec19e935"
+    },
+    {
+      "name": "WotLK-Launcher-Installer.exe",
+      "size": 507033689,
+      "sha256": "1429b4cc9951200815f590f426c5226df9203a0aaba249626358721eca24a00e"
+    },
+    {
+      "name": "launcher-update.json",
+      "size": 424,
+      "sha256": "e94b7634cc4be0271754ed4a6e5c945661f11a8795d1e9beb187dfebf9ae9a42"
+    }
+  ],
+  "publishedAt": "2026-09-10T13:20:21Z"
+}

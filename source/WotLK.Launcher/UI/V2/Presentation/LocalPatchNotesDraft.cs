@@ -8,83 +8,104 @@ internal static class LocalPatchNotesDraft
 
     internal static PatchNoteEntryViewState Create() => new(
         Id,
-        Version: "1.5.0",
-        Title: "Atlas Launcher 1.5.0",
+        Version: "1.6.0",
+        Title: "Atlas Launcher 1.6.0",
         PublishedText: "Non publiée",
-        Intro: "La messagerie Atlas arrive avec les conversations privées et de groupe, le partage de fichiers et les lecteurs intégrés. Cette version enrichit aussi la présence, les profils des amis et les échanges avec les joueurs en jeu, et corrige le recadrage des avatars.",
+        Intro: "Atlas Launcher 1.6.0 améliore la fluidité du launcher, la fiabilité de Messages et des addons, ainsi que les contrôles appliqués aux sessions, téléchargements, installations et mises à jour.",
         HasIntro: true,
         IsLatest: true,
         IsDraft: true,
         Sections:
         [
-            new("Messages et conversations",
+            new("Amis",
             [
-                "Nouvelle page Messages avec liste de conversations, recherche de contacts, filtre Non lus et création de conversation depuis le bouton +.",
-                "Conversations privées et groupes avec nom, image, invitations et gestion des membres. Les nouveaux membres accèdent à l’historique à partir de leur entrée dans le groupe.",
-                "Réponses à un message, réactions par emoji, modification et suppression de ses propres messages, épinglage des conversations et des messages.",
-                "Messages regroupés par auteur et par jour, repère des nouveaux messages, indicateurs de saisie et de lecture selon la présence choisie.",
-                "Mise en forme du texte avec gras, italique, listes, citations, code et spoilers. Le texte reste sélectionnable et copiable.",
-                "Les brouillons sont conservés par compte et par conversation. Les envois en attente peuvent être repris ou annulés après une interruption.",
-                "Un envoi en échec peut être supprimé sans réapparaître après reconnexion. Les messages supprimés disparaissent aussi des extraits, réponses et épingles.",
-                "Les conversations auparavant archivées restent accessibles dans Toutes."
+                "Liste plus compacte, avec une distinction plus claire entre pseudo Atlas et personnage.",
+                "Présence hors ligne plus discrète et pastille mieux positionnée sur l'avatar.",
+                "Accès rapide à la messagerie depuis une carte d'ami.",
+                "Recherche par pseudo ou personnage et groupes En ligne/Hors ligne repliables.",
+                "Actualisation allégée lorsque le launcher reste en arrière-plan, avec mise à jour immédiate au retour au premier plan.",
+                "Action « Retirer cet ami » plus explicite dans le menu des amis."
             ]),
-            new("Images et pièces jointes",
+            new("Messages",
             [
-                "Ajout de fichiers par sélection ou glisser-déposer, et collage de captures, avec aperçu avant l’envoi.",
-                "Envoi d’images, GIF personnels, documents, fichiers audio et vidéos, jusqu’à 500 Mo par fichier et dix pièces jointes par message.",
-                "Les images et GIF conservent leurs proportions, y compris les formats portrait, sans cadre de fichier autour de l’image.",
-                "Suivi de progression, annulation et reprise des transferts. Les aperçus du brouillon restent stables pendant la saisie.",
-                "Visionneuse agrandie et menu contextuel Enregistrer sous… pour les images, fichiers audio et documents autorisés.",
-                "Les liens affichent des aperçus. Un aperçu de page non vidéo peut être retiré sans effacer le lien ni le message."
+                "Texte principal agrandi à 15 px et informations secondaires à 12 px.",
+                "Contraste renforcé tout en conservant le décor de la Citadelle.",
+                "Recherche dans la conversation avec Ctrl+F, surlignage des résultats et parcours de l'historique.",
+                "Commandes des petits aperçus vidéo réorganisées pour garder les durées lisibles à 12 px.",
+                "Les fichiers audio et vidéo proches de la zone visible se préparent plus tôt, y compris au survol et au clavier, pour démarrer plus rapidement.",
+                "La navigation dans la barre de lecture reste stable pendant les glissements et évite les repositionnements inutiles.",
+                "Bouton Réessayer pour rouvrir Messages après un incident, en retrouvant la conversation et son brouillon déjà enregistré, sans relancer le launcher.",
+                "Sauvegarde périodique des brouillons pendant la frappe continue, avec nouvelle tentative automatique et message discret en cas d’échec.",
+                "Reprise de la messagerie après un problème temporaire de lecture locale, sans redémarrage ni effacement des brouillons et messages en attente.",
+                "Bouton Réessayer conservé après un passage temporaire au mode de secours."
             ]),
-            new("Audio et vidéo",
+            new("Addons",
             [
-                "Lecteurs intégrés avec lecture/pause, progression, durée, volume, agrandissement et plein écran vidéo, dans le fil comme dans le brouillon. Navigation dans la barre améliorée, y compris pendant les glissements.",
-                "Les commandes vidéo apparaissent en transparence sur l’image et se masquent automatiquement pendant la lecture.",
-                "L’agrandissement et le retour au fil conservent la position de lecture et le volume. L’arrivée de nouveaux messages ne recrée plus le lecteur.",
-                "La lecture continue lorsque le launcher perd le focus ou est réduit. Elle s’arrête en quittant Messages ou en changeant de conversation.",
-                "Les aperçus YouTube et Vimeo démarrent depuis leur vignette. Les fichiers audio et vidéo proches de la zone visible se préparent plus tôt, avec un chargement anticipé au survol ou au focus clavier.",
-                "Prise en charge élargie des pièces jointes audio et vidéo, notamment M4A, FLAC, MOV et MKV. La lecture intégrée dépend du codec contenu dans le fichier."
+                "Catalogue plus compact, noms à 15 px et informations secondaires à 12 px.",
+                "Filtres par catégorie, favoris et installations manuelles, tri et recherche avec Ctrl+F.",
+                "Sélection de plusieurs addons, packs et profils locaux, avec import et export des sélections.",
+                "Installation automatique des dépendances avec aperçu et confirmation des remplacements manuels.",
+                "Suivi des opérations groupées, annulation persistante et reprise après un échec ou une interruption.",
+                "Inventaire des addons externes, vérification des fichiers et réinstallation des paquets gérés.",
+                "Distinction entre compatibilité déclarée et validation Atlas documentée.",
+                "Position dans le catalogue et addon sélectionné conservés après navigation et actualisation de la liste.",
+                "Actions clarifiées avec les libellés « Désinstaller » et « Tout désélectionner ».",
+                "Le catalogue, les archives et l’état local des addons sont contrôlés plus strictement avant toute modification.",
+                "Les installations, mises à jour et réparations groupées sont entièrement préparées avant leur application ; les dossiers précédents sont restaurés si une étape échoue ou est annulée."
             ]),
-            new("Présence et notifications",
+            new("Profil et armurerie",
             [
-                "Les statuts En ligne, Absent, Ne pas déranger et Apparaître hors ligne se choisissent dans le menu du profil et sont indiqués sur l’avatar.",
-                "Passage automatique à Absent après vingt minutes d’inactivité Windows, puis retour à En ligne à la reprise. Les statuts choisis manuellement sont conservés.",
-                "Le statut est partagé entre Messages, la liste d’amis et les profils. Une autre session active évite de vous rendre absent à tort.",
-                "Ne pas déranger suspend les notifications de messages et d’amis. Les sons de la messagerie restent désactivés.",
-                "Apparaître hors ligne masque l’activité du launcher et du jeu, ainsi que les indicateurs de saisie et de lecture partagés."
+                "Menu de présence plus compact : le statut courant déplie les quatre choix au clic, puis la liste se referme après sélection.",
+                "Possibilité de relancer l’armurerie après un incident, avec conservation du personnage partagé demandé.",
+                "Entretien des données de profils en cache et arrêt de l’armurerie effectués en arrière-plan pour préserver la réactivité du launcher.",
+                "Réduction des allocations mémoire lors des changements successifs de profils, avec masquage immédiat du profil précédent pendant le chargement."
             ]),
-            new("Profils, armurerie et avatars",
+            new("Navigation et fluidité",
             [
-                "Les profils des amis s’ouvrent dans la vue complète, avec leurs personnages, leur équipement et l’armurerie 3D en consultation.",
-                "Partager l’Armory d’un personnage permet de choisir son personnage directement dans Messages. La carte ouvre précisément le personnage partagé.",
-                "Correction du recadrage des avatars sur les écrans avec mise à l’échelle Windows : le résultat correspond désormais à la zone sélectionnée.",
-                "Photos de profil plus nettes dans les grands profils et chargement des avatars fiabilisé dans Messages et la liste d’amis."
+                "Position de défilement conservée lors des retours entre les pages, tandis que les menus et confirmations temporaires se ferment.",
+                "Affichage allégé des longues listes d’amis et de notes de version ; seuls les éléments proches de la zone visible sont préparés.",
+                "Mémoire du cache des avatars plafonnée et meilleure libération des anciens éléments de l’interface après navigation ou changement de langue.",
+                "Avatars affichés même si leur cache disque est indisponible ; écritures et nettoyages regroupés en arrière-plan.",
+                "Ouverture des pages moins gourmande en mémoire.",
+                "Page Notes de version plus compacte, avec des titres, des textes et des espacements harmonisés avec les autres pages.",
+                "Un démarrage direct ouvre désormais l’interface actuelle du launcher, sans option de lancement supplémentaire.",
+                "Les messages d’attente et confirmations superflus ont été retirés dans plusieurs pages, tandis que les erreurs et progressions utiles restent visibles."
             ]),
-            new("Chuchotements avec le jeu",
+            new("Paramètres",
             [
-                "Les conversations privées relient le launcher aux personnages connectés en jeu.",
-                "Un message envoyé depuis le launcher apparaît sous le nom Pseudo#Launcher pour identifier son auteur.",
-                "Les réponses adressées à cette identité rejoignent la conversation du compte dans Messages."
+                "Enregistrement des réglages renforcé pour éviter les fichiers incomplets en cas d’interruption.",
+                "Récupération depuis une copie de secours lorsque le fichier de réglages est absent ou illisible, avec un message invitant à vérifier les préférences.",
+                "Sauvegarde des préférences hors du thread d’interface, avec restauration de la valeur précédente en cas d’échec et attente de l’écriture en cours à la fermeture.",
+                "Changement de langue du jeu sans bloquer l’interface pendant la mise à jour de sa configuration, avec un message si le fichier ne peut pas être modifié."
             ]),
-            new("Compte, paramètres et addons en jeu",
+            new("Sécurité et compatibilité",
             [
-                "Le profil, la gestion du compte, les réglages de sécurité et les sessions restent accessibles pendant que le jeu est ouvert.",
-                "Les paramètres et la gestion des addons restent disponibles en jeu, y compris l’installation, la mise à jour et la suppression des addons."
+                "Les opérations de connexion, de renouvellement de session, de changement de mot de passe et de déconnexion restent cohérentes lorsqu’elles se chevauchent ou sont interrompues.",
+                "Les réponses Atlas inattendues ou anormalement volumineuses sont refusées sans remplacer ni effacer la session active.",
+                "La déconnexion et le changement de compte ignorent les réponses réseau tardives afin qu’une ancienne session ne puisse pas redevenir active.",
+                "Le changement de mot de passe reste compatible avec les services Atlas actuellement déployés, sans interrompre inutilement la session en cours.",
+                "Les jetons de connexion sont ajoutés uniquement aux requêtes HTTPS destinées aux services Atlas.",
+                "Les anciennes adresses Atlas reconnues dans les catalogues et manifestes sont remplacées par une adresse HTTPS du domaine officiel avant toute requête. Les autres origines non sécurisées ou inattendues restent refusées."
             ]),
-            new("Fluidité et finitions",
+            new("Installation et mises à jour",
             [
-                "Retrait des messages d’attente et confirmations superflus dans le profil, les amis, Messages, le compte et les addons. Les indicateurs sont intégrés aux contrôles ; les erreurs et progressions utiles restent visibles.",
-                "Menus, transitions et aperçus de Messages plus fluides, avec respect du réglage Windows de réduction des animations.",
-                "Amélioration de la cadence d’affichage de Messages sur les écrans à fréquence élevée, lorsque la version de Windows le permet.",
-                "Libellés, commandes de lecture et nouveaux états disponibles en français et en anglais."
+                "Les manifestes et téléchargements du jeu sont vérifiés plus strictement avant toute modification du dossier d’installation.",
+                "L’installation, la réparation et la désinstallation du jeu contrôlent davantage le dossier ciblé, refusent les emplacements ambigus et annulent proprement une opération incomplète.",
+                "L’installateur Atlas Launcher prépare et vérifie ses fichiers avant leur activation, puis retire les changements incomplets si l’installation échoue. Le launcher est ensuite démarré sans privilèges administrateur.",
+                "Les mises à jour du launcher vérifient un manifeste signé et le paquet associé avant leur application. Le remplacement peut restaurer l’installation précédente s’il échoue ou si le nouveau launcher ne démarre pas correctement.",
+                "La désinstallation d’Atlas Launcher cible uniquement ses composants enregistrés, ses raccourcis et son entrée Windows. Le jeu, les addons, la configuration de WoW et les données Atlas de l’utilisateur sont conservés."
+            ]),
+            new("Windows",
+            [
+                "Correction du menu de l’icône de notification qui pouvait passer derrière le panneau Windows au clic droit."
             ])
         ]);
 
     internal static ImmutableArray<PatchNoteEntryViewState> PrependTo(
         ImmutableArray<PatchNoteEntryViewState> publishedNotes)
     {
-        if (publishedNotes.Any(note => string.Equals(note.Id, Id, StringComparison.Ordinal)))
+        if (publishedNotes.Any(note => string.Equals(note.Id, Id, StringComparison.Ordinal)
+            || string.Equals(note.Id, "atlas-launcher-1-6-0", StringComparison.Ordinal)))
         {
             return publishedNotes;
         }

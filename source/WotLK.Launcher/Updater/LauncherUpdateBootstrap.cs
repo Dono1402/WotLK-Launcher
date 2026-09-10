@@ -678,7 +678,7 @@ internal sealed class LauncherUpdateStartupSession
                 store.TransactionsRoot,
                 transactionId.ToString("N"),
                 "transaction.json");
-            LauncherUpdateTransaction transaction = store.Load(transactionPath);
+            LauncherUpdateTransaction transaction = store.LoadForStartup(transactionPath, targetPath);
             return SamePath(transaction.TargetPath, targetPath)
                 ? transaction
                 : null;

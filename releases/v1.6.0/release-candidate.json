@@ -1,0 +1,178 @@
+{
+  "status": "prepared-not-published",
+  "version": "1.6.0",
+  "releaseId": "client-1.6.0-20260910T131528Z",
+  "preparedAt": "2026-09-10T13:20:21Z",
+  "publicClientBuild": true,
+  "playerInstaller": "AtlasLauncherSetup.exe",
+  "files": [
+    {
+      "name": "WotLK-Launcher.exe",
+      "bytes": 401669959,
+      "sha256": "e8f3f3dd231581f12475271ce07ff1bf2d61e030449d0670bba9d4abec19e935"
+    },
+    {
+      "name": "AtlasLauncherSetup.exe",
+      "bytes": 507033689,
+      "sha256": "1429b4cc9951200815f590f426c5226df9203a0aaba249626358721eca24a00e"
+    },
+    {
+      "name": "armory-runtime.zip",
+      "bytes": 298278314,
+      "sha256": "84a57db71c985be18c47f62e5761e21effe7d032a7316e0f69e9edc650a7e645"
+    },
+    {
+      "name": "patch-note.draft.json",
+      "bytes": 8623,
+      "sha256": "99c5dce2117b727798553fe91980956780e99ee55cae428ddccf4ac0e9ad9907"
+    },
+    {
+      "name": "patch-note.en.draft.json",
+      "bytes": 7569,
+      "sha256": "db286f3b90fd38586d9fdd04020f9f11b03a9a014c14857d4c7a511299aa94b2"
+    }
+  ],
+  "manifestSha256": "e94b7634cc4be0271754ed4a6e5c945661f11a8795d1e9beb187dfebf9ae9a42",
+  "notes": {
+    "languages": [
+      "fr",
+      "en"
+    ],
+    "sections": 9,
+    "items": 55,
+    "historicalNotesPreserved": 5,
+    "translationParityVerified": true
+  },
+  "validation": {
+    "buildWarnings": 0,
+    "buildErrors": 0,
+    "checks": [
+      {
+        "name": "patch-notes",
+        "exitCode": 0,
+        "seconds": 0.84,
+        "log": "check-patch-notes.log"
+      },
+      {
+        "name": "game-manifest",
+        "exitCode": 0,
+        "seconds": 0.12,
+        "log": "check-game-manifest.log"
+      },
+      {
+        "name": "addon-catalog",
+        "exitCode": 0,
+        "seconds": 0.11,
+        "log": "check-addon-catalog.log"
+      },
+      {
+        "name": "game-maintenance",
+        "exitCode": 0,
+        "seconds": 0.28,
+        "log": "check-game-maintenance.log"
+      },
+      {
+        "name": "self-update-atomic",
+        "exitCode": 0,
+        "seconds": 7.41,
+        "log": "check-self-update-atomic.log"
+      },
+      {
+        "name": "secure-update",
+        "exitCode": 0,
+        "seconds": 0.3,
+        "log": "check-secure-update.log"
+      },
+      {
+        "name": "self-update-runtime",
+        "exitCode": 0,
+        "seconds": 0.21,
+        "log": "check-self-update-runtime.log"
+      },
+      {
+        "name": "installer-runtime",
+        "exitCode": 0,
+        "seconds": 3.53,
+        "log": "check-installer-runtime.log"
+      },
+      {
+        "name": "installer-artifact",
+        "exitCode": 0,
+        "seconds": 2.46,
+        "log": "check-installer-artifact.log"
+      },
+      {
+        "name": "armory-public-package",
+        "exitCode": 0,
+        "seconds": 0.23,
+        "log": "check-armory-public-package.log"
+      },
+      {
+        "name": "addon-integrity",
+        "exitCode": 0,
+        "seconds": 1.27,
+        "log": "check-addon-integrity.log"
+      },
+      {
+        "name": "auth-security",
+        "exitCode": 0,
+        "seconds": 0.24,
+        "log": "check-auth-security.log"
+      },
+      {
+        "name": "session-hardening",
+        "exitCode": 0,
+        "seconds": 0.69,
+        "log": "check-session-hardening.log"
+      },
+      {
+        "name": "startup-routing",
+        "exitCode": 0,
+        "seconds": 0.61,
+        "log": "check-startup-routing.log"
+      },
+      {
+        "name": "chat-workspace",
+        "exitCode": 0,
+        "seconds": 3.31,
+        "log": "check-chat-workspace.log"
+      },
+      {
+        "name": "chat-media",
+        "exitCode": 0,
+        "seconds": 3.18,
+        "log": "check-chat-media.log"
+      }
+    ],
+    "armoryFileCount": 318,
+    "armoryAuditChecks": 12,
+    "defenderDetections": 0,
+    "publicationHelperAssertions": 29
+  },
+  "github": {
+    "tag": "v1.6.0",
+    "assets": [
+      "AtlasLauncherSetup.exe",
+      "armory-runtime.zip",
+      "launcher-update.json",
+      "PATCH-NOTES.md",
+      "PATCH-NOTES.en.md",
+      "SHA256SUMS.txt"
+    ],
+    "onlyPlayerExecutable": "AtlasLauncherSetup.exe"
+  },
+  "scope": {
+    "clientPublication": true,
+    "authenticationBackendDeployed": false,
+    "serverMigrationsApplied": false,
+    "servicesRestarted": false,
+    "gameFeedChanged": false,
+    "addonCatalogChanged": false
+  },
+  "limits": [
+    "No real UAC update/rollback under Program Files was run.",
+    "No real player account, launcher or game was opened.",
+    "The complete all-pages WPF suite is not asserted green; its known unrelated SettingsToggleDisabled baseline failure remains.",
+    "Game/addon feed signatures and PE Authenticode certificates are not introduced by this release."
+  ]
+}

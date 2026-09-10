@@ -74,16 +74,16 @@ public partial class PatchNotesViewV2 : UserControl
         };
         ContentFrame.Margin = mode switch
         {
-            AdaptiveLayoutMode.Wide => new Thickness(92, 0, 76, 36),
-            AdaptiveLayoutMode.Compact => new Thickness(56, 8, 44, 32),
-            _ => new Thickness(32, 12, 20, 28)
+            AdaptiveLayoutMode.Wide => new Thickness(64, 6, 64, 20),
+            AdaptiveLayoutMode.Compact => new Thickness(36, 10, 36, 20),
+            _ => new Thickness(24, 12, 24, 18)
         };
         PageTitle.FontSize = mode switch
         {
-            AdaptiveLayoutMode.Wide => 64,
-            AdaptiveLayoutMode.Compact => 56,
-            _ => 48
+            AdaptiveLayoutMode.Wide => 48,
+            AdaptiveLayoutMode.Compact => 42,
+            _ => 38
         };
-        PageDescription.FontSize = mode == AdaptiveLayoutMode.Wide ? 21 : 17;
+        PageDescription.FontSize = mode == AdaptiveLayoutMode.Wide ? 14 : 13;
     }
 }

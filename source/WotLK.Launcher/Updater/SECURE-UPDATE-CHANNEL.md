@@ -1,5 +1,21 @@
 # Atlas Launcher secure update channel
 
+## Transition from 1.5.0 to 1.6.0
+
+Version 1.6.0 writes authenticated schema-2 update transactions. The 1.5.0
+helper still owns the transaction while installing the first 1.6.0 client,
+so the new application's explicit post-update startup handshake also reads
+schema 1. This compatibility path only writes `started.json` and `ready.json`
+in the validated transaction workspace. It checks the running target path,
+file version, size and SHA-256, requires an unelevated process and a post-swap
+phase, and never saves, applies or recovers a schema-1 transaction.
+
+The elevated helper, bootstrap and ordinary recovery continue to reject
+schema 1. Integration tests cover the 1.5.0 JSON shape, both startup signals,
+unchanged legacy transaction bytes, normal startup without a marker, and
+rejection of mismatched paths, versions, hashes, phases and process IDs.
+This is a simulated migration test, not a real UAC installation test.
+
 ## Scope and 2026-09-03 audit snapshot
 
 Audit performed on 2026-09-03 without changing Caddy or production files.

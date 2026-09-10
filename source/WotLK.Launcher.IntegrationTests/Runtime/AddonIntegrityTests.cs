@@ -808,8 +808,44 @@ internal static class AddonIntegrityTests
 
             package.AtlasValidation = null;
             string archiveUrl = package.Url;
-            package.Url = "http://animeclub.fr/evidence.zip";
-            await ExpectAsync<InvalidOperationException>(() => fixture.Load(catalog), "HTTP addon archives must fail catalog validation.");
+            package.Components =
+            [
+                new AddonPackageComponent
+                {
+                    Name = "Legacy component URL",
+                    Url = "http://animeclub.fr/component.zip?source=legacy",
+                    Size = package.Size,
+                    Sha256 = package.Sha256
+                }
+            ];
+            package.Url = "http://animeclub.fr:80/evidence.zip";
+            AddonCatalog canonicalized = await fixture.Load(catalog);
+            Check(canonicalized.Addons[0].Url == archiveUrl
+                  && canonicalized.Addons[0].Components[0].Url == "https://animeclub.fr/component.zip?source=legacy",
+                "Legacy Atlas package and component URLs are canonicalized locally to HTTPS before catalog validation.");
+
+            package.Components = [];
+            int compatibilityRequestStart = fixture.Handler.Requests.Count;
+            canonicalized = await fixture.Load(catalog);
+            await fixture.Apply(canonicalized, new() { [canonicalized.Addons[0].Id] = true });
+            string[] compatibilityRequests = fixture.Handler.Requests.Skip(compatibilityRequestStart).ToArray();
+            Check(compatibilityRequests.SequenceEqual(["https://animeclub.fr/catalog.json", archiveUrl])
+                  && compatibilityRequests.All(url => url.StartsWith("https://", StringComparison.Ordinal)),
+                "Legacy Atlas archive compatibility performs one HTTPS catalog request and one HTTPS archive request without an HTTP hop.");
+
+            foreach (string rejectedLegacyUrl in new[]
+                     {
+                         "http://animeclub.fr:81/evidence.zip",
+                         "http://user@animeclub.fr/evidence.zip",
+                         "http://animeclub.fr/evidence.zip#fragment",
+                         "http://evil.example/evidence.zip"
+                     })
+            {
+                package.Url = rejectedLegacyUrl;
+                await ExpectAsync<InvalidOperationException>(
+                    () => fixture.Load(catalog),
+                    "Only the exact userinfo-free, fragment-free Atlas HTTP port 80 alias may be canonicalized: " + rejectedLegacyUrl);
+            }
             package.Url = archiveUrl;
 
             int requests = fixture.Handler.Requests.Count;

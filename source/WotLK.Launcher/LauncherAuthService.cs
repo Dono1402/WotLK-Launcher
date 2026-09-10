@@ -530,6 +530,14 @@ internal sealed class LauncherAuthService : ILauncherAuthService
                 response,
                 generation,
                 cancellationToken).ConfigureAwait(false);
+            if (response.StatusCode == HttpStatusCode.NoContent)
+            {
+                // The legacy server predates session rotation on password
+                // changes. Its successful contract is exactly 204;
+                // keep the authenticated session and generation unchanged.
+                ThrowIfSessionChanged(generation, cancellationToken);
+                return;
+            }
             LauncherAuthSession replacement = await ReadAuthSessionContentAsync(
                 response,
                 cancellationToken).ConfigureAwait(false);

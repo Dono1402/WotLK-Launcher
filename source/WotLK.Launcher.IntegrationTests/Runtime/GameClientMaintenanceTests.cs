@@ -14,6 +14,7 @@ internal static class GameClientMaintenanceTests
     internal static async Task<int> RunAsync()
     {
         CharacterizeFileUriConstruction();
+        await CanonicalizeLegacyManifestContentBeforeRequestAsync();
         await RejectInsecureDirectDownloadBeforeRequestAsync();
         await ValidateManifestResponseSecurityAsync();
         await DownloadCreatesTemporaryFileThenReplacesAsync();
@@ -71,6 +72,21 @@ internal static class GameClientMaintenanceTests
             transfer.BuildFileUri(manifest, manifest.Files[0]).AbsoluteUri,
             "Une URL absolue doit rester prioritaire.");
 
+        manifest.BaseUrl = "http://animeclub.fr:80/client/";
+        manifest.Files[0].Url = "http://animeclub.fr/client-direct.bin?source=legacy";
+        Equal(
+            "https://animeclub.fr/client-direct.bin?source=legacy",
+            transfer.BuildFileUri(manifest, manifest.Files[0]).AbsoluteUri,
+            "Une URL HTTP Atlas legacy doit être réécrite localement vers HTTPS.");
+        Equal(
+            "https://animeclub.fr/client/",
+            manifest.BaseUrl,
+            "Le baseUrl HTTP Atlas legacy doit être conservé uniquement sous sa forme HTTPS canonique.");
+        Equal(
+            "https://animeclub.fr/client-direct.bin?source=legacy",
+            manifest.Files[0].Url,
+            "Une URL absolue de fichier legacy doit être conservée uniquement sous sa forme HTTPS canonique.");
+
         manifest.BaseUrl = string.Empty;
         manifest.Files[0].Url = string.Empty;
         Throws<InvalidDataException>(
@@ -78,8 +94,11 @@ internal static class GameClientMaintenanceTests
             "baseUrl manquant doit être refusé.");
 
         foreach (string unsafeUrl in new[]
-                 {
-                     "http://animeclub.fr/client.bin",
+                  {
+                     "http://animeclub.fr:81/client.bin",
+                     "http://user@animeclub.fr/client.bin",
+                     "http://animeclub.fr/client.bin#fragment",
+                     "http://evil.example/client.bin",
                      "file:///C:/client.bin",
                      "https://user@animeclub.fr/client.bin",
                      "https://animeclub.fr:444/client.bin",
@@ -98,11 +117,75 @@ internal static class GameClientMaintenanceTests
                 "Une URL absolue non sûre doit être refusée: " + unsafeUrl);
         }
 
-        manifest.BaseUrl = "http://animeclub.fr/client/";
         manifest.Files[0].Url = "files/client.bin";
-        Throws<InvalidDataException>(
-            () => transfer.BuildFileUri(manifest, manifest.Files[0]),
-            "Un baseUrl HTTP doit être refusé.");
+        foreach (string unsafeBaseUrl in new[]
+                 {
+                     "http://animeclub.fr:81/client/",
+                     "http://user@animeclub.fr/client/",
+                     "http://animeclub.fr/client/#fragment",
+                     "http://evil.example/client/"
+                 })
+        {
+            manifest.BaseUrl = unsafeBaseUrl;
+            Throws<InvalidDataException>(
+                () => transfer.BuildFileUri(manifest, manifest.Files[0]),
+                "Un baseUrl HTTP hors alias Atlas exact doit être refusé: " + unsafeBaseUrl);
+        }
+    }
+
+    private static async Task CanonicalizeLegacyManifestContentBeforeRequestAsync()
+    {
+        using TempDirectory temp = new("AtlasLegacyManifestHttpsUpgrade");
+        byte[] payload = Encoding.UTF8.GetBytes("legacy-url-over-https");
+        LauncherManifest legacyManifest = Manifest(
+            "legacy-atlas-http",
+            FileEntry(
+                "Data/client.bin",
+                payload,
+                url: "http://animeclub.fr/wotlk/files/client.bin?source=legacy"));
+        legacyManifest.BaseUrl = "http://animeclub.fr:80/wotlk/";
+        List<Uri> requests = [];
+        ScriptedDownloadHandler manifestHandler = new((_, request, _) =>
+        {
+            requests.Add(request.RequestUri!);
+            return Response(JsonSerializer.SerializeToUtf8Bytes(legacyManifest));
+        });
+
+        LauncherManifest loaded;
+        using (HttpClient manifestHttp = new(manifestHandler))
+        {
+            loaded = await new GameManifestClient(manifestHttp).LoadAsync(
+                "https://animeclub.fr/wotlk/manifest.json",
+                CancellationToken.None);
+        }
+
+        Equal("https://animeclub.fr/wotlk/", loaded.BaseUrl,
+            "Le manifeste chargé par HTTPS doit normaliser son baseUrl Atlas legacy avant validation.");
+        Equal("https://animeclub.fr/wotlk/files/client.bin?source=legacy", loaded.Files[0].Url,
+            "Le manifeste chargé par HTTPS doit normaliser ses URL absolues Atlas legacy avant validation.");
+
+        ScriptedDownloadHandler fileHandler = new((_, request, _) =>
+        {
+            requests.Add(request.RequestUri!);
+            return Response(payload);
+        });
+        using HttpClient fileHttp = new(fileHandler);
+        GameFileTransferService transfer = new(fileHttp);
+        Uri fileUri = transfer.BuildFileUri(loaded, loaded.Files[0]);
+        await transfer.DownloadAsync(
+            1,
+            fileUri,
+            Path.Combine(temp.Path, "client.bin"),
+            payload.Length,
+            Hash(payload),
+            null,
+            CancellationToken.None);
+
+        True(requests.Count == 2
+             && requests.All(uri => uri.Scheme == Uri.UriSchemeHttps
+                                    && string.Equals(uri.Host, "animeclub.fr", StringComparison.OrdinalIgnoreCase)
+                                    && uri.Port == 443),
+            "La compatibilité legacy doit produire uniquement la requête de manifeste HTTPS puis le téléchargement HTTPS, sans hop HTTP.");
     }
 
     private static async Task RejectUnsafeInstallRootBeforeManifestOrRegistrationAsync()

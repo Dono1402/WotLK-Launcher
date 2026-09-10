@@ -26,6 +26,7 @@ internal static class LauncherAuthServiceConcurrencyTests
             await ConcurrentRefreshAsync();
             await CancelledRefreshWaiterAsync();
             await PasswordAfterRefreshAsync();
+            await LegacyPasswordNoContentAsync();
             await RefreshDuringBodyCompensationAsync();
             await PasswordReplacementCompensationAsync();
             await LogoutFailuresAsync();
@@ -241,6 +242,68 @@ internal static class LauncherAuthServiceConcurrencyTests
         Check(fixture.Store.SaveCalls == 3 && fixture.Store.ClearCalls == 0
             && fixture.SsoClearCalls == 1,
             "Password replacement persists one new token pair and clears stale game SSO once.");
+    }
+
+    private static async Task LegacyPasswordNoContentAsync()
+    {
+        using Fixture fixture = new();
+        LauncherAuthSession current = Session(
+            101,
+            fresh: true,
+            revision: "legacy-password-no-content");
+        fixture.Service.CommitSession(current, clearGameSingleSignOn: false);
+
+        Exchange sessions = fixture.Handler.Enqueue(HttpMethod.Get, "me/sessions");
+        Task<IReadOnlyList<LauncherDeviceSession>> pendingSessions =
+            fixture.Service.GetSessionsAsync();
+        RequestSnapshot sessionsRequest = await Entered(sessions);
+
+        Exchange password = fixture.Handler.Enqueue(HttpMethod.Post, "me/password");
+        Task pendingPassword = fixture.Service.ChangePasswordAsync(
+            "current-password",
+            "replacement-password");
+        RequestSnapshot passwordRequest = await Entered(password);
+        Check(sessionsRequest.BearerToken == current.AccessToken
+            && passwordRequest.BearerToken == current.AccessToken,
+            "Legacy password compatibility authenticates concurrent requests with the current access token.");
+
+        password.Complete(new(HttpStatusCode.NoContent));
+        await pendingPassword.WaitAsync(StepTimeout);
+        CheckCurrent(fixture, current,
+            "A legacy 204 password response preserves the exact current session");
+        Check(fixture.Store.SaveCalls == 1
+            && fixture.Store.ClearCalls == 0
+            && fixture.SsoClearCalls == 0,
+            "A legacy 204 password response does not invent, persist or clear credentials.");
+
+        sessions.Complete(Json(Array.Empty<LauncherDeviceSession>()));
+        IReadOnlyList<LauncherDeviceSession> result =
+            await pendingSessions.WaitAsync(StepTimeout);
+        Check(result.Count == 0,
+            "A request captured before the legacy password response remains current, proving its generation was preserved.");
+
+        using Fixture malformed = new();
+        LauncherAuthSession malformedCurrent = Session(
+            101,
+            fresh: true,
+            revision: "legacy-password-empty-ok");
+        malformed.Service.CommitSession(
+            malformedCurrent,
+            clearGameSingleSignOn: false);
+        Exchange emptyOk = malformed.Handler.Enqueue(HttpMethod.Post, "me/password");
+        Task rejected = malformed.Service.ChangePasswordAsync(
+            "current-password",
+            "replacement-password");
+        await Entered(emptyOk);
+        emptyOk.Complete(new(HttpStatusCode.OK));
+        await ThrowsAsync<LauncherAuthException>(rejected,
+            "Only 204 is compatible; an empty successful 200 remains a malformed authentication response.");
+        CheckCurrent(malformed, malformedCurrent,
+            "An empty successful 200 preserves the current session while being rejected");
+        Check(malformed.Store.SaveCalls == 1
+            && malformed.Store.ClearCalls == 0
+            && malformed.SsoClearCalls == 0,
+            "A malformed 200 password response cannot mutate stored credentials or game SSO.");
     }
 
     private static async Task RefreshDuringBodyCompensationAsync()

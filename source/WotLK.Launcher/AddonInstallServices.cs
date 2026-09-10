@@ -2054,6 +2054,7 @@ internal static partial class AddonInstallServices
 
     private static void ValidateCatalog(AddonCatalog catalog)
     {
+        CanonicalizeLegacyAtlasArchiveUrls(catalog);
         if (catalog.SchemaVersion != 1)
         {
             throw new InvalidOperationException("Version de catalogue d'addons non prise en charge.");
@@ -2125,6 +2126,41 @@ internal static partial class AddonInstallServices
                 if (!ownedFolders.Add(folder))
                 {
                     throw new InvalidOperationException($"Le dossier {folder} appartient à plusieurs addons du catalogue.");
+                }
+            }
+        }
+    }
+
+    private static void CanonicalizeLegacyAtlasArchiveUrls(AddonCatalog catalog)
+    {
+        if (catalog.Addons is null)
+        {
+            return;
+        }
+
+        foreach (AddonPackage? package in catalog.Addons)
+        {
+            if (package is null)
+            {
+                continue;
+            }
+
+            if (AtlasLegacyUrlCanonicalizer.TryCanonicalize(package.Url, out string packageUrl))
+            {
+                package.Url = packageUrl;
+            }
+
+            if (package.Components is null)
+            {
+                continue;
+            }
+
+            foreach (AddonPackageComponent? component in package.Components)
+            {
+                if (component is not null
+                    && AtlasLegacyUrlCanonicalizer.TryCanonicalize(component.Url, out string componentUrl))
+                {
+                    component.Url = componentUrl;
                 }
             }
         }

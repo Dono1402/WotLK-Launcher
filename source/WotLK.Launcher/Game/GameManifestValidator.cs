@@ -23,6 +23,7 @@ internal static class GameManifestValidator
     internal static void Validate(LauncherManifest manifest)
     {
         ArgumentNullException.ThrowIfNull(manifest);
+        CanonicalizeLegacyAtlasUrl(manifest);
         if (string.IsNullOrWhiteSpace(manifest.Version)
             || manifest.Version.Length > MaximumVersionLength
             || manifest.Version.Any(char.IsControl))
@@ -50,6 +51,7 @@ internal static class GameManifestValidator
         foreach (LauncherFile? file in manifest.Files)
         {
             if (file is null) throw new InvalidDataException("Entrée de fichier absente dans le manifeste.");
+            CanonicalizeLegacyAtlasUrl(file);
             string normalizedPath = ValidatePath(file.Path);
             if (!paths.Add(normalizedPath))
             {
@@ -85,6 +87,8 @@ internal static class GameManifestValidator
     {
         ArgumentNullException.ThrowIfNull(manifest);
         ArgumentNullException.ThrowIfNull(file);
+        CanonicalizeLegacyAtlasUrl(manifest);
+        CanonicalizeLegacyAtlasUrl(file);
 
         if (!string.IsNullOrWhiteSpace(manifest.BaseUrl))
         {
@@ -154,6 +158,22 @@ internal static class GameManifestValidator
             character is >= '0' and <= '9'
             or >= 'a' and <= 'f'
             or >= 'A' and <= 'F');
+    }
+
+    private static void CanonicalizeLegacyAtlasUrl(LauncherManifest manifest)
+    {
+        if (AtlasLegacyUrlCanonicalizer.TryCanonicalize(manifest.BaseUrl, out string canonicalUrl))
+        {
+            manifest.BaseUrl = canonicalUrl;
+        }
+    }
+
+    private static void CanonicalizeLegacyAtlasUrl(LauncherFile file)
+    {
+        if (AtlasLegacyUrlCanonicalizer.TryCanonicalize(file.Url, out string canonicalUrl))
+        {
+            file.Url = canonicalUrl;
+        }
     }
 
     private static string ValidatePath(string? path)

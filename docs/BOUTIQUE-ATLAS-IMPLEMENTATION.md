@@ -9,12 +9,18 @@ Aucun service de production ni client installé n'a été modifié.
 
 ## Fonctionnement présent
 
-- Onglet **Boutique** reproduisant la composition de la maquette fournie :
-  catalogue à gauche, trois cartes illustrées, sélection à droite et bandeau
-  de conversion en bas. Les deux services futurs sont uniquement des annonces.
-- Fiche **Changement de nom** à **5 € depuis les Crédits Atlas ou le
-  portefeuille en euros**, conditions, personnage bénéficiaire et récapitulatif.
-  L'ancien tarif de 300 po est retiré.
+- Onglet **Boutique** reprenant la nouvelle référence de catalogue : grandes
+  cartes en grille, illustration panoramique en haut, identité du jeu, nom du
+  service, catégorie puis prix. Trois colonnes dès 1320 DIPs, deux en dessous.
+  Les quatre cartes appartiennent au catalogue partagé entre le serveur et l'aperçu.
+- **Changement de nom** à **5 € depuis les Crédits Atlas ou le portefeuille en euros**.
+- **Sésame niveau 70**, **Changement de faction** et **Changement de race** :
+  leurs fiches sont consultables, avec **Tarif à venir**. Aucun prix n'est inventé ;
+  leur liste de prix est vide dans l'API, ce qui ne signifie jamais gratuité.
+- Cliquer une carte ouvre une fiche dédiée : illustration, description,
+  conditions visibles, personnage bénéficiaire et récapitulatif. Le choix du
+  paiement n'apparaît que pour un service tarifé. Retour et Échap restaurent
+  le catalogue et sa position de défilement. La navigation supérieure reste accessible.
 - Page et données en français/anglais ; conservation de la sélection lors du
   changement de langue et de l'actualisation. Un personnage disparu ne peut
   pas être remplacé silencieusement par un autre bénéficiaire.
@@ -45,42 +51,62 @@ Aucun service de production ni client installé n'a été modifié.
   débit de requêtes excessif et boutique indisponible. Un ancien backend sans
   cette route n'entraîne pas l'affichage d'un catalogue d'exemple dans la session.
 
-## Maquette et ressources du 10 septembre
+## Présentation et ressources
 
-Les illustrations, le logo et le décor proviennent de l'archive fournie
-`Atlas_Boutique_Assets_Pour_Codex.zip`. Leur provenance et leurs dimensions sont
-documentées dans `source/WotLK.Launcher/Assets/Shop/README.md`.
-Les composants restent natifs : textes localisés, liste du service disponible,
-choix du personnage, choix du paiement, récapitulatif et calculateur.
-Les conditions du service sont consultables dans l'infobulle du récapitulatif.
+La référence du 11 septembre est une grille de grandes cartes de services.
+Les illustrations occupent une zone 16:9 ; la partie inférieure des cartes est
+opaque, avec des noms et tarifs lisibles. Le catalogue défile verticalement
+pour présenter les quatre services et le bandeau de conversion. La fiche et le
+convertisseur sont deux vues distinctes et exclusives de la même page.
 
-À 1586 × 992, l'ensemble du catalogue et du bandeau tient sans défilement.
-Sous 1480 DIPs de largeur, le récapitulatif passe sous les cartes pour conserver
-leur lisibilité ; le défilement vertical permet d'accéder au reste de la page.
-Le bouton Convertir du bandeau ouvre la conversion dans la zone de contenu,
-sans fenêtre, voile sombre ni comportement modal. Le contenu central défile si
-nécessaire sur un petit écran ; le bouton de confirmation reste visible.
-La barre supérieure est commune à Jeu, Addons et Boutique : même logo, hauteur,
-marges, boutons et proportions à largeur identique. Seul l'onglet actif change.
-Les adaptations dépendent uniquement de la largeur disponible.
-Les panneaux réutilisent les surfaces vitrées, les bordures et les rayons de
-14 DIPs du launcher, avec Inter et ClearType/Ideal. Les titres utilisent le
-dégradé nacré commun. L'icône d'or est un dessin vectoriel WPF, sans texte agrandi
-dans une Viewbox et sans halo lumineux autour des cartes sélectionnées.
+Le décor et le logo proviennent de l'archive fournie
+`Atlas_Boutique_Assets_Pour_Codex.zip`. Les cartes utilisent quatre illustrations
+de 1672 × 941 créées avec ImageGen : deux nouvelles compositions pour le sésame
+et la race, deux versions redessinées à partir des ressources du nom et de la
+faction. Les PNG originaux sont conservés. Provenance, modes, prompts et
+empreintes : [ressources](../source/WotLK.Launcher/Assets/Shop/README.md)
+et [illustrations générées](../source/WotLK.Launcher/Assets/Shop/GENERATED-ART.md).
 
-Le pack ne contient pas le décor complet sans interface : son fond reconstitué
-est moins détaillé que la référence. Le fragment original de citadelle est
-réintégré à sa position native avec des bords fondus. La texture du fond et la
-police d'origine non identifiée empêchent une identité stricte pixel par pixel.
+Les textes, prix, choix et interactions restent des contrôles WPF, avec Inter
+et ClearType/Ideal. La barre supérieure est commune à Jeu, Addons et Boutique.
+Le bouton Convertir ouvre une page intégrée, sans comportement modal ; sa
+confirmation reste visible même lorsque son contenu central doit défiler.
 
-Vérifications propres à cette refonte : compilation, `--shop`, `--shop-wpf`
-et `--shell-navigation-wpf`. Le serveur et l'aperçu utilisent le même taux partagé de 100 po par euro.
-La révision du catalogue inclut désormais ce taux, en plus des offres.
-Le contrôle API/MySQL a été rejoué après ce changement : 1, 10, 100 et 400 po
-donnent exactement autant de centimes depuis le catalogue HTTP authentifié.
-La limite globale de la suite de navigation est de huit minutes pour couvrir les deux
-tailles et les attentes d'animation, avec progression par taille et résultat
-retourné après la fermeture du dispatcher WPF.
+Le serveur et l'aperçu utilisent le même catalogue `ShopServiceCatalog` et le
+même taux partagé de 100 po par euro. La révision du catalogue couvre les
+offres et le taux. Les listes de prix vides sont acceptées par le schéma 2
+existant ; aucun changement de schéma n'est nécessaire pour ces trois offres.
+
+## Présence des services dans le serveur
+
+Vérification en lecture seule du code AzerothCore local au commit
+`f67b86df8bec0d06b76ad17a9512f08d615f2057`, le 11 septembre :
+
+| Service | Base présente dans le core | Travail avant vente |
+| --- | --- | --- |
+| Changement de nom | Commande de renommage et `AT_LOGIN_RENAME` | Commande boutique durable, facturation et test du parcours complet |
+| Sésame niveau 70 | `HandleCharacterLevelCommand` / `HandleCharacterLevel` permettent une modification administrative du niveau | Définir éligibilité et contenu du sésame, puis livraison durable ; une commande GM n'est pas un service boutique |
+| Changement de faction | `AT_LOGIN_CHANGE_FACTION = 0x40` et `HandleCharFactionOrRaceChange` | Relier la boutique, confirmer ou compléter Hermes, vérifier les restrictions et transformations avec le client |
+| Changement de race | `AT_LOGIN_CHANGE_RACE = 0x80` et le même gestionnaire | Relier la boutique, confirmer ou compléter Hermes et vérifier les combinaisons race/classe |
+
+Fichiers examinés : `src/server/scripts/Commands/cs_character.cpp`,
+`src/server/game/Entities/Player/Player.h` et
+`src/server/game/Handlers/CharacterHandler.cpp`. Le gestionnaire du core
+contrôle notamment l'appartenance du personnage, sa déconnexion, le flag
+accordé et la compatibilité race/classe.
+
+Dans la copie Hermes Atlas `01667dc` disponible localement et dans les fichiers
+de personnages de l'upstream `4247d957` référencé par le manifeste de préparation
+du 9 septembre, les gestionnaires de renommage sont présents. Aucun
+gestionnaire race/faction n'a été identifié dans ces deux fichiers
+[Server/CharacterHandler.cs](https://github.com/Xian55/HermesProxy/blob/4247d957b78e6621047783560b3606f8fcf7ff42/HermesProxy/World/Server/PacketHandlers/CharacterHandler.cs)
+et [Client/CharacterHandler.cs](https://github.com/Xian55/HermesProxy/blob/4247d957b78e6621047783560b3606f8fcf7ff42/HermesProxy/World/Client/PacketHandlers/CharacterHandler.cs).
+Cela motive une vérification du proxy retenu avant activation ; ce contrôle
+ne prouve pas l'absence dans tout autre fichier ou dans le binaire actif.
+Aucun parcours de changement de race/faction avec le client réel n'a été testé.
+
+Les quatre services restent fermés à l'achat. Les trois nouveaux tarifs et
+leurs paramètres métier ne sont pas configurés dans ce jalon.
 
 ## Montants et conversion
 
@@ -129,8 +155,8 @@ l'or sauvegardé d'un personnage déconnecté. Pour un personnage connecté, le
 solde est `null` : l'or en mémoire du core peut différer de la dernière
 sauvegarde SQL. Même l'or sauvegardé devra être revalidé lors d'un futur débit.
 
-Le catalogue initial est défini dans `ShopCatalog`. Sa révision dépend de son
-contenu. Les tarifs peuvent être configurés via :
+Le catalogue est assemblé par `ShopCatalog` à partir de `ShopServiceCatalog`.
+Sa révision dépend des offres et du taux de conversion. Les tarifs peuvent être configurés via :
 
 ```text
 AtlasShop:Rename:EuroCents = 500
@@ -176,8 +202,8 @@ d'intégration sans erreur ni avertissement.
 
 | Suite | Résultat et portée |
 | --- | --- |
-| `--shop` | 113 assertions : taux de 100 po par euro, deux soldes, limites par personnage, précision, débit/crédit simulé conservatif, refus du dépassement, saisie, session, erreurs HTTP et séparation du mode réel |
-| `--shop-wpf <dossier>` | Catalogue à 1586×992 puis quatre tailles FR/EN ; deux soldes supérieurs, conversion horizontale intégrée de 1080×680 à 1586×992, frappe/collage entiers, Max par personnage, en-tête identique à Addons, navigation libre/retour/Escape, animation interne annulable, maintien dans la conversion après réussite, sélection conservée et actualisation des soldes à la connexion ; captures PNG et aucune erreur de binding |
+| `--shop` | 122 assertions : quatre offres, tarifs futurs absents, ouverture et fermeture des fiches, taux de 100 po par euro, deux soldes, limites par personnage, précision, débit/crédit simulé conservatif, refus du dépassement, saisie, session, erreurs HTTP et séparation du mode réel |
+| `--shop-wpf <dossier>` | Quatre cartes en 3/2 colonnes à 1586×992 puis quatre tailles FR/EN ; ouverture de chaque fiche, prix futurs localisés, retour/Échap et position de défilement conservée ; deux soldes supérieurs, conversion horizontale intégrée de 1080×680 à 1586×992, frappe/collage entiers, Max par personnage, en-tête identique à Addons, navigation libre/retour/Escape, animation interne annulable, maintien dans la conversion après réussite, sélection conservée et actualisation des soldes à la connexion ; captures PNG et aucune erreur de binding |
 | `--shop-mysql` | API HTTP réelle et MySQL 8.4.11 jetable sur loopback : authentification, appartenance Atlas, personnages autorisés, soldes, prix, taux, absence de mutation, limites et erreurs |
 | `--armory-session` | Régressions de session et tests boutique : refus du refresh, 401, reconnexion au même compte ou à un autre, réponse tardive et annulation |
 | `--shell-navigation-wpf` | 898 assertions incluant le nouvel onglet et les panneaux existants |
@@ -192,7 +218,7 @@ launcher utilisateur, jeu ou navigateur n'a été ouvert. Les bases jetables ont
 
 1. Deux portefeuilles persistants en centimes, journal des mouvements, commandes et
    identifiants idempotents pour achats, conversions et notifications répétées.
-2. Module du core pour contrôler l'or, exécuter le renommage et enregistrer un
+2. Module du core pour contrôler l'or, livrer les services de personnage et enregistrer un
    résultat durable. Tester les connexions concurrentes et les interruptions
    entre débit, sauvegarde et confirmation ; aucune écriture directe de l'or
    d'un personnage connecté depuis l'API.

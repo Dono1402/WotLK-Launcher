@@ -20,7 +20,18 @@ internal sealed class ShopOfferRow(ShopOffer offer) : ShopLocalizedRow
     public ShopOffer Offer { get; } = offer;
     public string Name => ShopUiState.Text(Offer.Name);
     public string Description => ShopUiState.Text(Offer.Description);
-    public string DisplayPrice => Offer.Prices.FirstOrDefault() is { } price ? ShopUiState.FormatEuros(price.Amount) : "—";
+    public string DisplayPrice => Offer.Prices.FirstOrDefault() is { } price ? ShopUiState.FormatEuros(price.Amount) : ShopUiState.L("Tarif à venir", "Price to be announced");
+    public bool HasPrice => Offer.Prices.Count != 0;
+    public string Category => ShopUiState.L("Service de personnage", "Character service");
+    public string Realm => "WRATH OF THE LICH KING";
+    public string Artwork => "/WotLK.Launcher;component/Assets/Shop/" + (Offer.Id switch
+    {
+        "character-rename" => "Service_name_change.png",
+        "character-level-70" => "Service_level_70.png",
+        "character-faction-change" => "Service_faction_change.png",
+        "character-race-change" => "Service_race_change.png",
+        _ => "Service_a_venir.png"
+    });
     public string Price => Offer.Prices.Count == 0 ? ShopUiState.L("Tarif à venir", "Price to be announced")
         : string.Join(ShopUiState.L(" ou ", " or "), Offer.Prices.Select(ShopUiState.FormatPrice));
 }
@@ -61,6 +72,10 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     public bool CanRefresh => !IsLoading && _read is not null && !_disposed;
     public bool HasOffers => Offers.Count != 0;
     public bool HasCharacters => Characters.Count != 0;
+    public bool IsServiceOpen { get; private set; }
+    public bool HasPrices => Prices.Count != 0;
+    public string? OfferArtwork => _offer?.Artwork;
+    public string ConditionsLabel => L("À savoir", "Before you begin");
     public bool HasSelection => _offer is not null;
     public bool ShowStatus => _status != "ready";
     public bool CanPurchase => false;
@@ -118,6 +133,13 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
         get => _price;
         set { if (Equals(value, _price)) return; _price = value is not null && Prices.Contains(value) ? value : null; Changed(); }
     }
+
+    internal void OpenService(ShopOfferRow row)
+    {
+        if (_disposed || !Offers.Contains(row)) return;
+        SelectedOffer = row; IsConversionOpen = false; IsServiceOpen = true; Changed();
+    }
+    internal void CloseService() { IsServiceOpen = false; Changed(); }
 
     internal void Configure(Func<CancellationToken, Task<ShopSnapshot>> read) { _previewSnapshot = null; _read = read; Changed(); }
 
@@ -186,7 +208,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
         if (_previewSnapshot is not null) _read = null;
         Clear(); _previewSnapshot = null; _conversionCharacterId = null; _conversionGold = ""; IsConversionOpen = false; IsLoading = false; _status = "unavailable"; Changed();
     }
-    private void Clear() { _snapshot = null; _lastConversion = null; Offers = []; Characters = []; Prices = []; _offer = null; _character = null; _conversionCharacter = null; _price = null; }
+    private void Clear() { IsServiceOpen = false; _snapshot = null; _lastConversion = null; Offers = []; Characters = []; Prices = []; _offer = null; _character = null; _conversionCharacter = null; _price = null; }
     private void Changed() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));
     public void Dispose() { if (_disposed) return; _disposed = true; ResetSession(); _read = null; }
     internal static string Text(ShopText text) => LauncherLocalization.IsEnglish ? text.En : text.Fr;

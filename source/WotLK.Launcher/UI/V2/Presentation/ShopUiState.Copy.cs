@@ -10,11 +10,6 @@ internal sealed partial class ShopUiState
     public string RealmSupportLabel => L("Soutient le royaume", "Supports the realm");
     public string ServicesHeading => L("Nos services", "Our services");
     public string ServicesSubtitle => L("Personnalisez votre expérience de jeu avec nos services officiels.", "Customize your game experience with our official services.");
-    public string PopularLabel => L("POPULAIRE", "POPULAR");
-    public string CustomizationHeading => L("Personnalisation", "Customization");
-    public string CustomizationDescription => L("Modifications d’apparence, transferts et autres services de personnalisation pour votre personnage.", "Appearance changes, transfers and other customization services for your character.");
-    public string FutureHeading => L("Services à venir", "Upcoming services");
-    public string FutureDescription => L("De nouveaux services seront bientôt disponibles pour enrichir votre expérience sur Norfendre.", "New services will be available soon to enrich your experience in Northrend.");
     public string SoonLabel => L("Bientôt disponible", "Available soon");
     public string UpcomingLabel => L("Prochainement", "Coming soon");
     public string SelectionHeading => L("VOTRE SÉLECTION", "YOUR SELECTION");

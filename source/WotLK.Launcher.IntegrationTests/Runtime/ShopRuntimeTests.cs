@@ -26,7 +26,28 @@ internal static class ShopRuntimeTests
             LauncherLocalization.SetLocale(LauncherLocalization.FrenchLocale);
             ShopSnapshot snapshot = Snapshot;
             snapshot.Validate();
-            Check(snapshot.Offers.Single().Prices.SequenceEqual(new ShopPrice[] { new("credits", 500), new("eur", 500) }), "Approved prices: EUR 5 from either Atlas credits or the euro wallet.");
+            Check(snapshot.Offers.Select(o => o.Id).SequenceEqual(new[] { "character-rename", "character-level-70", "character-faction-change", "character-race-change" }), "All four requested services have distinct stable catalog identities.");
+            Check(snapshot.Offers.Skip(1).All(o => o.Prices.Count == 0), "Unpriced upcoming services must not be advertised as free.");
+            Check(JsonSerializer.Serialize(snapshot.Offers) == JsonSerializer.Serialize(ShopPreviewData.Create().Offers), "Preview and server share service names, conditions and prices.");
+            using (ShopUiState services = new())
+            {
+                services.Configure(_ => Task.FromResult(snapshot)); await services.RefreshAsync();
+                services.OpenService(services.Offers[3]);
+                Check(services.IsServiceOpen && !services.HasPrices && services.SelectedPrice is null
+                    && services.SelectedAmount == "À venir" && !services.CanPurchase, "Upcoming service opens with no invented amount or checkout capability.");
+                services.OpenConversion();
+                Check(!services.IsServiceOpen && services.IsConversionOpen, "Converter and service page are mutually exclusive.");
+                services.OpenService(services.Offers[1]);
+                Check(services.IsServiceOpen && !services.IsConversionOpen, "Opening a service leaves the converter.");
+                ShopOfferRow staleService = services.Offers[1];
+                await services.RefreshAsync();
+                Check(!services.IsServiceOpen && services.SelectedOffer?.Offer.Id == "character-level-70", "Refresh closes the detail and preserves its service identity.");
+                services.OpenService(staleService);
+                Check(!services.IsServiceOpen, "Old service rows cannot reopen after a catalog refresh.");
+                services.OpenService(services.Offers[0]); services.ResetSession();
+                Check(!services.IsServiceOpen && !services.HasOffers, "Signing out clears service details and catalog data.");
+            }
+            Check(snapshot.Offers.Single(o => o.Id == "character-rename").Prices.SequenceEqual(new ShopPrice[] { new("credits", 500), new("eur", 500) }), "Approved prices: EUR 5 from either Atlas credits or the euro wallet.");
             Check(!snapshot.CheckoutAvailable && snapshot.CreditBalanceEuroCents is null && snapshot.EuroBalanceCents is null, "Checkout closed and both wallets unknown.");
             Check(new ShopCatalog(600).CreateSnapshot([]).CatalogRevision != snapshot.CatalogRevision, "Price change changes revision.");
             foreach (ShopSnapshot invalid in new[]
@@ -59,7 +80,7 @@ internal static class ShopRuntimeTests
                 Check(request.Method == HttpMethod.Get && request.RequestUri!.AbsolutePath == "/api/v1/shop" && request.RequestUri.Query == "", "Fixed read route; no account override or mutation.");
                 return Json(snapshot);
             };
-            Check((await client.ReadAsync(default)).Offers.Count == 1, "Client reads the server contract.");
+            Check((await client.ReadAsync(default)).Offers.Count == 4, "Client reads the server contract.");
             handler.Read = _ => new(HttpStatusCode.Unauthorized);
             await ThrowsAsync<UnauthorizedAccessException>(() => client.ReadAsync(default));
             handler.Read = _ => new(HttpStatusCode.NotFound);

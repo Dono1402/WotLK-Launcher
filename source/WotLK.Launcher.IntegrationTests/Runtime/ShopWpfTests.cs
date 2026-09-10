@@ -59,7 +59,9 @@ internal static class ShopWpfTests
                     Get<Button>(shell, "ShopNavigationButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     await Pump();
                     Check(shell.CurrentPage == LauncherShellPage.Shop && shop.IsVisible, "Shop opens inside the existing shell.");
-                    Check(Get<ListBox>(shop, "ProductList").SelectedItem is not null, "First offer is selected.");
+                    Check(Get<ItemsControl>(shop, "ProductList").Items.Count == 4 && !shop.State.IsServiceOpen, "The catalog displays the four services before opening a product.");
+                    ServiceButton(shop, 0).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                    Check(shop.State.IsServiceOpen && Get<ScrollViewer>(shop, "ServiceScroll").IsVisible && !Get<ScrollViewer>(shop, "PageScroll").IsVisible, "Clicking a card opens its service page.");
                     ComboBox character = Get<ComboBox>(shop, "CharacterPicker");
                     ComboBox currency = Get<ComboBox>(shop, "CurrencyPicker");
                     Check(character.SelectedIndex == -1, "No beneficiary is chosen implicitly.");
@@ -77,8 +79,26 @@ internal static class ShopWpfTests
                     shell.Width = 1586; shell.Height = 992; currency.SelectedIndex = 0; await Pump();
                     Get<ScrollViewer>(shop, "PageScroll").ScrollToTop(); await Pump();
                     Capture(shell, Path.Combine(captureDirectory, "shop-reference-1586.png"));
-                    Check(Get<Border>(shop, "ConversionBanner").TranslatePoint(new Point(0, Get<Border>(shop, "ConversionBanner").ActualHeight), shell).Y <= shell.ActualHeight, "Reference size shows the whole conversion banner.");
-                    Check(Get<ScrollViewer>(shop, "PageScroll").ScrollableHeight == 0, "Reference layout fits without a vertical scrollbar.");
+                    Check(!shop.State.IsServiceOpen, "Refresh returns to the catalog without retaining a stale service page.");
+                    Get<ScrollViewer>(shop, "PageScroll").ScrollToVerticalOffset(200); await Pump();
+                    double catalogOffset = Get<ScrollViewer>(shop, "PageScroll").VerticalOffset;
+                    for (int service = 1; service < 4; service++)
+                    {
+                        ServiceButton(shop, service).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                        Check(shop.State.IsServiceOpen && shop.State.Prices.Count == 0 && !currency.IsEnabled
+                            && shop.State.PriceLabel == "Tarif à venir" && !Get<Button>(shop, "PurchaseButton").IsEnabled,
+                            "Each upcoming service opens without inventing a price or enabling payment.");
+                        Capture(shell, Path.Combine(captureDirectory, $"shop-service-{shop.State.SelectedOffer!.Offer.Id}.png"));
+                        Get<Button>(shop, "ServiceBackButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                        Check(!shop.State.IsServiceOpen && Get<ScrollViewer>(shop, "PageScroll").IsVisible
+                            && Math.Abs(Get<ScrollViewer>(shop, "PageScroll").VerticalOffset - catalogOffset) < 1, "Back restores the catalog and its scroll position.");
+                    }
+                    Get<ScrollViewer>(shop, "PageScroll").ScrollToTop(); await Pump();
+                    ServiceButton(shop, 0).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                    Capture(shell, Path.Combine(captureDirectory, "shop-service-rename.png"));
+                    HwndSource serviceHwnd = (HwndSource)PresentationSource.FromVisual(shell);
+                    shell.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, serviceHwnd, Environment.TickCount, Key.Escape) { RoutedEvent = Keyboard.PreviewKeyDownEvent }); await Pump();
+                    Check(!shop.State.IsServiceOpen, "Escape leaves the service page.");
                     currency.SelectedIndex = 1; await Pump();
                     foreach (string selectedLocale in new[] { LauncherLocalization.FrenchLocale, LauncherLocalization.EnglishLocale })
                     {
@@ -105,6 +125,18 @@ internal static class ShopWpfTests
                             Check(HeaderGeometry(shell).SequenceEqual(shopChrome), "Returning to Shop does not restyle or move the header.");
                             Check(!Get<Button>(shop, "PurchaseButton").IsEnabled, "Purchases remain closed.");
                             Check(Get<ScrollViewer>(shop, "PageScroll").ScrollableWidth == 0, "No horizontal overflow.");
+                            Button firstCard = ServiceButton(shop, 0), nextCard = ServiceButton(shop, 1), thirdCard = ServiceButton(shop, 2);
+                            Point first = firstCard.TranslatePoint(new Point(), shop), next = nextCard.TranslatePoint(new Point(), shop), third = thirdCard.TranslatePoint(new Point(), shop);
+                            Check(next.X > first.X && Math.Abs(next.Y - first.Y) < 1, "Cards form a full-width grid.");
+                            Check(width >= 1440 ? Math.Abs(third.Y - first.Y) < 1 : third.Y > first.Y, "Grid adapts from three columns to two.");
+                            Check(firstCard.ActualWidth >= 350 && Math.Abs(shop.CardImageHeight / (firstCard.ActualWidth - 2) - 9d / 16) < .001, "Large card artwork keeps the requested landscape ratio.");
+                            Check(Texts(firstCard).Any(t => t.Text == shop.State.Offers[0].DisplayPrice), "Rendered catalog price follows the active locale.");
+                            ServiceButton(shop, 3).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                            Check(shop.State.PriceLabel == (LauncherLocalization.IsEnglish ? "Price to be announced" : "Tarif à venir"), "Future service pricing is localized.");
+                            Check(Get<ScrollViewer>(shop, "ServiceScroll").ScrollableWidth == 0, "Service page has no horizontal overflow.");
+                            Capture(shell, Path.Combine(captureDirectory, $"shop-service-{selectedLocale}-{width}.png"));
+                            Get<Button>(shop, "ServiceBackButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                            shop.State.SelectedOffer = shop.State.Offers[0]; currency.SelectedIndex = 1; await Pump();
                             Capture(shell, Path.Combine(captureDirectory, $"shop-{selectedLocale}-{width}.png"));
                         }
                     }
@@ -250,7 +282,7 @@ internal static class ShopWpfTests
                     Capture(shell, Path.Combine(captureDirectory, "shop-rate-10-gold.png"));
                     await VerifyHeaderSessionAsync();
                     Check(errors.Messages.Count == 0, "No WPF binding errors: " + string.Join("\n", errors.Messages));
-                    Console.WriteLine("Shop WPF PASS: two header wallets, FR/EN at four adaptive widths, integrated horizontal conversion, freely accessible navigation, return/Escape, numeric typing/paste, per-character max and overdraw, cancellable internal coin transfer, subtle header counter, retained success receipt, refresh and session changes; offscreen inactive fixtures only.");
+                    Console.WriteLine("Shop WPF PASS: four adaptive service cards, localized upcoming prices, detail/back/Escape and scroll restoration, two header wallets, FR/EN at four adaptive widths, integrated horizontal conversion, freely accessible navigation, return/Escape, numeric typing/paste, per-character max and overdraw, cancellable internal coin transfer, subtle header counter, retained success receipt, refresh and session changes; offscreen inactive fixtures only.");
                     result = 0;
                 }
                 catch (Exception error) { Console.Error.WriteLine(error); result = 1; }
@@ -301,6 +333,18 @@ internal static class ShopWpfTests
         finally { fixture.Close(); }
     }
 
+    private static Button ServiceButton(ShopViewV2 shop, int index)
+    {
+        ItemsControl products = Get<ItemsControl>(shop, "ProductList");
+        DependencyObject container = products.ItemContainerGenerator.ContainerFromIndex(index) ?? throw new InvalidOperationException("Service card container missing.");
+        return Descendants(container).OfType<Button>().Single();
+    }
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        yield return root;
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            foreach (DependencyObject child in Descendants(VisualTreeHelper.GetChild(root, i))) yield return child;
+    }
     private static Rect[] HeaderGeometry(LauncherShellV2 shell) => new[] { "TitleBar", "BrandIdentity", "BrandLogo", "TopNavigation", "TopBarActions", "WalletHeader" }
         .Select(name => Get<FrameworkElement>(shell, name)).Select(view => new Rect(view.TranslatePoint(new Point(), shell), view.RenderSize)).ToArray();
 

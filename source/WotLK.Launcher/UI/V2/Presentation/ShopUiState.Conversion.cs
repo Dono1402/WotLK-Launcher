@@ -20,7 +20,7 @@ internal sealed partial class ShopUiState
     public string EuroBalance => _snapshot?.EuroBalanceCents is long cents ? FormatEuros(cents) : "—";
     public string EuroWalletLabel => L("Portefeuille en euros", "Euro wallet");
     public string PriceWalletsLabel => L("Crédits Atlas / Euros", "Atlas credits / Euros");
-    public string SelectedAmount => _price is null ? "—" : FormatEuros(_price.Price.Amount);
+    public string SelectedAmount => _price is null ? L("À venir", "Coming soon") : FormatEuros(_price.Price.Amount);
     public string ConvertAction => L("Convertir", "Convert");
     public string ConversionSourceLabel => L("Personnage source", "Source character");
     public string AvailableGoldLabel => L("Or disponible", "Available gold");
@@ -93,7 +93,7 @@ internal sealed partial class ShopUiState
         if (_disposed) return;
         if (_conversionCharacter is null && _conversionCharacterId is null)
             SelectedConversionCharacter = SelectedCharacter ?? Characters.FirstOrDefault(c => !c.Character.Online && c.Character.GoldCopper is > 0) ?? Characters.FirstOrDefault();
-        IsConversionOpen = true; Changed();
+        IsServiceOpen = false; IsConversionOpen = true; Changed();
     }
     internal void CloseConversion() { IsConversionOpen = false; Changed(); }
     internal void SetConversionPercent(int percent)

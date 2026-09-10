@@ -78,7 +78,7 @@ public partial class LauncherShellV2
     private async void ShopNavigationButton_Click(object sender, RoutedEventArgs e)
     {
         if (!ShellState.IsNavigationEnabled || !_overlayCoordinator.CanNavigate || IsAuthenticationRequired) return;
-        ShopView.State.CloseConversion();
+        ShopView.State.CloseConversion(); ShopView.State.CloseService();
         NavigateTo(LauncherShellPage.Shop);
         await ShopView.State.RefreshAsync();
     }

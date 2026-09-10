@@ -32,3 +32,13 @@ autres pages. Le logo du pack reste conservé parmi les ressources fournies.
 La petite pièce d'or du convertisseur est dessinée dans
 `UI/V2/Resources/AtlasV2.Shop.xaml` (`ShopGoldCoin`) : cercles, relief et
 motif vectoriels WPF, réutilisés par l'animation de transfert.
+
+## Grandes cartes de services du 11 septembre
+
+Quatre illustrations de 1672 × 941 sont utilisées dans la nouvelle grille :
+`Service_name_change.png`, `Service_level_70.png`,
+`Service_faction_change.png` et `Service_race_change.png`.
+Le nom et la faction reprennent les compositions du pack en les redessinant ;
+le sésame et la race sont des créations. Les originaux restent conservés.
+Les modes, références, prompts et empreintes figurent dans
+[GENERATED-ART.md](GENERATED-ART.md).

@@ -102,6 +102,19 @@ une présentation adaptée à WoW, avec les mêmes produits, libellés et règle
 d'achat que le launcher. Les deux accès partagent leurs données sans imposer
 un habillage identique à deux environnements graphiques différents.
 
+## Catalogue de services retenu le 11 septembre
+
+Le catalogue présente quatre offres : changement de nom à 5 €, sésame niveau 70,
+changement de faction et changement de race. Les trois dernières ont un tarif
+à venir. Leurs fiches sont affichées dès ce jalon, avec une grille de grandes
+cartes et un détail au clic, selon la nouvelle référence fournie.
+
+Le core contient les mécanismes de niveau, race et faction, mais leur présence
+ne constitue pas un service de vente livré. Le raccordement boutique et la
+compatibilité du parcours race/faction à travers Hermes restent à terminer et
+à valider. Les constats précis et leurs limites figurent dans
+[BOUTIQUE-ATLAS-IMPLEMENTATION.md](BOUTIQUE-ATLAS-IMPLEMENTATION.md#présence-des-services-dans-le-serveur).
+
 ## Constats dans le projet
 
 - La navigation `LauncherShellV2` comprend désormais la page `ShopViewV2`, avec

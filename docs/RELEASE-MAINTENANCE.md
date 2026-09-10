@@ -37,6 +37,8 @@ Les commits et tags utilisent l’identité Git configurée sur le dépôt (`use
 
 Sur GitHub, **AtlasLauncherSetup.exe** est le seul exécutable proposé au téléchargement. Les notes de version et les empreintes accompagnent l’installateur ; le paquet d’armurerie et le manifeste restent disponibles pour la compilation et la vérification.
 
+Les fichiers de notes, de manifeste et d’empreintes sous `releases` conservent leurs fins de ligne LF grâce à `.gitattributes`. Leurs octets restent ainsi identiques aux fichiers publiés, y compris après un checkout Windows avec `core.autocrlf=true`.
+
 Le fichier `WotLK-Launcher.exe` est conservé sur le serveur de distribution à l’URL versionnée du manifeste signé. Il sert à la mise à jour automatique et ne doit pas être ajouté aux fichiers de la release GitHub. Le nom interne `WotLK-Launcher-Installer.exe` dans le stockage serveur ne change pas le nom public de l’installateur.
 
 ## Publication serveur

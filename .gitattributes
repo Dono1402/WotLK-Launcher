@@ -12,3 +12,9 @@ source/WotLK.Launcher.Server/Database/Migrations/*.sql text eol=lf
 # Historical deployment recipes and sanitized proofs carry exact file hashes.
 scripts/wotlk-update-20260909/** text eol=lf
 docs/update-preparation/2026-09-09/*.json text eol=lf
+
+# Published metadata and checksums must retain their exact bytes on Windows.
+releases/**/*.md text eol=lf
+releases/**/*.json text eol=lf
+releases/**/*.txt text eol=lf
+current/launcher-update.json text eol=lf

@@ -1,6 +1,6 @@
 # Boutique Atlas : conception initiale
 
-État au 10 septembre 2026 : premier jalon implémenté et testé localement : page
+État au 11 septembre 2026 : premier jalon implémenté et testé localement : page
 WPF, catalogue authentifié, choix du personnage et calculateur de conversion.
 Les achats, les débits d'or, le portefeuille persistant et l'accès en jeu ne sont
 pas encore actifs. Aucun élément de ce jalon n'est publié en production.
@@ -23,7 +23,7 @@ produits et les règles d'attribution complémentaires restent à définir.
   Il pourra servir aux achats de la boutique, dont le changement de nom.
 - Le **portefeuille en euros est un solde distinct** sur le compte, comparable
   au portefeuille Blizzard. Les deux soldes se consultent en haut à droite,
-  immédiatement à gauche de Messages ; les Crédits Atlas sont affichés par défaut.
+  immédiatement à gauche de Messages ; ils sont visibles simultanément sur toutes les pages.
 - Conversion volontaire de l'or d'un personnage : **400 po = 5 € de crédit Atlas**,
   soit **80 po = 1 €**, ou 8 000 pièces de cuivre pour un centime.
 - Le montant saisi est libre : **212 po donnent 2,65 €**. Le calcul ne se limite
@@ -35,10 +35,14 @@ produits et les règles d'attribution complémentaires restent à définir.
   Il remplace le catalogue directement dans la page du launcher, sans fenêtre.
   L'or est à gauche, la saisie au centre et le résultat en euros à droite ;
   la navigation supérieure et les soldes restent accessibles. Il comprend :
-  personnage source, maximum propre à ce personnage, saisie numérique,
-  raccourcis de pourcentage, aperçu du solde final et animation du crédit vers
-  le solde Atlas après réussite. Le portefeuille en euros n'est pas crédité
-  par une conversion d'or.
+  personnage source, maximum propre à ce personnage, saisie en pièces d'or
+  entières (sans argent/cuivre), raccourcis de pourcentage et aperçu du solde final.
+  Des pièces s'animent dans le convertisseur ; seul le nombre de Crédits Atlas
+  évolue ensuite dans l'en-tête. La page reste sur la conversion après réussite
+  et permet de saisir un autre montant. Le portefeuille en euros n'est pas
+  crédité par une conversion d'or.
+- Présentation harmonisée avec les autres onglets : barre supérieure commune,
+  Inter, ClearType/Ideal, surfaces vitrées et bordures discrètes du launcher.
 
 Le [suivi d'implémentation](BOUTIQUE-ATLAS-IMPLEMENTATION.md) précise les fonctions
 présentes, les tests et les travaux restant avant activation.

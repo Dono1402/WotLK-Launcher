@@ -9,7 +9,6 @@ namespace WotLK.Launcher.UI.V2.Views;
 public partial class WalletBalanceV2 : UserControl
 {
     private ShopUiState? _state;
-    private bool _euros;
     private static readonly DependencyProperty AnimatedCentsProperty = DependencyProperty.Register(
         "AnimatedCents", typeof(double), typeof(WalletBalanceV2), new PropertyMetadata(0d, (target, args) =>
             ((WalletBalanceV2)target).AnimatedAmountText.Text = ShopUiState.FormatEuros((long)Math.Round((double)args.NewValue))));
@@ -18,46 +17,48 @@ public partial class WalletBalanceV2 : UserControl
         InitializeComponent();
         DataContextChanged += (_, _) => Attach();
         Loaded += (_, _) => Attach();
-        Unloaded += (_, _) => { if (_state is not null) _state.PropertyChanged -= StateChanged; StopAnimation(); WalletPopup.IsOpen = false; };
+        Unloaded += (_, _) => { if (_state is not null) _state.PropertyChanged -= StateChanged; StopAnimation(); };
     }
     private void Attach()
     {
         if (_state is not null) _state.PropertyChanged -= StateChanged;
         _state = DataContext as ShopUiState;
         if (_state is not null) _state.PropertyChanged += StateChanged;
-        UpdateDisplay();
     }
     private void StateChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (_state?.HasOffers != true) StopAnimation();
-        UpdateDisplay();
     }
-    private void UpdateDisplay()
+    internal void SetCompact(bool compact)
     {
-        WalletKindText.Text = _euros ? "Euros" : _state?.CreditsLabel;
-        WalletAmountText.Text = _euros ? _state?.EuroBalance ?? "—" : _state?.CreditBalance ?? "—";
+        Width = compact ? 180 : 264;
+        WalletGrid.ColumnDefinitions[1].Width = new GridLength(compact ? 0 : 20);
+        WalletGrid.ColumnDefinitions[2].Width = compact ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        WalletGrid.RowDefinitions[1].Height = compact ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        Grid.SetRow(EuroCell, compact ? 1 : 0); Grid.SetColumn(EuroCell, compact ? 0 : 2);
+        WalletDivider.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        AtlasDetails.Orientation = EuroDetails.Orientation = compact ? Orientation.Horizontal : Orientation.Vertical;
+        AtlasAmount.Margin = EuroAmountText.Margin = compact ? new Thickness(7, 0, 0, 0) : new Thickness(0, 1, 0, 0);
+        WalletKindText.VerticalAlignment = EuroKindText.VerticalAlignment = VerticalAlignment.Center;
+        WalletAmountText.FontSize = AnimatedAmountText.FontSize = EuroAmountText.FontSize = compact ? 12 : 15;
+        WalletAmountText.MaxWidth = AnimatedAmountText.MaxWidth = compact ? 52 : double.PositiveInfinity;
+        EuroAmountText.MaxWidth = compact ? 90 : double.PositiveInfinity;
     }
-    private void Wallet_Click(object sender, RoutedEventArgs e) => WalletPopup.IsOpen = !WalletPopup.IsOpen;
-    private void Credits_Click(object sender, RoutedEventArgs e) { _euros = false; StopAnimation(); UpdateDisplay(); WalletPopup.IsOpen = false; }
-    private void Euros_Click(object sender, RoutedEventArgs e) { _euros = true; StopAnimation(); UpdateDisplay(); WalletPopup.IsOpen = false; }
-    internal void CloseMenu() => WalletPopup.IsOpen = false;
     internal void AnimateCredit(ShopCreditChange change)
     {
-        StopAnimation(); _euros = false; UpdateDisplay();
+        StopAnimation();
         if (!SystemParameters.ClientAreaAnimation) return;
         WalletAmountText.Opacity = 0; AnimatedAmountText.Visibility = Visibility.Visible;
-        AnimatedAmountText.Text = ShopUiState.FormatEuros(change.BeforeCents);
         SetValue(AnimatedCentsProperty, (double)change.BeforeCents);
-        DoubleAnimation counter = new(change.BeforeCents, change.AfterCents, TimeSpan.FromMilliseconds(600))
-        { BeginTime = TimeSpan.FromMilliseconds(750), EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+        AnimatedAmountText.Text = ShopUiState.FormatEuros(change.BeforeCents);
+        DoubleAnimation counter = new(change.BeforeCents, change.AfterCents, TimeSpan.FromMilliseconds(460))
+        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
         counter.Completed += (_, _) => StopAnimation();
         BeginAnimation(AnimatedCentsProperty, counter);
-        CreditPulse.BeginAnimation(OpacityProperty, new DoubleAnimation(0.9, 0, TimeSpan.FromMilliseconds(650)) { BeginTime = TimeSpan.FromMilliseconds(700) });
     }
     internal void StopAnimation()
     {
         BeginAnimation(AnimatedCentsProperty, null);
-        CreditPulse.BeginAnimation(OpacityProperty, null); CreditPulse.Opacity = 0;
         AnimatedAmountText.Visibility = Visibility.Collapsed; WalletAmountText.Opacity = 1;
     }
 }

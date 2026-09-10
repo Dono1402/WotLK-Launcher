@@ -734,46 +734,38 @@ public partial class LauncherShellV2 : Window
         ShellState.LayoutMode = mode;
 
         // The floating chrome adapts independently of the content's existing layout modes.
-        bool shop = CurrentPage == LauncherShellPage.Shop;
         bool spacious = ActualWidth >= 1500;
         bool compact = ActualWidth < 1180;
         double inset = spacious ? 22 : compact ? 14 : 18;
-        double barHeight = shop && spacious ? 69 : spacious ? 80 : compact ? 64 : 72;
+        double barHeight = spacious ? 80 : compact ? 64 : 72;
         double iconSize = spacious ? 44 : compact ? 34 : 38;
         double actionGap = spacious ? 12 : compact ? 4 : 7;
         double windowButtonWidth = spacious ? 48 : compact ? 34 : 40;
 
-        TitleBar.Margin = shop && spacious ? new Thickness(25, 20, 24, 0) : new Thickness(inset, inset, inset, 0);
+        TitleBar.Margin = new Thickness(inset, inset, inset, 0);
         TitleBar.Height = barHeight;
-        TitleBar.CornerRadius = new CornerRadius(shop ? 9 : spacious ? 14 : 11);
-        ContentTopRow.Height = new GridLength(shop && spacious ? 124 : inset + barHeight + (spacious ? 22 : 16));
+        TitleBar.CornerRadius = new CornerRadius(spacious ? 14 : 11);
+        ContentTopRow.Height = new GridLength(inset + barHeight + (spacious ? 22 : 16));
         AuthOverlay.Margin = IsAuthenticationRequired
             ? new Thickness(0)
             : new Thickness(0, ContentTopRow.Height.Value, 0, 0);
         TopChromeDragZone.Height = ContentTopRow.Height.Value;
-        BrandIdentity.Margin = new Thickness(shop && spacious ? 16 : spacious ? 24 : 14, 0, shop && spacious ? 46 : spacious ? 72 : compact ? 12 : 24, 0);
-        LocalBuildBadge.SetCurrentValue(VisibilityProperty, shop ? Visibility.Collapsed : ShellState.IsLocalBuild ? Visibility.Visible : Visibility.Collapsed);
+        BrandIdentity.Margin = new Thickness(spacious ? 24 : 14, 0, spacious ? 36 : compact ? 8 : 16, 0);
+        LocalBuildBadge.SetCurrentValue(VisibilityProperty, ShellState.IsLocalBuild ? Visibility.Visible : Visibility.Collapsed);
         BrandLogo.Width = BrandLogo.Height = spacious ? 42 : compact ? 32 : 36;
-        ShopBrandLogo.Width = ShopBrandLogo.Height = BrandLogo.Width;
-        BrandLogo.Visibility = shop ? Visibility.Collapsed : Visibility.Visible;
-        ShopBrandLogo.Visibility = shop ? Visibility.Visible : Visibility.Collapsed;
-        BrandName.Margin = new Thickness(shop && spacious ? 24 : spacious ? 18 : compact ? 10 : 12, 0, 0, 0);
+        BrandLogo.Visibility = Visibility.Visible;
+        BrandName.Margin = new Thickness(spacious ? 18 : compact ? 10 : 12, 0, 0, 0);
         BrandName.FontSize = spacious ? 20 : compact ? 16 : 18;
         LocalBuildBadge.Margin = new Thickness(spacious ? 18 : 8, 0, 0, 0);
         LocalBuildBadge.Padding = spacious ? new Thickness(8, 4, 8, 4) : new Thickness(5, 3, 5, 3);
         LocalBuildBadgeText.FontSize = spacious ? 12 : compact ? 9 : 10;
         ProductDivider.Margin = new Thickness(spacious ? 14 : 10, 0, spacious ? 14 : 10, 0);
-        bool hideProduct = ActualWidth < 1400 || (!shop && ActualWidth < 1750);
-        ProductGameName.Visibility = ProductDivider.Visibility = hideProduct ? Visibility.Collapsed : Visibility.Visible;
-        if (shop) ProductDivider.Visibility = Visibility.Collapsed;
-        ProductGamePill.Visibility = hideProduct ? Visibility.Collapsed : Visibility.Visible;
-        ProductGamePill.Margin = new Thickness(shop ? 15 : 0, 0, 0, 0);
-        ProductGamePill.Padding = shop ? new Thickness(12, 8, 12, 8) : new Thickness(0);
-        ProductGamePill.BorderThickness = new Thickness(shop ? 1 : 0);
-        ProductGamePill.BorderBrush = new SolidColorBrush(Color.FromRgb(34, 65, 88));
-        ProductGamePill.Background = shop ? new SolidColorBrush(Color.FromArgb(140, 6, 23, 36)) : Brushes.Transparent;
-        ShopGameChevron.Visibility = shop ? Visibility.Visible : Visibility.Collapsed;
-        ProductGameName.FontSize = shop && spacious ? 14 : spacious ? 16 : compact ? 12 : 13;
+        bool hideProduct = ActualWidth < 1900;
+        ProductGameName.Visibility = ProductDivider.Visibility = ProductGamePill.Visibility = hideProduct ? Visibility.Collapsed : Visibility.Visible;
+        ProductGamePill.Margin = ProductGamePill.Padding = ProductGamePill.BorderThickness = new Thickness(0);
+        ProductGamePill.Background = Brushes.Transparent;
+        ProductGameName.FontSize = spacious ? 16 : compact ? 12 : 13;
+        WalletHeader.SetCompact(ActualWidth < 1500);
         PatchNotesNavigationLabel.Text = compact ? "Notes" : "Notes de version";
         PatchNotesNavigationButton.ToolTip = "Notes de version";
         TopNavigation.Margin = new Thickness(0);
@@ -781,7 +773,7 @@ public partial class LauncherShellV2 : Window
         {
             navigation.Height = barHeight - 2;
             navigation.FontSize = spacious ? 16 : compact ? 13 : 14;
-            navigation.Padding = new Thickness(spacious ? 30 : compact ? 12 : 20, 0, spacious ? 30 : compact ? 12 : 20, 0);
+            navigation.Padding = new Thickness(spacious ? 23 : compact ? 9 : 14, 0, spacious ? 23 : compact ? 9 : 14, 0);
         }
 
         TopBarActions.Margin = new Thickness(0, 0, spacious ? 12 : 8, 0);

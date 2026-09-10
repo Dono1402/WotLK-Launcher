@@ -1,8 +1,8 @@
 # Boutique Atlas : catalogue, soldes et conversion locale
 
-État au 10 septembre 2026. Ce jalon fournit les écrans WPF, le catalogue
-authentifié, deux soldes distincts et le convertisseur centré. Le mode de
-prévisualisation peut simuler un débit d'or et un crédit Atlas en mémoire.
+État au 11 septembre 2026. Ce jalon fournit les écrans WPF, le catalogue
+authentifié, deux soldes visibles simultanément et le convertisseur intégré.
+Le mode de prévisualisation peut simuler un débit d'or et un crédit Atlas en mémoire.
 Il ne permet pas encore de payer, de débiter l'or d'un véritable personnage,
 de créditer un portefeuille persistant ou de renommer un personnage.
 Aucun service de production ni client installé n'a été modifié.
@@ -18,23 +18,29 @@ Aucun service de production ni client installé n'a été modifié.
 - Page et données en français/anglais ; conservation de la sélection lors du
   changement de langue et de l'actualisation. Un personnage disparu ne peut
   pas être remplacé silencieusement par un autre bénéficiaire.
-- **Crédits Atlas** dans la barre supérieure, immédiatement à gauche de
-  Messages. Le menu permet aussi de consulter et sélectionner le
-  **portefeuille en euros**, un solde indépendant. Les deux sont exprimés en
-  centimes entiers. Le serveur renvoie actuellement `null` pour chacun,
+- **Crédits Atlas et portefeuille en euros visibles simultanément** dans la
+  barre supérieure, immédiatement à gauche de Messages, sur toutes les pages.
+  Leur groupe passe sur deux lignes en largeur compacte. Les deux sont exprimés
+  en centimes entiers. Le serveur renvoie actuellement `null` pour chacun,
   affiché `—`, puisque leur persistance n'est pas encore implémentée.
 - Bandeau inférieur **Convertir** remplaçant le catalogue par une interface
   centrée dans la page du launcher. Présentation horizontale : or disponible à
   gauche, montant numérique au centre, flèche et Crédits Atlas en euros à droite.
   La navigation et les soldes restent accessibles ; **Retour à la boutique**
   et Escape restaurent le catalogue. Choix séparé du
-  personnage source, maximum connu propre à ce personnage, saisie uniquement
-  numérique, bouton Max, curseur et raccourcis 25/50/75/100 %, crédit obtenu,
-  or restant et nouveau solde Atlas. Les personnages connectés n'exposent pas
+  personnage source, maximum en pièces d'or entières propre à ce personnage,
+  saisie entière sans argent/cuivre, bouton Max, curseur et raccourcis
+  25/50/75/100 %, crédit obtenu, or restant et nouveau solde Atlas. Les personnages connectés n'exposent pas
   de solde d'or périmé et ne peuvent pas convertir.
-- Après une conversion réussie dans la prévisualisation, une pastille de crédit
-  rejoint le solde supérieur, puis son compteur augmente. L'animation respecte
-  le réglage Windows de réduction des animations et disparaît à la déconnexion.
+- Pendant la conversion de prévisualisation, des pièces se déplacent à
+  l'intérieur du convertisseur. Le nombre de Crédits Atlas dans l'en-tête évolue
+  ensuite discrètement sur place, sans pastille traversant l'écran.
+  Le réglage Windows de réduction des animations est respecté.
+- **La conversion reste affichée après réussite**, avec le crédit reçu, le solde
+  précédent, le nouveau solde et un message de confirmation. Saisir un nouveau
+  montant prépare une autre conversion. Les doubles clics pendant l'animation
+  sont ignorés ; quitter la page ou changer de session annule l'opération en
+  attente avant tout débit/crédit simulé.
 - États de chargement, catalogue vide, absence de personnages, session expirée,
   débit de requêtes excessif et boutique indisponible. Un ancien backend sans
   cette route n'entraîne pas l'affichage d'un catalogue d'exemple dans la session.
@@ -54,9 +60,13 @@ leur lisibilité ; le défilement vertical permet d'accéder au reste de la page
 Le bouton Convertir du bandeau ouvre la conversion dans la zone de contenu,
 sans fenêtre, voile sombre ni comportement modal. Le contenu central défile si
 nécessaire sur un petit écran ; le bouton de confirmation reste visible.
-La barre supérieure adopte les proportions et le logo du pack sur cette page.
-Le solde supérieur reste accessible sur les autres pages ; l'en-tête s'adapte
-pour conserver l'espace nécessaire à la navigation.
+La barre supérieure est commune à Jeu, Addons et Boutique : même logo, hauteur,
+marges, boutons et proportions à largeur identique. Seul l'onglet actif change.
+Les adaptations dépendent uniquement de la largeur disponible.
+Les panneaux réutilisent les surfaces vitrées, les bordures et les rayons de
+14 DIPs du launcher, avec Inter et ClearType/Ideal. Les titres utilisent le
+dégradé nacré commun. L'icône d'or est un dessin vectoriel WPF, sans texte agrandi
+dans une Viewbox et sans halo lumineux autour des cartes sélectionnées.
 
 Le pack ne contient pas le décor complet sans interface : son fond reconstitué
 est moins détaillé que la référence. Le fragment original de citadelle est
@@ -64,8 +74,10 @@ réintégré à sa position native avec des bords fondus. La texture du fond et 
 police d'origine non identifiée empêchent une identité stricte pixel par pixel.
 
 Vérifications propres à cette refonte : compilation, `--shop`, `--shop-wpf`
-et `--shell-navigation-wpf`. Le catalogue serveur et le contrat partagé ont
-également évolué pour les deux portefeuilles ; le contrôle API/MySQL est rejoué.
+et `--shell-navigation-wpf`. Le catalogue serveur et le contrat partagé restent
+ceux du jalon précédent :
+leurs contrôles API/MySQL et de session sont conservés comme résultats de ce
+jalon, sans être présentés comme rejoués pour cette refonte de présentation.
 La limite globale de la suite de navigation est de huit minutes pour couvrir les deux
 tailles et les attentes d'animation, avec progression par taille et résultat
 retourné après la fermeture du dispatcher WPF.
@@ -86,17 +98,21 @@ Le serveur fournit le taux de **8 000 pièces de cuivre par centime**, soit
 | 1 po | 0,01 € | 80 pa | 20 pa |
 | 79 pa 99 pc | 0,00 € | 0 po | 79 pa 99 pc |
 
-Le champ accepte un point ou une virgule et jusqu'à quatre décimales d'or pour
-représenter les pièces de cuivre. Les valeurs négatives, la notation
-scientifique, les séparateurs de milliers et les montants dépassant la capacité
-du champ `money` du jeu sont refusés. Le montant minimal effectivement
-convertible correspond à un centime. Le débit réel devra recalculer ce devis
-côté serveur ; le montant affiché par le launcher ne fera pas autorité.
+Le champ n'accepte que des pièces d'or entières, sans point ni virgule.
+Max et les pourcentages ignorent les pièces d'argent/cuivre du solde disponible.
+Exemple : 423,5067 po donnent un maximum saisissable de 423 po ; 25 % de 120,8 po
+proposent 30 po. Les valeurs négatives, la notation scientifique, les séparateurs
+de milliers et les montants dépassant la capacité du champ `money` sont refusés.
+Le minimum saisissable est 1 po. Le calcul partagé conserve toutefois toute sa
+précision en cuivre : 423 po proposés donnent 5,28 € et débitent 422,4 po ; le
+reste non crédité demeure sur le personnage. La dernière ligne du tableau
+teste le calcul interne, pas une saisie permise par l'interface. Le débit réel
+devra recalculer ce devis côté serveur ; le montant affiché par le launcher ne fera pas autorité.
 
 Le montant à convertir doit être inférieur ou égal à l'or connu du personnage.
 Passer à un personnage moins riche réduit la saisie à son maximum. Le champ
-refuse les lettres à la frappe et au collage ; les montants d'or sont présentés
-en chiffres avec jusqu'à quatre décimales, sans unités écrites dans les valeurs.
+refuse les lettres et les décimales à la frappe et au collage ; les montants
+d'or sont présentés en nombres entiers, sans arrondi vers le haut.
 Le devis ne peut pas dépasser le plafond des Crédits Atlas. La conversion
 n'affecte jamais le portefeuille en euros.
 
@@ -159,8 +175,8 @@ d'intégration sans erreur ni avertissement.
 
 | Suite | Résultat et portée |
 | --- | --- |
-| `--shop` | 98 assertions : deux soldes, limites par personnage, précision, débit/crédit simulé conservatif, refus du dépassement, saisie, session, erreurs HTTP et séparation du mode réel |
-| `--shop-wpf <dossier>` | Catalogue à 1586×992 puis quatre tailles FR/EN ; deux soldes supérieurs, conversion horizontale intégrée de 1080×680 à 1586×992, frappe/collage numériques, Max par personnage, navigation libre/retour/Escape, animation, sélection conservée et actualisation des soldes à la connexion ; captures PNG et aucune erreur de binding |
+| `--shop` | 105 assertions : deux soldes, limites par personnage, précision, débit/crédit simulé conservatif, refus du dépassement, saisie, session, erreurs HTTP et séparation du mode réel |
+| `--shop-wpf <dossier>` | Catalogue à 1586×992 puis quatre tailles FR/EN ; deux soldes supérieurs, conversion horizontale intégrée de 1080×680 à 1586×992, frappe/collage entiers, Max par personnage, en-tête identique à Addons, navigation libre/retour/Escape, animation interne annulable, maintien dans la conversion après réussite, sélection conservée et actualisation des soldes à la connexion ; captures PNG et aucune erreur de binding |
 | `--shop-mysql` | API HTTP réelle et MySQL 8.4.11 jetable sur loopback : authentification, appartenance Atlas, personnages autorisés, soldes, prix, taux, absence de mutation, limites et erreurs |
 | `--armory-session` | Régressions de session et tests boutique : refus du refresh, 401, reconnexion au même compte ou à un autre, réponse tardive et annulation |
 | `--shell-navigation-wpf` | 898 assertions incluant le nouvel onglet et les panneaux existants |

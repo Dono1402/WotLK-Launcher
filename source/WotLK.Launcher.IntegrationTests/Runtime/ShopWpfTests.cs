@@ -67,9 +67,9 @@ internal static class ShopWpfTests
                     Check(shop.State.SelectedCharacter?.Character.Guid == 101 && shop.State.SelectedPrice?.Price.Currency == "eur", "WPF pickers update the character and wallet.");
                     WalletBalanceV2 wallet = shell.WalletControl;
                     Check(Get<TextBlock>(wallet, "WalletAmountText").Text == "2,65 €", "Atlas credits appear in the shell header.");
-                    Get<Button>(wallet, "EuroWalletChoice").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
-                    Check(Get<TextBlock>(wallet, "WalletAmountText").Text == "10,00 €", "The euro wallet has its own amount.");
-                    Get<Button>(wallet, "AtlasWalletChoice").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                    Check(Get<TextBlock>(wallet, "EuroAmountText").Text == "10,00 €"
+                        && Get<TextBlock>(wallet, "EuroAmountText").IsVisible && Get<TextBlock>(wallet, "WalletAmountText").IsVisible,
+                        "Both independent wallets are visible simultaneously.");
                     Check(Get<TextBlock>(shop, "SummaryText").Text.Contains("Asteria"), "Summary reflects the selected beneficiary.");
                     Get<Button>(shop, "RefreshButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
                     Check(character.SelectedIndex == 0 && currency.SelectedIndex == 1, "Bindings preserve selection after refresh.");
@@ -97,6 +97,12 @@ internal static class ShopWpfTests
                             double walletRight = wallet.TranslatePoint(new Point(wallet.ActualWidth, 0), shell).X;
                             double messagesLeft = Get<Button>(shell, "MessagesNavigationButton").TranslatePoint(new Point(), shell).X;
                             Check(walletRight <= messagesLeft && messagesLeft - walletRight <= 16, "Wallet sits immediately to the left of Messages.");
+                            Rect[] shopChrome = HeaderGeometry(shell);
+                            Get<Button>(shell, "AddonsNavigationButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                            Check(HeaderGeometry(shell).SequenceEqual(shopChrome), "Addons and Shop use exactly the same header geometry.");
+                            Check(Get<TextBlock>(wallet, "EuroAmountText").IsVisible && Get<TextBlock>(wallet, "WalletAmountText").IsVisible, "Both wallets stay visible on Addons.");
+                            Get<Button>(shell, "ShopNavigationButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                            Check(HeaderGeometry(shell).SequenceEqual(shopChrome), "Returning to Shop does not restyle or move the header.");
                             Check(!Get<Button>(shop, "PurchaseButton").IsEnabled, "Purchases remain closed.");
                             Check(Get<ScrollViewer>(shop, "PageScroll").ScrollableWidth == 0, "No horizontal overflow.");
                             Capture(shell, Path.Combine(captureDirectory, $"shop-{selectedLocale}-{width}.png"));
@@ -126,21 +132,29 @@ internal static class ShopWpfTests
                     amount.RaiseEvent(letters); Check(letters.Handled, "Letter input is blocked by the real TextBox handler.");
                     DataObjectPastingEventArgs paste = new(new DataObject(DataFormats.UnicodeText, "212 po"), false, DataFormats.UnicodeText) { RoutedEvent = DataObject.PastingEvent };
                     amount.RaiseEvent(paste); Check(paste.CommandCancelled, "Pasting units is blocked without reading or changing the system clipboard.");
+                    TextCompositionEventArgs decimalPoint = new(InputManager.Current.PrimaryKeyboardDevice, new TextComposition(InputManager.Current, amount, ".")) { RoutedEvent = TextCompositionManager.PreviewTextInputEvent };
+                    amount.RaiseEvent(decimalPoint); Check(decimalPoint.Handled, "Decimal point typing is blocked.");
+                    DataObjectPastingEventArgs decimalPaste = new(new DataObject(DataFormats.UnicodeText, "423,5067"), false, DataFormats.UnicodeText) { RoutedEvent = DataObject.PastingEvent };
+                    amount.RaiseEvent(decimalPaste); Check(decimalPaste.CommandCancelled, "Fractional gold paste is blocked.");
                     ComboBox source = Get<ComboBox>(conversion, "ConversionCharacterPicker");
                     Get<Button>(conversion, "MaximumButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
-                    Check(amount.Text == "423.5067", "Max button uses the full selected character balance.");
+                    Check(amount.Text == "423", "Max button uses whole gold only.");
                     source.SelectedIndex = 1; await Pump();
-                    Check(amount.Text == "120.8" && Get<TextBlock>(conversion, "MaximumGoldText").Text == "120.8", "Source picker clamps to the second character's maximum.");
+                    Check(amount.Text == "120" && Get<TextBlock>(conversion, "MaximumGoldText").Text == "120", "Source picker clamps to the second character's maximum.");
                     amount.Text = "121"; await Pump(); Check(!Get<Button>(conversion, "ConvertButton").IsEnabled, "Overspending disables confirmation.");
                     source.SelectedIndex = 2; await Pump(); Check(!amount.IsEnabled && !Get<Button>(conversion, "MaximumButton").IsEnabled, "Online character cannot expose or spend stale gold.");
                     source.SelectedIndex = 0; amount.Text = "212"; await Pump();
                     foreach (string selectedLocale in new[] { LauncherLocalization.EnglishLocale, LauncherLocalization.FrenchLocale })
                     {
                         LauncherLocalization.SetLocale(selectedLocale); await Pump();
+                        Check(Get<TextBlock>(conversion, "ConversionRateText").Text == shop.State.ConversionRate,
+                            $"Rate formatting matches locale {selectedLocale}: rendered {Get<TextBlock>(conversion, "ConversionRateText").Text}, expected {shop.State.ConversionRate}, own text {LauncherLocalizationOptions.GetIsUserText(Get<TextBlock>(conversion, "ConversionRateText"))}.");
                         Check(Get<Button>(conversion, "CancelConversionButton").Content.ToString() == (LauncherLocalization.IsEnglish ? "Cancel" : "Annuler"), "Conversion button bindings retain the current locale after repeated page and language changes.");
                         foreach ((int width, int height) in new[] { (1586, 992), (1440, 860), (1280, 760), (1080, 680) })
                         {
                             shell.Width = width; shell.Height = height; await Pump();
+                            Check(Get<TextBlock>(conversion, "ConversionRateText").Text == (LauncherLocalization.IsEnglish ? "80 = 1.00 €" : "80 = 1,00 €"),
+                                $"Rate retains the decimal separator after resizing to {width}: {Get<TextBlock>(conversion, "ConversionRateText").Text}.");
                             Border dialog = Get<Border>(conversion, "ConversionFrame");
                             Point center = dialog.TranslatePoint(new Point(dialog.ActualWidth / 2, dialog.ActualHeight / 2), shop);
                             Check(Math.Abs(center.X - shop.ActualWidth / 2) < 2 && Math.Abs(center.Y - shop.ActualHeight / 2) < 2, "Converter remains centered within the launcher content area at every supported size.");
@@ -158,24 +172,52 @@ internal static class ShopWpfTests
                     shell.Width = 1586; shell.Height = 992;
                     Get<ScrollViewer>(shop, "PageScroll").ScrollToTop();
                     Get<Button>(shop, "MoreConversionButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
-                    Get<Button>(conversion, "ConvertButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
-                    Check(!conversion.IsVisible && shop.State.CreditBalance == "5,30 €" && shop.State.EuroBalance == "10,00 €", "Successful demo conversion returns to the catalog and updates only Atlas credits.");
-                    Check(shop.State.HasSelection && character.SelectedIndex == 0 && currency.SelectedIndex == 1,
-                        "Crediting the wallet preserves the rendered product, beneficiary and payment selections.");
                     if (SystemParameters.ClientAreaAnimation)
                     {
-                        Canvas flight = Get<Canvas>(shell, "ShopCreditFlightLayer");
-                        Check(flight.Children.Count == 1 && Get<TextBlock>(wallet, "AnimatedAmountText").IsVisible, "Credit flight and counter start after success.");
-                        await Task.Delay(400); Capture(shell, Path.Combine(captureDirectory, "shop-credit-animation.png"));
-                        await Task.Delay(1200); await Pump();
-                        Check(flight.Children.Count == 0 && !Get<TextBlock>(wallet, "AnimatedAmountText").IsVisible, "Animation releases its visuals and restores the bound balance.");
+                        Get<Button>(conversion, "ConvertButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                        Check(conversion.IsTransferring && Get<Canvas>(conversion, "TransferLayer").Children.Count == 4, "Coins animate within the converter.");
+                        Get<Button>(conversion, "CloseConversionButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Task.Delay(920); await Pump();
+                        Check(!conversion.IsTransferring && shop.State.CreditBalance == "2,65 €", "Leaving a pending transfer cancels it before any debit or credit.");
+                        Get<Button>(shop, "MoreConversionButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
                     }
-                    Check(Get<TextBlock>(wallet, "WalletAmountText").Text == "5,30 €", "Header finishes at the credited amount.");
+                    Get<Button>(conversion, "ConvertButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                    if (SystemParameters.ClientAreaAnimation)
+                    {
+                        Get<Button>(conversion, "ConvertButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        Check(shop.State.CreditBalance == "2,65 €" && !amount.IsEnabled, "Pending conversion blocks repeated clicks and input changes.");
+                        await Task.Delay(300); Capture(shell, Path.Combine(captureDirectory, "shop-credit-animation.png"));
+                        await Task.Delay(600); await Pump();
+                        Check(Get<TextBlock>(wallet, "AnimatedAmountText").IsVisible && shell.FindName("ShopCreditFlightLayer") is null,
+                            "Only the numeric header balance animates after the local transfer.");
+                        await Task.Delay(500); await Pump();
+                    }
+                    Check(conversion.IsVisible && shop.State.IsConversionOpen && shop.State.HasConversionReceipt
+                        && shop.State.CreditBalance == "5,30 €" && shop.State.EuroBalance == "10,00 €",
+                        "Success stays in conversion with a receipt and updates only Atlas credits.");
+                    Check(!Get<Button>(conversion, "ConvertButton").IsEnabled && amount.Text == "", "Success requires a fresh amount before another conversion.");
+                    Check(shop.State.HasSelection && character.SelectedIndex == 0 && currency.SelectedIndex == 1,
+                        "Crediting the wallet preserves product, beneficiary and payment selections.");
+                    Check(Get<TextBlock>(wallet, "WalletAmountText").Text == "5,30 €" && !Get<TextBlock>(wallet, "AnimatedAmountText").IsVisible
+                        && Get<Canvas>(conversion, "TransferLayer").Children.Count == 0, "Animations release their visuals and end at the credited amount.");
+                    Check(Get<Button>(conversion, "CancelConversionButton").Content.ToString() == "Terminé", "Completed conversion offers Done instead of implying it can be undone.");
                     Capture(shell, Path.Combine(captureDirectory, "shop-credit-complete.png"));
+                    amount.Text = "80"; await Pump();
+                    Check(Get<Button>(conversion, "ConvertButton").IsEnabled && !shop.State.HasConversionReceipt
+                        && Get<TextBlock>(conversion, "ConversionCreditText").Text == "1,00 €", "Another amount starts a fresh quote without leaving the converter.");
+                    Get<Button>(conversion, "CloseConversionButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
                     Get<Button>(shop, "RefreshButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
                     Get<Button>(shop, "MoreConversionButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
-                    Check(Get<TextBlock>(conversion, "MaximumGoldText").Text == "211,5067", "Refresh and reopen retain the remaining gold.");
+                    Check(Get<TextBlock>(conversion, "MaximumGoldText").Text == "211", "Refresh and reopen retain the remaining gold.");
                     Get<Button>(conversion, "CloseConversionButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                    if (SystemParameters.ClientAreaAnimation)
+                    {
+                        Get<Button>(shop, "MoreConversionButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                        amount.Text = "80"; await Pump();
+                        Get<Button>(conversion, "ConvertButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                        shop.State.ConfigurePreview(ShopPreviewData.Create()); await shop.State.RefreshAsync();
+                        await Task.Delay(920); await Pump();
+                        Check(!conversion.IsTransferring && shop.State.CreditBalance == "2,65 €", "Account reset cancels pending transfer without crediting the new session.");
+                    }
                     shop.State.Configure(_ => Task.FromResult(ShopRuntimeTests.Snapshot with { Characters = [] }));
                     await shop.State.RefreshAsync(); await Pump();
                     Check(!character.IsEnabled && character.SelectedItem is null, "No-character state disables beneficiary picker and clears prior selection.");
@@ -183,9 +225,23 @@ internal static class ShopWpfTests
                     await shop.State.RefreshAsync(); await Pump();
                     Check(Get<TextBlock>(shop, "StatusText").IsVisible && !Get<Button>(shop, "PurchaseButton").IsVisible, "Empty catalog shows a status instead of stale checkout.");
                     Capture(shell, Path.Combine(captureDirectory, "shop-en-empty-1080.png"));
+                    shop.State.ConfigurePreview(ShopPreviewData.Create() with { CreditBalanceEuroCents = ShopSnapshot.MaximumBalanceCents, EuroBalanceCents = ShopSnapshot.MaximumBalanceCents });
+                    await shop.State.RefreshAsync();
+                    shell.Width = 1080; shell.Height = 680; await Pump();
+                    foreach (string walletLocale in new[] { LauncherLocalization.EnglishLocale, LauncherLocalization.FrenchLocale })
+                    {
+                        LauncherLocalization.SetLocale(walletLocale); await Pump();
+                        double walletEdge = wallet.TranslatePoint(new Point(wallet.ActualWidth, 0), shell).X;
+                        foreach (string name in new[] { "WalletAmountText", "EuroAmountText" })
+                        {
+                            TextBlock balanceText = Get<TextBlock>(wallet, name);
+                            Check(balanceText.TranslatePoint(new Point(balanceText.ActualWidth, 0), shell).X < walletEdge,
+                                "Even maximum balances remain inside the compact wallet; the full value is available in its tooltip.");
+                        }
+                    }
                     await VerifyHeaderSessionAsync();
                     Check(errors.Messages.Count == 0, "No WPF binding errors: " + string.Join("\n", errors.Messages));
-                    Console.WriteLine("Shop WPF PASS: two header wallets, FR/EN at four adaptive widths, integrated horizontal conversion, freely accessible navigation, return/Escape, numeric typing/paste, per-character max and overdraw, simulated credit animation, refresh and session changes; offscreen inactive fixtures only.");
+                    Console.WriteLine("Shop WPF PASS: two header wallets, FR/EN at four adaptive widths, integrated horizontal conversion, freely accessible navigation, return/Escape, numeric typing/paste, per-character max and overdraw, cancellable internal coin transfer, subtle header counter, retained success receipt, refresh and session changes; offscreen inactive fixtures only.");
                     result = 0;
                 }
                 catch (Exception error) { Console.Error.WriteLine(error); result = 1; }
@@ -235,6 +291,9 @@ internal static class ShopWpfTests
         }
         finally { fixture.Close(); }
     }
+
+    private static Rect[] HeaderGeometry(LauncherShellV2 shell) => new[] { "TitleBar", "BrandIdentity", "BrandLogo", "TopNavigation", "TopBarActions", "WalletHeader" }
+        .Select(name => Get<FrameworkElement>(shell, name)).Select(view => new Rect(view.TranslatePoint(new Point(), shell), view.RenderSize)).ToArray();
 
     private static Task Pump() => Dispatcher.CurrentDispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle).Task;
     private static T Get<T>(FrameworkElement root, string name) where T : FrameworkElement =>

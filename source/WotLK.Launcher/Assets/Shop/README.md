@@ -26,3 +26,9 @@ secours est combiné au fragment original à sa position de référence, avec un
 masque WPF pour fondre les bords. Il conserve une différence de texture avec
 l'image de référence. La police exacte de cette image n'est pas identifiée par
 le pack ; l'interface utilise Inter, déjà embarquée dans le launcher.
+
+La barre supérieure utilise désormais le logo commun du launcher, comme les
+autres pages. Le logo du pack reste conservé parmi les ressources fournies.
+La petite pièce d'or du convertisseur est dessinée dans
+`UI/V2/Resources/AtlasV2.Shop.xaml` (`ShopGoldCoin`) : cercles, relief et
+motif vectoriels WPF, réutilisés par l'animation de transfert.

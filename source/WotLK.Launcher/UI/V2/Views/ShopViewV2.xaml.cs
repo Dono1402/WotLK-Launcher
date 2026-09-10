@@ -41,8 +41,8 @@ public partial class ShopViewV2 : UserControl, IDisposable
     {
         bool compact = ActualWidth < 1250;
         bool stacked = ActualWidth < 1480;
-        ContentFrame.Margin = new Thickness(compact ? 24 : 40, 0, 24, 16);
-        PageTitle.FontSize = compact ? 48 : 60;
+        ContentFrame.Margin = new Thickness(compact ? 24 : 60, 12, compact ? 24 : 60, 16);
+        PageTitle.FontSize = compact ? 48 : 64;
         CategoryColumn.Width = new GridLength(compact ? 170 : 196);
         DetailColumn.Width = new GridLength(stacked ? 0 : 384);
         DetailGap.Width = new GridLength(stacked ? 0 : 20);

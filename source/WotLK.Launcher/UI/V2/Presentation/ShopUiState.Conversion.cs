@@ -11,6 +11,9 @@ internal sealed partial class ShopUiState
     private ShopSnapshot? _previewSnapshot;
     private ShopCharacterRow? _conversionCharacter;
     private uint? _conversionCharacterId;
+    private ShopCreditChange? _lastConversion;
+    internal object? ConversionSnapshot => _snapshot;
+    public bool HasConversionReceipt => _lastConversion is not null;
     internal event Action<ShopCreditChange>? CreditGranted;
     public bool IsConversionOpen { get; private set; }
     public bool IsConversionPreview => _previewSnapshot is not null;
@@ -24,9 +27,9 @@ internal sealed partial class ShopUiState
     public string GoldAmountLabel => L("Montant à convertir", "Amount to convert");
     public string GoldRemainingLabel => L("Or restant", "Remaining gold");
     public string CreditReceivedLabel => L("Crédits Atlas reçus", "Atlas credits received");
-    public string CurrentBalanceLabel => L("Solde actuel", "Current balance");
+    public string CurrentBalanceLabel => HasConversionReceipt ? L("Solde précédent", "Previous balance") : L("Solde actuel", "Current balance");
     public string NewBalanceLabel => L("Nouveau solde", "New balance");
-    public string CancelLabel => L("Annuler", "Cancel");
+    public string CancelLabel => HasConversionReceipt ? L("Terminé", "Done") : L("Annuler", "Cancel");
     public string CloseLabel => L("Fermer", "Close");
     public string BackToShopLabel => L("Retour à la boutique", "Back to shop");
     public string ConversionSubtitle => L("Choisissez un personnage et le montant d’or à convertir.", "Choose a character and the amount of gold to convert.");
@@ -37,7 +40,7 @@ internal sealed partial class ShopUiState
     public string ConversionGold
     {
         get => _conversionGold;
-        set { if (_conversionGold == value) return; _conversionGold = value; Changed(); }
+        set { if (_conversionGold == value) return; _lastConversion = null; _conversionGold = value; Changed(); }
     }
     public ShopCharacterRow? SelectedConversionCharacter
     {
@@ -45,6 +48,7 @@ internal sealed partial class ShopUiState
         set
         {
             if (ReferenceEquals(value, _conversionCharacter)) return;
+            _lastConversion = null;
             _conversionCharacter = value is not null && Characters.Contains(value) ? value : null;
             _conversionCharacterId = _conversionCharacter?.Character.Guid;
             if (AvailableCopper is uint available && RequestedCopper is uint requested && requested > available)
@@ -54,7 +58,7 @@ internal sealed partial class ShopUiState
     }
     public uint? AvailableCopper => _conversionCharacter?.Character is { Online: false, GoldCopper: uint gold } ? gold : null;
     public bool CanPreviewConversion => !_disposed && !IsLoading && AvailableCopper is not null;
-    public bool HasConvertibleGold => CanPreviewConversion && AvailableCopper >= (_snapshot?.GoldConversion.CopperPerEuroCent ?? uint.MaxValue);
+    public bool HasConvertibleGold => CanPreviewConversion && AvailableCopper >= 10000 && AvailableCopper >= (_snapshot?.GoldConversion.CopperPerEuroCent ?? uint.MaxValue);
     internal uint? RequestedCopper => TryParseGold(_conversionGold, out uint copper) ? copper : null;
     public ShopGoldConversionQuote? ConversionQuote => _snapshot is not null && RequestedCopper is uint copper
         ? _snapshot.GoldConversion.Quote(copper) : null;
@@ -63,21 +67,23 @@ internal sealed partial class ShopUiState
         && _snapshot?.CreditBalanceEuroCents is long balance && balance <= ShopSnapshot.MaximumBalanceCents - ConversionQuote.CreditEuroCents;
     public bool CanConvert => IsConversionOpen && IsConversionPreview && HasValidConversionAmount;
     public string ConversionMaximum => AvailableCopper is uint available ? FormatGoldNumber(available) : "—";
-    public string ConversionCredit => ConversionQuote is { } quote ? FormatEuros(quote.CreditEuroCents) : "—";
+    public string ConversionCredit => _lastConversion is { } receipt ? FormatEuros(receipt.AfterCents - receipt.BeforeCents) : ConversionQuote is { } quote ? FormatEuros(quote.CreditEuroCents) : "—";
+    public string ConversionBalanceBefore => _lastConversion is { } receipt ? FormatEuros(receipt.BeforeCents) : CreditBalance;
     public string ConversionDebit => ConversionQuote is { } quote ? FormatGoldNumber(quote.DebitedCopper) : "—";
     public string ConversionRemainder => ConversionQuote is { } quote ? FormatGoldNumber(quote.RemainingCopper) : "—";
-    public string ConversionGoldAfter => HasValidConversionAmount ? FormatGoldNumber(AvailableCopper!.Value - ConversionQuote!.DebitedCopper) : "—";
-    public string ConversionBalanceAfter => HasValidConversionAmount ? FormatEuros(_snapshot!.CreditBalanceEuroCents!.Value + ConversionQuote!.CreditEuroCents) : "—";
+    public string ConversionGoldAfter => _lastConversion is not null ? ConversionMaximum : HasValidConversionAmount ? FormatGoldNumber(AvailableCopper!.Value - ConversionQuote!.DebitedCopper) : "—";
+    public string ConversionBalanceAfter => _lastConversion is not null ? CreditBalance : HasValidConversionAmount ? FormatEuros(_snapshot!.CreditBalanceEuroCents!.Value + ConversionQuote!.CreditEuroCents) : "—";
     public string ConversionRateNumber => _snapshot is null ? "—" : FormatGoldNumber(_snapshot.GoldConversion.CopperPerEuroCent * 100L);
     public string ConversionRate => ConversionRateNumber + " = " + FormatEuros(100);
-    public double ConversionPercent => AvailableCopper is > 0 && RequestedCopper is uint copper
-        ? Math.Clamp(copper * 100d / AvailableCopper.Value, 0, 100) : 0;
-    public string ConversionHint => _conversionCharacter is null ? L("Choisissez un personnage.", "Choose a character.")
+    public double ConversionPercent => AvailableCopper is >= 10000 && RequestedCopper is uint copper
+        ? Math.Clamp(copper * 100d / (AvailableCopper.Value / 10000 * 10000), 0, 100) : 0;
+    public string ConversionHint => _lastConversion is not null ? L("Conversion effectuée. Vous pouvez saisir un nouveau montant.", "Conversion complete. You can enter another amount.")
+        : _conversionCharacter is null ? L("Choisissez un personnage.", "Choose a character.")
         : AvailableCopper is null ? L("Or indisponible pour ce personnage connecté. Déconnectez-le puis actualisez la boutique.", "Gold is unavailable for this online character. Log out of the character, then refresh the shop.")
-        : AvailableCopper == 0 ? L("Ce personnage ne possède pas d’or.", "This character has no gold.")
-        : RequestedCopper is null ? L("Saisissez un montant numérique.", "Enter a numeric amount.")
+        : AvailableCopper < 10000 ? L("Ce personnage ne possède pas de pièce d’or entière.", "This character has no whole gold coins.")
+        : RequestedCopper is null ? L("Saisissez un nombre entier de pièces d’or.", "Enter a whole number of gold coins.")
         : RequestedCopper > AvailableCopper ? L("Le montant dépasse le solde du personnage.", "The amount exceeds the character’s balance.")
-        : ConversionQuote is not { CreditEuroCents: > 0 } ? L("Minimum : ", "Minimum: ") + FormatGoldNumber(_snapshot!.GoldConversion.CopperPerEuroCent)
+        : ConversionQuote is not { CreditEuroCents: > 0 } ? L("Minimum : 1 pièce d’or.", "Minimum: 1 gold coin.")
         : _snapshot?.CreditBalanceEuroCents is null ? L("Le solde de Crédits Atlas est indisponible.", "The Atlas credit balance is unavailable.")
         : !HasValidConversionAmount ? L("Le plafond de Crédits Atlas serait dépassé.", "The Atlas credit limit would be exceeded.")
         : L("Le montant est calculé au centime. Le reste de l’or est conservé sur le personnage.", "The amount is calculated to the cent. Remaining gold stays on your character.");
@@ -93,7 +99,7 @@ internal sealed partial class ShopUiState
     internal void SetConversionPercent(int percent)
     {
         if (AvailableCopper is not uint available || !CanPreviewConversion) return;
-        ConversionGold = FormatGoldNumber((uint)((ulong)available * (uint)Math.Clamp(percent, 0, 100) / 100));
+        ConversionGold = (available / 10000 * (uint)Math.Clamp(percent, 0, 100) / 100).ToString(CultureInfo.InvariantCulture);
     }
     // Only the explicitly isolated preview route may enable this in-memory demonstration.
     // Runtime Configure() clears the preview capability; no HTTP/SQL mutation is fabricated.
@@ -120,18 +126,19 @@ internal sealed partial class ShopUiState
         // Preserve bound row identities: replacing ItemsSource during this notification
         // would let WPF clear the beneficiary, price and offer through two-way bindings.
         _conversionCharacter.Update(result.Characters.Single(c => c.Guid == characterId));
-        _conversionGold = ""; IsConversionOpen = false; Changed();
-        CreditGranted?.Invoke(new(before, result.CreditBalanceEuroCents!.Value, characterId, quote.DebitedCopper));
+        _lastConversion = new(before, result.CreditBalanceEuroCents!.Value, characterId, quote.DebitedCopper);
+        _conversionGold = ""; Changed();
+        CreditGranted?.Invoke(_lastConversion);
         return true;
     }
-    internal static bool IsNumericGoldInput(string text) => Regex.IsMatch(text, @"\A[0-9]{0,6}([.,][0-9]{0,4})?\z", RegexOptions.CultureInvariant);
+    internal static bool IsNumericGoldInput(string text) => Regex.IsMatch(text, @"\A[0-9]{0,6}\z", RegexOptions.CultureInvariant);
     internal static bool TryParseGold(string text, out uint copper)
     {
         copper = 0;
-        if (!Regex.IsMatch(text, @"\A[0-9]{1,6}([.,][0-9]{0,4})?\z", RegexOptions.CultureInvariant)
-            || !decimal.TryParse(text.Replace(',', '.'), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out decimal gold)
-            || gold * 10000 > uint.MaxValue) return false;
-        copper = (uint)(gold * 10000); return true;
+        if (!Regex.IsMatch(text, @"\A[0-9]{1,6}\z", RegexOptions.CultureInvariant)
+            || !uint.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out uint gold)
+            || gold > uint.MaxValue / 10000) return false;
+        copper = gold * 10000; return true;
     }
-    internal static string FormatGoldNumber(long copper) => (copper / 10000m).ToString("0.####", Culture);
+    internal static string FormatGoldNumber(long copper) => (copper / 10000).ToString("0", Culture);
 }

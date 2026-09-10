@@ -2,7 +2,7 @@ namespace WotLK.Launcher.UI.V2.Presentation;
 
 internal sealed partial class ShopUiState
 {
-    public string PageHeading => Title.ToUpper(Culture);
+    public string PageHeading => Title;
     public string CatalogueHeading => L("CATALOGUE", "CATALOGUE");
     public string CreditsHeading => CreditsLabel.ToUpper(Culture);
     public string SecureLabel => L("Simple et sécurisé", "Simple and secure");

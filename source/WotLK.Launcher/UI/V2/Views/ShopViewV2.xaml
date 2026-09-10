@@ -4,7 +4,7 @@
              xmlns:views="clr-namespace:WotLK.Launcher.UI.V2.Views"
              xmlns:localization="clr-namespace:WotLK.Launcher.UI.V2.Localization"
              localization:LauncherLocalizationOptions.IsUserText="True"
-             Background="Transparent" Focusable="False">
+             FontFamily="{StaticResource AtlasV2.Font.Inter}" TextOptions.TextRenderingMode="ClearType" TextOptions.TextFormattingMode="Ideal" Background="Transparent" Focusable="False">
     <!-- These bindings provide their own locale; preserve their values from the legacy text translation bridge. -->
     <UserControl.Resources>
         <ResourceDictionary>
@@ -17,16 +17,16 @@
         <ScrollViewer.Style><Style TargetType="ScrollViewer"><Style.Triggers><DataTrigger Binding="{Binding IsConversionOpen}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></ScrollViewer.Style>
         <ScrollViewer.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/></ScrollViewer.Resources>
         <Grid x:Name="ContentFrame" Margin="40,0,24,19" MaxWidth="1700">
-            <Grid.RowDefinitions><RowDefinition Height="137"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+            <Grid.RowDefinitions><RowDefinition Height="128"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
             <Grid>
                 <StackPanel Margin="11,0,0,0">
                     <StackPanel Orientation="Horizontal"><Border Width="36" Height="1.5" Background="{StaticResource ShopIce}" Margin="0,0,20,0"/><TextBlock Text="ATLAS LAUNCHER" Style="{StaticResource ShopEyebrow}"/></StackPanel>
-                    <TextBlock x:Name="PageTitle" Text="{Binding PageHeading}" FontSize="60" FontWeight="ExtraBold" Foreground="{StaticResource ShopTitleBrush}" Margin="0,-8,0,0"/>
+                    <TextBlock x:Name="PageTitle" Text="{Binding PageHeading}" FontSize="60" FontWeight="ExtraBold" Foreground="{StaticResource AtlasV2.Brush.TitlePearl}" Margin="0,0,0,0"/>
                     <TextBlock Text="{Binding Subtitle}" Style="{StaticResource ShopBody}" FontSize="20" LineHeight="25" Margin="5,0,0,0"/>
 
                 </StackPanel>
                 <StackPanel x:Name="MottoPanel" HorizontalAlignment="Right" Margin="0,10,42,0" Width="104" VerticalAlignment="Top">
-                    <TextBlock Text="{Binding Motto}" FontFamily="Georgia" FontSize="12" Foreground="#C5E1F6" TextAlignment="Center" LineHeight="24"/>
+                    <TextBlock Text="{Binding Motto}" FontFamily="{StaticResource AtlasV2.Font.Inter}" FontSize="12" Foreground="#C5E1F6" TextAlignment="Center" LineHeight="24"/>
                     <Grid Margin="0,14,0,0"><Border Height="1" Background="#6795B2"/><TextBlock Text="❖" Foreground="#98CDEE" Background="#081B2B" HorizontalAlignment="Center" Padding="7,0" FontSize="15"/></Grid>
                 </StackPanel>
             </Grid>
@@ -42,7 +42,7 @@
                     <Border Height="1" Background="#456577" Margin="3,0,27,27"/>
                     <TextBlock Text="{Binding CatalogueHeading}" Style="{StaticResource ShopEyebrow}" Margin="11,0,0,10"/>
                     <Border Height="63" CornerRadius="6" BorderThickness="1" BorderBrush="#A98935" Background="#303E331C">
-                        <Grid><Border Width="3" Background="#F7CE68" HorizontalAlignment="Left" CornerRadius="5"><Border.Effect><DropShadowEffect Color="#FFE098" BlurRadius="12" ShadowDepth="0" Opacity=".9"/></Border.Effect></Border>
+                        <Grid><Border Width="3" Background="#F7CE68" HorizontalAlignment="Left" CornerRadius="5"></Border>
                             <Grid Margin="18,0,12,0"><Grid.ColumnDefinitions><ColumnDefinition Width="32"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Path Data="{StaticResource AtlasV2.Icon.User}" Style="{StaticResource ShopIcon}" Width="28" Height="32" Stroke="{StaticResource ShopGold}"/><TextBlock Grid.Column="1" Text="{Binding CategoryLabel}" Foreground="#FFE4A0" Style="{StaticResource ShopBody}" FontWeight="SemiBold" FontSize="14" LineHeight="19" VerticalAlignment="Center" Margin="16,0,0,0"/></Grid>
                         </Grid>
                     </Border>
@@ -57,7 +57,7 @@
                         <ProgressBar Height="3" IsIndeterminate="True" Style="{StaticResource AtlasV2.Progress.Compact}" Visibility="{Binding IsLoading, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
                         <Border Background="#DA071925" CornerRadius="6" Padding="14" Margin="0,0,0,12" Visibility="{Binding ShowStatus, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"><TextBlock x:Name="StatusText" Text="{Binding Status}" Style="{StaticResource ShopBody}"/></Border>
                         <Grid x:Name="ServiceCards"><Grid.ColumnDefinitions><ColumnDefinition Width="1.1*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="1*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="1.08*"/></Grid.ColumnDefinitions>
-                            <Border BorderThickness="2.5" BorderBrush="#FFD56A" CornerRadius="12" IsHitTestVisible="False" Visibility="{Binding HasSelection, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"><Border.Effect><DropShadowEffect BlurRadius="18" ShadowDepth="0" Color="#FFC851" Opacity=".65"/></Border.Effect></Border>
+                            <Border BorderThickness="2.5" BorderBrush="#FFD56A" CornerRadius="12" IsHitTestVisible="False" Visibility="{Binding HasSelection, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"></Border>
                             <ListBox x:Name="ProductList" ItemsSource="{Binding Offers}" SelectedItem="{Binding SelectedOffer, Mode=TwoWay}" Background="Transparent" BorderThickness="0" Padding="0" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" ItemContainerStyle="{StaticResource ShopProduct}" AutomationProperties.Name="Produits de la boutique">
                                 <ListBox.ItemTemplate><DataTemplate><Grid MinHeight="369"><Grid.RowDefinitions><RowDefinition Height="151"/><RowDefinition Height="*"/><RowDefinition Height="64"/></Grid.RowDefinitions>
                                     <Border CornerRadius="10,10,0,0"><Border.Background><ImageBrush ImageSource="/WotLK.Launcher;component/Assets/Shop/Service_nom_sans_badge_recompose.png" Stretch="UniformToFill"/></Border.Background></Border>
@@ -84,12 +84,12 @@
                         <Grid Margin="-8,0,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="48"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Ellipse Fill="#65134160" Width="48" Height="48"/><Path Data="{StaticResource AtlasV2.Icon.User}" Style="{StaticResource ShopIcon}" Width="28" Height="32" Stroke="#87D9FF"/>
                             <StackPanel Grid.Column="1" Margin="13,0,0,0"><TextBlock Text="{Binding SelectionHeading}" Style="{StaticResource ShopEyebrow}" LineHeight="18"/><TextBlock Text="{Binding OfferName}" Style="{StaticResource ShopHeading}" FontSize="21" LineHeight="26" Margin="0,4,0,0"/></StackPanel>
                         </Grid>
-                        <TextBlock Text="{Binding BeneficiaryLabel}" Style="{StaticResource ShopBody}" Foreground="#E9F3FF" FontSize="14" Margin="0,17,0,7"/>
+                        <TextBlock Text="{Binding BeneficiaryLabel}" Style="{StaticResource ShopBody}" Foreground="#E9F3FF" FontSize="14" Margin="0,13,0,7"/>
                         <ComboBox x:Name="CharacterPicker" ItemsSource="{Binding Characters}" SelectedItem="{Binding SelectedCharacter, Mode=TwoWay}" ItemTemplate="{StaticResource ShopChoice}" Style="{StaticResource ShopField}" IsEnabled="{Binding HasCharacters}" AutomationProperties.Name="{Binding BeneficiaryLabel}"/>
                         <TextBlock Text="{Binding CharacterHint}" Style="{StaticResource ShopCaption}" Margin="0,8,0,0"/>
                         <TextBlock Text="{Binding PaymentLabel}" Style="{StaticResource ShopBody}" Foreground="#E9F3FF" FontSize="14" Margin="0,14,0,6"/>
                         <ComboBox x:Name="CurrencyPicker" ItemsSource="{Binding Prices}" SelectedItem="{Binding SelectedPrice, Mode=TwoWay}" ItemTemplate="{StaticResource ShopChoice}" Style="{StaticResource ShopField}" AutomationProperties.Name="{Binding PaymentLabel}"/>
-                        <TextBlock Text="{Binding PaymentHint}" Style="{StaticResource ShopCaption}" MinHeight="34" Margin="0,8,0,15"/>
+                        <TextBlock Text="{Binding PaymentHint}" Style="{StaticResource ShopCaption}" MinHeight="30" Margin="0,6,0,11"/>
                         <Border CornerRadius="8" BorderThickness="1" BorderBrush="#294C64" Background="#6501101B" Padding="17,12,17,10" ToolTip="{Binding OfferConditions}" ToolTipService.ShowDuration="30000">
                             <StackPanel><TextBlock Text="{Binding RecapHeading}" Style="{StaticResource ShopBody}" FontWeight="SemiBold" Margin="0,0,0,11"/>
                                 <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="{Binding OfferName}" Style="{StaticResource ShopBody}" FontSize="14"/><TextBlock Grid.Column="1" Text="{Binding SelectedAmount}" Style="{StaticResource ShopBody}" FontSize="14" Margin="8,0,0,0"/></Grid>
@@ -98,14 +98,14 @@
                                 <Grid><TextBlock Text="{Binding TotalLabel}" Style="{StaticResource ShopBody}" Foreground="#EFF5FF"/><TextBlock Text="{Binding SelectedAmount}" FontSize="19" FontWeight="Bold" Foreground="{StaticResource ShopGold}" HorizontalAlignment="Right"/></Grid>
                             </StackPanel>
                         </Border>
-                        <Button x:Name="PurchaseButton" Style="{StaticResource ShopAction}" IsEnabled="{Binding CanPurchase}" Margin="0,13,0,10" Background="#AA705E2D" BorderBrush="#B59A54" Foreground="#FFF0CE"><StackPanel Orientation="Horizontal"><Path Data="{StaticResource ShopIcon.Lock}" Style="{StaticResource ShopIcon}" Width="17" Height="19" Stroke="#EBD194"/><TextBlock Text="{Binding SoonLabel}" Margin="15,0,0,0" VerticalAlignment="Center"/></StackPanel></Button>
+                        <Button x:Name="PurchaseButton" Style="{StaticResource ShopAction}" IsEnabled="{Binding CanPurchase}" Margin="0,11,0,8" Background="#AA705E2D" BorderBrush="#B59A54" Foreground="#FFF0CE"><StackPanel Orientation="Horizontal"><Path Data="{StaticResource ShopIcon.Lock}" Style="{StaticResource ShopIcon}" Width="17" Height="19" Stroke="#EBD194"/><TextBlock Text="{Binding SoonLabel}" Margin="15,0,0,0" VerticalAlignment="Center"/></StackPanel></Button>
                         <TextBlock Text="{Binding PurchaseHint}" Style="{StaticResource ShopCaption}"/>
                     </StackPanel>
                 </Border>
             </Grid>
-            <Border x:Name="ConversionBanner" Grid.Row="2" Style="{StaticResource ShopPanel}" Padding="16,12,25,12" Margin="0,14,12,0" MinHeight="123">
+            <Border x:Name="ConversionBanner" Grid.Row="2" Style="{StaticResource ShopPanel}" Padding="16,12,25,12" Margin="0,14,12,0" MinHeight="112">
                 <Grid><Grid.ColumnDefinitions><ColumnDefinition x:Name="CoinsColumn" Width="214"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                    <Image x:Name="ConversionCoins" Source="/WotLK.Launcher;component/Assets/Shop/Conversion_or_transparent.png" Width="190" Height="97" HorizontalAlignment="Left" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <Image x:Name="ConversionCoins" Source="/WotLK.Launcher;component/Assets/Shop/Conversion_or_transparent.png" Width="190" Height="86" HorizontalAlignment="Left" RenderOptions.BitmapScalingMode="HighQuality"/>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0"><TextBlock Text="{Binding ConversionHeading}" Style="{StaticResource ShopHeading}" FontSize="23"/><TextBlock Text="{Binding CreditsInformation}" Style="{StaticResource ShopBody}" FontSize="13.5" Margin="0,4,0,7"/>
                         <Border BorderBrush="#A38437" BorderThickness="1" CornerRadius="4" Padding="14,5" HorizontalAlignment="Left" Background="#A2091920"><TextBlock Text="{Binding ConversionRate}" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource ShopGold}"/></Border>
                     </StackPanel>

@@ -2,28 +2,32 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:localization="clr-namespace:WotLK.Launcher.UI.V2.Localization"
              localization:LauncherLocalizationOptions.IsUserText="True"
-             Width="142" Height="46" Focusable="False">
-    <UserControl.Resources><ResourceDictionary><ResourceDictionary.MergedDictionaries><ResourceDictionary Source="../Resources/AtlasV2.Shop.xaml"/></ResourceDictionary.MergedDictionaries></ResourceDictionary></UserControl.Resources>
-    <Grid>
-        <Border x:Name="CreditPulse" CornerRadius="8" Background="#C45D4516" Opacity="0" IsHitTestVisible="False"/>
-        <Button x:Name="WalletButton" Style="{StaticResource ShopAction}" Height="46" Padding="10,0" BorderBrush="#58623F" Click="Wallet_Click" AutomationProperties.Name="{Binding CreditsLabel}">
-            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="22"/><ColumnDefinition Width="*"/><ColumnDefinition Width="10"/></Grid.ColumnDefinitions>
-                <Path Width="18" Height="22" Data="M12,1 L22,7 V17 L12,23 L2,17 V7 Z M12,6 L17,12 L12,18 L7,12 Z" Fill="#39D8AC45" Stroke="#F4CF71" StrokeThickness="1.3" Stretch="Uniform"/>
-                <StackPanel Grid.Column="1" Margin="7,0,7,0" VerticalAlignment="Center"><TextBlock x:Name="WalletKindText" FontSize="9.5" Foreground="#B7C9D8"/><Grid>
-                    <TextBlock x:Name="WalletAmountText" FontSize="16" FontWeight="Bold" Foreground="#FFDA7B"/>
-                    <TextBlock x:Name="AnimatedAmountText" FontSize="16" FontWeight="Bold" Foreground="#FFE6A5" Visibility="Collapsed"/>
-                </Grid></StackPanel>
-                <Path Grid.Column="2" Data="{StaticResource AtlasV2.Icon.ChevronDown}" Style="{StaticResource ShopIcon}" Width="10" Height="10"/>
-            </Grid>
-        </Button>
-        <Popup x:Name="WalletPopup" PlacementTarget="{Binding ElementName=WalletButton}" Placement="Bottom" VerticalOffset="8" StaysOpen="False" AllowsTransparency="True">
-            <Border Width="290" Background="#FF071924" BorderBrush="#45627A" BorderThickness="1" CornerRadius="10" Padding="12">
-                <StackPanel>
-                    <Button x:Name="AtlasWalletChoice" Style="{StaticResource ShopAction}" Height="66" Click="Credits_Click"><StackPanel Width="228"><TextBlock Text="{Binding CreditsLabel}" Foreground="#FFDA7B" FontWeight="SemiBold"/><TextBlock Text="{Binding CreditBalance}" Foreground="#FFF4CD" FontSize="20" FontWeight="Bold" Margin="0,4,0,0"/></StackPanel></Button>
-                    <Button x:Name="EuroWalletChoice" Style="{StaticResource ShopAction}" Height="66" Margin="0,8,0,0" Click="Euros_Click"><StackPanel Width="228"><TextBlock Text="{Binding EuroWalletLabel}" Foreground="#B5D9EF"/><TextBlock Text="{Binding EuroBalance}" FontSize="20" FontWeight="Bold" Margin="0,4,0,0"/></StackPanel></Button>
-                    <TextBlock Text="{Binding SeparateWalletHint}" Style="{StaticResource ShopCaption}" Margin="4,12,4,2"/>
+             FontFamily="{StaticResource AtlasV2.Font.Inter}" TextOptions.TextRenderingMode="ClearType" TextOptions.TextFormattingMode="Ideal"
+             Width="264" Height="48" Focusable="False">
+    <Border Background="{StaticResource AtlasV2.Brush.GlassSurface}" BorderBrush="{StaticResource AtlasV2.Brush.GlassBorder}" BorderThickness="1" CornerRadius="10" Padding="12,5">
+        <Grid x:Name="WalletGrid">
+            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="20"/><ColumnDefinition/></Grid.ColumnDefinitions>
+            <Grid.RowDefinitions><RowDefinition/><RowDefinition Height="0"/></Grid.RowDefinitions>
+            <Grid x:Name="AtlasCell" ToolTip="{Binding CreditBalance}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="20"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                <Path Width="16" Height="20" Data="M12,1 L22,7 V17 L12,23 L2,17 V7 Z M12,6 L17,12 L12,18 L7,12 Z" Fill="#29D8AC45" Stroke="#E8C473" StrokeThickness="1.3" Stretch="Uniform"/>
+                <StackPanel x:Name="AtlasDetails" Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
+                    <TextBlock x:Name="WalletKindText" Text="{Binding CreditsLabel}" FontSize="11" Foreground="#BFCBD5"/>
+                    <Grid x:Name="AtlasAmount" Margin="0,1,0,0">
+                        <TextBlock x:Name="WalletAmountText" Text="{Binding CreditBalance}" FontSize="15" FontWeight="SemiBold" Foreground="#EDD18B" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock x:Name="AnimatedAmountText" FontSize="15" FontWeight="SemiBold" Foreground="#EDD18B" Visibility="Collapsed" TextTrimming="CharacterEllipsis"/>
+                    </Grid>
                 </StackPanel>
-            </Border>
-        </Popup>
-    </Grid>
+            </Grid>
+            <Border x:Name="WalletDivider" Grid.Column="1" Width="1" Margin="0,3" Background="{StaticResource AtlasV2.Brush.GlassBorder}"/>
+            <Grid x:Name="EuroCell" Grid.Column="2" ToolTip="{Binding EuroBalance}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                <TextBlock Text="€" FontSize="20" Foreground="#A7C7DE" VerticalAlignment="Center"/>
+                <StackPanel x:Name="EuroDetails" Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center">
+                    <TextBlock x:Name="EuroKindText" Text="Euros" FontSize="11" Foreground="#BFCBD5"/>
+                    <TextBlock x:Name="EuroAmountText" Text="{Binding EuroBalance}" FontSize="15" FontWeight="SemiBold" Foreground="#DAE7F2" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
 </UserControl>

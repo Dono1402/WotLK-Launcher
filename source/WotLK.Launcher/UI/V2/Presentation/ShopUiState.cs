@@ -186,7 +186,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
         if (_previewSnapshot is not null) _read = null;
         Clear(); _previewSnapshot = null; _conversionCharacterId = null; _conversionGold = ""; IsConversionOpen = false; IsLoading = false; _status = "unavailable"; Changed();
     }
-    private void Clear() { _snapshot = null; Offers = []; Characters = []; Prices = []; _offer = null; _character = null; _conversionCharacter = null; _price = null; }
+    private void Clear() { _snapshot = null; _lastConversion = null; Offers = []; Characters = []; Prices = []; _offer = null; _character = null; _conversionCharacter = null; _price = null; }
     private void Changed() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));
     public void Dispose() { if (_disposed) return; _disposed = true; ResetSession(); _read = null; }
     internal static string Text(ShopText text) => LauncherLocalization.IsEnglish ? text.En : text.Fr;

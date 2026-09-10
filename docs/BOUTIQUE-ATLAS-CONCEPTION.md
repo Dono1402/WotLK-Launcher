@@ -44,6 +44,25 @@ pas être déclarée terminée si l'un des deux accès manque.
 Les catégories Services, Montures et Mascottes servent à explorer la
 présentation ; elles ne constituent pas encore un catalogue commercial validé.
 
+### Intégration au style actuel du launcher
+
+Le propriétaire a apprécié la maquette et précisé que la boutique doit
+s'intégrer à l'esthétique actuelle du launcher. Cette exigence est retenue :
+la référence Blizzard guide l'organisation du catalogue, les aperçus et le
+parcours d'achat, tandis que la page WPF réutilise la charte Atlas existante.
+
+La page doit reprendre les ressources de `UI/V2/Resources` : typographie
+effective du launcher, fonds sombres, panneaux translucides, accents dorés et
+cyan, arrondis, boutons, états de focus et animations. Elle doit aussi conserver
+les espacements et l'adaptation aux petites fenêtres des autres pages.
+Les couleurs et styles communs seront référencés depuis ces ressources.
+
+Les ornements et la police classique de l'aperçu WoW ne définissent pas
+l'habillage final de la page du launcher. L'interface en jeu pourra conserver
+une présentation adaptée à WoW, avec les mêmes produits, libellés et règles
+d'achat que le launcher. Les deux accès partagent leurs données sans imposer
+un habillage identique à deux environnements graphiques différents.
+
 ## Constats dans le projet
 
 - `source/WotLK.Launcher/UI/V2/Presentation/LauncherShellPage.cs` ne contient pas

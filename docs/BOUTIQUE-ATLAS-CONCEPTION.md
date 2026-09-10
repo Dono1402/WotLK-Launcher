@@ -1,8 +1,12 @@
 # Boutique Atlas : conception initiale
 
 État au 10 septembre 2026 : étude des points d'intégration. La boutique n'est
-pas encore implémentée ou publiée. Le catalogue, la monnaie et le premier
-point d'accès restent à choisir avec le propriétaire du serveur.
+pas encore implémentée ou publiée. Le propriétaire a demandé une présentation
+comme celle de Blizzard dans WoW et confirmé **les deux accès, launcher et jeu,
+avec les mêmes produits et le même solde**. Les crédits pourront être gagnés en
+jeu et achetés avec de l'argent réel. Certaines offres pourront également être
+payées avec l'or du jeu. Le catalogue commercial, les tarifs, les récompenses
+de jeu et le prestataire de paiement restent à définir.
 
 ## Expérience proposée
 
@@ -19,12 +23,25 @@ est nécessaire. L'achat ne recrée pas le personnage.
 | Accès | Intégration proposée | Points à valider |
 | --- | --- | --- |
 | Launcher | Page WPF utilisant la session Atlas, la liste des personnages et l'API existantes | Navigation compacte, choix du personnage, confirmations, états réseau, français et anglais |
-| Menu en jeu | Addon Atlas avec bouton dédié, relié à un module du serveur | Interface 30403, transport Hermes, identité de la session, limitations en combat, reconnexion |
-| Les deux | Deux interfaces vers le même catalogue, les mêmes commandes et, si retenu, le même portefeuille | Achats simultanés et actualisation commune du solde et de l'historique |
+| Menu en jeu | Fenêtre native WoW ou interface Atlas par addon : réalisation à valider | Client 3.4.3, transport Hermes, identité de la session, limitations en combat, reconnexion |
+| Les deux | Deux interfaces vers le même catalogue, les mêmes commandes et le même portefeuille de crédits | Achats simultanés et actualisation commune du solde et de l'historique |
 
-Recommandation initiale : commencer dans le launcher avec le changement de nom,
-puis étendre le catalogue et l'accès en jeu après validation du premier achat
-complet. Ce choix n'est pas encore une décision de périmètre.
+Les deux interfaces font partie du périmètre demandé. Le premier parcours
+vertical proposé reste le changement de nom, pour valider un achat complet
+avec un seul service avant d'élargir le catalogue. La livraison finale ne devra
+pas être déclarée terminée si l'un des deux accès manque.
+
+### Présentation demandée
+
+- Fenêtre de boutique dédiée, catégories à gauche et fiches produits illustrées.
+- Détail d'une offre, aperçu quand il est pris en charge, prix et conditions.
+- Choix du personnage bénéficiaire et récapitulatif avant achat.
+- Présentation cohérente dans le launcher et le jeu, en français et en anglais.
+- Solde et historique issus du même compte Atlas. Les crédits et commandes
+  ne doivent pas être stockés séparément dans le launcher ou l'addon.
+
+Les catégories Services, Montures et Mascottes servent à explorer la
+présentation ; elles ne constituent pas encore un catalogue commercial validé.
 
 ## Constats dans le projet
 
@@ -50,6 +67,36 @@ complet. Ce choix n'est pas encore une décision de périmètre.
   énumérations, sans gestionnaires correspondants dans les répertoires de
   traitement des paquets examinés. La boutique native Blizzard ne doit donc pas
   être considérée comme une interface Atlas déjà fonctionnelle.
+
+### Fenêtre Blizzard native : vérification complémentaire
+
+Le checkout d'interface WoW examiné est
+[`Gethe/wow-ui-source` au commit `564ca565fd2de4d1bd4ca787d75d9f8c6d1ffcde`](https://github.com/Gethe/wow-ui-source/tree/564ca565fd2de4d1bd4ca787d75d9f8c6d1ffcde).
+Son fichier `Interface/AddOns/Blizzard_StoreUI/Blizzard_StoreUI_Wrath.toc`
+charge l'interface commune/TBC de la boutique. Les sources comprennent les
+catégories, fiches et services, avec un environnement protégé utilisant
+`C_StoreSecure`. Les boutons ordinaires ne remplacent pas ce service interne.
+
+Dans la copie Hermes du 7 septembre, `World/Server/WorldSocket.cs`, méthode
+`SendFeatureSystemStatusGlueScreen`, fixe `BpayStoreAvailable` et
+`BpayStoreEnabled` à `false`. Ces valeurs expliquent l'indisponibilité annoncée
+par cette implémentation ; les passer à `true` ne fournirait ni catalogue ni
+achat. Une relecture de la source exacte du binaire actif reste nécessaire.
+
+La référence
+[`TrinityCore/WowPacketParser` au commit `9806ff01740b799df3543122fb5b6ae96c493c27`](https://github.com/TrinityCore/WowPacketParser/tree/9806ff01740b799df3543122fb5b6ae96c493c27)
+ne donne pas un décodeur utilisable du catalogue dans les fichiers examinés :
+les gestionnaires BattlePay des modules 7.0.3 et 3.4.0 se limitent à consommer
+le contenu du paquet sans le décoder. Celui du module 3.4.0 cible en outre
+la version 3.4.4. Il ne faut pas déduire de leur présence un format de paquet
+validé pour le client 3.4.3.54261.
+
+Deux réalisations restent techniquement distinctes : réutiliser la fenêtre
+native en implémentant les échanges exacts attendus par le client, ou produire
+une interface Atlas fidèle à sa présentation avec un addon dédié. La première
+piste exige de prouver le chargement d'un catalogue de test avant d'activer un
+achat ; la seconde exige de valider son transport addon et son intégration au
+menu. Le rendu de la maquette ne prouve pas la compatibilité de l'une ou l'autre.
 
 Les changements d'apparence, de race et de faction doivent être vérifiés
 séparément dans le serveur, Hermes et le client 3.4.3 avant ouverture à l'achat.
@@ -79,22 +126,42 @@ La présence d'une commande serveur ou d'un bouton client ne suffit pas.
    consultation et ajustements tracés pour l'administrateur, désactivation
    d'une offre sans nouvelle publication du launcher.
 
-Le portefeuille éventuel appartient au compte Atlas ; le bénéficiaire d'un
+Le portefeuille de crédits appartient au compte Atlas ; le bénéficiaire d'un
 service reste un personnage explicitement choisi. Les deux interfaces doivent
 utiliser les mêmes règles de validation et de concurrence.
 
-## Choix de monnaie encore ouverts
+## Économie retenue
 
-- **Crédits Atlas sans paiement réel initial** : décider comment les crédits
-  sont attribués, si le solde est partagé entre royaumes et quels ajustements
-  administratifs sont permis. Aucun crédit gratuit automatique n'est présumé.
-- **Or du jeu** : choisir le personnage débité et faire traiter l'opération par
-  le core. Une écriture directe de son or en base pendant sa connexion pourrait
-  être écrasée par sa sauvegarde en mémoire.
-- **Crédits avec paiement réel** : définir les packs, tarifs et règles avant
-  intégration d'un prestataire. Les crédits seront accordés sur confirmation
-  serveur vérifiée du paiement, avec traitement des événements répétés et des
-  remboursements. Un retour du navigateur ne sera pas une preuve de paiement.
+Deux moyens de paiement doivent être représentés sans les confondre :
+
+| Moyen | Propriétaire du solde | Origine | Règle d'achat |
+| --- | --- | --- | --- |
+| Crédits Atlas | Compte Atlas, commun aux deux interfaces | Récompenses de jeu ou achat en argent réel | Débit et attribution centralisés et traçables |
+| Or du jeu | Personnage explicitement sélectionné | Économie du jeu existante | Seulement sur les offres qui acceptent l'or ; validation et débit par le serveur de jeu |
+
+Une offre pourra être proposée en crédits, en or, ou avec deux tarifs au choix.
+Dans ce dernier cas, le joueur choisit son moyen de paiement avant de confirmer.
+Il ne s'agit pas d'une conversion automatique entre or et crédits. Le paiement
+partiel d'un même achat en or et en crédits n'a pas été demandé.
+
+Le journal des crédits conserve leur origine : récompense, paiement, dépense,
+annulation et correction administrative. Les événements de récompense et de
+paiement possèdent des identifiants durables pour empêcher un crédit répété.
+Les règles d'attribution en jeu doivent être définies avant activation ; aucun
+bonus de connexion, gain par minute ou tarif de récompense n'est présumé.
+
+Le launcher et l'interface en jeu affichent le même or **pour le même
+personnage**. Aucun portefeuille d'or partagé entre personnages n'a été demandé.
+Une écriture directe de l'or en base pendant la connexion du personnage pourrait
+être écrasée par sa sauvegarde en mémoire ; l'opération relève du core.
+
+L'achat de crédits en argent réel utilisera un prestataire à choisir. Il faut
+définir les packs, tarifs et règles de remboursement avant activation. Les
+crédits seront accordés sur confirmation serveur vérifiée du paiement, avec
+traitement des événements répétés et des remboursements. Un retour du navigateur
+ne sera pas une preuve de paiement. Une annulation de paiement dont les crédits
+ont déjà été dépensés doit déclencher un traitement explicite, pas un nouveau
+crédit ni un effacement silencieux de l'historique.
 
 ## Validation attendue avant ouverture
 

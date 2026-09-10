@@ -93,7 +93,7 @@ internal sealed partial class ShopUiState
         if (_disposed) return;
         if (_conversionCharacter is null && _conversionCharacterId is null)
             SelectedConversionCharacter = SelectedCharacter ?? Characters.FirstOrDefault(c => !c.Character.Online && c.Character.GoldCopper is > 0) ?? Characters.FirstOrDefault();
-        IsServiceOpen = false; IsConversionOpen = true; Changed();
+        IsWalletOpen = false; IsServiceOpen = false; IsConversionOpen = true; Changed();
     }
     internal void CloseConversion() { IsConversionOpen = false; Changed(); }
     internal void SetConversionPercent(int percent)

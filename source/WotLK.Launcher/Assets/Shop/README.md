@@ -42,3 +42,29 @@ Le nom et la faction reprennent les compositions du pack en les redessinant ;
 le sésame et la race sont des créations. Les originaux restent conservés.
 Les modes, références, prompts et empreintes figurent dans
 [GENERATED-ART.md](GENERATED-ART.md).
+
+Le raccourci compact de conversion, désormais placé au-dessus des services,
+réutilise `Conversion_or_transparent.png` sans modification. La grille reprend
+les quatre illustrations tout en utilisant les surfaces bleu nuit, les bordures
+et les arrondis WPF communs au launcher.
+
+## Logos des moyens de paiement du 11 septembre
+
+Les fichiers `Payment_visa.png`, `Payment_mastercard.png`, `Payment_paypal.png`
+et `Payment_bancontact.png` proviennent de la [banque de logos du prestataire
+Buckaroo](https://github.com/buckaroo-it/Media). Les PNG de 96 × 72 pixels sont
+intégrés sans modification, avec leurs couleurs et proportions, et affichés
+à 64 × 48 DIPs. Visa et Mastercard partagent la carte « Carte bancaire ».
+Aucun téléchargement distant de logo ne se produit dans le launcher.
+
+Sources des fichiers :
+
+- [Visa](https://github.com/buckaroo-it/Media/blob/main/Creditcard%20issuers/PNG/VISA.png)
+- [Mastercard](https://github.com/buckaroo-it/Media/blob/main/Creditcard%20issuers/PNG/Mastercard.png)
+- [PayPal](https://github.com/buckaroo-it/Media/blob/main/Payment%20methods/PNG/PayPal.png)
+- [Bancontact](https://github.com/buckaroo-it/Media/blob/main/Payment%20methods/PNG/Bancontact.png)
+
+Ces marques appartiennent à leurs titulaires ; elles ne sont pas des créations
+Atlas et ne relèvent pas de la licence du code. Le dépôt fournisseur décrit
+leur usage pour ses marchands et partenaires. Leur présence dans cette
+prévisualisation identifie les moyens envisagés et n'active aucun paiement.

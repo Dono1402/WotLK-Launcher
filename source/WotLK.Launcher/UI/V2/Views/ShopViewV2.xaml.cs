@@ -9,6 +9,7 @@ public partial class ShopViewV2 : UserControl, IDisposable
 {
     internal ShopUiState State { get; } = new();
     internal ShopConversionViewV2 ConversionPage => ConversionView;
+    internal ShopWalletViewV2 WalletPage => WalletView;
     internal event EventHandler? ConversionRequested;
     public ShopViewV2()
     {
@@ -73,7 +74,6 @@ public partial class ShopViewV2 : UserControl, IDisposable
         int columns = ActualWidth >= 1320 ? 3 : 2;
         CardWidth = Math.Floor((available - (columns - 1) * 24) / columns);
         CardImageHeight = (CardWidth - 2) * 9 / 16;
-        CoinsColumn.Width = new GridLength(compact ? 150 : 214);
-        ConversionCoins.Width = compact ? 140 : 190;
+        MoreConversionButton.Width = compact ? 260 : 280;
     }
 }

@@ -1,7 +1,7 @@
 # Boutique Atlas : catalogue, soldes et conversion locale
 
 État au 11 septembre 2026. Ce jalon fournit les écrans WPF, le catalogue
-authentifié, deux soldes visibles simultanément et le convertisseur intégré.
+authentifié, deux soldes cliquables, le convertisseur intégré et une page de préparation des recharges.
 Le mode de prévisualisation peut simuler un débit d'or et un crédit Atlas en mémoire.
 Il ne permet pas encore de payer, de débiter l'or d'un véritable personnage,
 de créditer un portefeuille persistant ou de renommer un personnage.
@@ -26,10 +26,16 @@ Aucun service de production ni client installé n'a été modifié.
   pas être remplacé silencieusement par un autre bénéficiaire.
 - **Crédits Atlas et portefeuille en euros visibles simultanément** dans la
   barre supérieure, immédiatement à gauche de Messages, sur toutes les pages.
-  Leur groupe passe sur deux lignes en largeur compacte. Les deux sont exprimés
+  Le libellé supérieur « Euros » est remplacé par **Portefeuille**.
+  Cliquer **Crédits Atlas** ouvre la conversion ; cliquer **Portefeuille** ouvre
+  la page de recharge, depuis tous les onglets. Les contrôles d'authentification
+  et de navigation restent appliqués. Leur groupe passe sur deux lignes en largeur compacte. Les deux sont exprimés
   en centimes entiers. Le serveur renvoie actuellement `null` pour chacun,
   affiché `—`, puisque leur persistance n'est pas encore implémentée.
-- Bandeau inférieur **Convertir** remplaçant le catalogue par une interface
+- Raccourci **Convertir mon or** placé à droite au-dessus des services,
+  dans la zone demandée, avec l'illustration de pièces fournie. Ses dimensions
+  restent de 260/280 × 72 DIPs et il est accessible sans défiler.
+  Il remplace le catalogue par une interface
   centrée dans la page du launcher. Présentation horizontale : or disponible à
   gauche, montant numérique au centre, flèche et Crédits Atlas en euros à droite.
   La navigation et les soldes restent accessibles ; **Retour à la boutique**
@@ -38,6 +44,16 @@ Aucun service de production ni client installé n'a été modifié.
   saisie entière sans argent/cuivre, bouton Max, curseur et raccourcis
   25/50/75/100 %, crédit obtenu, or restant et nouveau solde Atlas. Les personnages connectés n'exposent pas
   de solde d'or périmé et ne peuvent pas convertir.
+- Page **Créditer mon portefeuille** : montant libre en euros, raccourcis de
+  saisie 5/10/20/50 €, choix carte bancaire / PayPal / Bancontact avec leurs logos
+  (Visa et Mastercard pour la carte), solde actuel
+  et récapitulatif du montant et du solde envisagé. Ces raccourcis ne définissent
+  ni packs commerciaux, ni minimum de recharge. La saisie conserve exactement
+  les centimes et refuse les montants invalides ou dépassant le plafond.
+  Le formulaire reste un brouillon : aucun paiement n'est créé et aucun solde
+  n'est crédité. **Continuer vers le paiement** est désactivé avec la mention
+  d'ouverture prochaine, jusqu'au raccordement des prestataires.
+  Retour/Échap ferme la page ; une déconnexion efface le montant et le moyen choisi.
 - Pendant la conversion de prévisualisation, des pièces se déplacent à
   l'intérieur du convertisseur. Le nombre de Crédits Atlas dans l'en-tête évolue
   ensuite discrètement sur place, sans pastille traversant l'écran.
@@ -54,10 +70,18 @@ Aucun service de production ni client installé n'a été modifié.
 ## Présentation et ressources
 
 La référence du 11 septembre est une grille de grandes cartes de services.
-Les illustrations occupent une zone 16:9 ; la partie inférieure des cartes est
-opaque, avec des noms et tarifs lisibles. Le catalogue défile verticalement
-pour présenter les quatre services et le bandeau de conversion. La fiche et le
-convertisseur sont deux vues distinctes et exclusives de la même page.
+Les illustrations occupent une zone 16:9. Les cartes utilisent les surfaces
+vitrées bleu nuit, les bordures bleues et les coins arrondis de 14 DIPs du launcher,
+avec des titres nacrés et des tarifs dorés. Les surfaces grises de la référence
+ont été remplacées. Les illustrations restent intactes, avec des angles supérieurs
+arrondis par le contrôle WPF.
+
+Le raccourci de conversion est aligné à droite de l'en-tête du catalogue, au-dessus
+de la grille. Le défilement sert à voir les services suivants. Le catalogue,
+la fiche de service, le convertisseur et la recharge sont des vues exclusives
+de la même page. Cliquer l'un des soldes supérieurs active directement sa vue.
+Quitter la conversion pour la recharge annule aussi tout transfert animé en
+attente avant le débit/crédit simulé.
 
 Le décor et le logo proviennent de l'archive fournie
 `Atlas_Boutique_Assets_Pour_Codex.zip`. Les cartes utilisent quatre illustrations
@@ -202,17 +226,17 @@ d'intégration sans erreur ni avertissement.
 
 | Suite | Résultat et portée |
 | --- | --- |
-| `--shop` | 122 assertions : quatre offres, tarifs futurs absents, ouverture et fermeture des fiches, taux de 100 po par euro, deux soldes, limites par personnage, précision, débit/crédit simulé conservatif, refus du dépassement, saisie, session, erreurs HTTP et séparation du mode réel |
-| `--shop-wpf <dossier>` | Quatre cartes en 3/2 colonnes à 1586×992 puis quatre tailles FR/EN ; ouverture de chaque fiche, prix futurs localisés, retour/Échap et position de défilement conservée ; deux soldes supérieurs, conversion horizontale intégrée de 1080×680 à 1586×992, frappe/collage entiers, Max par personnage, en-tête identique à Addons, navigation libre/retour/Escape, animation interne annulable, maintien dans la conversion après réussite, sélection conservée et actualisation des soldes à la connexion ; captures PNG et aucune erreur de binding |
+| `--shop` | 148 assertions : brouillons de recharge, précision des centimes, absence de crédit local, reset de session, quatre offres, tarifs futurs absents, ouverture et fermeture des fiches, taux de 100 po par euro, deux soldes, limites par personnage, précision, débit/crédit simulé conservatif, refus du dépassement, saisie, session, erreurs HTTP et séparation du mode réel |
+| `--shop-wpf <dossier>` | Accès compact à la conversion visible au-dessus des cartes ; clics des deux soldes depuis Jeu/Addons ; page de recharge avec trois moyens, saisie, Retour/Échap, paiement fermé et reset de session ; quatre cartes en 3/2 colonnes à 1586×992 puis quatre tailles FR/EN ; ouverture de chaque fiche, prix futurs localisés, retour/Échap et position de défilement conservée ; deux soldes supérieurs, conversion horizontale intégrée de 1080×680 à 1586×992, frappe/collage entiers, Max par personnage, en-tête identique à Addons, navigation libre/retour/Escape, animation interne annulable, maintien dans la conversion après réussite, sélection conservée et actualisation des soldes à la connexion ; captures PNG et aucune erreur de binding |
 | `--shop-mysql` | API HTTP réelle et MySQL 8.4.11 jetable sur loopback : authentification, appartenance Atlas, personnages autorisés, soldes, prix, taux, absence de mutation, limites et erreurs |
 | `--armory-session` | Régressions de session et tests boutique : refus du refresh, 401, reconnexion au même compte ou à un autre, réponse tardive et annulation |
 | `--shell-navigation-wpf` | 898 assertions incluant le nouvel onglet et les panneaux existants |
 | `--startup-routing` | Démarrage réel inchangé et prévisualisation boutique isolée, sans accès au registre réel |
 
 Les contrôles graphiques utilisent des fenêtres synthétiques, inactives et hors
-écran. Des captures du catalogue et du convertisseur ont été relues. Aucun
-launcher utilisateur, jeu ou navigateur n'a été ouvert. Les bases jetables ont
-été supprimées par les tests et le processus MySQL local a été arrêté.
+écran. Les captures du catalogue, du convertisseur et de la recharge ont été relues, dont les vues compactes. Aucun
+launcher utilisateur, jeu ou navigateur n'a été ouvert. Le contrôle API/MySQL du jalon précédent reste inchangé ;
+cette retouche d'interface n'a pas relancé la base et ne modifie pas le backend.
 
 ## Suite avant activation
 

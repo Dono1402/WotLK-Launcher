@@ -4,10 +4,32 @@
              localization:LauncherLocalizationOptions.IsUserText="True"
              FontFamily="{StaticResource AtlasV2.Font.Inter}" TextOptions.TextRenderingMode="ClearType" TextOptions.TextFormattingMode="Ideal"
              Width="264" Height="48" Focusable="False">
+    <UserControl.Resources>
+        <Style x:Key="WalletNavigation" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/><Setter Property="Focusable" Value="True"/>
+            <Setter Property="FocusVisualStyle" Value="{StaticResource AtlasV2.FocusVisual.Button}"/>
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+                <Border x:Name="Surface" Background="{TemplateBinding Background}" CornerRadius="6" Padding="1,0">
+                    <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="#401B5772"/></Trigger>
+                    <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="#663B7994"/></Trigger>
+                    <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value=".6"/><Setter Property="Cursor" Value="Arrow"/></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate></Setter.Value></Setter>
+        </Style>
+    </UserControl.Resources>
     <Border Background="{StaticResource AtlasV2.Brush.GlassSurface}" BorderBrush="{StaticResource AtlasV2.Brush.GlassBorder}" BorderThickness="1" CornerRadius="10" Padding="12,5">
         <Grid x:Name="WalletGrid">
             <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="20"/><ColumnDefinition/></Grid.ColumnDefinitions>
             <Grid.RowDefinitions><RowDefinition/><RowDefinition Height="0"/></Grid.RowDefinitions>
+            <Button x:Name="AtlasWalletButton" Click="Credits_Click" AutomationProperties.Name="{Binding CreditsLabel}">
+                <Button.Style><Style TargetType="Button" BasedOn="{StaticResource WalletNavigation}"><Style.Triggers>
+                    <DataTrigger Binding="{Binding IsConversionOpen}" Value="True"><Setter Property="Background" Value="#351B5772"/></DataTrigger>
+                </Style.Triggers></Style></Button.Style>
             <Grid x:Name="AtlasCell" ToolTip="{Binding CreditBalance}">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="20"/><ColumnDefinition/></Grid.ColumnDefinitions>
                 <Path Width="16" Height="20" Data="M12,1 L22,7 V17 L12,23 L2,17 V7 Z M12,6 L17,12 L12,18 L7,12 Z" Fill="#29D8AC45" Stroke="#E8C473" StrokeThickness="1.3" Stretch="Uniform"/>
@@ -19,15 +41,21 @@
                     </Grid>
                 </StackPanel>
             </Grid>
+            </Button>
             <Border x:Name="WalletDivider" Grid.Column="1" Width="1" Margin="0,3" Background="{StaticResource AtlasV2.Brush.GlassBorder}"/>
-            <Grid x:Name="EuroCell" Grid.Column="2" ToolTip="{Binding EuroBalance}">
+            <Button x:Name="EuroWalletButton" Grid.Column="2" Click="Wallet_Click" AutomationProperties.Name="{Binding WalletLabel}">
+                <Button.Style><Style TargetType="Button" BasedOn="{StaticResource WalletNavigation}"><Style.Triggers>
+                    <DataTrigger Binding="{Binding IsWalletOpen}" Value="True"><Setter Property="Background" Value="#351B5772"/></DataTrigger>
+                </Style.Triggers></Style></Button.Style>
+            <Grid x:Name="EuroCell" ToolTip="{Binding EuroBalance}">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition/></Grid.ColumnDefinitions>
                 <TextBlock Text="€" FontSize="20" Foreground="#A7C7DE" VerticalAlignment="Center"/>
                 <StackPanel x:Name="EuroDetails" Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center">
-                    <TextBlock x:Name="EuroKindText" Text="Euros" FontSize="11" Foreground="#BFCBD5"/>
+                    <TextBlock x:Name="EuroKindText" Text="{Binding WalletLabel}" FontSize="11" Foreground="#BFCBD5"/>
                     <TextBlock x:Name="EuroAmountText" Text="{Binding EuroBalance}" FontSize="15" FontWeight="SemiBold" Foreground="#DAE7F2" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
             </Grid>
+            </Button>
         </Grid>
     </Border>
 </UserControl>

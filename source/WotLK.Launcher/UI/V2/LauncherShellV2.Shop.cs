@@ -19,12 +19,16 @@ public partial class LauncherShellV2
     {
         WalletHeader.DataContext = ShopView.State;
         ShopView.ConversionRequested += OpenShopConversion;
+        WalletHeader.CreditsRequested += OpenShopConversion;
+        WalletHeader.WalletRequested += OpenShopWallet;
         ShopView.State.CreditGranted += ShopCreditGranted;
         ShopView.State.PropertyChanged += ShopPresentationChanged;
     }
     private void DisposeShopPresentation()
     {
         ShopView.ConversionRequested -= OpenShopConversion;
+        WalletHeader.CreditsRequested -= OpenShopConversion;
+        WalletHeader.WalletRequested -= OpenShopWallet;
         ShopView.State.CreditGranted -= ShopCreditGranted;
         ShopView.State.PropertyChanged -= ShopPresentationChanged;
         WalletHeader.StopAnimation();
@@ -35,8 +39,13 @@ public partial class LauncherShellV2
     }
     private void OpenShopConversion(object? sender, EventArgs e)
     {
-        if (IsAuthenticationRequired || !_overlayCoordinator.CanNavigate) return;
-        DismissNavigationPanels(); ShopView.State.OpenConversion();
+        if (!ShellState.IsNavigationEnabled || IsAuthenticationRequired || !_overlayCoordinator.CanNavigate) return;
+        NavigateTo(LauncherShellPage.Shop); ShopView.State.OpenConversion();
+    }
+    private void OpenShopWallet(object? sender, EventArgs e)
+    {
+        if (!ShellState.IsNavigationEnabled || IsAuthenticationRequired || !_overlayCoordinator.CanNavigate) return;
+        NavigateTo(LauncherShellPage.Shop); ShopView.State.OpenWallet();
     }
     private async Task RefreshShopHeaderAsync()
     {
@@ -78,7 +87,7 @@ public partial class LauncherShellV2
     private async void ShopNavigationButton_Click(object sender, RoutedEventArgs e)
     {
         if (!ShellState.IsNavigationEnabled || !_overlayCoordinator.CanNavigate || IsAuthenticationRequired) return;
-        ShopView.State.CloseConversion(); ShopView.State.CloseService();
+        ShopView.State.CloseConversion(); ShopView.State.CloseService(); ShopView.State.CloseWallet();
         NavigateTo(LauncherShellPage.Shop);
         await ShopView.State.RefreshAsync();
     }

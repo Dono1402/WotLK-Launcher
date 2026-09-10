@@ -1432,9 +1432,10 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (CurrentPage == LauncherShellPage.Shop && (ShopView.State.IsConversionOpen || ShopView.State.IsServiceOpen) && _overlayCoordinator.Current == ShellOverlayKind.None && e.Key == Key.Escape)
+        if (CurrentPage == LauncherShellPage.Shop && (ShopView.State.IsConversionOpen || ShopView.State.IsServiceOpen || ShopView.State.IsWalletOpen) && _overlayCoordinator.Current == ShellOverlayKind.None && e.Key == Key.Escape)
         {
-            if (ShopView.State.IsServiceOpen) ShopView.CloseService();
+            if (ShopView.State.IsWalletOpen) ShopView.State.CloseWallet();
+            else if (ShopView.State.IsServiceOpen) ShopView.CloseService();
             else ShopView.State.CloseConversion();
             e.Handled = true;
             return;
@@ -1749,7 +1750,7 @@ public partial class LauncherShellV2 : Window
 
         if (page != LauncherShellPage.Shop)
         {
-            ShopView.State.CloseConversion(); ShopView.State.CloseService();
+            ShopView.State.CloseConversion(); ShopView.State.CloseService(); ShopView.State.CloseWallet();
         }
 
         if (CurrentPage == LauncherShellPage.Account && page != LauncherShellPage.Account)

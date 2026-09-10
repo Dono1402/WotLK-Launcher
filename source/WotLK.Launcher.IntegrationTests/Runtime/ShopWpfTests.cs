@@ -280,9 +280,10 @@ internal static class ShopWpfTests
                     shell.Width = 1586; shell.Height = 992; amount.Text = "10"; await Pump();
                     Check(Get<TextBlock>(conversion, "ConversionCreditText").Text == "0,10 €", "The reported ten-gold case now displays ten cents in French.");
                     Capture(shell, Path.Combine(captureDirectory, "shop-rate-10-gold.png"));
+                    await VerifyWalletNavigationAsync(shell, shop, captureDirectory);
                     await VerifyHeaderSessionAsync();
                     Check(errors.Messages.Count == 0, "No WPF binding errors: " + string.Join("\n", errors.Messages));
-                    Console.WriteLine("Shop WPF PASS: four adaptive service cards, localized upcoming prices, detail/back/Escape and scroll restoration, two header wallets, FR/EN at four adaptive widths, integrated horizontal conversion, freely accessible navigation, return/Escape, numeric typing/paste, per-character max and overdraw, cancellable internal coin transfer, subtle header counter, retained success receipt, refresh and session changes; offscreen inactive fixtures only.");
+                    Console.WriteLine("Shop WPF PASS: compact conversion shortcut above cards, clickable header wallets, funding method drafts and session reset, four adaptive service cards, localized upcoming prices, detail/back/Escape and scroll restoration, two header wallets, FR/EN at four adaptive widths, integrated horizontal conversion, freely accessible navigation, return/Escape, numeric typing/paste, per-character max and overdraw, cancellable internal coin transfer, subtle header counter, retained success receipt, refresh and session changes; offscreen inactive fixtures only.");
                     result = 0;
                 }
                 catch (Exception error) { Console.Error.WriteLine(error); result = 1; }
@@ -299,6 +300,78 @@ internal static class ShopWpfTests
         return await completion.Task.WaitAsync(TimeSpan.FromMinutes(2));
     }
 
+    private static async Task VerifyWalletNavigationAsync(LauncherShellV2 shell, ShopViewV2 shop, string captureDirectory)
+    {
+        ShopWalletViewV2 walletPage = shop.WalletPage;
+        WalletBalanceV2 header = shell.WalletControl;
+        Button credits = Get<Button>(header, "AtlasWalletButton"), euros = Get<Button>(header, "EuroWalletButton");
+        TextBox amount = Get<TextBox>(walletPage, "WalletAmountInput");
+        ListBox methods = Get<ListBox>(walletPage, "PaymentMethodPicker");
+        shop.State.ConfigurePreview(ShopPreviewData.Create()); await shop.State.RefreshAsync();
+        foreach (string locale in new[] { LauncherLocalization.FrenchLocale, LauncherLocalization.EnglishLocale })
+        {
+            LauncherLocalization.SetLocale(locale); await Pump();
+            Check(Get<TextBlock>(header, "EuroKindText").Text == (LauncherLocalization.IsEnglish ? "Wallet" : "Portefeuille"), "Header label replaces Euros with the localized Wallet name.");
+            foreach ((int width, int height) in new[] { (1586, 992), (1440, 860), (1280, 760), (1080, 680) })
+            {
+                shell.Width = width; shell.Height = height;
+                Get<Button>(shell, "GameNavigationButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                credits.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                Check(shell.CurrentPage == LauncherShellPage.Shop && shop.ConversionPage.IsVisible && shop.State.IsConversionOpen && !walletPage.IsVisible, "Clicking Atlas credits from Game opens the converter.");
+                Get<Button>(shop.ConversionPage, "CloseConversionButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                Get<ScrollViewer>(shop, "PageScroll").ScrollToTop(); await Pump();
+                Button shortcut = Get<Button>(shop, "MoreConversionButton");
+                Rect shortcutBounds = new(shortcut.TranslatePoint(new Point(), shop), shortcut.RenderSize);
+                double cardsTop = Get<ItemsControl>(shop, "ProductList").TranslatePoint(new Point(), shop).Y;
+                Check(shortcutBounds.Top >= 0 && shortcutBounds.Bottom < cardsTop && shortcutBounds.Left > shop.ActualWidth / 2 && shortcutBounds.Right <= shop.ActualWidth,
+                    "Compact conversion shortcut stays visible above the cards, on the right.");
+                Check(shortcut.ActualWidth <= 280 && shortcut.ActualHeight <= 76, "The conversion shortcut retains its compact size.");
+                shortcut.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                Check(shop.State.IsConversionOpen, "The compact shortcut still opens conversion.");
+                Get<Button>(shell, "AddonsNavigationButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                euros.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                Check(shell.CurrentPage == LauncherShellPage.Shop && walletPage.IsVisible && shop.State.IsWalletOpen && !shop.State.IsConversionOpen && !shop.State.IsServiceOpen,
+                    "Clicking the euro wallet from Addons opens the independent funding page.");
+                amount.Text = LauncherLocalization.IsEnglish ? "12.50" : "12,50"; await Pump();
+                for (int method = 0; method < 3; method++)
+                {
+                    methods.SelectedIndex = method; await Pump();
+                    Check(Get<TextBlock>(walletPage, "WalletSelectedMethod").Text == shop.State.PaymentMethods[method].Name, "Each payment method updates the draft summary.");
+                }
+                Check(Get<TextBlock>(walletPage, "WalletDraftAmount").Text == (LauncherLocalization.IsEnglish ? "12.50 €" : "12,50 €")
+                    && Get<TextBlock>(walletPage, "WalletAfterAmount").Text == (LauncherLocalization.IsEnglish ? "22.50 €" : "22,50 €"), "The funding summary uses exact cents and the active locale.");
+                Check(!Get<Button>(walletPage, "WalletPayButton").IsEnabled && shop.State.EuroBalance == (LauncherLocalization.IsEnglish ? "10.00 €" : "10,00 €"),
+                    "Payment remains closed and selecting a method never changes the current wallet.");
+                Check(Get<ScrollViewer>(walletPage, "WalletScroll").ScrollableWidth == 0 && Descendants(methods).OfType<ScrollViewer>().All(v => v.ScrollableWidth == 0), "Funding page and payment cards do not overflow horizontally.");
+                Get<ScrollViewer>(walletPage, "WalletScroll").ScrollToTop(); await Pump();
+                Button payButton = Get<Button>(walletPage, "WalletPayButton");
+                Check(payButton.TranslatePoint(new Point(0, payButton.ActualHeight), shop).Y <= shop.ActualHeight, "Payment continuation stays within the first viewport at every supported size.");
+                Capture(shell, Path.Combine(captureDirectory, $"shop-wallet-{locale}-{width}.png"));
+                Get<Button>(walletPage, "WalletTenButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                Check(amount.Text == "10" && shop.State.WalletTopUpCents == 1000, "Wallet amount presets update the bound amount.");
+                Get<Button>(walletPage, "WalletBackButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                Check(!shop.State.IsWalletOpen && Get<ScrollViewer>(shop, "PageScroll").IsVisible, "Wallet back returns to the catalog.");
+                euros.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                HwndSource hwnd = (HwndSource)PresentationSource.FromVisual(shell);
+                shell.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, hwnd, Environment.TickCount, Key.Escape) { RoutedEvent = Keyboard.PreviewKeyDownEvent }); await Pump();
+                Check(!shop.State.IsWalletOpen, "Escape closes the wallet page.");
+            }
+        }
+        LauncherLocalization.SetLocale(LauncherLocalization.FrenchLocale);
+        if (SystemParameters.ClientAreaAnimation)
+        {
+            credits.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+            Get<TextBox>(shop.ConversionPage, "ConversionAmount").Text = "10"; await Pump();
+            Get<Button>(shop.ConversionPage, "ConvertButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+            Check(shop.ConversionPage.IsTransferring, "The preview transfer starts before navigating to Wallet.");
+            euros.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Task.Delay(920); await Pump();
+            Check(!shop.ConversionPage.IsTransferring && shop.State.IsWalletOpen && shop.State.CreditBalance == "2,65 €" && shop.State.EuroBalance == "10,00 €",
+                "Wallet navigation cancels pending conversion without debiting gold or crediting either wallet.");
+        }
+        shop.State.ResetSession(); await Pump();
+        Check(!shop.State.IsWalletOpen && amount.Text == "" && methods.SelectedItem is null, "Session reset clears the actual wallet form and selection.");
+    }
+
     private static async Task VerifyHeaderSessionAsync()
     {
         ShellUiState identity = new() { IsAuthenticated = false, Username = "Fixture" };
@@ -313,7 +386,9 @@ internal static class ShopWpfTests
             int reads = 0;
             TaskCompletionSource<ShopSnapshot> late = new(TaskCreationOptions.RunContinuationsAsynchronously);
             fixture.AttachShop(_ => ++reads == 2 ? late.Task : Task.FromResult(ShopRuntimeTests.Snapshot with { CreditBalanceEuroCents = reads * 100, EuroBalanceCents = 800 }));
-            Check(reads == 0, "A signed-out shell does not read either wallet.");
+            Get<Button>(fixture.WalletControl, "AtlasWalletButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Get<Button>(fixture.WalletControl, "EuroWalletButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Check(reads == 0 && !fixture.ShopPage.State.IsWalletOpen && !fixture.ShopPage.State.IsConversionOpen, "Signed-out wallet shortcuts cannot read balances or open funding pages.");
             AuthSessionSnapshot signedIn = AuthSessionSnapshot.Initial with { State = LauncherSessionState.Authenticated, Username = "Fixture" };
             AuthSessionSnapshot signedOut = signedIn with { State = LauncherSessionState.SignedOut };
             identity.ApplySessionSnapshot(signedIn); await Pump();

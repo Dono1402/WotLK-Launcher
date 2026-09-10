@@ -102,6 +102,20 @@ une présentation adaptée à WoW, avec les mêmes produits, libellés et règle
 d'achat que le launcher. Les deux accès partagent leurs données sans imposer
 un habillage identique à deux environnements graphiques différents.
 
+## Accès aux monnaies et habillage du 11 septembre
+
+L'accès compact à la conversion se place à droite de l'en-tête de la boutique,
+au-dessus des services, avec l'image de pièces fournie. Le solde **Crédits Atlas**
+de la barre supérieure ouvre directement la conversion depuis les autres pages.
+**Portefeuille** remplace « Euros » dans cette barre et ouvre une page proposant
+le montant et le moyen de recharge. Carte bancaire, PayPal et Bancontact reprennent
+les prestataires prévus ci-dessous ; la confirmation réelle reste fermée.
+
+Les cartes de services conservent leurs grandes illustrations mais adoptent les
+surfaces bleu nuit, les bordures et les arrondis du launcher. Les trois parcours
+(fiche de service, conversion, recharge) restent distincts et accessibles dans
+la page Boutique, avec Retour et Échap.
+
 ## Catalogue de services retenu le 11 septembre
 
 Le catalogue présente quatre offres : changement de nom à 5 €, sésame niveau 70,

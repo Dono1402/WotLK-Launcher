@@ -47,6 +47,32 @@ internal static class ShopRuntimeTests
                 services.OpenService(services.Offers[0]); services.ResetSession();
                 Check(!services.IsServiceOpen && !services.HasOffers, "Signing out clears service details and catalog data.");
             }
+            foreach ((string input, long cents) in new[] { ("0.01", 1L), ("12,50", 1250L), ("12.50", 1250L), ("10", 1000L), ("10000000", 1000000000L) })
+                Check(ShopUiState.TryParseWalletAmount(input, out long parsed) && parsed == cents, "Wallet amount parsing retains exact cents in French and English.");
+            foreach (string invalid in new[] { "", "0", "-5", "1e3", "12.501", "1,234.56", "NaN", "10000000.01", "999999999", "1 000", ".50", "10 €" })
+                Check(!ShopUiState.TryParseWalletAmount(invalid, out _), "Invalid or excessive wallet amounts are rejected without rounding.");
+            using (ShopUiState wallet = new())
+            {
+                wallet.ConfigurePreview(ShopPreviewData.Create()); await wallet.RefreshAsync();
+                wallet.OpenWallet(); wallet.WalletAmount = "12,50"; wallet.SelectedPaymentMethod = wallet.PaymentMethods[1];
+                Check(wallet.IsWalletOpen && !wallet.IsServiceOpen && !wallet.IsConversionOpen
+                    && wallet.WalletAmountDisplay == "12,50 €" && wallet.WalletBalanceAfter == "22,50 €", "Wallet drafts show the selected amount and prospective euro balance.");
+                Check(!wallet.CanBeginWalletPayment && wallet.EuroBalance == "10,00 €" && wallet.CreditBalance == "2,65 €", "Payment choices cannot fabricate funding of either wallet.");
+                wallet.OpenConversion();
+                Check(!wallet.IsWalletOpen && wallet.IsConversionOpen, "Header conversion leaves the wallet page.");
+                wallet.OpenWallet();
+                Check(wallet.WalletAmount == "12,50" && wallet.WalletPaymentName == "PayPal", "Switching pages preserves the same account's draft.");
+                wallet.OpenService(wallet.Offers[0]);
+                Check(!wallet.IsWalletOpen && wallet.IsServiceOpen, "Opening a service leaves the wallet page.");
+                wallet.SelectedPaymentMethod = new ShopPaymentMethodRow("card");
+                Check(wallet.SelectedPaymentMethod is null, "Only configured payment method rows may be selected.");
+                wallet.ResetSession();
+                Check(!wallet.IsWalletOpen && wallet.WalletAmount == "" && wallet.SelectedPaymentMethod is null, "Sign-out clears the wallet page and its draft.");
+                wallet.Configure(_ => Task.FromResult(snapshot)); await wallet.RefreshAsync(); wallet.WalletAmount = "5";
+                Check(wallet.WalletAmountDisplay == "5,00 €" && wallet.WalletBalanceAfter == "—", "An unknown euro balance cannot be fabricated by a top-up draft.");
+                wallet.Configure(_ => Task.FromResult(snapshot with { EuroBalanceCents = ShopSnapshot.MaximumBalanceCents })); await wallet.RefreshAsync();
+                Check(!wallet.HasValidWalletAmount && wallet.WalletAmountDisplay == "—", "A draft cannot exceed the shared wallet ceiling.");
+            }
             Check(snapshot.Offers.Single(o => o.Id == "character-rename").Prices.SequenceEqual(new ShopPrice[] { new("credits", 500), new("eur", 500) }), "Approved prices: EUR 5 from either Atlas credits or the euro wallet.");
             Check(!snapshot.CheckoutAvailable && snapshot.CreditBalanceEuroCents is null && snapshot.EuroBalanceCents is null, "Checkout closed and both wallets unknown.");
             Check(new ShopCatalog(600).CreateSnapshot([]).CatalogRevision != snapshot.CatalogRevision, "Price change changes revision.");

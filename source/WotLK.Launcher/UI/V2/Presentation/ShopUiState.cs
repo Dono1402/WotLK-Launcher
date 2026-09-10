@@ -137,7 +137,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     internal void OpenService(ShopOfferRow row)
     {
         if (_disposed || !Offers.Contains(row)) return;
-        SelectedOffer = row; IsConversionOpen = false; IsServiceOpen = true; Changed();
+        SelectedOffer = row; IsWalletOpen = false; IsConversionOpen = false; IsServiceOpen = true; Changed();
     }
     internal void CloseService() { IsServiceOpen = false; Changed(); }
 
@@ -196,7 +196,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
 
     internal void RefreshLocale()
     {
-        foreach (ShopLocalizedRow row in Offers.Cast<ShopLocalizedRow>().Concat(Characters).Concat(Prices)) row.RefreshLocale();
+        foreach (ShopLocalizedRow row in Offers.Cast<ShopLocalizedRow>().Concat(Characters).Concat(Prices).Concat(PaymentMethods)) row.RefreshLocale();
         Changed();
     }
 
@@ -206,7 +206,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
         CancellationTokenSource? pending = _pending; _pending = null;
         pending?.Cancel();
         if (_previewSnapshot is not null) _read = null;
-        Clear(); _previewSnapshot = null; _conversionCharacterId = null; _conversionGold = ""; IsConversionOpen = false; IsLoading = false; _status = "unavailable"; Changed();
+        Clear(); IsWalletOpen = false; _walletAmount = ""; _paymentMethod = null; _previewSnapshot = null; _conversionCharacterId = null; _conversionGold = ""; IsConversionOpen = false; IsLoading = false; _status = "unavailable"; Changed();
     }
     private void Clear() { IsServiceOpen = false; _snapshot = null; _lastConversion = null; Offers = []; Characters = []; Prices = []; _offer = null; _character = null; _conversionCharacter = null; _price = null; }
     private void Changed() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));

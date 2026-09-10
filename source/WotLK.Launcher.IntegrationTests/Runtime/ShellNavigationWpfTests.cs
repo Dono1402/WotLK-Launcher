@@ -30,9 +30,11 @@ internal static partial class ShellNavigationWpfTests
         Thread thread = new(() =>
         {
             Dispatcher dispatcher = Dispatcher.CurrentDispatcher;
+            int result = 1;
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
             _ = ExecuteAsync();
             Dispatcher.Run();
+            completion.TrySetResult(result);
             async Task ExecuteAsync()
             {
                 Application app = new() { ShutdownMode = ShutdownMode.OnExplicitShutdown };
@@ -42,19 +44,26 @@ internal static partial class ShellNavigationWpfTests
                     foreach (string resource in new[] { "UI/V2/Resources/AtlasV2.Tokens.xaml", "Assets/Icons/AtlasV2.Icons.xaml", "UI/V2/Resources/AtlasV2.Controls.xaml" })
                         app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/WotLK.Launcher;component/" + resource, UriKind.Relative) });
                     foreach (Size size in new[] { new Size(1440, 860), new Size(1080, 680) })
+                    {
+                        long started = Environment.TickCount64;
+                        Console.WriteLine($"Navigation fixture: {size.Width}x{size.Height} starting.");
                         await ValidateAsync(size, optimizationsOnly);
+                        Console.WriteLine($"Navigation fixture: {size.Width}x{size.Height} complete ({_checks} assertions, {(Environment.TickCount64 - started) / 1000}s).");
+                    }
                     Console.WriteLine(optimizationsOnly
                         ? $"Optimization UI PASS: {_checks} assertions; 600 releases, 500 addons, 1000 friends; bounded generated rows, selection, scrolling and refresh persistence at 1440x860 and 1080x680. Inactive offscreen fixtures; no backend or desktop input."
                         : $"Shell navigation WPF PASS: {_checks} assertions; panel/page matrix, direct and pointer activation, header focus routing, rapid switching, outside click, modal guards, virtualized lists and preserved navigation. Inactive offscreen fixtures; no backend, real session or desktop input.");
-                    completion.TrySetResult(0);
+                    result = 0;
                 }
-                catch (Exception error) { Console.Error.WriteLine(error); completion.TrySetResult(1); }
+                catch (Exception error) { Console.Error.WriteLine(error); result = 1; }
                 finally { app.Shutdown(); dispatcher.BeginInvokeShutdown(DispatcherPriority.Background); }
             }
         }) { IsBackground = true, Name = "AtlasShellNavigationOffscreenFixture" };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        return await completion.Task.WaitAsync(TimeSpan.FromMinutes(3));
+        // Both viewport matrices include real animation settling and software rendering.
+        // Keep a bounded deadline without cancelling the second matrix near completion.
+        return await completion.Task.WaitAsync(TimeSpan.FromMinutes(5));
     }
 
     private static async Task ValidateAsync(Size size, bool optimizationsOnly)
@@ -114,6 +123,7 @@ internal static partial class ShellNavigationWpfTests
                         Check(Panels.All(kind => View(kind).Visibility == Visibility.Collapsed), "No transparent panel survives its closing animation.");
                     }
 
+            Console.WriteLine($"Navigation fixture: page/panel matrix complete at {size.Width} ({_checks} assertions).");
             foreach (ShellOverlayKind panel in Panels)
             {
                 OpenPanel(panel);

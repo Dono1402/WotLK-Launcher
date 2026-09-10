@@ -39,13 +39,20 @@ public partial class ShopViewV2 : UserControl, IDisposable
     private void ApplyLayout()
     {
         bool compact = ActualWidth < 1250;
-        bool stacked = ActualWidth < 960;
-        ContentFrame.Margin = new Thickness(compact ? 24 : 64, compact ? 12 : 6, compact ? 24 : 64, 20);
-        PageTitle.FontSize = compact ? 38 : 48;
-        CategoryColumn.Width = new GridLength(compact ? 150 : 170);
-        DetailColumn.Width = new GridLength(stacked ? 0 : compact ? 310 : 350);
-        Grid.SetColumn(DetailsPanel, stacked ? 1 : 2);
+        bool stacked = ActualWidth < 1480;
+        ContentFrame.Margin = new Thickness(compact ? 24 : 40, 0, 24, 16);
+        PageTitle.FontSize = compact ? 48 : 60;
+        CategoryColumn.Width = new GridLength(compact ? 170 : 196);
+        DetailColumn.Width = new GridLength(stacked ? 0 : 384);
+        DetailGap.Width = new GridLength(stacked ? 0 : 20);
+        Grid.SetColumn(DetailsPanel, stacked ? 2 : 4);
         Grid.SetRow(DetailsPanel, stacked ? 1 : 0);
-        DetailsPanel.Margin = stacked ? new Thickness(0, 16, 22, 0) : new Thickness(0);
+        DetailsPanel.MaxWidth = stacked ? 440 : double.PositiveInfinity;
+        DetailsPanel.HorizontalAlignment = stacked ? HorizontalAlignment.Right : HorizontalAlignment.Stretch;
+        DetailsPanel.Margin = new Thickness(0);
+        CataloguePanel.Margin = new Thickness(0, 46, 0, stacked ? 20 : 46);
+        MottoPanel.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        CoinsColumn.Width = new GridLength(compact ? 150 : 214);
+        ConversionCoins.Width = compact ? 140 : 190;
     }
 }

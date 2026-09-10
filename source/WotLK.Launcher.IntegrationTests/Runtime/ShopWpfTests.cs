@@ -51,7 +51,7 @@ internal static class ShopWpfTests
                     };
                     ShopViewV2 shop = shell.ShopPage;
                     shell.PrepareShopPreview();
-                    shop.State.Configure(_ => Task.FromResult(ShopRuntimeTests.Snapshot));
+                    shop.State.Configure(_ => Task.FromResult(ShopRuntimeTests.Snapshot with { CreditBalanceEuroCents = 265 }));
                     shell.Show(); await Pump();
                     Check(shell.CurrentPage == LauncherShellPage.Shop, "Explicit shop preview starts without a runtime or a real account.");
                     Get<Button>(shell, "ShopNavigationButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -66,6 +66,13 @@ internal static class ShopWpfTests
                     Check(Get<TextBlock>(shop, "SummaryText").Text.Contains("Asteria"), "Summary reflects the selected beneficiary.");
                     Get<Button>(shop, "RefreshButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
                     Check(character.SelectedIndex == 0 && currency.SelectedIndex == 1, "Bindings preserve selection after refresh.");
+                    LauncherLocalization.SetLocale(LauncherLocalization.FrenchLocale);
+                    shell.Width = 1586; shell.Height = 992; currency.SelectedIndex = 0; await Pump();
+                    Get<ScrollViewer>(shop, "PageScroll").ScrollToTop(); await Pump();
+                    Capture(shell, Path.Combine(captureDirectory, "shop-reference-1586.png"));
+                    Check(Get<Border>(shop, "ConversionBanner").TranslatePoint(new Point(0, Get<Border>(shop, "ConversionBanner").ActualHeight), shell).Y <= shell.ActualHeight, "Reference size shows the whole conversion banner.");
+                    Check(Get<ScrollViewer>(shop, "PageScroll").ScrollableHeight == 0, "Reference layout fits without a vertical scrollbar.");
+                    currency.SelectedIndex = 1; await Pump();
                     foreach (string selectedLocale in new[] { LauncherLocalization.FrenchLocale, LauncherLocalization.EnglishLocale })
                     {
                         LauncherLocalization.SetLocale(selectedLocale); await Pump();
@@ -107,7 +114,7 @@ internal static class ShopWpfTests
                     Check(Get<TextBlock>(shop, "StatusText").IsVisible && !Get<Button>(shop, "PurchaseButton").IsVisible, "Empty catalog shows a status instead of stale checkout.");
                     Capture(shell, Path.Combine(captureDirectory, "shop-en-empty-1080.png"));
                     Check(errors.Messages.Count == 0, "No WPF binding errors: " + string.Join("\n", errors.Messages));
-                    Console.WriteLine("Shop WPF PASS: FR/EN, four widths, navigation bounds, beneficiary/currency selection and refresh, empty state, purchase gate; offscreen inactive fixtures and PNG captures only.");
+                    Console.WriteLine("Shop WPF PASS: 1586x992 reference and four adaptive widths, FR/EN, navigation bounds, beneficiary/currency selection and refresh, conversion, empty state, purchase gate; offscreen inactive fixtures and PNG captures only.");
                     result = 0;
                 }
                 catch (Exception error) { Console.Error.WriteLine(error); result = 1; }

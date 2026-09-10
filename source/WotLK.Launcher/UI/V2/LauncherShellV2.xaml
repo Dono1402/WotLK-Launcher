@@ -54,6 +54,18 @@
 
             <views:CitadelBackdropV2 x:Name="SecondaryBackdrop" Grid.RowSpan="2"
                                      IsHitTestVisible="False" Focusable="False" Visibility="Collapsed"/>
+            <Viewbox x:Name="ShopBackdrop" Grid.RowSpan="2" IsHitTestVisible="False" Visibility="Collapsed" Stretch="Fill">
+                <Grid Width="1586" Height="992" RenderOptions.BitmapScalingMode="HighQuality">
+                    <Image Source="/WotLK.Launcher;component/Assets/Shop/Fond_boutique_recompose_1586x992.png" Stretch="Fill"/>
+                    <!-- The supplied native crop retains the visible citadel detail at its reference position. -->
+                    <Border Width="533" Height="209" Margin="637,97,0,0" HorizontalAlignment="Left" VerticalAlignment="Top">
+                        <Border.OpacityMask><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="Transparent" Offset="0"/><GradientStop Color="White" Offset=".09"/><GradientStop Color="White" Offset=".91"/><GradientStop Color="Transparent" Offset="1"/></LinearGradientBrush></Border.OpacityMask>
+                        <Image Source="/WotLK.Launcher;component/Assets/Shop/Citadelle_fragment_original.png" Stretch="Fill">
+                            <Image.OpacityMask><LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop Color="Transparent" Offset="0"/><GradientStop Color="White" Offset=".1"/><GradientStop Color="White" Offset=".9"/><GradientStop Color="Transparent" Offset="1"/></LinearGradientBrush></Image.OpacityMask>
+                        </Image>
+                    </Border>
+                </Grid>
+            </Viewbox>
 
             <views:GameViewV2 x:Name="GameView"
                               Grid.RowSpan="2"
@@ -122,6 +134,9 @@
                                Source="/WotLK.Launcher;component/Assets/Branding/AtlasLauncherLogo.png"
                                RenderOptions.BitmapScalingMode="HighQuality"
                                Stretch="Uniform"/>
+                        <Image x:Name="ShopBrandLogo" Width="42" Height="42" Visibility="Collapsed"
+                               Source="/WotLK.Launcher;component/Assets/Shop/Logo_Atlas_transparent.png"
+                               Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
                         <TextBlock x:Name="BrandName" Grid.Column="1"
                                    Margin="18,0,0,0"
                                    VerticalAlignment="Center"
@@ -156,8 +171,9 @@
                                 Height="22"
                                 Margin="14,0"
                                 Background="{StaticResource AtlasV2.Brush.Border}"/>
+                        <Border x:Name="ProductGamePill" Grid.Column="4" CornerRadius="12" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
                         <TextBlock x:Name="ProductGameName"
-                                   Grid.Column="4"
                                    VerticalAlignment="Center"
                                    Text="{Binding ShellState.GameName}"
                                    Style="{StaticResource AtlasV2.Text.Caption}"
@@ -166,6 +182,10 @@
                                    FontWeight="Normal"
                                    TextWrapping="NoWrap"
                                    Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+                        <Path x:Name="ShopGameChevron" Width="12" Height="12" Margin="12,0,0,0" Data="{StaticResource AtlasV2.Icon.ChevronDown}"
+                              Style="{StaticResource AtlasV2.Icon.Stroke}" Visibility="Collapsed"/>
+                        </StackPanel>
+                        </Border>
                     </Grid>
 
                     <StackPanel x:Name="TopNavigation"

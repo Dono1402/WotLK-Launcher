@@ -21,13 +21,16 @@ internal sealed class ShopOfferRow(ShopOffer offer) : ShopLocalizedRow
     public ShopOffer Offer { get; } = offer;
     public string Name => ShopUiState.Text(Offer.Name);
     public string Description => ShopUiState.Text(Offer.Description);
+    public string EuroPrice => Offer.Prices.FirstOrDefault(p => p.Currency == "eur") is { } price ? ShopUiState.FormatPrice(price) : "—";
+    public string GoldPrice => Offer.Prices.FirstOrDefault(p => p.Currency == "gold") is { } price ? ShopUiState.FormatPrice(price) : "—";
+    public string OrLabel => ShopUiState.L("ou", "or");
     public string Price => Offer.Prices.Count == 0 ? ShopUiState.L("Tarif à venir", "Price to be announced")
         : string.Join(ShopUiState.L(" ou ", " or "), Offer.Prices.Select(ShopUiState.FormatPrice));
 }
 internal sealed class ShopCharacterRow(ShopCharacter character) : ShopLocalizedRow
 {
     public ShopCharacter Character { get; } = character;
-    public string Label => $"{Character.Name} · {ShopUiState.L("Niv.", "Lv.")} {Character.Level}";
+    public string Label => $"{Character.Name} - {ShopUiState.L("Niv.", "Lv.")} {Character.Level}";
 }
 internal sealed class ShopPriceRow(ShopPrice price) : ShopLocalizedRow
 {
@@ -35,7 +38,7 @@ internal sealed class ShopPriceRow(ShopPrice price) : ShopLocalizedRow
     public string Label => ShopUiState.FormatPrice(Price);
 }
 
-internal sealed class ShopUiState : INotifyPropertyChanged, IDisposable
+internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
 {
     private Func<CancellationToken, Task<ShopSnapshot>>? _read;
     private CancellationTokenSource? _pending;
@@ -60,14 +63,14 @@ internal sealed class ShopUiState : INotifyPropertyChanged, IDisposable
     public bool ShowStatus => _status != "ready";
     public bool CanPurchase => false;
     public string Title => L("Boutique", "Shop");
-    public string Subtitle => L("Votre prochaine aventure commence ici.", "Your next adventure starts here.");
+    public string Subtitle => L("Services et personnalisations pour enrichir votre aventure.", "Services and customization to enrich your adventure.");
     public string CategoryLabel => L("Services de personnage", "Character services");
     public string Availability => L("Ouverture prochaine", "Coming soon");
     public string CreditsLabel => L("Crédits Atlas", "Atlas credits");
     public string CreditBalance => _snapshot?.CreditBalanceEuroCents is long balance ? FormatEuros(balance) : "—";
     public string WalletDescription => L("Un solde commun au launcher et au jeu.", "One balance shared by the launcher and the game.");
-    public string CreditsInformation => L("Transformez l’or d’un personnage en crédit Atlas. Votre solde est affiché en euros et pourra servir aux futurs achats de la boutique.",
-        "Turn a character’s gold into Atlas credit. Your balance is displayed in euros and can be used for future shop purchases.");
+    public string CreditsInformation => L("Transformez l’or de vos personnages en crédit Atlas. Votre solde est affiché en euros et pourra servir aux futurs achats de la boutique.",
+        "Turn your characters’ gold into Atlas credit. Your balance is displayed in euros and can be used for future shop purchases.");
     public string ConversionGold
     {
         get => _conversionGold;

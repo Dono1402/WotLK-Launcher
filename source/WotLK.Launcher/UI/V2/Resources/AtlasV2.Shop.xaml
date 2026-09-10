@@ -1,0 +1,37 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="ShopGold" Color="#FFCA53"/>
+    <SolidColorBrush x:Key="ShopIce" Color="#53DFFD"/>
+    <LinearGradientBrush x:Key="ShopTitleBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="White" Offset=".2"/><GradientStop Color="#E2F3FF" Offset=".5"/><GradientStop Color="#78BEE8" Offset="1"/></LinearGradientBrush>
+    <LinearGradientBrush x:Key="ShopGlass" StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#D0061724" Offset="0"/><GradientStop Color="#E603121D" Offset="1"/></LinearGradientBrush>
+    <Geometry x:Key="ShopIcon.Clock">M12 2 A10 10 0 1 1 11.999 2 M12 6 V12 L16 15</Geometry>
+    <Geometry x:Key="ShopIcon.Chevron">M9 5 L16 12 L9 19</Geometry>
+    <Geometry x:Key="ShopIcon.Cart">M2 3 H5 L7.5 15 H18 L21 7 H6 M9 20 A1 1 0 1 1 8.999 20 M18 20 A1 1 0 1 1 17.999 20</Geometry>
+    <Geometry x:Key="ShopIcon.Shield">M12 2 L20 5 V11 C20 16 16 20 12 22 C8 20 4 16 4 11 V5 Z M8 11 L11 14 L16 8</Geometry>
+    <Geometry x:Key="ShopIcon.Lock">M7 10 V7 A5 5 0 0 1 17 7 V10 M5 10 H19 V22 H5 Z M12 14 V18</Geometry>
+    <Geometry x:Key="ShopIcon.Link">M14 3 H21 V10 M21 3 L10 14 M10 3 H3 V21 H21 V14</Geometry>
+    <Style x:Key="ShopIcon" TargetType="Path" BasedOn="{StaticResource AtlasV2.Icon.Stroke}"><Setter Property="Width" Value="22"/><Setter Property="Height" Value="22"/><Setter Property="Stroke" Value="#ACD6F4"/><Setter Property="StrokeThickness" Value="1.5"/></Style>
+    <Style x:Key="ShopPanel" TargetType="Border"><Setter Property="Background" Value="{StaticResource ShopGlass}"/><Setter Property="BorderBrush" Value="#345A72"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="9"/><Setter Property="Padding" Value="22"/></Style>
+    <Style x:Key="ShopBody" TargetType="TextBlock"><Setter Property="FontFamily" Value="{StaticResource AtlasV2.Font.Inter}"/><Setter Property="Foreground" Value="#BCD8EB"/><Setter Property="FontSize" Value="15"/><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="LineHeight" Value="21"/></Style>
+    <Style x:Key="ShopCaption" TargetType="TextBlock" BasedOn="{StaticResource ShopBody}"><Setter Property="FontSize" Value="12.5"/><Setter Property="LineHeight" Value="16.5"/><Setter Property="Foreground" Value="#A6C8E2"/></Style>
+    <Style x:Key="ShopEyebrow" TargetType="TextBlock" BasedOn="{StaticResource ShopBody}"><Setter Property="Foreground" Value="{StaticResource ShopIce}"/><Setter Property="FontSize" Value="12.5"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+    <Style x:Key="ShopHeading" TargetType="TextBlock" BasedOn="{StaticResource ShopBody}"><Setter Property="Foreground" Value="#F8FAFF"/><Setter Property="FontSize" Value="23"/><Setter Property="FontWeight" Value="Bold"/><Setter Property="LineHeight" Value="28"/></Style>
+    <Style x:Key="ShopAction" TargetType="Button">
+        <Setter Property="Height" Value="48"/><Setter Property="Padding" Value="16,0"/><Setter Property="Background" Value="#9E05111A"/><Setter Property="BorderBrush" Value="#37576B"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Foreground" Value="#EAF4FF"/><Setter Property="FontSize" Value="14"/><Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{StaticResource AtlasV2.FocusVisual.Button}"/>
+        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+            <Border x:Name="Surface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7"><ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+            <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="BorderBrush" Value="#6DBFEC"/><Setter TargetName="Surface" Property="Background" Value="#CC123347"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="#DF1A4055"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Cursor" Value="Arrow"/></Trigger></ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value></Setter>
+    </Style>
+    <Style x:Key="ShopField" TargetType="ComboBox" BasedOn="{StaticResource AtlasV2.ComboBox.Field}"><Setter Property="Height" Value="42"/><Setter Property="Background" Value="#EB030F17"/><Setter Property="BorderBrush" Value="#344C5A"/><Setter Property="FontSize" Value="14"/></Style>
+    <Style x:Key="ShopProduct" TargetType="ListBoxItem">
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="VerticalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="0"/><Setter Property="FocusVisualStyle" Value="{StaticResource AtlasV2.FocusVisual.Field}"/>
+        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
+            <Grid>
+                <Border x:Name="Glow" CornerRadius="12" BorderThickness="2.5" BorderBrush="#FFD56A" Visibility="Collapsed" IsHitTestVisible="False"><Border.Effect><DropShadowEffect BlurRadius="17" ShadowDepth="0" Color="#FFC851" Opacity=".7"/></Border.Effect></Border>
+                <Border x:Name="Card" BorderBrush="#547389" BorderThickness="2.5" CornerRadius="12" Background="#DB04121D"><ContentPresenter/></Border>
+            </Grid>
+            <ControlTemplate.Triggers><Trigger Property="IsSelected" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="#FFD56A"/><Setter TargetName="Glow" Property="Visibility" Value="Visible"/></Trigger><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="#FFE69E"/></Trigger></ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value></Setter>
+    </Style>
+</ResourceDictionary>

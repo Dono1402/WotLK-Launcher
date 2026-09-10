@@ -7,8 +7,9 @@ Aucun service de production ni client installé n'a été modifié.
 
 ## Fonctionnement présent
 
-- Onglet **Boutique** dans la navigation du launcher, avec les ressources Atlas
-  existantes : fond, panneaux translucides, typographie, boutons, doré et cyan.
+- Onglet **Boutique** reproduisant la composition de la maquette fournie :
+  catalogue à gauche, trois cartes illustrées, sélection à droite et bandeau
+  de conversion en bas. Les deux services futurs sont uniquement des annonces.
 - Fiche **Changement de nom** à **5 € en paiement direct ou 300 po**, conditions,
   choix explicite du personnage et récapitulatif du moyen de paiement.
 - Indication carte, Bancontact et PayPal pour l'option directe en euros.
@@ -24,6 +25,35 @@ Aucun service de production ni client installé n'a été modifié.
 - États de chargement, catalogue vide, absence de personnages, session expirée,
   débit de requêtes excessif et boutique indisponible. Un ancien backend sans
   cette route n'entraîne pas l'affichage d'un catalogue d'exemple dans la session.
+
+## Maquette et ressources du 10 septembre
+
+Les illustrations, le logo et le décor proviennent de l'archive fournie
+`Atlas_Boutique_Assets_Pour_Codex.zip`. Leur provenance et leurs dimensions sont
+documentées dans `source/WotLK.Launcher/Assets/Shop/README.md`.
+Les composants restent natifs : textes localisés, liste du service disponible,
+choix du personnage, choix du paiement, récapitulatif et calculateur.
+Les conditions du service sont consultables dans l'infobulle du récapitulatif.
+
+À 1586 × 992, l'ensemble du catalogue et du bandeau tient sans défilement.
+Sous 1480 DIPs de largeur, le récapitulatif passe sous les cartes pour conserver
+leur lisibilité ; le défilement vertical permet d'accéder au reste de la page.
+Les deux boutons de conversion ouvrent le même calculateur existant.
+La barre supérieure adopte les proportions et le logo du pack sur cette page.
+Les autres pages conservent leur présentation habituelle.
+
+Le pack ne contient pas le décor complet sans interface : son fond reconstitué
+est moins détaillé que la référence. Le fragment original de citadelle est
+réintégré à sa position native avec des bords fondus. La texture du fond et la
+police d'origine non identifiée empêchent une identité stricte pixel par pixel.
+
+Vérifications propres à cette refonte : compilation, `--shop`, `--shop-wpf`
+et `--shell-navigation-wpf`. Les contrôles API/MySQL et de session ci-dessous
+correspondent au premier jalon ; aucun code serveur n'a changé dans la refonte.
+La suite de navigation a terminé ses 898 assertions en 215 secondes sur cette
+machine. Sa limite globale est portée à cinq minutes pour couvrir les deux
+tailles et les attentes d'animation, avec progression par taille et résultat
+retourné après la fermeture du dispatcher WPF.
 
 ## Montants et conversion
 
@@ -103,7 +133,7 @@ d'intégration sans erreur ni avertissement.
 | Suite | Résultat et portée |
 | --- | --- |
 | `--shop` | 53 assertions : montants approuvés, conversion libre, reste, précision, bornes HTTP, erreurs, sélection et réponses tardives |
-| `--shop-wpf <dossier>` | Français/anglais, 1672×941, 1440×860, 1280×760 et 1080×680, navigation, listes, actualisation, conversion et captures PNG ; absence d'erreurs de binding |
+| `--shop-wpf <dossier>` | Référence 1586×992 sans barre de défilement, puis français/anglais à 1672×941, 1440×860, 1280×760 et 1080×680 ; navigation, listes, actualisation, conversion et captures PNG ; absence d'erreurs de binding |
 | `--shop-mysql` | API HTTP réelle et MySQL 8.4.11 jetable sur loopback : authentification, appartenance Atlas, personnages autorisés, soldes, prix, taux, absence de mutation, limites et erreurs |
 | `--armory-session` | Régressions de session et tests boutique : refus du refresh, 401, reconnexion au même compte ou à un autre, réponse tardive et annulation |
 | `--shell-navigation-wpf` | 898 assertions incluant le nouvel onglet et les panneaux existants |

@@ -11,6 +11,7 @@ internal enum InstallerPathError
     ProtectedLocation,
     WowClient,
     ForeignFiles,
+    ReparsePoint,
     Inaccessible,
     InsufficientSpace
 }
@@ -174,6 +175,16 @@ internal sealed class InstallerPathValidator
                 fullPath: fullPath);
         }
 
+        if (!_environment.IsTest
+            && !InstallerEnvironment.SamePath(fullPath, InstallerProduct.GetDefaultInstallPath()))
+        {
+            return Invalid(
+                InstallerPathError.ProtectedLocation,
+                "Atlas Launcher doit être installé dans son dossier dédié sous Program Files.",
+                requiredBytes,
+                fullPath: fullPath);
+        }
+
         string? root = Path.GetPathRoot(fullPath);
         if (string.IsNullOrWhiteSpace(root)
             || InstallerEnvironment.SamePath(fullPath, root))
@@ -181,6 +192,28 @@ internal sealed class InstallerPathValidator
             return Invalid(
                 InstallerPathError.DriveRoot,
                 "La racine d'un disque ne peut pas servir de dossier d'installation.",
+                requiredBytes,
+                fullPath: fullPath);
+        }
+
+        try
+        {
+            DemandNoReparsePoints(fullPath);
+        }
+        catch (InvalidDataException)
+        {
+            return Invalid(
+                InstallerPathError.ReparsePoint,
+                "Choisis un chemin direct, sans lien symbolique ni point de jonction.",
+                requiredBytes,
+                fullPath: fullPath);
+        }
+        catch (Exception exception) when (exception is IOException
+            or UnauthorizedAccessException)
+        {
+            return Invalid(
+                InstallerPathError.Inaccessible,
+                "Windows refuse l'accès à cet emplacement. Choisis un autre dossier.",
                 requiredBytes,
                 fullPath: fullPath);
         }
@@ -203,17 +236,29 @@ internal sealed class InstallerPathValidator
                 fullPath: fullPath);
         }
 
+        bool destinationExists;
         bool containsFiles;
         try
         {
-            containsFiles = Directory.Exists(fullPath)
+            destinationExists = Directory.Exists(fullPath);
+            containsFiles = destinationExists
                 && Directory.EnumerateFileSystemEntries(fullPath).Any();
         }
+
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             return Invalid(
                 InstallerPathError.Inaccessible,
                 "Windows refuse l'accès à cet emplacement. Choisis un autre dossier.",
+                requiredBytes,
+                fullPath: fullPath);
+        }
+
+        if (!_environment.IsTest && destinationExists)
+        {
+            return Invalid(
+                InstallerPathError.ForeignFiles,
+                "Le dossier Atlas Launcher existe déjà. Désinstalle l'installation existante avant de continuer.",
                 requiredBytes,
                 fullPath: fullPath);
         }
@@ -247,7 +292,7 @@ internal sealed class InstallerPathValidator
                 fullPath);
         }
 
-        if (!_accessProbe.CanWrite(fullPath))
+        if (_environment.IsTest && !_accessProbe.CanWrite(fullPath))
         {
             return Invalid(
                 InstallerPathError.Inaccessible,
@@ -273,6 +318,38 @@ internal sealed class InstallerPathValidator
         return bytes >= giga
             ? $"{bytes / giga:0.#} Go"
             : $"{Math.Ceiling(bytes / mega):0} Mo";
+    }
+
+    internal static void DemandNoReparsePoints(string path)
+    {
+        string current = Path.GetFullPath(path);
+        while (!string.IsNullOrWhiteSpace(current))
+        {
+            try
+            {
+                if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                {
+                    throw new InvalidDataException(
+                        "Un lien symbolique ou un point de jonction est interdit dans le chemin d'installation.");
+                }
+            }
+            catch (Exception exception) when (exception is FileNotFoundException
+                or DirectoryNotFoundException)
+            {
+            }
+
+            string trimmed = current.TrimEnd(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar);
+            string? parent = Path.GetDirectoryName(trimmed);
+            if (string.IsNullOrWhiteSpace(parent)
+                || InstallerEnvironment.SamePath(parent, current))
+            {
+                break;
+            }
+
+            current = parent;
+        }
     }
 
     private bool IsProtectedLocation(string fullPath)

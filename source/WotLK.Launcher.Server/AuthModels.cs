@@ -5,6 +5,7 @@ namespace WotLK.Launcher.Server;
 public sealed record RegisterRequest(string Username, string Email, string Password);
 public sealed record LoginRequest(string Username, string Password, string? DeviceName);
 public sealed record RefreshRequest(string RefreshToken);
+public sealed record LogoutRequest(string? RefreshToken);
 public sealed record ChangeEmailRequest(string Email);
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public sealed record ChangeAvatarRequest(string? AvatarKey);

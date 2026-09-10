@@ -4,7 +4,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Security.Principal;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Win32;
+using WotLK.Launcher.Installer;
 using WotLK.Launcher.Installer.Setup;
 
 internal static class InstallerRuntimeTests
@@ -15,6 +17,8 @@ internal static class InstallerRuntimeTests
         ValidateSelfDeleteCompatibility();
         await ValidateSelfDeleteHelperAsync();
         ValidatePaths();
+        ValidateBoundedLegacySettingsDiscovery();
+        await ValidateReparseSwapIsRejectedAsync();
         await ValidateTransactionalInstallAndUninstallAsync();
         await ValidateRollbackAsync();
         await ValidateSingleFlightAsync();
@@ -22,6 +26,230 @@ internal static class InstallerRuntimeTests
         await ValidateUnelevatedLaunchAsync();
         Console.WriteLine("Atlas installer runtime OK (isolated, non-elevated suite)." );
         return 0;
+    }
+
+    internal static async Task<int> RunReparseSecurityAsync()
+    {
+        ValidateSelfDeleteCompatibility();
+        ValidatePaths();
+        ValidateBoundedLegacySettingsDiscovery();
+        ValidateProductionSecurityContract();
+        await ValidateStableSetupSourceAsync();
+        await ValidateStrictUninstallStateAsync();
+        await ValidateUninstallRootJunctionIsRejectedAsync();
+        await ValidateReparseSwapIsRejectedAsync();
+        Console.WriteLine("Atlas installer source/path/state/reparse security OK (isolated).");
+        return 0;
+    }
+
+    private static void ValidateProductionSecurityContract()
+    {
+        InstallerEnvironment production = InstallerEnvironment.CreateProduction(
+            Environment.ProcessPath
+            ?? throw new InvalidOperationException("Le chemin du processus de test est absent."));
+        Equal(
+            InstallerProduct.GetDefaultInstallPath(),
+            production.DefaultInstallPath,
+            "La destination de production doit être le chemin Atlas Launcher exact de Program Files.");
+        Equal(
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory),
+                InstallerProduct.Name + ".lnk"),
+            production.DesktopShortcutPath,
+            "Le raccourci de production doit utiliser le Bureau commun protégé.");
+        True(string.IsNullOrEmpty(production.LogPath),
+            "La production ne doit déclarer aucun journal sous le profil utilisateur.");
+        using InstallerLog log = InstallerLog.CreateProduction();
+        log.Info("diagnostic mémoire");
+        True(!log.IsPersistent, "Le journal de production ne doit écrire aucun fichier.");
+
+        string programFilesParent = Path.GetDirectoryName(production.DefaultInstallPath)
+            ?? throw new InvalidOperationException("Le parent Program Files est absent.");
+        InstallerProtectedPathSecurity.DemandTrustedDirectory(programFilesParent);
+
+        string customRoot = Path.Combine(
+            Path.GetTempPath(),
+            "Atlas Launcher 04D2 Test forbidden-prod-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Throws<InvalidOperationException>(() => production.DemandAllowedDestination(customRoot));
+            InstallerPathValidationResult validation = new InstallerPathValidator(
+                production,
+                new FixedDriveSpace(long.MaxValue, DriveType.Fixed),
+                new FixedAccessProbe(true)).Validate(customRoot, 1);
+            True(!validation.IsValid && validation.Error == InstallerPathError.ProtectedLocation,
+                "Le validateur de production doit refuser tout chemin personnalisé.");
+            Throws<UnauthorizedAccessException>(() => new WindowsInstallerSystemActions()
+                .ScheduleSelfDelete(
+                    Path.Combine(customRoot, InstallerProduct.UninstallerFileName),
+                    customRoot,
+                    42));
+
+            Directory.CreateDirectory(customRoot);
+            string untrustedShortcut = Path.Combine(customRoot, "existing.lnk");
+            File.WriteAllText(untrustedShortcut, "user-controlled shortcut");
+            Throws<UnauthorizedAccessException>(() =>
+                InstallerProtectedPathSecurity.DemandTrustedFile(untrustedShortcut));
+        }
+        finally
+        {
+            DeleteTree(customRoot);
+        }
+    }
+
+    private static void ValidateBoundedLegacySettingsDiscovery()
+    {
+        string root = Path.Combine(
+            Path.GetTempPath(),
+            "Atlas Launcher 04D2 Test bounded-settings-"
+            + Guid.NewGuid().ToString("N"));
+        string oversizedProduct = Path.Combine(root, "WotLK Launcher");
+        string validProduct = Path.Combine(root, InstallerProduct.Name);
+        string oversizedInstall = Path.Combine(root, "must-not-be-discovered");
+        string validInstall = Path.Combine(root, "valid-game");
+        Directory.CreateDirectory(oversizedProduct);
+        Directory.CreateDirectory(validProduct);
+        try
+        {
+            string oversizedJson = JsonSerializer.Serialize(new
+            {
+                InstallPath = oversizedInstall
+            }) + new string(' ', InstallerProduct.MaximumLegacySettingsBytes);
+            File.WriteAllText(
+                Path.Combine(oversizedProduct, "settings.json"),
+                oversizedJson,
+                new UTF8Encoding(false));
+            File.WriteAllText(
+                Path.Combine(validProduct, "settings.json"),
+                JsonSerializer.Serialize(new { InstallPath = validInstall }),
+                new UTF8Encoding(false));
+
+            IReadOnlyList<string> discovered =
+                InstallerProduct.DiscoverWoWInstallRoots(root);
+            True(discovered.Contains(
+                    Path.GetFullPath(validInstall),
+                    StringComparer.OrdinalIgnoreCase),
+                "Un settings legacy valide sous 64 Kio doit être découvert.");
+            True(!discovered.Contains(
+                    Path.GetFullPath(oversizedInstall),
+                    StringComparer.OrdinalIgnoreCase),
+                "Un settings LocalAppData supérieur à 64 Kio doit être ignoré avant parsing.");
+        }
+        finally
+        {
+            DeleteTree(root);
+        }
+    }
+
+    private static async Task ValidateStableSetupSourceAsync()
+    {
+        SourceMutationFault fault = new();
+        using TestFixture fixture = TestFixture.Create("stable-setup-source", fault);
+        fault.SourcePath = fixture.SetupPath;
+        string originalHash = Hash(fixture.SetupPath);
+        InstallerInstallResult installed = await fixture.Engine.InstallAsync(
+            new InstallerRequest(fixture.InstallRoot, false, false),
+            progress: null,
+            CancellationToken.None);
+
+        True(fault.OverwriteBlocked && fault.ReplacementBlocked,
+            "La capture du setup doit bloquer l'écrasement et le remplacement du chemin source.");
+        Equal(originalHash, Hash(installed.UninstallerPath),
+            "Uninstall.exe doit provenir des octets capturés avant l'interface.");
+        await fixture.Uninstaller.UninstallAsync(installed.InstallPath, CancellationToken.None);
+    }
+
+    private static async Task ValidateStrictUninstallStateAsync()
+    {
+        using TestFixture fixture = TestFixture.Create("strict-uninstall-state");
+        await fixture.Engine.InstallAsync(
+            new InstallerRequest(fixture.InstallRoot, false, false),
+            progress: null,
+            CancellationToken.None);
+        string statePath = Path.Combine(fixture.InstallRoot, InstallerProduct.InstallStateFileName);
+        string valid = await File.ReadAllTextAsync(statePath);
+
+        await File.WriteAllTextAsync(
+            statePath,
+            valid.Insert(valid.IndexOf('{') + 1, "\"unknownProperty\":true,"));
+        Throws<InvalidDataException>(() => UninstallerEngine.ReadState(fixture.InstallRoot));
+
+        await File.WriteAllTextAsync(
+            statePath,
+            valid.Insert(
+                valid.IndexOf('{') + 1,
+                "\"schemaVersion\":1,\"SCHEMAVERSION\":1,"));
+        Throws<InvalidDataException>(() => UninstallerEngine.ReadState(fixture.InstallRoot));
+
+        await File.WriteAllBytesAsync(statePath, new byte[(64 * 1024) + 1]);
+        Throws<InvalidDataException>(() => UninstallerEngine.ReadState(fixture.InstallRoot));
+
+        JsonObject missingBooleanState = JsonNode.Parse(valid)?.AsObject()
+            ?? throw new InvalidOperationException("L'état de test JSON est invalide.");
+        True(
+            missingBooleanState.Remove("desktopShortcutCreated"),
+            "Le fixture doit contenir desktopShortcutCreated.");
+        await File.WriteAllTextAsync(statePath, missingBooleanState.ToJsonString());
+        await ThrowsAsync<InvalidDataException>(() => fixture.Uninstaller.UninstallAsync(
+            fixture.InstallRoot,
+            CancellationToken.None));
+        True(File.Exists(Path.Combine(fixture.InstallRoot, InstallerProduct.LauncherFileName)),
+            "Un état privé d'une propriété booléenne requise ne doit supprimer aucun fichier.");
+
+        JsonObject missingEnvironmentState = JsonNode.Parse(valid)?.AsObject()
+            ?? throw new InvalidOperationException("L'état de test JSON est invalide.");
+        True(
+            missingEnvironmentState.Remove("isTestInstallation"),
+            "Le fixture doit contenir isTestInstallation.");
+        await File.WriteAllTextAsync(statePath, missingEnvironmentState.ToJsonString());
+        Throws<InvalidDataException>(() => UninstallerEngine.ReadState(fixture.InstallRoot));
+
+        string mismatchedTestMarker = valid.Replace(
+            "\"isTestInstallation\": true",
+            "\"isTestInstallation\": false",
+            StringComparison.Ordinal);
+        True(!string.Equals(mismatchedTestMarker, valid, StringComparison.Ordinal),
+            "Le fixture doit contenir le marqueur d'installation de test.");
+        await File.WriteAllTextAsync(statePath, mismatchedTestMarker);
+        await ThrowsAsync<InvalidDataException>(() => fixture.Uninstaller.UninstallAsync(
+            fixture.InstallRoot,
+            CancellationToken.None));
+        True(File.Exists(Path.Combine(fixture.InstallRoot, InstallerProduct.LauncherFileName)),
+            "Un état dont IsTest ne correspond pas à l'environnement ne doit supprimer aucun fichier.");
+
+        await File.WriteAllTextAsync(statePath, valid);
+        await fixture.Uninstaller.UninstallAsync(fixture.InstallRoot, CancellationToken.None);
+    }
+
+    private static async Task ValidateUninstallRootJunctionIsRejectedAsync()
+    {
+        using TestFixture fixture = TestFixture.Create("uninstall-root-junction");
+        await fixture.Engine.InstallAsync(
+            new InstallerRequest(fixture.InstallRoot, false, false),
+            progress: null,
+            CancellationToken.None);
+        string parked = fixture.InstallRoot + ".parked";
+        string victim = Path.Combine(fixture.Root, "junction-victim");
+        string sentinel = Path.Combine(victim, "sentinel.txt");
+        Directory.Move(fixture.InstallRoot, parked);
+        Directory.CreateDirectory(victim);
+        await File.WriteAllTextAsync(sentinel, "do-not-delete");
+        CreateDirectoryJunction(fixture.InstallRoot, victim);
+        try
+        {
+            await ThrowsAsync<InvalidDataException>(() => fixture.Uninstaller.UninstallAsync(
+                fixture.InstallRoot,
+                CancellationToken.None));
+            Equal("do-not-delete", await File.ReadAllTextAsync(sentinel),
+                "Le désinstalleur ne doit pas suivre une racine remplacée par une jonction.");
+        }
+        finally
+        {
+            DeleteJunction(fixture.InstallRoot);
+            Directory.Move(parked, fixture.InstallRoot);
+        }
+
+        await fixture.Uninstaller.UninstallAsync(fixture.InstallRoot, CancellationToken.None);
     }
 
     internal static async Task<int> RunElevatedAsync(string setupArtifact, string resultPath)
@@ -70,6 +298,7 @@ internal static class InstallerRuntimeTests
         string logPath = Path.Combine(root, "logs", "install.log");
         Directory.CreateDirectory(root);
         using InstallerLog log = new(logPath);
+        using InstallerSetupSource setupSource = InstallerSetupSource.Open(setupArtifact);
         MemoryInstallerRegistry registry = new();
         WindowsInstallerShortcutService shortcuts = new();
         InstallerEnvironment environment = new(
@@ -89,6 +318,7 @@ internal static class InstallerRuntimeTests
             EmbeddedInstallerPayloadSource payload = new();
             InstallerEngine engine = new(
                 environment,
+                setupSource,
                 payload,
                 new InstallerPathValidator(environment),
                 registry,
@@ -184,6 +414,31 @@ internal static class InstallerRuntimeTests
             @"C:\Program Files\Atlas Launcher",
             InstallerProduct.GetDefaultInstallPath(),
             "Le dossier par défaut x64 est incorrect.");
+        Equal(
+            "https://animeclub.fr/wotlk/manifest.json",
+            InstallerServices.DefaultManifestUrl,
+            "L'installeur doit initialiser le launcher avec le manifeste HTTPS canonique.");
+        True(
+            InstallerServices.TryKeepExistingManifestUrl(
+                "https://animeclub.fr:443/wotlk/manifest.json",
+                out string keptManifest)
+            && keptManifest == "https://animeclub.fr/wotlk/manifest.json",
+            "L'installeur doit conserver uniquement l'URL HTTPS canonique.");
+        foreach (string unsafeManifest in new[]
+                 {
+                     "http://animeclub.fr/wotlk/manifest.json",
+                     "https://152.228.225.7/wotlk/manifest.json",
+                     "https://animeclub.fr:444/wotlk/manifest.json",
+                     "https://user@animeclub.fr/wotlk/manifest.json",
+                     "https://animeclub.fr/other/wotlk/manifest.json",
+                     "https://animeclub.fr/wotlk/manifest.json?channel=unsafe",
+                     "https://animeclub.fr/wotlk/manifest.json#fragment"
+                 })
+        {
+            True(
+                !InstallerServices.TryKeepExistingManifestUrl(unsafeManifest, out _),
+                "L'installeur doit remplacer une ancienne URL de manifeste non sûre: " + unsafeManifest);
+        }
         InstallerWizardViewState welcome = InstallerWizardPreviewData.Create(InstallerPreviewScenario.Welcome);
         Equal("Bienvenue dans l’assistant d’installation", welcome.HeaderTitle, "Le titre d'accueil est incorrect.");
         Equal(
@@ -200,11 +455,17 @@ internal static class InstallerRuntimeTests
             42);
         True(!script.Contains("Wait-Process", StringComparison.Ordinal),
             "L'auto-suppression ne doit pas dépendre d'une option PowerShell moderne.");
+        True(!script.Contains("Get-ChildItem", StringComparison.Ordinal)
+             && !script.Contains("Remove-Item", StringComparison.Ordinal),
+            "L'auto-suppression doit utiliser uniquement les chemins fixes via System.IO.");
         True(script.Contains("Get-Process -Id 42", StringComparison.Ordinal)
             && script.Contains("Set-Location -LiteralPath $env:TEMP", StringComparison.Ordinal)
             && script.Contains("Start-Sleep -Milliseconds 100", StringComparison.Ordinal)
-            && script.Contains("$attempt -lt 100", StringComparison.Ordinal),
-            "L'auto-suppression doit attendre la fin du processus et réessayer les suppressions.");
+            && script.Contains("$attempt -lt 100", StringComparison.Ordinal)
+            && script.Contains("[IO.FileAttributes]::ReparsePoint", StringComparison.Ordinal)
+            && script.Contains("[IO.File]::Delete($exe)", StringComparison.Ordinal)
+            && script.Contains("[IO.Directory]::Delete($root,$false)", StringComparison.Ordinal),
+            "L'auto-suppression doit attendre, revalider les reparse points et supprimer uniquement les chemins fixes.");
     }
 
     private static async Task ValidateSelfDeleteHelperAsync()
@@ -227,7 +488,8 @@ internal static class InstallerRuntimeTests
         try
         {
             Environment.CurrentDirectory = root;
-            new WindowsInstallerSystemActions().ScheduleSelfDelete(uninstaller, root, blocker.Id);
+            new WindowsInstallerSystemActions(allowTestSelfDeleteRoot: true)
+                .ScheduleSelfDelete(uninstaller, root, blocker.Id);
             Environment.CurrentDirectory = originalWorkingDirectory;
             await WaitUntilAsync(
                 () => !Directory.Exists(root),
@@ -353,6 +615,57 @@ internal static class InstallerRuntimeTests
             InstallerPathError.Inaccessible,
             inaccessible.Validate(valid, 2048).Error,
             "Un dossier inaccessible doit être refusé.");
+
+        string junctionTarget = Path.Combine(fixture.Root, "junction-target");
+        string junction = Path.Combine(fixture.Root, "junction-path");
+        Directory.CreateDirectory(junctionTarget);
+        CreateDirectoryJunction(junction, junctionTarget);
+        try
+        {
+            Equal(
+                InstallerPathError.ReparsePoint,
+                fixture.Engine.ValidatePath(Path.Combine(junction, "Atlas Launcher")).Error,
+                "Un chemin traversant une jonction doit être refusé avant l'installation élevée.");
+        }
+        finally
+        {
+            DeleteJunction(junction);
+        }
+    }
+
+    private static async Task ValidateReparseSwapIsRejectedAsync()
+    {
+        ReparseSwapFault fault = new();
+        using TestFixture fixture = TestFixture.Create("reparse-swap", fault);
+        string victim = Path.Combine(
+            Path.GetTempPath(),
+            "Atlas Launcher reparse victim " + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(victim);
+        string sentinel = Path.Combine(victim, "sentinel.txt");
+        File.WriteAllText(sentinel, "keep");
+        fault.InstallParent = Path.GetDirectoryName(fixture.InstallRoot)!;
+        fault.Victim = victim;
+        try
+        {
+            await ThrowsAsync<InstallerOperationException>(() => fixture.Engine.InstallAsync(
+                new InstallerRequest(fixture.InstallRoot, false, false),
+                progress: null,
+                CancellationToken.None));
+
+            Equal("keep", File.ReadAllText(sentinel),
+                "Le rollback ne doit ni suivre ni modifier la cible de la jonction injectée.");
+            Equal(1, Directory.EnumerateFileSystemEntries(victim).Count(),
+                "Aucun fichier d'installation ne doit être écrit via la jonction injectée.");
+            True(!Directory.Exists(fault.StagingPath),
+                "Le rollback doit retirer uniquement la jonction de staging.");
+            True(!Directory.Exists(fixture.InstallRoot),
+                "Une permutation reparse doit laisser la destination non installée.");
+        }
+        finally
+        {
+            DeleteJunction(fault.StagingPath);
+            DeleteTree(victim);
+        }
     }
 
     private static async Task ValidateTransactionalInstallAndUninstallAsync()
@@ -563,6 +876,7 @@ internal static class InstallerRuntimeTests
             IsTest: true,
             AllowedTestInstallRoots: [programFilesRoot, secondDriveRoot]);
         EmbeddedInstallerPayloadSource payload = new();
+        using InstallerSetupSource setupSource = InstallerSetupSource.Open(setupArtifact);
 
         try
         {
@@ -596,6 +910,7 @@ internal static class InstallerRuntimeTests
             InstallerPathValidator validator = new(cycleEnvironment);
             InstallerEngine engine = new(
                 cycleEnvironment,
+                setupSource,
                 payload,
                 validator,
                 registry,
@@ -877,6 +1192,41 @@ internal static class InstallerRuntimeTests
         }
     }
 
+    private static void CreateDirectoryJunction(string junctionPath, string targetPath)
+    {
+        ProcessStartInfo startInfo = new()
+        {
+            FileName = Path.Combine(Environment.SystemDirectory, "cmd.exe"),
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        startInfo.ArgumentList.Add("/d");
+        startInfo.ArgumentList.Add("/c");
+        startInfo.ArgumentList.Add("mklink");
+        startInfo.ArgumentList.Add("/J");
+        startInfo.ArgumentList.Add(junctionPath);
+        startInfo.ArgumentList.Add(targetPath);
+        using Process process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Impossible de créer la jonction de test.");
+        process.WaitForExit();
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                "La création de la jonction de test a échoué: "
+                + process.StandardError.ReadToEnd());
+        }
+    }
+
+    private static void DeleteJunction(string? path)
+    {
+        if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path))
+        {
+            Directory.Delete(path);
+        }
+    }
+
     private static void DeleteTree(string? path)
     {
         if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path))
@@ -890,6 +1240,20 @@ internal static class InstallerRuntimeTests
         try
         {
             await action();
+        }
+        catch (T)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException($"L'exception {typeof(T).Name} était attendue.");
+    }
+
+    private static void Throws<T>(Action action) where T : Exception
+    {
+        try
+        {
+            action();
         }
         catch (T)
         {
@@ -989,6 +1353,7 @@ internal static class InstallerRuntimeTests
             string payloadSha256,
             InstallerEnvironment environment,
             InstallerLog log,
+            InstallerSetupSource setupSource,
             MemoryInstallerRegistry registry,
             WindowsInstallerShortcutService shortcuts,
             InstallerEngine engine,
@@ -1001,6 +1366,7 @@ internal static class InstallerRuntimeTests
             PayloadSha256 = payloadSha256;
             Environment = environment;
             Log = log;
+            SetupSource = setupSource;
             Registry = registry;
             Shortcuts = shortcuts;
             Engine = engine;
@@ -1014,6 +1380,7 @@ internal static class InstallerRuntimeTests
         internal string PayloadSha256 { get; }
         internal InstallerEnvironment Environment { get; }
         internal InstallerLog Log { get; }
+        internal InstallerSetupSource SetupSource { get; }
         internal MemoryInstallerRegistry Registry { get; }
         internal WindowsInstallerShortcutService Shortcuts { get; }
         internal InstallerEngine Engine { get; }
@@ -1050,6 +1417,7 @@ internal static class InstallerRuntimeTests
                 IsTest: true,
                 AllowedTestInstallRoots: [root]);
             InstallerLog log = new(environment.LogPath);
+            InstallerSetupSource setupSource = InstallerSetupSource.Open(setupPath);
             MemoryInstallerRegistry registry = new();
             WindowsInstallerShortcutService shortcuts = new();
             IInstallerProcessInspector processes = processInspector ?? new FixedProcessInspector([]);
@@ -1060,6 +1428,7 @@ internal static class InstallerRuntimeTests
             InstallerPathValidator validator = new(environment);
             InstallerEngine engine = new(
                 environment,
+                setupSource,
                 payload,
                 validator,
                 registry,
@@ -1082,6 +1451,7 @@ internal static class InstallerRuntimeTests
                 payloadSha,
                 environment,
                 log,
+                setupSource,
                 registry,
                 shortcuts,
                 engine,
@@ -1093,6 +1463,7 @@ internal static class InstallerRuntimeTests
             try
             {
                 Registry.Unregister(Environment.RegistrySubKey);
+                SetupSource.Dispose();
                 DeleteTree(Root);
             }
             finally
@@ -1190,6 +1561,78 @@ internal static class InstallerRuntimeTests
             {
                 throw new IOException("Injected copy/commit failure.");
             }
+        }
+    }
+
+    private sealed class SourceMutationFault : IInstallerFaultInjector
+    {
+        internal string SourcePath { get; set; } = string.Empty;
+
+        internal bool OverwriteBlocked { get; private set; }
+
+        internal bool ReplacementBlocked { get; private set; }
+
+        public void AfterPhase(InstallerWorkPhase phase)
+        {
+            if (phase != InstallerWorkPhase.Preparation)
+            {
+                return;
+            }
+
+            try
+            {
+                File.WriteAllBytes(SourcePath, [0x13, 0x37]);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                OverwriteBlocked = true;
+            }
+
+            string replacement = SourcePath + ".replacement";
+            File.WriteAllBytes(replacement, [0x42]);
+            try
+            {
+                File.Move(replacement, SourcePath, overwrite: true);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                ReplacementBlocked = true;
+            }
+            finally
+            {
+                File.Delete(replacement);
+            }
+
+            if (!OverwriteBlocked || !ReplacementBlocked)
+            {
+                throw new InvalidOperationException(
+                    "Le handle setup n'a pas bloqué une mutation de la source.");
+            }
+        }
+    }
+
+    private sealed class ReparseSwapFault : IInstallerFaultInjector
+    {
+        internal string InstallParent { get; set; } = string.Empty;
+
+        internal string Victim { get; set; } = string.Empty;
+
+        internal string? StagingPath { get; private set; }
+
+        public void AfterPhase(InstallerWorkPhase phase)
+        {
+            if (phase != InstallerWorkPhase.InstallingFiles)
+            {
+                return;
+            }
+
+            StagingPath = Directory.EnumerateDirectories(
+                    InstallParent,
+                    ".atlas-launcher-staging-*",
+                    SearchOption.TopDirectoryOnly)
+                .Single();
+            Directory.Delete(StagingPath, recursive: true);
+            CreateDirectoryJunction(StagingPath, Victim);
         }
     }
 

@@ -33,6 +33,7 @@ internal enum LauncherUpdateFaultPoint
     AfterCandidateValidation,
     AfterCandidateStaged,
     AfterBackupCreated,
+    AfterStagedValidatedBeforeAtomicSwap,
     AfterAtomicSwap,
     BeforeNewLauncherStart,
     AfterNewLauncherStart,
@@ -69,9 +70,11 @@ internal sealed record LauncherUpdateTransaction(
     DateTimeOffset UpdatedAt,
     int? NewProcessId = null,
     string? FailureCategory = null,
-    string? AuthenticatedTargetVersion = null)
+    string? AuthenticatedTargetVersion = null,
+    LauncherUpdateManifest? AuthenticatedManifest = null,
+    DateTimeOffset? NewProcessStartedAt = null)
 {
-    internal const int CurrentSchemaVersion = 1;
+    internal const int CurrentSchemaVersion = 2;
 }
 
 internal sealed record LauncherUpdateProcessSignal(
@@ -141,6 +144,8 @@ internal interface ILauncherUpdateLaunchedProcess : IDisposable
 {
     int ProcessId { get; }
 
+    DateTimeOffset StartedAt { get; }
+
     bool HasExited { get; }
 
     void Kill();
@@ -172,6 +177,7 @@ internal interface ILauncherSelfUpdateFinalizer
         long expectedSize,
         string expectedSha256,
         string authenticatedTargetVersion,
+        LauncherUpdateManifest authenticatedManifest,
         int parentProcessId,
         CancellationToken cancellationToken);
 }

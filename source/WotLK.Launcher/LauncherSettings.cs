@@ -6,6 +6,7 @@ namespace WotLK.Launcher;
 
 public sealed class LauncherSettings
 {
+    internal const int MaxSettingsFileBytes = 64 * 1024;
     private static readonly object StorageLock = new();
     [JsonIgnore]
     internal string? RecoveryNotice { get; private set; }
@@ -58,9 +59,37 @@ public sealed class LauncherSettings
         }
     }
 
-    private static LauncherSettings? Read(string path) => !File.Exists(path) ? null
-        : JsonSerializer.Deserialize<LauncherSettings>(File.ReadAllText(path))
+    private static LauncherSettings? Read(string path)
+    {
+        if (!File.Exists(path))
+            return null;
+
+        using FileStream stream = new(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 4096,
+            FileOptions.SequentialScan);
+        if (stream.Length > MaxSettingsFileBytes)
+            throw new JsonException($"Settings exceed the {MaxSettingsFileBytes}-byte limit.");
+
+        using MemoryStream bounded = new(capacity: (int)Math.Min(stream.Length, MaxSettingsFileBytes));
+        byte[] buffer = new byte[4096];
+        while (true)
+        {
+            int remaining = MaxSettingsFileBytes + 1 - checked((int)bounded.Length);
+            int read = stream.Read(buffer, 0, Math.Min(buffer.Length, remaining));
+            if (read == 0)
+                break;
+            bounded.Write(buffer, 0, read);
+            if (bounded.Length > MaxSettingsFileBytes)
+                throw new JsonException($"Settings exceed the {MaxSettingsFileBytes}-byte limit.");
+        }
+
+        return JsonSerializer.Deserialize<LauncherSettings>(bounded.GetBuffer().AsSpan(0, checked((int)bounded.Length)))
             ?? throw new JsonException("Settings must contain an object.");
+    }
 
     private void Normalize()
     {

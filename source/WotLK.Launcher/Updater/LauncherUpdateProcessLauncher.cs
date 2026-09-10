@@ -17,10 +17,14 @@ internal sealed class WindowsLauncherUpdateApplicationLauncher
         LauncherUpdateTransactionStore store,
         Action<string, string, string>? launchProcess = null,
         Func<int, string, bool>? processMatchesPath = null,
-        Action<int?, string>? stopProcess = null)
+        Action<int?, string>? stopProcess = null,
+        LauncherUpdateRequesterImpersonation? requester = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
-        _launchProcess = launchProcess ?? LaunchThroughInteractiveShell;
+        _launchProcess = launchProcess
+            ?? (requester is not null
+                ? requester.LaunchProcess
+                : LaunchThroughInteractiveShell);
         _processMatchesPath = processMatchesPath
             ?? LauncherUpdateParentWaiter.ProcessMatchesPath;
         _stopProcess = stopProcess ?? LauncherUpdateProcessTerminator.StopIfMatches;
@@ -33,6 +37,7 @@ internal sealed class WindowsLauncherUpdateApplicationLauncher
         CancellationToken cancellationToken)
     {
         _store.DeleteSignals(transaction);
+        DateTimeOffset launchRequestedAt = DateTimeOffset.UtcNow;
         _launchProcess(
             transaction.TargetPath,
             LauncherUpdateCommandLine.BuildPostUpdateArgument(transaction.TransactionId),
@@ -45,6 +50,14 @@ internal sealed class WindowsLauncherUpdateApplicationLauncher
             LauncherUpdateProcessSignal? signal = _store.TryReadStartedSignal(transaction);
             if (signal is not null)
             {
+                DateTimeOffset now = DateTimeOffset.UtcNow;
+                if (signal.CreatedAt < launchRequestedAt - TimeSpan.FromSeconds(2)
+                    || signal.CreatedAt > now + TimeSpan.FromMinutes(1))
+                {
+                    throw new InvalidDataException(
+                        "Le signal de démarrage du nouveau launcher est périmé.");
+                }
+
                 if (signal.IsElevated)
                 {
                     if (_processMatchesPath(signal.ProcessId, transaction.TargetPath))
@@ -64,8 +77,17 @@ internal sealed class WindowsLauncherUpdateApplicationLauncher
                         "Le processus démarré ne correspond pas au nouveau launcher.");
                 }
 
-                return new LauncherUpdateLaunchedProcess(
+                LauncherUpdateLaunchedProcess launched = new(
                     Process.GetProcessById(signal.ProcessId));
+                if (launched.StartedAt < launchRequestedAt - TimeSpan.FromSeconds(2)
+                    || signal.CreatedAt < launched.StartedAt - TimeSpan.FromSeconds(2))
+                {
+                    launched.Dispose();
+                    throw new InvalidDataException(
+                        "Le signal de démarrage ne correspond pas à un nouveau processus.");
+                }
+
+                return launched;
             }
 
             await Task.Delay(pollInterval, cancellationToken).ConfigureAwait(false);
@@ -117,11 +139,19 @@ internal sealed class WindowsLauncherUpdateApplicationLauncher
     }
 }
 
-internal sealed class LauncherUpdateLaunchedProcess(Process process) : ILauncherUpdateLaunchedProcess
+internal sealed class LauncherUpdateLaunchedProcess : ILauncherUpdateLaunchedProcess
 {
-    private readonly Process _process = process ?? throw new ArgumentNullException(nameof(process));
+    private readonly Process _process;
+
+    internal LauncherUpdateLaunchedProcess(Process process)
+    {
+        _process = process ?? throw new ArgumentNullException(nameof(process));
+        StartedAt = new DateTimeOffset(_process.StartTime.ToUniversalTime());
+    }
 
     public int ProcessId => _process.Id;
+
+    public DateTimeOffset StartedAt { get; }
 
     public bool HasExited
     {
@@ -162,10 +192,15 @@ internal sealed class WindowsLauncherUpdateHelperLauncher(
         LauncherUpdateTransaction transaction,
         CancellationToken cancellationToken)
     {
+        if (OperatingSystem.IsWindows())
+        {
+            LauncherUpdateElevationSecurity.DemandProtectedTargetForElevation(transaction);
+        }
+
         return LaunchElevatedAsync(
             transaction,
-            transaction.HelperPath,
-            LauncherUpdateCommandLine.ApplySwitch,
+            transaction.TargetPath,
+            LauncherUpdateCommandLine.BootstrapSwitch,
             transaction.TransactionPath,
             transaction.ParentProcessId,
             waitForAcceptance: true,
@@ -177,6 +212,11 @@ internal sealed class WindowsLauncherUpdateHelperLauncher(
         int requesterProcessId,
         CancellationToken cancellationToken)
     {
+        if (OperatingSystem.IsWindows())
+        {
+            LauncherUpdateElevationSecurity.DemandProtectedHelperForElevation(transaction);
+        }
+
         return LaunchElevatedAsync(
             transaction,
             transaction.HelperPath,
@@ -201,8 +241,6 @@ internal sealed class WindowsLauncherUpdateHelperLauncher(
             throw new ArgumentOutOfRangeException(nameof(requesterProcessId));
         }
 
-        LauncherUpdateTransactionStore.TryDeleteFile(
-            transaction.HelperAcceptedSignalPath);
         ProcessStartInfo startInfo = new()
         {
             FileName = helperPath,
@@ -248,16 +286,12 @@ internal sealed class WindowsLauncherUpdateHelperLauncher(
                 LauncherUpdateProcessSignal? accepted =
                     _store.TryReadHelperAcceptedSignal(transaction);
                 if (accepted is not null
-                    && accepted.ProcessId == process.Id
-                    && accepted.IsElevated)
+                    && accepted.IsElevated
+                    && LauncherUpdateParentWaiter.ProcessMatchesPath(
+                        accepted.ProcessId,
+                        transaction.HelperPath))
                 {
                     return;
-                }
-
-                if (process.HasExited)
-                {
-                    throw new InvalidOperationException(
-                        "Le helper de mise à jour s'est arrêté avant validation.");
                 }
 
                 await Task.Delay(AcceptancePollInterval, cancellationToken)

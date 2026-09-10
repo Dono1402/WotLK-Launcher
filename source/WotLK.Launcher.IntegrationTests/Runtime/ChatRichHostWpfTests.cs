@@ -177,10 +177,11 @@ internal static partial class ChatRichHostWpfTests
             await Post("read", new { threadId = "17", throughMessageId = "9007199254741001" });
             await Post("draft", new { threadId = "18", body = "Wrong thread" });
             await Post("draft", new { threadId = "17", body = "Wrong owner" }, owner: 88);
+            await Post("draft", new { threadId = "17", body = "Stale snapshot replay" }, sequence: "9");
             await Post("draft", new { threadId = "17", body = "Future snapshot" }, sequence: "999");
             await Post("draft", new { threadId = "17", body = "Old account" }, session: Guid.NewGuid());
             await Task.Delay(150);
-            True(actions.Count == 2, "Read while inactive and mismatched thread/account/session/sequence rejected.");
+            True(actions.Count == 2, "Read while inactive and mismatched thread/account/session plus stale or future sequences are rejected.");
             await core.ExecuteScriptAsync("window.__mediaOk=false;const image=document.createElement('img');image.onload=()=>window.__mediaOk=true;image.src='https://atlas-chat-media.invalid/attachments/fixture-image';document.body.append(image);");
             await UntilScript(core, "window.__mediaOk===true", "Image read through native media resolver.");
             True(mediaRequests.SequenceEqual(["attachments/fixture-image"]), "Native resolver receives constrained relative media key.");

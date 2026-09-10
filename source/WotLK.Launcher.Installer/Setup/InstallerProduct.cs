@@ -16,6 +16,7 @@ internal static class InstallerProduct
     internal const string RegistrySubKey = RegistryRoot + @"\" + RegistryKeyName;
     internal static string PayloadSha256 => InstallerPayloadBuildMetadata.Sha256;
     internal const long FreeSpaceMargin = 64L * 1024 * 1024;
+    internal const int MaximumLegacySettingsBytes = 64 * 1024;
 
     internal static readonly string[] LegacyRegistrySubKeys =
     [
@@ -34,14 +35,8 @@ internal static class InstallerProduct
         return Path.Combine(programFiles, Name);
     }
 
-    internal static string GetLogPath() => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        Name,
-        "Installer",
-        "install.log");
-
     internal static string GetDesktopShortcutPath() => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
+        Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory),
         Name + ".lnk");
 
     internal static string GetStartMenuShortcutPath() => Path.Combine(
@@ -49,7 +44,12 @@ internal static class InstallerProduct
         Name,
         Name + ".lnk");
 
-    internal static IReadOnlyList<string> DiscoverWoWInstallRoots()
+    internal static IReadOnlyList<string> DiscoverWoWInstallRoots() =>
+        DiscoverWoWInstallRoots(Environment.GetFolderPath(
+            Environment.SpecialFolder.LocalApplicationData));
+
+    internal static IReadOnlyList<string> DiscoverWoWInstallRoots(
+        string localApplicationDataRoot)
     {
         HashSet<string> roots = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -61,26 +61,44 @@ internal static class InstallerProduct
         foreach (string productDirectory in new[] { "WotLK Launcher", Name })
         {
             string settingsPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                localApplicationDataRoot,
                 productDirectory,
                 "settings.json");
             try
             {
-                if (!File.Exists(settingsPath))
+                using FileStream stream = new(
+                    settingsPath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read);
+                if (stream.Length <= 0
+                    || stream.Length > MaximumLegacySettingsBytes)
                 {
                     continue;
                 }
 
-                using JsonDocument document = JsonDocument.Parse(File.ReadAllText(settingsPath));
+                byte[] bytes = new byte[checked((int)stream.Length)];
+                stream.ReadExactly(bytes);
+                using JsonDocument document = JsonDocument.Parse(
+                    bytes,
+                    new JsonDocumentOptions
+                    {
+                        AllowTrailingCommas = false,
+                        CommentHandling = JsonCommentHandling.Disallow,
+                        MaxDepth = 8
+                    });
                 if (document.RootElement.TryGetProperty("InstallPath", out JsonElement value)
                     && value.ValueKind == JsonValueKind.String
-                    && !string.IsNullOrWhiteSpace(value.GetString()))
+                    && !string.IsNullOrWhiteSpace(value.GetString())
+                    && value.GetString()!.Length <= 4096)
                 {
                     roots.Add(Path.GetFullPath(value.GetString()!));
                 }
             }
             catch (Exception exception) when (exception is IOException
                 or UnauthorizedAccessException
+                or FileNotFoundException
+                or DirectoryNotFoundException
                 or JsonException
                 or ArgumentException
                 or NotSupportedException)
@@ -106,10 +124,11 @@ internal sealed record InstallerEnvironment(
     bool IsTest,
     IReadOnlyList<string> AllowedTestInstallRoots)
 {
-    internal static InstallerEnvironment CreateProduction()
+    internal static InstallerEnvironment CreateProduction(string? setupExecutablePath = null)
     {
-        string setupPath = Environment.ProcessPath
-            ?? throw new InvalidOperationException("Impossible de localiser AtlasLauncherSetup.exe.");
+        string setupPath = setupExecutablePath
+            ?? Environment.ProcessPath
+            ?? throw new InvalidOperationException("Impossible de localiser l'exécutable Atlas Launcher.");
 
         return new InstallerEnvironment(
             InstallerProduct.GetDefaultInstallPath(),
@@ -118,7 +137,7 @@ internal sealed record InstallerEnvironment(
             InstallerProduct.RegistrySubKey,
             [InstallerProduct.RegistrySubKey, .. InstallerProduct.LegacyRegistrySubKeys],
             Path.GetFullPath(setupPath),
-            InstallerProduct.GetLogPath(),
+            string.Empty,
             Environment.GetFolderPath(Environment.SpecialFolder.Windows),
             InstallerProduct.DiscoverWoWInstallRoots(),
             IsTest: false,
@@ -129,6 +148,14 @@ internal sealed record InstallerEnvironment(
     {
         if (!IsTest)
         {
+            string expected = InstallerProduct.GetDefaultInstallPath();
+            if (!SamePath(DefaultInstallPath, expected)
+                || !SamePath(destination, expected))
+            {
+                throw new InvalidOperationException(
+                    "L'installation par machine est limitée au dossier Atlas Launcher de Program Files.");
+            }
+
             return;
         }
 
@@ -171,5 +198,4 @@ internal sealed record AtlasInstallState(
     string StartMenuShortcutPath,
     string RegistrySubKey,
     DateTimeOffset InstalledAtUtc,
-    string InstallerLogPath,
     bool IsTestInstallation = false);

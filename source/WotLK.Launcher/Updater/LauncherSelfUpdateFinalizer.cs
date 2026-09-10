@@ -35,6 +35,7 @@ internal sealed class LauncherSelfUpdateFinalizer : ILauncherSelfUpdateFinalizer
         long expectedSize,
         string expectedSha256,
         string authenticatedTargetVersion,
+        LauncherUpdateManifest authenticatedManifest,
         int parentProcessId,
         CancellationToken cancellationToken)
     {
@@ -47,11 +48,22 @@ internal sealed class LauncherSelfUpdateFinalizer : ILauncherSelfUpdateFinalizer
             throw new ArgumentOutOfRangeException(nameof(parentProcessId));
         }
 
+        ArgumentNullException.ThrowIfNull(authenticatedManifest);
         if (expectedSize <= 0
             || string.IsNullOrWhiteSpace(expectedSha256)
             || expectedSha256.Length != 64
             || !expectedSha256.All(Uri.IsHexDigit)
-            || !LauncherUpdateVersionPolicy.IsValid(authenticatedTargetVersion))
+            || !LauncherUpdateVersionPolicy.IsValid(authenticatedTargetVersion)
+            || !string.Equals(
+                authenticatedManifest.Version,
+                authenticatedTargetVersion,
+                StringComparison.Ordinal)
+            || authenticatedManifest.Size != expectedSize
+            || !string.Equals(
+                authenticatedManifest.Sha256,
+                expectedSha256,
+                StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(authenticatedManifest.Signature))
         {
             throw new InvalidDataException(
                 "Le manifeste ne permet pas de valider sûrement le nouveau launcher.");
@@ -79,7 +91,9 @@ internal sealed class LauncherSelfUpdateFinalizer : ILauncherSelfUpdateFinalizer
         Guid transactionId = Guid.NewGuid();
         string workspace = Path.Combine(_transactionsRoot, transactionId.ToString("N"));
         string candidate = Path.Combine(workspace, "candidate.exe");
-        string helper = Path.Combine(workspace, "updater.exe");
+        string helper = LauncherUpdateElevationSecurity.GetProtectedHelperPath(
+            target,
+            transactionId);
         string transactionPath = Path.Combine(workspace, "transaction.json");
         string suffix = ".atlas-" + transactionId.ToString("N");
 
@@ -92,11 +106,7 @@ internal sealed class LauncherSelfUpdateFinalizer : ILauncherSelfUpdateFinalizer
                     candidate,
                     cancellationToken)
                 .ConfigureAwait(false);
-            await CopyDurablyAsync(target, helper, cancellationToken).ConfigureAwait(false);
-
             await ValidatePreparedCopyAsync(candidate, candidateHash, expectedSize, cancellationToken)
-                .ConfigureAwait(false);
-            await ValidatePreparedCopyAsync(helper, previousHash, expectedSize: null, cancellationToken)
                 .ConfigureAwait(false);
 
             LauncherUpdateTransaction transaction = new(
@@ -110,7 +120,10 @@ internal sealed class LauncherSelfUpdateFinalizer : ILauncherSelfUpdateFinalizer
                 StagedPath: target + suffix + ".new",
                 BackupPath: target + suffix + ".backup",
                 TransactionPath: transactionPath,
-                HelperAcceptedSignalPath: Path.Combine(workspace, "helper-accepted.json"),
+                HelperAcceptedSignalPath:
+                    LauncherUpdateElevationSecurity.GetProtectedHelperAcceptedSignalPath(
+                        target,
+                        transactionId),
                 StartedSignalPath: Path.Combine(workspace, "started.json"),
                 ReadySignalPath: Path.Combine(workspace, "ready.json"),
                 ExpectedSize: expectedSize,
@@ -118,23 +131,24 @@ internal sealed class LauncherSelfUpdateFinalizer : ILauncherSelfUpdateFinalizer
                 CandidateSha256: candidateHash,
                 Phase: LauncherUpdateTransactionPhase.Prepared,
                 UpdatedAt: DateTimeOffset.UtcNow,
-                AuthenticatedTargetVersion: authenticatedTargetVersion);
+                AuthenticatedTargetVersion: authenticatedTargetVersion,
+                AuthenticatedManifest: CloneManifest(authenticatedManifest));
             _store.Save(transaction);
             transactionSaved = true;
-            LauncherUpdateJournal.Append(transaction, "transaction préparée par le launcher actif");
+            _store.AppendJournal(transaction, "transaction préparée par le launcher actif");
             CleanupOriginalDownload(downloadedCandidate);
 
             cancellationToken.ThrowIfCancellationRequested();
             await _helperLauncher.LaunchApplyAsync(transaction, cancellationToken)
                 .ConfigureAwait(false);
-            LauncherUpdateJournal.Append(
+            _store.AppendJournal(
                 transaction,
                 "helper élevé validé pendant que le launcher parent est actif");
             return transaction;
         }
         catch
         {
-            if (!transactionSaved)
+            if (!transactionSaved || !File.Exists(helper))
             {
                 LauncherUpdateTransactionStore.TryDeleteDirectory(workspace);
             }
@@ -142,6 +156,18 @@ internal sealed class LauncherSelfUpdateFinalizer : ILauncherSelfUpdateFinalizer
             throw;
         }
     }
+
+    private static LauncherUpdateManifest CloneManifest(LauncherUpdateManifest manifest) => new()
+    {
+        SchemaVersion = manifest.SchemaVersion,
+        KeyId = manifest.KeyId,
+        Version = manifest.Version,
+        Url = manifest.Url,
+        Size = manifest.Size,
+        Sha256 = manifest.Sha256,
+        PublishedAt = manifest.PublishedAt,
+        Signature = manifest.Signature
+    };
 
     private static async Task CopyDurablyAsync(
         string sourcePath,

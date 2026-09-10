@@ -150,9 +150,20 @@ internal static class LauncherOperationActivityContractTests
                     operations.TryBegin(contender, true).Status,
                     $"{contender} doit être refusé immédiatement pendant {activeKind}.");
             }
-            Equal(LauncherOperationStartStatus.RejectedByCompatibility,
-                operations.TryBeginPlay(clientIsPlayable: true).Status,
-                $"Play doit être refusé pendant {activeKind}.");
+            LauncherOperationStartResult playWhileActive =
+                operations.TryBeginPlay(clientIsPlayable: true);
+            if (activeKind == LauncherOperationKind.Addons)
+            {
+                True(playWhileActive.IsStarted,
+                    "Play et Addons doivent pouvoir coexister comme le prévoit le contrat runtime.");
+                playWhileActive.Lease!.Complete();
+            }
+            else
+            {
+                Equal(LauncherOperationStartStatus.RejectedByCompatibility,
+                    playWhileActive.Status,
+                    $"Play doit être refusé pendant {activeKind}.");
+            }
             active.Complete();
         }
 
@@ -359,19 +370,61 @@ internal static class LauncherOperationActivityContractTests
     {
         await using (AddonContractHarness batch = await AddonContractHarness.CreateBatchAsync())
         {
-            TaskCompletionSource firstStarted = batch.Service.BlockNextApply(ignoreCancellation: true);
+            TaskCompletionSource firstStarted = NewSignal();
+            TaskCompletionSource releaseFirst = NewSignal();
+            TaskCompletionSource secondStarted = NewSignal();
+            TaskCompletionSource releaseSecond = NewSignal();
+            batch.Service.ApplyBehavior = async (call, _) =>
+            {
+                if (call.Package.Id == "addon-a")
+                {
+                    firstStarted.TrySetResult();
+                    await releaseFirst.Task;
+                }
+                else if (call.Package.Id == "addon-b")
+                {
+                    secondStarted.TrySetResult();
+                    await releaseSecond.Task;
+                }
+            };
             AddonsActionStartResult start = batch.Coordinator.TryUpdateAll();
             await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-            AddonsRuntimeSnapshot active = batch.Coordinator.CurrentSnapshot;
-            Equal(start.OperationId, active.OperationId, "Le batch doit garder un OperationId global.");
+            AddonsRuntimeSnapshot firstActive = batch.Coordinator.CurrentSnapshot;
+            Equal(start.OperationId, firstActive.OperationId, "Le batch doit garder un OperationId global.");
             Equal(LauncherOperationType.AddonBatchUpdate,
                 batch.Operations.CurrentActivitySnapshot.OperationType,
                 "Tout mettre à jour doit exposer AddonBatchUpdate.");
-            Equal(2, active.PendingAddonIds.Length,
-                "Les addons en attente doivent rester des enfants visuels du batch.");
-            batch.Service.ReleaseBlockedApply();
+            Equal("addon-a", firstActive.ActiveAddonId,
+                "Le premier package préparé doit rester l'enfant actif du batch.");
+            True(firstActive.PendingAddonIds.SequenceEqual(
+                    ["addon-a", "addon-b"],
+                    StringComparer.OrdinalIgnoreCase),
+                "Le plan complet doit rester visible pendant la préparation du premier package.");
+
+            releaseFirst.TrySetResult();
+            await secondStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            AddonsRuntimeSnapshot secondActive = batch.Coordinator.CurrentSnapshot;
+            Equal(start.OperationId, secondActive.OperationId,
+                "Le passage au second package doit conserver l'OperationId du batch.");
+            Equal("addon-b", secondActive.ActiveAddonId,
+                "Le second package doit devenir l'enfant actif dans la transaction groupée.");
+            True(secondActive.PendingAddonIds.SequenceEqual(
+                    ["addon-b"],
+                    StringComparer.OrdinalIgnoreCase),
+                "Seul le second package doit rester visuellement en attente à cette étape.");
+            Equal(2, secondActive.ActiveAddonPosition,
+                "La position active doit suivre le second package préparé.");
+            Equal(2, secondActive.ActiveAddonTotal,
+                "Le total visuel doit rester celui du plan groupé.");
+            Equal(1, batch.Service.TransactionCalls,
+                "Le passage au second package doit rester dans une seule transaction de service.");
+            Equal(2, batch.Service.ApplyCalls,
+                "Les deux préparations doivent être observées séquentiellement dans la transaction.");
+
+            releaseSecond.TrySetResult();
             AddonsActionCompletion completion = await RequiredCompletion(start);
-            Equal(2, batch.Service.ApplyCalls, "Le batch doit rester séquentiel.");
+            Equal(1, batch.Service.TransactionCalls,
+                "Le batch réussi doit publier une seule transaction de service.");
             AssertTerminal(completion.TerminalResult, LauncherOperationType.AddonBatchUpdate,
                 LauncherOperationOutcome.Succeeded, LauncherOperationCancellationReason.None,
                 "batch réussi");
@@ -383,7 +436,9 @@ internal static class LauncherOperationActivityContractTests
             AddonsActionCompletion completion = await RequiredCompletion(
                 failedBatch.Coordinator.TryUpdateAll());
             Equal(1, failedBatch.Service.ApplyCalls,
-                "Le batch doit conserver l'arrêt au premier échec.");
+                "Le batch doit arrêter les préparations au premier échec.");
+            Equal(1, failedBatch.Service.TransactionCalls,
+                "L'échec doit appartenir à l'unique transaction groupée.");
             AssertTerminal(completion.TerminalResult, LauncherOperationType.AddonBatchUpdate,
                 LauncherOperationOutcome.Failed, LauncherOperationCancellationReason.None,
                 "batch en erreur");
@@ -398,7 +453,9 @@ internal static class LauncherOperationActivityContractTests
                 "Le batch doit accepter une annulation utilisateur unique.");
             AddonsActionCompletion completion = await RequiredCompletion(start);
             Equal(1, cancelledBatch.Service.ApplyCalls,
-                "L'annulation du batch ne doit pas démarrer l'enfant suivant.");
+                "L'annulation du batch ne doit pas préparer l'enfant suivant.");
+            Equal(1, cancelledBatch.Service.TransactionCalls,
+                "L'annulation doit interrompre l'unique transaction groupée.");
             AssertTerminal(completion.TerminalResult, LauncherOperationType.AddonBatchUpdate,
                 LauncherOperationOutcome.Cancelled, LauncherOperationCancellationReason.User,
                 "batch annulé");
@@ -592,7 +649,7 @@ internal static class LauncherOperationActivityContractTests
             Settings = new LauncherSettings
             {
                 InstallPath = Root,
-                ManifestUrl = "https://atlas.test/manifest.json",
+                ManifestUrl = "https://animeclub.fr/manifest.json",
                 GameLocale = "frFR",
                 AutomaticLauncherUpdates = false
             };
@@ -926,7 +983,7 @@ internal static class LauncherOperationActivityContractTests
             Category = "Test",
             Version = "2.0.0",
             Interface = AddonInstallServices.SupportedInterface,
-            Url = $"https://atlas.test/{id}.zip",
+            Url = $"https://animeclub.fr/{id}.zip",
             Size = 100,
             Sha256 = new string('a', 64),
             InstallHash = new string('b', 64),
@@ -957,6 +1014,7 @@ internal static class LauncherOperationActivityContractTests
         internal Exception? NextFailure { get; set; }
         internal Func<ActivityAddonApplyCall, CancellationToken, Task>? ApplyBehavior { get; set; }
         internal int ApplyCalls { get; private set; }
+        internal int TransactionCalls { get; private set; }
         internal TaskCompletionSource ManualGateStarted { get; } = NewSignal();
         private TaskCompletionSource ManualGate { get; } = NewSignal();
 
@@ -987,9 +1045,82 @@ internal static class LauncherOperationActivityContractTests
             Action<string>? log,
             CancellationToken cancellationToken)
         {
-            AddonPackage package = requestedCatalog.Addons.Single();
-            bool selected = selection.TryGetValue(package.Id, out bool value) && value;
-            ApplyCalls++;
+            await ApplySelectionCoreAsync(
+                requestedCatalog,
+                selection,
+                progress,
+                cancellationToken);
+        }
+
+        public async Task ApplySelectionTransactionAsync(
+            AddonCatalog requestedCatalog,
+            string installRoot,
+            IReadOnlyDictionary<string, bool> selection,
+            IReadOnlySet<string> forceReinstallIds,
+            bool allowExternalReplacement,
+            bool resolveDependencies,
+            IProgress<AddonTransferProgress>? progress,
+            Action<string>? log,
+            CancellationToken cancellationToken)
+        {
+            TransactionCalls++;
+            await ApplySelectionCoreAsync(
+                requestedCatalog,
+                selection,
+                progress,
+                cancellationToken);
+        }
+
+        private async Task ApplySelectionCoreAsync(
+            AddonCatalog requestedCatalog,
+            IReadOnlyDictionary<string, bool> selection,
+            IProgress<AddonTransferProgress>? progress,
+            CancellationToken cancellationToken)
+        {
+            Dictionary<string, AddonInspection> staged = new(StringComparer.OrdinalIgnoreCase);
+            foreach (AddonPackage package in requestedCatalog.Addons.Where(
+                         package => selection.ContainsKey(package.Id)))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                bool selected = selection[package.Id];
+                ApplyCalls++;
+                if (selected)
+                {
+                    progress?.Report(new AddonTransferProgress(
+                        package.Name,
+                        BytesReceived: 0,
+                        TotalBytes: package.Size,
+                        AddonId: package.Id));
+                }
+
+                await PreparePackageAsync(package, selected, progress, cancellationToken);
+                staged[package.Id] = selected
+                    ? new AddonInspection(
+                        AddonLocalStatus.Installed,
+                        true,
+                        package.Version,
+                        package.EffectiveInstallHash,
+                        package.Folders.ToImmutableArray(),
+                        DateTimeOffset.UtcNow)
+                    : new AddonInspection(AddonLocalStatus.NotInstalled, false);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (_sync)
+            {
+                foreach ((string packageId, AddonInspection inspection) in staged)
+                {
+                    inspections[packageId] = inspection;
+                }
+            }
+        }
+
+        private async Task PreparePackageAsync(
+            AddonPackage package,
+            bool selected,
+            IProgress<AddonTransferProgress>? progress,
+            CancellationToken cancellationToken)
+        {
             TaskCompletionSource? blockedGate;
             bool ignoreCancellation;
             lock (_sync)
@@ -1025,17 +1156,13 @@ internal static class LauncherOperationActivityContractTests
                 await ApplyBehavior(call, cancellationToken);
             }
             cancellationToken.ThrowIfCancellationRequested();
-            lock (_sync)
+            if (selected)
             {
-                inspections[package.Id] = selected
-                    ? new AddonInspection(
-                        AddonLocalStatus.Installed,
-                        true,
-                        package.Version,
-                        package.EffectiveInstallHash,
-                        package.Folders.ToImmutableArray(),
-                        DateTimeOffset.UtcNow)
-                    : new AddonInspection(AddonLocalStatus.NotInstalled, false);
+                progress?.Report(new AddonTransferProgress(
+                    package.Name,
+                    BytesReceived: package.Size,
+                    TotalBytes: package.Size,
+                    AddonId: package.Id));
             }
         }
 

@@ -6,6 +6,7 @@ internal sealed class InstallerWizardRuntime : IDisposable
     private readonly InstallerEngine _engine;
     private readonly IInstallerSystemActions _systemActions;
     private readonly InstallerLog _log;
+    private readonly InstallerSetupSource _setupSource;
     private readonly CancellationTokenSource _lifetime = new();
     private InstallerInstallResult? _result;
     private bool _disposed;
@@ -17,12 +18,14 @@ internal sealed class InstallerWizardRuntime : IDisposable
         InstallerEngine engine,
         IInstallerSystemActions systemActions,
         InstallerLog log,
+        InstallerSetupSource setupSource,
         InstallerWizardUiState state)
     {
         _environment = environment;
         _engine = engine;
         _systemActions = systemActions;
         _log = log;
+        _setupSource = setupSource;
         State = state;
     }
 
@@ -30,36 +33,48 @@ internal sealed class InstallerWizardRuntime : IDisposable
 
     internal int SystemEffectCount => Volatile.Read(ref _systemEffectCount);
 
-    internal static InstallerWizardRuntime CreateProduction()
+    internal static InstallerWizardRuntime CreateProduction(InstallerSetupSource setupSource)
     {
-        InstallerEnvironment environment = InstallerEnvironment.CreateProduction();
-        InstallerLog log = new(environment.LogPath);
-        EmbeddedInstallerPayloadSource payload = new();
-        WindowsInstallerRegistry registry = new(log);
-        WindowsInstallerShortcutService shortcuts = new();
-        WindowsInstallerProcessInspector processes = new(log);
-        WindowsInstallerSystemActions actions = new();
-        InstallerPathValidator validator = new(environment);
-        InstallerEngine engine = new(
-            environment,
-            payload,
-            validator,
-            registry,
-            shortcuts,
-            processes,
-            log);
-        InstallerPathValidationResult initialValidation = engine.ValidatePath(
-            environment.DefaultInstallPath);
-        InstallerWizardViewState initial = CreateStepState(
-            InstallerWizardStep.Welcome,
-            environment.DefaultInstallPath,
-            createDesktopShortcut: true,
-            createStartMenuShortcut: true,
-            launchAfterInstall: true,
-            engine.RequiredBytes,
-            initialValidation.AvailableBytes);
-        InstallerWizardUiState state = new(initial, isPreview: false);
-        return new InstallerWizardRuntime(environment, engine, actions, log, state);
+        ArgumentNullException.ThrowIfNull(setupSource);
+        InstallerLog? log = null;
+        try
+        {
+            InstallerEnvironment environment = InstallerEnvironment.CreateProduction(setupSource.Path);
+            log = InstallerLog.CreateProduction();
+            EmbeddedInstallerPayloadSource payload = new();
+            WindowsInstallerRegistry registry = new(log);
+            WindowsInstallerShortcutService shortcuts = new();
+            WindowsInstallerProcessInspector processes = new(log);
+            WindowsInstallerSystemActions actions = new();
+            InstallerPathValidator validator = new(environment);
+            InstallerEngine engine = new(
+                environment,
+                setupSource,
+                payload,
+                validator,
+                registry,
+                shortcuts,
+                processes,
+                log);
+            InstallerPathValidationResult initialValidation = engine.ValidatePath(
+                environment.DefaultInstallPath);
+            InstallerWizardViewState initial = CreateStepState(
+                InstallerWizardStep.Welcome,
+                environment.DefaultInstallPath,
+                createDesktopShortcut: engine.CanCreateShortcut(environment.DesktopShortcutPath),
+                createStartMenuShortcut: engine.CanCreateShortcut(environment.StartMenuShortcutPath),
+                launchAfterInstall: true,
+                engine.RequiredBytes,
+                initialValidation.AvailableBytes);
+            InstallerWizardUiState state = new(initial, isPreview: false);
+            return new InstallerWizardRuntime(environment, engine, actions, log, setupSource, state);
+        }
+        catch
+        {
+            log?.Dispose();
+            setupSource.Dispose();
+            throw;
+        }
     }
 
     internal void Initialize()
@@ -181,6 +196,12 @@ internal sealed class InstallerWizardRuntime : IDisposable
     internal void ToggleDesktopShortcut()
     {
         ThrowIfDisposed();
+        if (!State.Current.CreateDesktopShortcut
+            && !_engine.CanCreateShortcut(_environment.DesktopShortcutPath))
+        {
+            return;
+        }
+
         State.Replace(State.Current with
         {
             CreateDesktopShortcut = !State.Current.CreateDesktopShortcut
@@ -190,6 +211,12 @@ internal sealed class InstallerWizardRuntime : IDisposable
     internal void ToggleStartMenuShortcut()
     {
         ThrowIfDisposed();
+        if (!State.Current.CreateStartMenuShortcut
+            && !_engine.CanCreateShortcut(_environment.StartMenuShortcutPath))
+        {
+            return;
+        }
+
         State.Replace(State.Current with
         {
             CreateStartMenuShortcut = !State.Current.CreateStartMenuShortcut
@@ -263,6 +290,7 @@ internal sealed class InstallerWizardRuntime : IDisposable
         _lifetime.Cancel();
         _lifetime.Dispose();
         _log.Dispose();
+        _setupSource.Dispose();
     }
 
     private async Task InstallAsync()

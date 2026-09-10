@@ -4,18 +4,31 @@ namespace WotLK.Launcher.Server;
 
 public sealed class TokenService
 {
-    public SessionTokens Create(int accessMinutes, int refreshDays)
+    public SessionTokens Create(
+        int accessMinutes,
+        int refreshDays,
+        DateTimeOffset? absoluteRefreshExpiresAt = null)
     {
+        if (accessMinutes <= 0) throw new ArgumentOutOfRangeException(nameof(accessMinutes));
+        if (refreshDays <= 0) throw new ArgumentOutOfRangeException(nameof(refreshDays));
         string accessToken = CreateToken("atl_access");
         string refreshToken = CreateToken("atl_refresh");
         DateTimeOffset now = DateTimeOffset.UtcNow;
+        DateTimeOffset rollingRefreshExpiresAt = now.AddDays(refreshDays);
+        DateTimeOffset refreshExpiresAt = absoluteRefreshExpiresAt is { } absolute
+            && absolute < rollingRefreshExpiresAt
+                ? absolute
+                : rollingRefreshExpiresAt;
+        DateTimeOffset accessExpiresAt = now.AddMinutes(accessMinutes);
+        if (accessExpiresAt > refreshExpiresAt)
+            accessExpiresAt = refreshExpiresAt;
         return new SessionTokens(
             accessToken,
             Hash(accessToken),
-            now.AddMinutes(accessMinutes),
+            accessExpiresAt,
             refreshToken,
             Hash(refreshToken),
-            now.AddDays(refreshDays));
+            refreshExpiresAt);
     }
 
     public static byte[] Hash(string token)
@@ -27,17 +40,21 @@ public sealed class TokenService
     public static string CreateEmailVerificationToken()
         => CreateToken("atl_email");
 
+    public static bool IsRefreshToken(string? token)
+        => IsToken(token, "atl_refresh");
+
     public static bool IsEmailVerificationToken(string? token)
     {
-        const string prefix = "atl_email-";
-        if (token is null
-            || token.Length != prefix.Length + 43
-            || !token.StartsWith(prefix, StringComparison.Ordinal))
-        {
-            return false;
-        }
+        return IsToken(token, "atl_email");
+    }
 
-        return token[prefix.Length..].All(character =>
+    private static bool IsToken(string? token, string kind)
+    {
+        string prefix = kind + "-";
+        return token is not null
+            && token.Length == prefix.Length + 43
+            && token.StartsWith(prefix, StringComparison.Ordinal)
+            && token[prefix.Length..].All(character =>
             char.IsAsciiLetterOrDigit(character)
             || character is '-' or '_');
     }

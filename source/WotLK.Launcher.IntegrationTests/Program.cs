@@ -38,6 +38,27 @@ if (args.Length == 1 && string.Equals(args[0], "--session-hardening", StringComp
     return 0;
 }
 
+if (args.Length == 1 && string.Equals(args[0], "--auth-rate-limiting", StringComparison.OrdinalIgnoreCase))
+    return AuthenticationRateLimitingTests.Run();
+
+if (args.Length == 1 && string.Equals(args[0], "--addon-integrity", StringComparison.OrdinalIgnoreCase))
+{
+    _ = await AddonIntegrityTests.RunAsync();
+    return 0;
+}
+
+if (args.Length == 1 && string.Equals(args[0], "--auth-session-mysql", StringComparison.OrdinalIgnoreCase))
+    return await AuthSessionSecurityMySqlTests.RunAsync();
+
+if (args.Length == 1 && string.Equals(args[0], "--auth-security", StringComparison.OrdinalIgnoreCase))
+{
+    int rateResult = AuthenticationRateLimitingTests.Run();
+    if (rateResult != 0) return rateResult;
+    int clientResult = await LauncherAuthServiceConcurrencyTests.RunAsync();
+    if (clientResult != 0) return clientResult;
+    return MigrationCeilingTests.Run();
+}
+
 if (args.Length == 1 && string.Equals(args[0], "--friend-cache", StringComparison.OrdinalIgnoreCase))
     return ArmoryFriendCacheTests.Run();
 
@@ -258,6 +279,15 @@ if (args.Length == 1
 }
 
 if (args.Length == 1
+    && string.Equals(args[0], "--game-uninstall-security", StringComparison.OrdinalIgnoreCase))
+{
+    int uninstallResult = GameUninstallSecurityTests.Run();
+    return uninstallResult == 0
+        ? await GameInstallFileSystemSecurityTests.RunAsync()
+        : uninstallResult;
+}
+
+if (args.Length == 1
     && string.Equals(args[0], "--game-runtime", StringComparison.OrdinalIgnoreCase))
 {
     return await GameRuntimeCoordinatorTests.RunAsync();
@@ -325,6 +355,12 @@ if (args.Length >= 1
             ? args[2]
             : null;
     return await LauncherSettingsRuntimeTests.RunAsync(captureDirectory);
+}
+
+if (args.Length == 1
+    && string.Equals(args[0], "--settings-runtime-headless", StringComparison.OrdinalIgnoreCase))
+{
+    return await LauncherSettingsRuntimeTests.RunHeadlessAsync();
 }
 
 if (args.Length >= 1
@@ -447,6 +483,15 @@ if (args.Length == 1
 }
 
 if (args.Length == 1
+    && string.Equals(
+        args[0],
+        "--launcher-self-update-command-line-security",
+        StringComparison.OrdinalIgnoreCase))
+{
+    return LauncherSelfUpdateAtomicReplacementTests.RunCommandLineSecurity();
+}
+
+if (args.Length == 1
     && string.Equals(args[0], "--launcher-self-update-runtime", StringComparison.OrdinalIgnoreCase))
 {
     return await LauncherSelfUpdateCoordinatorTests.RunAsync();
@@ -535,6 +580,12 @@ if (args.Length == 1
     && string.Equals(args[0], "--installer-runtime", StringComparison.OrdinalIgnoreCase))
 {
     return await InstallerRuntimeTests.RunAsync();
+}
+
+if (args.Length == 1
+    && string.Equals(args[0], "--installer-reparse-security", StringComparison.OrdinalIgnoreCase))
+{
+    return await InstallerRuntimeTests.RunReparseSecurityAsync();
 }
 
 if (args.Length == 3
@@ -781,7 +832,12 @@ if (args.Length == 1
             configPath,
             "SET textLocale \"enUS\"\nSET instantQuestText \"0\"\nSET instantQuestText \"0\"\n");
 
-        string writtenPath = GameInstallServices.EnsureDefaultClientConfig(root, "frFR");
+        using IGameInstallRootLease rootLease =
+            GameInstallServices.CreateNoOpGameInstallRootLeaseForTests(root);
+        string writtenPath = GameInstallServices.EnsureDefaultClientConfig(
+            root,
+            "frFR",
+            rootLease);
         string[] lines = await File.ReadAllLinesAsync(writtenPath);
         Assert(
             lines.Count(line => line.StartsWith("SET instantQuestText ", StringComparison.OrdinalIgnoreCase)) == 1
@@ -840,8 +896,8 @@ try
     var catalog = await AddonInstallServices.LoadCatalogAsync(
         http,
         new Uri(live
-            ? "http://152.228.225.7/launcher/addons/catalog.json"
-            : "http://atlas.test/catalog.json"),
+            ? "https://animeclub.fr/wotlk/addons/catalog.json"
+            : "https://animeclub.fr/catalog.json"),
         CancellationToken.None);
     handler?.ResetRequestCount();
     var selectAll = catalog.Addons.ToDictionary(addon => addon.Id, _ => true, StringComparer.OrdinalIgnoreCase);

@@ -8,24 +8,35 @@ internal sealed class AtlasAuthorizationHandler : DelegatingHandler
     private readonly Func<string?> _getAccessToken;
 
     public AtlasAuthorizationHandler(Func<string?> getAccessToken)
-        : base(AtlasNetwork.CreateHandler())
+        : this(getAccessToken, AtlasNetwork.CreateHandler())
     {
-        _getAccessToken = getAccessToken;
+    }
+
+    internal AtlasAuthorizationHandler(
+        Func<string?> getAccessToken,
+        HttpMessageHandler innerHandler)
+        : base(innerHandler)
+    {
+        _getAccessToken = getAccessToken ?? throw new ArgumentNullException(nameof(getAccessToken));
     }
 
     protected override Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
-        if (string.Equals(
-                request.RequestUri?.Host,
-                "animeclub.fr",
-                StringComparison.OrdinalIgnoreCase)
-            && !string.IsNullOrWhiteSpace(_getAccessToken()))
+        request.Headers.Authorization = null;
+        Uri? uri = request.RequestUri;
+        if (uri is { IsAbsoluteUri: true }
+            && string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(uri.Host, "animeclub.fr", StringComparison.OrdinalIgnoreCase)
+            && uri.Port == 443
+            && uri.UserInfo.Length == 0)
         {
-            request.Headers.Authorization = new AuthenticationHeaderValue(
-                "Bearer",
-                _getAccessToken());
+            string? accessToken = _getAccessToken();
+            if (!string.IsNullOrWhiteSpace(accessToken))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            }
         }
 
         return base.SendAsync(request, cancellationToken);

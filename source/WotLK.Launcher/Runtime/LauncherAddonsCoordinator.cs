@@ -615,16 +615,15 @@ internal sealed partial class LauncherAddonsCoordinator : IDisposable
                     exception: null);
             }
 
-            for (int index = 0; index < plan.Packages.Length; index++)
+            if (IsVerification(plan.Action))
             {
-                lease.CancellationToken.ThrowIfCancellationRequested();
-                AddonPackage package = plan.Packages[index];
-                activeAddonId = package.Id;
-                activeAction = plan.Actions[package.Id];
-                PublishTargetStart(lease, plan, index, activeAction);
-
-                if (IsVerification(activeAction))
+                for (int index = 0; index < plan.Packages.Length; index++)
                 {
+                    lease.CancellationToken.ThrowIfCancellationRequested();
+                    AddonPackage package = plan.Packages[index];
+                    activeAddonId = package.Id;
+                    activeAction = plan.Actions[package.Id];
+                    PublishTargetStart(lease, plan, index, activeAction);
                     AddonVerificationResult verification = await _service.VerifyAsync(
                         plan.Catalog, plan.InstallRoot, package.Id, lease.CancellationToken).ConfigureAwait(false);
                     latestInspections = _service.Inspect(plan.Catalog, plan.InstallRoot);
@@ -637,34 +636,90 @@ internal sealed partial class LauncherAddonsCoordinator : IDisposable
                                 verifiedInspection?.InstalledSha256, verifiedInspection?.InstalledAtUtc, verification);
                         }
                     }
+                    plan.CompletedIds.Add(package.Id);
+                    if (index + 1 < plan.Packages.Length)
+                    {
+                        PublishCompletedTarget(
+                            lease,
+                            plan,
+                            latestInspections,
+                            index,
+                            index + 1);
+                    }
                 }
-                else
+            }
+            else
+            {
+                AddonCatalog transactionCatalog = CreateScopedCatalog(plan.Catalog, plan.Packages);
+                Dictionary<string, bool> selection = plan.Packages.ToDictionary(
+                    package => package.Id,
+                    package => plan.Actions[package.Id] != AddonsRequestedAction.Remove,
+                    StringComparer.OrdinalIgnoreCase);
+                HashSet<string> forceReinstallIds = plan.Packages
+                    .Where(package => plan.Actions[package.Id] is
+                        AddonsRequestedAction.Reinstall or AddonsRequestedAction.Repair)
+                    .Select(package => package.Id)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                Dictionary<string, int> indexes = plan.Packages
+                    .Select((package, index) => (package.Id, index))
+                    .ToDictionary(pair => pair.Id, pair => pair.index, StringComparer.OrdinalIgnoreCase);
+                int activeIndex = 0;
+                PublishTargetStart(lease, plan, activeIndex, activeAction);
+                IProgress<AddonTransferProgress>? progress = selection.Values.Any(install => install)
+                    ? new InlineProgress<AddonTransferProgress>(value =>
+                    {
+                        string progressAddonId = value.AddonId;
+                        if (progressAddonId.Length == 0 && plan.Packages.Length == 1)
+                        {
+                            progressAddonId = plan.Packages[0].Id;
+                        }
+                        if (!indexes.TryGetValue(progressAddonId, out int progressIndex))
+                        {
+                            return;
+                        }
+
+                        if (progressIndex != activeIndex)
+                        {
+                            activeIndex = progressIndex;
+                            activeAddonId = plan.Packages[progressIndex].Id;
+                            activeAction = plan.Actions[activeAddonId];
+                            PublishTargetStart(lease, plan, progressIndex, activeAction);
+                        }
+                        if (value.BytesReceived == 0)
+                        {
+                            return;
+                        }
+                        ReportProgress(lease, progressAddonId, value);
+                    })
+                    : null;
+                foreach (AddonPackage package in plan.Packages)
                 {
-                    IProgress<AddonTransferProgress>? progress = activeAction == AddonsRequestedAction.Remove
-                        ? null
-                        : new InlineProgress<AddonTransferProgress>(value => ReportProgress(lease, package.Id, value));
-                    await _service.ApplyPackageAsync(plan.Catalog, plan.InstallRoot, package,
-                        install: activeAction != AddonsRequestedAction.Remove,
-                        forceReinstall: activeAction is AddonsRequestedAction.Reinstall or AddonsRequestedAction.Repair,
-                        allowExternalReplacement: plan.AllowExternalReplacement, progress,
-                        _ => WritePhaseSafely(package, activeAction), lease.CancellationToken).ConfigureAwait(false);
-                    lock (_sync) { _verificationResults.Remove(package.Id); }
-                    latestInspections = _service.Inspect(plan.Catalog, plan.InstallRoot);
+                    WritePhaseSafely(package, plan.Actions[package.Id]);
                 }
-                plan.CompletedIds.Add(package.Id);
-                if (index + 1 < plan.Packages.Length)
+                await _service.ApplySelectionTransactionAsync(
+                    transactionCatalog,
+                    plan.InstallRoot,
+                    selection,
+                    forceReinstallIds,
+                    plan.AllowExternalReplacement,
+                    resolveDependencies: false,
+                    progress: progress,
+                    log: null,
+                    cancellationToken: lease.CancellationToken).ConfigureAwait(false);
+                lock (_sync)
                 {
-                    PublishCompletedTarget(
-                        lease,
-                        plan,
-                        latestInspections,
-                        index,
-                        index + 1);
+                    foreach (AddonPackage package in plan.Packages)
+                    {
+                        _verificationResults.Remove(package.Id);
+                    }
                 }
+                plan.CompletedIds.UnionWith(plan.Packages.Select(package => package.Id));
+                latestInspections = _service.Inspect(plan.Catalog, plan.InstallRoot);
             }
 
             latestInspections ??= _service.Inspect(plan.Catalog, plan.InstallRoot);
-            if (lease.CancellationReason != LauncherOperationCancellationReason.None)
+            if (lease.CancellationReason != LauncherOperationCancellationReason.None
+                && plan.CompletedIds.Count < plan.Packages.Length)
             {
                 return CompleteCancelled(lease, plan);
             }
@@ -1489,12 +1544,13 @@ internal sealed partial class LauncherAddonsCoordinator : IDisposable
 
     private static AddonCatalog CreateScopedCatalog(
         AddonCatalog source,
-        AddonPackage package) =>
+        IEnumerable<AddonPackage> packages) =>
         new()
         {
             SchemaVersion = source.SchemaVersion,
             ClientInterface = source.ClientInterface,
-            Addons = [package]
+            GeneratedAtUtc = source.GeneratedAtUtc,
+            Addons = [.. packages]
         };
 
     private static AddonsOperationState ToOperationState(AddonsRequestedAction action) =>

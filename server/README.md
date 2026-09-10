@@ -18,7 +18,7 @@ Authorization: Bearer <token>
 - `PORT`: port local, defaut `4322`
 - `WOTLK_FEED_ROOT`: dossier du feed, defaut `/srv/wotlk/launcher-feed`
 - `WOTLK_LAUNCHER_TOKEN`: token prive obligatoire
-- `WOTLK_PUBLIC_BASE_URL`: URL publique utilisee dans le manifeste, defaut `http://152.228.225.7/wotlk/`
+- `WOTLK_PUBLIC_BASE_URL`: URL publique utilisee dans le manifeste, defaut `https://animeclub.fr/wotlk/`; HTTP est accepte uniquement en loopback pour le developpement local
 
 ## Exemple systemd
 
@@ -32,7 +32,7 @@ User=debian
 WorkingDirectory=/opt/wotlk-launcher-server
 Environment=PORT=4322
 Environment=WOTLK_FEED_ROOT=/srv/wotlk/launcher-feed
-Environment=WOTLK_PUBLIC_BASE_URL=http://152.228.225.7/wotlk/
+Environment=WOTLK_PUBLIC_BASE_URL=https://animeclub.fr/wotlk/
 EnvironmentFile=/etc/wotlk/launcher.env
 ExecStart=/usr/bin/node /opt/wotlk-launcher-server/src/server.js
 Restart=always
@@ -42,10 +42,10 @@ RestartSec=5
 WantedBy=multi-user.target
 ~~~
 
-## Exemple Caddy via IP
+## Exemple Caddy HTTPS
 
 ~~~caddyfile
-http://152.228.225.7 {
+animeclub.fr {
     encode zstd gzip
 
     handle /wotlk/* {

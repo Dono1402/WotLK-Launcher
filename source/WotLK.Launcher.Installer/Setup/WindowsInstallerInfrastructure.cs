@@ -279,7 +279,6 @@ internal sealed class WindowsInstallerShortcutService : IInstallerShortcutServic
             return false;
         }
 
-        File.SetAttributes(shortcutPath, FileAttributes.Normal);
         File.Delete(shortcutPath);
         string? parent = Path.GetDirectoryName(shortcutPath);
         if (!string.IsNullOrWhiteSpace(parent)
@@ -393,6 +392,13 @@ internal interface IInstallerSystemActions
 
 internal sealed class WindowsInstallerSystemActions : IInstallerSystemActions
 {
+    private readonly bool _allowTestSelfDeleteRoot;
+
+    internal WindowsInstallerSystemActions(bool allowTestSelfDeleteRoot = false)
+    {
+        _allowTestSelfDeleteRoot = allowTestSelfDeleteRoot;
+    }
+
     public void OpenInstalledApps()
     {
         Process.Start(new ProcessStartInfo
@@ -407,7 +413,28 @@ internal sealed class WindowsInstallerSystemActions : IInstallerSystemActions
 
     public void ScheduleSelfDelete(string uninstallerPath, string installRoot, int processId)
     {
-        string script = BuildSelfDeleteScript(uninstallerPath, installRoot, processId);
+        string root = Path.GetFullPath(installRoot);
+        string uninstaller = Path.GetFullPath(uninstallerPath);
+        InstallerPathValidator.DemandNoReparsePoints(root);
+        InstallerPathValidator.DemandNoReparsePoints(uninstaller);
+        if (!_allowTestSelfDeleteRoot)
+        {
+            string expectedRoot = InstallerProduct.GetDefaultInstallPath();
+            string expectedUninstaller = Path.Combine(
+                expectedRoot,
+                InstallerProduct.UninstallerFileName);
+            if (!InstallerEnvironment.SamePath(root, expectedRoot)
+                || !InstallerEnvironment.SamePath(uninstaller, expectedUninstaller))
+            {
+                throw new UnauthorizedAccessException(
+                    "L'auto-suppression est limitée à l'installation Atlas Launcher de Program Files.");
+            }
+
+            InstallerProtectedPathSecurity.DemandTrustedDirectory(root);
+            InstallerProtectedPathSecurity.DemandTrustedFile(uninstaller);
+        }
+
+        string script = BuildSelfDeleteScript(uninstaller, root, processId);
         string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
         string powershell = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.System),
@@ -443,18 +470,27 @@ internal sealed class WindowsInstallerSystemActions : IInstallerSystemActions
         string escapedRoot = EscapePowerShellLiteral(Path.GetFullPath(installRoot));
         return "$ErrorActionPreference='Stop';"
             + "Set-Location -LiteralPath $env:TEMP;"
+            + $"$root='{escapedRoot}';$exe='{escapedExe}';"
             + "$deadline=[DateTime]::UtcNow.AddMinutes(5);"
             + $"while(Get-Process -Id {processId} -ErrorAction SilentlyContinue){{"
             + "if([DateTime]::UtcNow -ge $deadline){exit 2};"
             + "Start-Sleep -Milliseconds 100};"
+            + "if(-not [IO.Directory]::Exists($root)){exit 4};"
+            + "if(([IO.File]::GetAttributes($root) -band [IO.FileAttributes]::ReparsePoint) -ne 0){exit 4};"
+            + "if(-not [IO.File]::Exists($exe)){exit 4};"
+            + "if(([IO.File]::GetAttributes($exe) -band [IO.FileAttributes]::ReparsePoint) -ne 0){exit 4};"
             + "$removed=$false;"
             + "for($attempt=0;$attempt -lt 100 -and -not $removed;$attempt++){"
-            + $"try{{Remove-Item -LiteralPath '{escapedExe}' -Force -ErrorAction Stop;$removed=$true}}"
+            + "try{"
+            + "if(([IO.File]::GetAttributes($root) -band [IO.FileAttributes]::ReparsePoint) -ne 0){exit 4};"
+            + "if(([IO.File]::GetAttributes($exe) -band [IO.FileAttributes]::ReparsePoint) -ne 0){exit 4};"
+            + "[IO.File]::Delete($exe);$removed=-not [IO.File]::Exists($exe)}"
             + "catch{Start-Sleep -Milliseconds 100}};"
             + "if(-not $removed){exit 3};"
-            + $"if((Test-Path -LiteralPath '{escapedRoot}') -and "
-            + $"@(Get-ChildItem -LiteralPath '{escapedRoot}' -Force).Count -eq 0)"
-            + $"{{Remove-Item -LiteralPath '{escapedRoot}' -Force}}";
+            + "if([IO.Directory]::Exists($root)){"
+            + "if(([IO.File]::GetAttributes($root) -band [IO.FileAttributes]::ReparsePoint) -ne 0){exit 4};"
+            + "if([IO.Directory]::GetFileSystemEntries($root).Length -eq 0){"
+            + "[IO.Directory]::Delete($root,$false)}}";
     }
 
     internal static bool IsCurrentProcessElevated()

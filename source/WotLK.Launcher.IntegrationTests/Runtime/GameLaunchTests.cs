@@ -1224,7 +1224,7 @@ internal sealed class PlayRuntimeEnvironment : IDisposable
         Settings = new LauncherSettings
         {
             InstallPath = Root,
-            ManifestUrl = "https://atlas.test/manifest.json",
+            ManifestUrl = "https://animeclub.fr/manifest.json",
             GameLocale = "frFR",
             AutomaticLauncherUpdates = false,
             CloseLauncherOnGameStart = false

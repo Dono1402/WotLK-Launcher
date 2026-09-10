@@ -5,6 +5,23 @@ La fenêtre legacy reste propriétaire de son bail et de sa présentation. La V2
 réutilise ce même pipeline pour l'installation, la mise à jour et la réparation
 ciblée, sans déplacer le comportement legacy.
 
+## Durcissement des feeds Jeu
+
+- Le manifeste HTTP est limité à 8 Mio avant désérialisation, y compris sans
+  `Content-Length`. Le JSON refuse les propriétés inconnues ou dupliquées, les
+  profondeurs excessives et les structures hors limites (50 000 fichiers,
+  64 Gio par fichier et 512 Gio au total).
+- Les chemins, tailles et SHA-256 de toutes les entrées sont validés avant la
+  création du dossier d'installation, l'arrêt du jeu ou toute autre mutation.
+- `baseUrl`, les URL absolues de fichiers et les URL finales après redirection
+  doivent utiliser HTTPS, sans identifiants ni fragment.
+- Chaque transfert vérifie `Content-Length` lorsqu'il est présent puis limite
+  ses lectures à la taille attendue plus un octet de contrôle. Un octet
+  excédentaire est refusé avant l'écriture dans le temporaire.
+- Ces contrôles ne prouvent pas l'origine du manifeste. La signature du feed
+  Jeu et sa vérification par une clé publique embarquée restent une dépendance
+  de déploiement avant de considérer ce canal authentifié.
+
 ## Extension 02C.1 : vérification complète et réparation
 
 - L'analyse automatique conserve `GameClientVerificationService`, le bail
@@ -33,12 +50,12 @@ ciblée, sans déplacer le comportement legacy.
 | --- | --- | --- | --- |
 | `ExecuteGameActionAsync` | Reste dans `MainWindow` | Utilise le `GameAction` legacy et le bail obtenu auprès de `LauncherOperationCoordinator`. | Authentification, contrôle d'accès au dossier, acquisition/libération du bail, erreurs, annulation et rafraîchissement final restent inchangés. |
 | `InstallOrUpdateAsync` | `GameClientMaintenanceService.InstallOrUpdateAsync` avec adaptateur legacy dans `MainWindow` | `GameClientMaintenanceRequest`, bail `GameInstall` ou `GameUpdate`, progression brute ; retourne `GameClientMaintenanceResult`. | Ordonne uniquement manifeste, arrêt du jeu, comparaison, nettoyage, transfert, cache et enregistrement. Il n'acquiert et ne libère aucun bail. |
-| `LoadManifestAsync` | `GameManifestClient.LoadAsync` | URL et token d'annulation ; retourne `LauncherManifest`. | Même `HttpClient` autorisé, même endpoint, `ResponseHeadersRead`, désérialisation insensible à la casse et erreurs HTTP inchangées. Aucun token brut n'est stocké. |
-| `BuildFileUri` | `GameFileTransferService.BuildFileUri` | Manifeste et fichier ; retourne une URI. | URL absolue prioritaire ; sinon `baseUrl` et `url` relative ; sinon `files/` et échappement segment par segment. |
+| `LoadManifestAsync` | `GameManifestClient.LoadAsync` | URL et token d'annulation ; retourne `LauncherManifest`. | Même `HttpClient` autorisé et `ResponseHeadersRead`; réponse bornée et JSON strict avant validation structurelle. Aucun token brut n'est stocké. |
+| `BuildFileUri` | `GameFileTransferService.BuildFileUri` | Manifeste et fichier ; retourne une URI. | URL absolue prioritaire ; sinon `baseUrl` et `url` relative ; sinon `files/` et échappement segment par segment. Toute URI résultante doit être HTTPS. |
 | `FindMissingOrChangedFiles` / `CompareManifestFiles` / `ComputeSha256Async` | `GameFileVerifier` | Racine, manifeste, progression et token ; retourne la comparaison. | Cache rapide, raccourci par version, partage de fichier du hash et défaut connu du cache strictement conservés. Aucune vérification exhaustive 02C.1. |
 | `FindRemovedFiles` | `GameFileVerifier`, exposé par `GameFileCleanupService` | Racine et manifeste ; retourne les chemins gérés devenus absents. | Historique installé et anciens dossiers UnBot/MultiBot uniquement ; aucun inventaire agressif des fichiers utilisateur. |
 | `DeleteRemovedClientFiles` | `GameFileCleanupService.DeleteRemovedFiles` | Racine, chemins relatifs et token ; retourne le nombre supprimé. | Politique de chemin obligatoire, attribut normal, 12 tentatives espacées de 250 ms, puis `IOException`. Les dossiers parents vides sont supprimés au mieux. |
-| `DownloadFileAsync` | `GameFileTransferService.DownloadAsync` | OperationId, URI, cible, taille, SHA-256, progression et token ; retourne `Task`. | Une requête HTTP, fichier temporaire adjacent, validation taille puis hash, remplacement final, nettoyage du temporaire sur toute erreur ou annulation. |
+| `DownloadFileAsync` | `GameFileTransferService.DownloadAsync` | OperationId, URI, cible, taille, SHA-256, progression et token ; retourne `Task`. | Une requête HTTPS, borne stricte avant chaque écriture, fichier temporaire adjacent, validation taille puis hash, remplacement final, nettoyage du temporaire sur toute erreur ou annulation. |
 | `MoveDownloadedFileWithRetryAsync` | Méthode privée de `GameFileTransferService` | Temporaire, cible et token. | 60 tentatives espacées de 1 s. Le fichier existant passe en attribut normal avant `File.Move(..., overwrite: true)`. |
 | `GetSafeTargetPath` | `GamePathPolicy.GetSafeTargetPath` | Racine et chemin du manifeste ; retourne une cible canonique. | Refuse chemin vide, chemin absolu et toute sortie de la racine, y compris `../`. |
 | `RegisterGameApplication` | `GameInstallPlatformAdapter` | Racine, version et langue ; retourne les chemins écrits ou `null`. | Vérifie l'écriture, ajuste `Config.wtf`, copie le désinstalleur, écrit `client-install.json`, puis inscrit l'application Windows via `GameInstallServices`. |
@@ -66,8 +83,8 @@ ciblée, sans déplacer le comportement legacy.
 
 Ordre nominal :
 
-1. création du dossier d'installation ;
-2. téléchargement et lecture du manifeste ;
+1. téléchargement, lecture bornée et validation stricte du manifeste ;
+2. création du dossier d'installation ;
 3. arrêt des processus WoW appartenant à cette installation ;
 4. lecture du cache et comparaison rapide ou réelle ;
 5. calcul des fichiers gérés devenus obsolètes ;

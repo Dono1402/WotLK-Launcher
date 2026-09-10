@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -24,6 +25,7 @@ internal static class LauncherSelfUpdateSecurityTests
         VerifyUriAllowlist();
         await VerifyStrictHttpPipelineAsync();
         await VerifyPackageIntegrityAsync();
+        await VerifyElevatedBoundaryRevalidatesSignedPayloadAsync();
         await VerifyStructuredCoordinatorFailuresAsync();
         await VerifyInvalidSignatureCannotReachPackageOrApplicationAsync();
         VerifyLegacyManifestCompatibility();
@@ -633,6 +635,116 @@ internal static class LauncherSelfUpdateSecurityTests
         }
     }
 
+    private static async Task VerifyElevatedBoundaryRevalidatesSignedPayloadAsync()
+    {
+        byte[] package = [90, 91, 92, 93, 94, 95];
+        byte[] previous = [1, 2, 3, 4];
+        using ECDsa signer = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        LauncherUpdateManifest manifest = CreateManifest(package, "1.6.0");
+        Sign(manifest, signer);
+        LauncherUpdateManifestVerifier verifier = VerifierFor(TestKeyId, signer);
+        string root = NewRoot("elevated-boundary");
+        try
+        {
+            Guid id = Guid.NewGuid();
+            string workspace = Path.Combine(root, "transactions", id.ToString("N"));
+            Directory.CreateDirectory(workspace);
+            string target = Path.Combine(root, "AtlasLauncher.exe");
+            string candidate = Path.Combine(workspace, "candidate.exe");
+            await File.WriteAllBytesAsync(target, previous);
+            await File.WriteAllBytesAsync(candidate, package);
+            string suffix = ".atlas-" + id.ToString("N");
+            LauncherUpdateTransaction transaction = new(
+                LauncherUpdateTransaction.CurrentSchemaVersion,
+                id,
+                Environment.ProcessId,
+                target,
+                workspace,
+                candidate,
+                LauncherUpdateElevationSecurity.GetProtectedHelperPath(target, id),
+                target + suffix + ".new",
+                target + suffix + ".backup",
+                Path.Combine(workspace, "transaction.json"),
+                LauncherUpdateElevationSecurity.GetProtectedHelperAcceptedSignalPath(
+                    target,
+                    id),
+                Path.Combine(workspace, "started.json"),
+                Path.Combine(workspace, "ready.json"),
+                package.LongLength,
+                Convert.ToHexString(SHA256.HashData(previous)).ToLowerInvariant(),
+                manifest.Sha256,
+                LauncherUpdateTransactionPhase.Prepared,
+                DateTimeOffset.UtcNow,
+                AuthenticatedTargetVersion: manifest.Version,
+                AuthenticatedManifest: manifest);
+
+            LauncherUpdateAuthenticatedPayload.Validate(transaction, verifier);
+
+            LauncherUpdateManifest tampered = Clone(manifest);
+            tampered.Url = tampered.Url.Replace("WotLK-Launcher.exe", "other.exe");
+            Throws<LauncherUpdateManifestSignatureException>(
+                () => LauncherUpdateAuthenticatedPayload.Validate(
+                    transaction with { AuthenticatedManifest = tampered },
+                    verifier),
+                "Le helper élevé doit revérifier la signature ECDSA après la frontière UAC.");
+
+            await File.WriteAllBytesAsync(candidate, [90, 91, 92, 93, 94, 96]);
+            Throws<LauncherUpdatePackageIntegrityException>(
+                () => LauncherUpdateAuthenticatedPayload.Validate(transaction, verifier),
+                "Le helper élevé doit rehacher le candidat après la frontière UAC.");
+
+            string currentAssembly = typeof(App).Assembly.Location;
+            Version currentVersion = FileVersionInfo.GetVersionInfo(currentAssembly).FileVersion is string text
+                && Version.TryParse(text, out Version? parsed)
+                    ? parsed
+                    : throw new InvalidOperationException("Version fichier de test absente.");
+            string newerVersion = new Version(
+                currentVersion.Major,
+                currentVersion.Minor,
+                Math.Max(currentVersion.Build, 0) + 1).ToString();
+            LauncherUpdateBootstrapRunner.DemandStrictlyNewerVersion(
+                currentAssembly,
+                newerVersion);
+            Throws<InvalidDataException>(
+                () => LauncherUpdateBootstrapRunner.DemandStrictlyNewerVersion(
+                    currentAssembly,
+                    currentVersion.ToString()),
+                "Le bootstrap élevé doit refuser une réinstallation ou un downgrade signé.");
+
+            await File.WriteAllBytesAsync(candidate, package);
+            LauncherUpdateManifest replayedManifest = CreateManifest(
+                package,
+                currentVersion.ToString());
+            Sign(replayedManifest, signer);
+            LauncherUpdateTransaction replayed = transaction with
+            {
+                AuthenticatedTargetVersion = replayedManifest.Version,
+                AuthenticatedManifest = replayedManifest
+            };
+            Throws<InvalidDataException>(
+                () => LauncherUpdateHelperRunner.ValidateAuthenticatedUpgrade(
+                    replayed,
+                    currentAssembly,
+                    verifier),
+                "Le helper doit refaire l'anti-downgrade après un swap vers une ancienne release pourtant signée.");
+
+            LauncherUpdateManifest freshManifest = CreateManifest(package, newerVersion);
+            Sign(freshManifest, signer);
+            LauncherUpdateHelperRunner.ValidateAuthenticatedUpgrade(
+                transaction with
+                {
+                    AuthenticatedTargetVersion = freshManifest.Version,
+                    AuthenticatedManifest = freshManifest
+                },
+                currentAssembly,
+                verifier);
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
     private static async Task VerifyStructuredCoordinatorFailuresAsync()
     {
         using ECDsa signer = ECDsa.Create(ECCurve.NamedCurves.nistP256);
@@ -977,6 +1089,7 @@ internal static class LauncherSelfUpdateSecurityTests
             long expectedSize,
             string expectedSha256,
             string authenticatedTargetVersion,
+            LauncherUpdateManifest authenticatedManifest,
             int parentProcessId,
             CancellationToken cancellationToken) =>
             throw new InvalidOperationException("Le finalizer ne doit pas être appelé par ces tests.");
@@ -992,6 +1105,7 @@ internal static class LauncherSelfUpdateSecurityTests
             long expectedSize,
             string expectedSha256,
             string authenticatedTargetVersion,
+            LauncherUpdateManifest authenticatedManifest,
             int parentProcessId,
             CancellationToken cancellationToken)
         {

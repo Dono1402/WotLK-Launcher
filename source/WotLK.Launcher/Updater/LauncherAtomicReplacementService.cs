@@ -109,6 +109,31 @@ internal sealed class LauncherUpdateParentWaiter : ILauncherUpdateParentWaiter
         }
     }
 
+    internal static bool ProcessMatchesIdentity(
+        int processId,
+        string expectedPath,
+        DateTimeOffset expectedStartedAt)
+    {
+        try
+        {
+            using Process process = Process.GetProcessById(processId);
+            string? actualPath = TryGetProcessPath(process);
+            DateTimeOffset actualStartedAt = new(
+                process.StartTime.ToUniversalTime());
+            return actualPath is not null
+                   && SamePath(actualPath, expectedPath)
+                   && (actualStartedAt - expectedStartedAt).Duration()
+                   <= TimeSpan.FromSeconds(1);
+        }
+        catch (Exception ex) when (ex is ArgumentException
+                                   or InvalidOperationException
+                                   or Win32Exception
+                                   or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
     private static string? TryGetProcessPath(Process process)
     {
         try
@@ -168,7 +193,10 @@ internal sealed class LauncherAtomicReplacementService
     private readonly ILauncherUpdateFaultInjector _faultInjector;
     private readonly Func<TimeSpan, CancellationToken, Task> _delayAsync;
     private readonly Func<int, string, bool> _processMatchesPath;
+    private readonly Func<int, string, DateTimeOffset, bool> _processMatchesIdentity;
     private readonly Action<int?, string> _stopProcess;
+    private readonly Action<LauncherUpdateTransaction, string>?
+        _protectedFileValidator;
     private readonly ILauncherInstalledAppVersionSynchronizer
         _installedAppVersionSynchronizer;
 
@@ -182,7 +210,9 @@ internal sealed class LauncherAtomicReplacementService
         Func<TimeSpan, CancellationToken, Task>? delayAsync = null,
         Func<int, string, bool>? processMatchesPath = null,
         Action<int?, string>? stopProcess = null,
-        ILauncherInstalledAppVersionSynchronizer? installedAppVersionSynchronizer = null)
+        ILauncherInstalledAppVersionSynchronizer? installedAppVersionSynchronizer = null,
+        Func<int, string, DateTimeOffset, bool>? processMatchesIdentity = null,
+        Action<LauncherUpdateTransaction, string>? protectedFileValidator = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _atomicMover = atomicMover ?? throw new ArgumentNullException(nameof(atomicMover));
@@ -194,7 +224,10 @@ internal sealed class LauncherAtomicReplacementService
         _delayAsync = delayAsync ?? Task.Delay;
         _processMatchesPath = processMatchesPath
             ?? LauncherUpdateParentWaiter.ProcessMatchesPath;
+        _processMatchesIdentity = processMatchesIdentity
+            ?? LauncherUpdateParentWaiter.ProcessMatchesIdentity;
         _stopProcess = stopProcess ?? LauncherUpdateProcessTerminator.StopIfMatches;
+        _protectedFileValidator = protectedFileValidator;
         _installedAppVersionSynchronizer = installedAppVersionSynchronizer
             ?? LauncherInstalledAppVersionSynchronizer.CreateProduction();
 
@@ -220,6 +253,8 @@ internal sealed class LauncherAtomicReplacementService
 
         try
         {
+            LauncherUpdateElevationSecurity.DemandNoReparseTransactionPaths(transaction);
+            DemandProtectedFile(transaction, transaction.TargetPath);
             Log(transaction, "validation du candidat et de la release active");
             _faultInjector.Hit(LauncherUpdateFaultPoint.BeforeCandidateValidation, transaction);
             await ValidateCandidateAndTargetAsync(transaction, cancellationToken)
@@ -232,7 +267,8 @@ internal sealed class LauncherAtomicReplacementService
                     transaction.StagedPath,
                     transaction.CandidateSha256,
                     transaction.ExpectedSize,
-                    cancellationToken)
+                    cancellationToken,
+                    sourceInUserWorkspace: true)
                 .ConfigureAwait(false);
             transaction = SavePhase(transaction, LauncherUpdateTransactionPhase.CandidateStaged);
             _faultInjector.Hit(LauncherUpdateFaultPoint.AfterCandidateStaged, transaction);
@@ -261,19 +297,34 @@ internal sealed class LauncherAtomicReplacementService
                     transaction.BackupPath,
                     transaction.PreviousSha256,
                     expectedSize: null,
-                    cancellationToken)
+                    cancellationToken,
+                    sourceInUserWorkspace: false)
                 .ConfigureAwait(false);
             transaction = SavePhase(transaction, LauncherUpdateTransactionPhase.BackupReady);
             _faultInjector.Hit(LauncherUpdateFaultPoint.AfterBackupCreated, transaction);
 
+            LauncherUpdateElevationSecurity.DemandNoReparseTransactionPaths(transaction);
+            await ValidateHashWithRetryAsync(
+                    transaction,
+                    transaction.StagedPath,
+                    transaction.CandidateSha256,
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+            DemandProtectedFile(transaction, transaction.StagedPath);
+            DemandProtectedFile(transaction, transaction.BackupPath);
+            _faultInjector.Hit(
+                LauncherUpdateFaultPoint.AfterStagedValidatedBeforeAtomicSwap,
+                transaction);
             Log(transaction, "swap atomique MoveFileEx(REPLACE_EXISTING|WRITE_THROUGH)");
             await ReplaceWithRetryAsync(
                     transaction,
                     transaction.StagedPath,
                     transaction.TargetPath,
+                    transaction.CandidateSha256,
                     CancellationToken.None)
                 .ConfigureAwait(false);
             swapObserved = true;
+            DemandProtectedFile(transaction, transaction.TargetPath);
             await ValidateHashWithRetryAsync(
                     transaction,
                     transaction.TargetPath,
@@ -303,6 +354,7 @@ internal sealed class LauncherAtomicReplacementService
             transaction = transaction with
             {
                 NewProcessId = launchedProcess.ProcessId,
+                NewProcessStartedAt = launchedProcess.StartedAt,
                 Phase = LauncherUpdateTransactionPhase.StartedAwaitingReady,
                 UpdatedAt = DateTimeOffset.UtcNow
             };
@@ -323,6 +375,9 @@ internal sealed class LauncherAtomicReplacementService
             }
 
             _faultInjector.Hit(LauncherUpdateFaultPoint.AfterReadyConfirmation, transaction);
+            _store.WriteProtectedCommitSignal(
+                transaction,
+                CreateProtectedCommitSignal(transaction));
             transaction = SavePhase(transaction, LauncherUpdateTransactionPhase.Committed);
             _faultInjector.Hit(LauncherUpdateFaultPoint.AfterCommitPersisted, transaction);
             SynchronizeInstalledVersion(transaction);
@@ -376,6 +431,12 @@ internal sealed class LauncherAtomicReplacementService
         LauncherUpdateTransaction transaction,
         CancellationToken cancellationToken = default)
     {
+        LauncherUpdateElevationSecurity.DemandNoReparseTransactionPaths(transaction);
+        if (File.Exists(transaction.TargetPath))
+        {
+            DemandProtectedFile(transaction, transaction.TargetPath);
+        }
+
         Log(transaction, "inspection d'une transaction interrompue");
         bool targetIsPrevious = await HasHashAsync(
                 transaction.TargetPath,
@@ -398,11 +459,15 @@ internal sealed class LauncherAtomicReplacementService
 
         if (targetIsCandidate)
         {
-            if (transaction.Phase == LauncherUpdateTransactionPhase.Committed)
+            LauncherUpdateProcessSignal? protectedCommit =
+                _store.TryReadProtectedCommitSignal(transaction);
+            if (protectedCommit is { IsElevated: true })
             {
                 SynchronizeInstalledVersion(transaction);
                 CleanupAfterSuccess(transaction);
-                Log(transaction, "récupération: commit déjà confirmé, nettoyage terminé");
+                Log(
+                    transaction,
+                    "récupération: preuve de commit protégée retrouvée, nettoyage terminé");
                 return new LauncherUpdateExecutionResult(
                     transaction.TransactionId,
                     LauncherUpdateExecutionOutcome.Succeeded,
@@ -410,11 +475,15 @@ internal sealed class LauncherAtomicReplacementService
             }
 
             LauncherUpdateProcessSignal? ready = _store.TryReadReadySignal(transaction);
-            if (ready is not null
-                && _processMatchesPath(
-                    ready.ProcessId,
-                    transaction.TargetPath))
+            if (IsReadySignalForProcess(transaction, ready)
+                && _processMatchesIdentity(
+                    transaction.NewProcessId!.Value,
+                    transaction.TargetPath,
+                    transaction.NewProcessStartedAt!.Value))
             {
+                _store.WriteProtectedCommitSignal(
+                    transaction,
+                    CreateProtectedCommitSignal(transaction));
                 LauncherUpdateTransaction committed = SavePhase(
                     transaction,
                     LauncherUpdateTransactionPhase.Committed);
@@ -436,23 +505,33 @@ internal sealed class LauncherAtomicReplacementService
                 .ConfigureAwait(false);
         }
 
-        if (await HasHashAsync(transaction.BackupPath, transaction.PreviousSha256)
-                .ConfigureAwait(false))
+        bool backupIsPrevious = await HasHashAsync(
+                transaction.BackupPath,
+                transaction.PreviousSha256)
+            .ConfigureAwait(false);
+        if (!File.Exists(transaction.TargetPath) && backupIsPrevious)
         {
             return await RollbackAsync(
                     transaction,
-                    new InvalidDataException("La cible ne correspond à aucune version attendue."),
+                    new InvalidDataException("La cible est absente après un swap interrompu."),
                     cancellationToken)
                 .ConfigureAwait(false);
         }
 
-        LauncherUpdateTransaction failed = SaveFailure(transaction, "NoValidRelease");
-        Log(failed, "récupération impossible: aucun binaire valide");
+        string category = File.Exists(transaction.TargetPath)
+            ? "UnexpectedTarget"
+            : "NoValidRelease";
+        LauncherUpdateTransaction failed = SaveFailure(transaction, category);
+        Log(
+            failed,
+            File.Exists(transaction.TargetPath)
+                ? "récupération refusée: la cible actuelle est étrangère à la transaction"
+                : "récupération impossible: aucun binaire valide");
         return new LauncherUpdateExecutionResult(
             transaction.TransactionId,
             LauncherUpdateExecutionOutcome.RecoveryRequired,
             LauncherUpdateTransactionPhase.Failed,
-            "NoValidRelease");
+            category);
     }
 
     private async Task<LauncherUpdateExecutionResult> RollbackAsync(
@@ -478,8 +557,10 @@ internal sealed class LauncherAtomicReplacementService
                     rollingBack,
                     rollingBack.BackupPath,
                     rollingBack.TargetPath,
+                    rollingBack.PreviousSha256,
                     cancellationToken)
                 .ConfigureAwait(false);
+            DemandProtectedFile(rollingBack, rollingBack.TargetPath);
             await ValidateHashWithRetryAsync(
                     rollingBack,
                     rollingBack.TargetPath,
@@ -519,21 +600,15 @@ internal sealed class LauncherAtomicReplacementService
         CancellationToken cancellationToken)
     {
         LauncherUpdateTransaction validated = _store.Load(transaction.TransactionPath);
-        if (validated != transaction)
+        if (!LauncherUpdateTransactionStore.AreEquivalent(validated, transaction))
         {
             throw new InvalidDataException("La transaction a changé avant son application.");
         }
 
-        FileInfo candidate = new(transaction.CandidatePath);
-        if (!candidate.Exists || candidate.Length != transaction.ExpectedSize)
-        {
-            throw new InvalidDataException("Taille du candidat launcher invalide.");
-        }
-
-        await ValidateHashWithRetryAsync(
-                transaction,
+        await ValidateUserFileHashAsync(
                 transaction.CandidatePath,
                 transaction.CandidateSha256,
+                transaction.ExpectedSize,
                 cancellationToken)
             .ConfigureAwait(false);
         await ValidateHashWithRetryAsync(
@@ -556,7 +631,8 @@ internal sealed class LauncherAtomicReplacementService
         string destinationPath,
         string expectedSha256,
         long? expectedSize,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool sourceInUserWorkspace)
     {
         Exception? lastError = null;
         for (int attempt = 1; attempt <= _retryPolicy.FileAttempts; attempt++)
@@ -565,7 +641,11 @@ internal sealed class LauncherAtomicReplacementService
             try
             {
                 LauncherUpdateTransactionStore.TryDeleteFile(destinationPath);
-                await CopyFileDurablyAsync(sourcePath, destinationPath, cancellationToken)
+                LauncherUpdateElevationSecurity.DemandNoReparseTransactionPaths(transaction);
+                await using FileStream source = sourceInUserWorkspace
+                    ? _store.OpenUserFileForStableRead(sourcePath)
+                    : OpenProtectedFileForStableRead(sourcePath);
+                await CopyFileDurablyAsync(source, destinationPath, cancellationToken)
                     .ConfigureAwait(false);
                 if (expectedSize is > 0
                     && new FileInfo(destinationPath).Length != expectedSize.Value)
@@ -575,6 +655,7 @@ internal sealed class LauncherAtomicReplacementService
 
                 await ValidateHashAsync(destinationPath, expectedSha256, cancellationToken)
                     .ConfigureAwait(false);
+                DemandProtectedFile(transaction, destinationPath);
                 return;
             }
             catch (Exception ex) when (ex is IOException
@@ -601,6 +682,7 @@ internal sealed class LauncherAtomicReplacementService
         LauncherUpdateTransaction transaction,
         string sourcePath,
         string destinationPath,
+        string expectedSourceSha256,
         CancellationToken cancellationToken)
     {
         Exception? lastError = null;
@@ -609,10 +691,18 @@ internal sealed class LauncherAtomicReplacementService
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
+                DemandProtectedFile(transaction, sourcePath);
+                await ValidateHashAsync(
+                        sourcePath,
+                        expectedSourceSha256,
+                        cancellationToken)
+                    .ConfigureAwait(false);
                 _atomicMover.Replace(sourcePath, destinationPath);
                 return;
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            catch (Exception ex) when (ex is IOException
+                                       or UnauthorizedAccessException
+                                       or InvalidDataException)
             {
                 lastError = ex;
                 LogRetry(transaction, destinationPath, attempt, ex);
@@ -639,9 +729,10 @@ internal sealed class LauncherAtomicReplacementService
         {
             cancellationToken.ThrowIfCancellationRequested();
             LauncherUpdateProcessSignal? ready = _store.TryReadReadySignal(transaction);
-            if (ready is not null
-                && ready.ProcessId == process.ProcessId
-                && !ready.IsElevated
+            if (IsReadySignalForProcess(transaction, ready)
+                && ready!.ProcessId == process.ProcessId
+                && (process.StartedAt - transaction.NewProcessStartedAt!.Value).Duration()
+                   <= TimeSpan.FromSeconds(1)
                 && !process.HasExited)
             {
                 return true;
@@ -659,18 +750,29 @@ internal sealed class LauncherAtomicReplacementService
         return false;
     }
 
+    private static bool IsReadySignalForProcess(
+        LauncherUpdateTransaction transaction,
+        LauncherUpdateProcessSignal? signal)
+    {
+        if (signal is null
+            || signal.IsElevated
+            || transaction.NewProcessId is not > 0
+            || transaction.NewProcessStartedAt is not DateTimeOffset startedAt
+            || signal.ProcessId != transaction.NewProcessId.Value)
+        {
+            return false;
+        }
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        return signal.CreatedAt >= startedAt - TimeSpan.FromSeconds(2)
+               && signal.CreatedAt <= now + TimeSpan.FromMinutes(1);
+    }
+
     private static async Task CopyFileDurablyAsync(
-        string sourcePath,
+        FileStream source,
         string destinationPath,
         CancellationToken cancellationToken)
     {
-        await using FileStream source = new(
-            sourcePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read | FileShare.Delete,
-            128 * 1024,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
         await using FileStream destination = new(
             destinationPath,
             FileMode.CreateNew,
@@ -682,6 +784,42 @@ internal sealed class LauncherAtomicReplacementService
             .ConfigureAwait(false);
         await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
         destination.Flush(flushToDisk: true);
+    }
+
+    private static FileStream OpenProtectedFileForStableRead(string path)
+    {
+        LauncherUpdateElevationSecurity.ValidateNoReparsePoints(path);
+        return new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            128 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+    }
+
+    private async Task ValidateUserFileHashAsync(
+        string path,
+        string expectedSha256,
+        long expectedSize,
+        CancellationToken cancellationToken)
+    {
+        await using FileStream stream = _store.OpenUserFileForStableRead(path);
+        if (stream.Length != expectedSize)
+        {
+            throw new InvalidDataException("Taille du candidat launcher invalide.");
+        }
+
+        byte[] hash = await System.Security.Cryptography.SHA256.HashDataAsync(
+                stream,
+                cancellationToken)
+            .ConfigureAwait(false);
+        string actual = Convert.ToHexString(hash).ToLowerInvariant();
+        if (!string.Equals(actual, expectedSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "L'empreinte du candidat launcher est invalide.");
+        }
     }
 
     private static async Task ValidateHashAsync(
@@ -779,6 +917,11 @@ internal sealed class LauncherAtomicReplacementService
         string category) =>
         SavePhase(transaction, LauncherUpdateTransactionPhase.Failed, category);
 
+    private void DemandProtectedFile(
+        LauncherUpdateTransaction transaction,
+        string path) =>
+        _protectedFileValidator?.Invoke(transaction, path);
+
     private void CleanupBeforeSwap(LauncherUpdateTransaction transaction)
     {
         LauncherUpdateTransactionStore.TryDeleteFile(transaction.StagedPath);
@@ -791,18 +934,18 @@ internal sealed class LauncherAtomicReplacementService
     {
         LauncherUpdateTransactionStore.TryDeleteFile(transaction.StagedPath);
         LauncherUpdateTransactionStore.TryDeleteFile(transaction.BackupPath);
-        LauncherUpdateTransactionStore.TryDeleteFile(transaction.CandidatePath);
+        _store.TryDeleteUserFile(transaction.CandidatePath);
         _store.DeleteSignals(transaction);
-        LauncherUpdateTransactionStore.TryDeleteFile(transaction.TransactionPath);
+        _store.TryDeleteUserFile(transaction.TransactionPath);
     }
 
     private void CleanupAfterRollback(LauncherUpdateTransaction transaction)
     {
         LauncherUpdateTransactionStore.TryDeleteFile(transaction.StagedPath);
         LauncherUpdateTransactionStore.TryDeleteFile(transaction.BackupPath);
-        LauncherUpdateTransactionStore.TryDeleteFile(transaction.CandidatePath);
+        _store.TryDeleteUserFile(transaction.CandidatePath);
         _store.DeleteSignals(transaction);
-        LauncherUpdateTransactionStore.TryDeleteFile(transaction.TransactionPath);
+        _store.TryDeleteUserFile(transaction.TransactionPath);
     }
 
     private async Task TryRelaunchPreviousAsync(LauncherUpdateTransaction transaction)
@@ -866,12 +1009,19 @@ internal sealed class LauncherAtomicReplacementService
         _ => exception.GetType().Name
     };
 
-    private static void Log(LauncherUpdateTransaction transaction, string message)
+    private static LauncherUpdateProcessSignal CreateProtectedCommitSignal(
+        LauncherUpdateTransaction transaction) => new(
+        transaction.TransactionId,
+        Environment.ProcessId,
+        IsElevated: true,
+        DateTimeOffset.UtcNow);
+
+    private void Log(LauncherUpdateTransaction transaction, string message)
     {
-        LauncherUpdateJournal.Append(transaction, message);
+        _store.AppendJournal(transaction, message);
     }
 
-    private static void LogRetry(
+    private void LogRetry(
         LauncherUpdateTransaction transaction,
         string path,
         int attempt,
@@ -880,7 +1030,7 @@ internal sealed class LauncherAtomicReplacementService
         string message =
             $"retry={attempt} file={Path.GetFileName(path)} category={exception.GetType().Name}";
         Debug.WriteLine("Launcher update " + message);
-        LauncherUpdateJournal.Append(transaction, message);
+        _store.AppendJournal(transaction, message);
     }
 }
 
@@ -897,9 +1047,17 @@ internal static class LauncherUpdateJournal
         {
             lock (Sync)
             {
+                LauncherUpdateElevationSecurity.ValidateNoReparsePoints(
+                    transaction.WorkspacePath);
                 Directory.CreateDirectory(transaction.WorkspacePath);
+                LauncherUpdateElevationSecurity.ValidateNoReparsePoints(
+                    transaction.WorkspacePath);
+                string transactionLog = Path.Combine(
+                    transaction.WorkspacePath,
+                    "updater.log");
+                LauncherUpdateElevationSecurity.ValidateNoReparsePoints(transactionLog);
                 File.AppendAllText(
-                    Path.Combine(transaction.WorkspacePath, "updater.log"),
+                    transactionLog,
                     line,
                     new System.Text.UTF8Encoding(false));
 
@@ -909,9 +1067,15 @@ internal static class LauncherUpdateJournal
                     : Path.GetDirectoryName(transactionsDirectory);
                 if (selfUpdateDirectory is not null)
                 {
+                    LauncherUpdateElevationSecurity.ValidateNoReparsePoints(
+                        selfUpdateDirectory);
                     Directory.CreateDirectory(selfUpdateDirectory);
+                    LauncherUpdateElevationSecurity.ValidateNoReparsePoints(
+                        selfUpdateDirectory);
+                    string sharedLog = Path.Combine(selfUpdateDirectory, "updater.log");
+                    LauncherUpdateElevationSecurity.ValidateNoReparsePoints(sharedLog);
                     File.AppendAllText(
-                        Path.Combine(selfUpdateDirectory, "updater.log"),
+                        sharedLog,
                         line,
                         new System.Text.UTF8Encoding(false));
                 }

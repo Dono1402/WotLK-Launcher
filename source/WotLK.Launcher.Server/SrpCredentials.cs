@@ -12,6 +12,9 @@ public static class SrpCredentials
 
     private static readonly BigInteger LegacyN = ParseHex(LegacyNHex);
     private static readonly BigInteger ModernN = ParseHex(ModernNHex);
+    private static readonly byte[] DummyModernSalt =
+        SHA256.HashData("Atlas launcher missing-account timing work"u8.ToArray());
+    private static readonly byte[] DummyModernVerifier = new byte[256];
 
     public static (byte[] Salt, byte[] Verifier) MakeLegacy(string username, string password)
     {
@@ -77,6 +80,17 @@ public static class SrpCredentials
 
         byte[] actual = ToBigEndian(CalculateModernVerifier(xBytes));
         return CryptographicOperations.FixedTimeEquals(actual, expectedVerifier);
+    }
+
+    internal static void PerformDummyModernVerification(string username, string password)
+    {
+        // A missing account must still pay the modern credential verification cost.
+        // The result is deliberately ignored so no dummy credential can authenticate.
+        _ = VerifyModern(
+            username,
+            password,
+            DummyModernSalt,
+            DummyModernVerifier);
     }
 
     private static BigInteger CalculateModernVerifier(ReadOnlySpan<byte> xBytes)

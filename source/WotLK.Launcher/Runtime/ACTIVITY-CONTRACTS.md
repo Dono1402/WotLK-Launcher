@@ -23,10 +23,10 @@ or full log.
 
 | Active operation | Play | Verify | Game mutation | Addons | Launcher auto-update |
 |---|---:|---:|---:|---:|---:|
-| Play, playable client | Busy for a second Play | Allowed | Rejected | Rejected | Rejected |
+| Play, playable client | Busy for a second Play | Allowed | Rejected | Allowed | Rejected |
 | Verify, playable client | Allowed | Busy | Busy | Busy | Busy |
 | Game install/update/repair | Rejected | Busy | Busy | Busy | Busy |
-| Addon mutation/batch | Rejected | Busy | Busy | Busy | Busy |
+| Addon mutation/batch | Allowed | Busy | Busy | Busy | Busy |
 | Launcher auto-update | Rejected | Busy | Busy | Busy | Busy |
 
 Every refusal is immediate. `TryBegin` never queues a user command. Play remains a
@@ -40,10 +40,10 @@ separate single-flight lease and is excluded from activity history.
 - Addon progress stays coalesced at about 80 ms. Install, update, repair, remove, and batch
   update use precise operation types. Remove exposes `Removing`, no byte percentage, and
   `CanUserCancel=false`.
-- `AddonBatchUpdate` owns one global operation id. `ActiveAddonId` is the current child and
-  `PendingAddonIds` is presentation context only. Children never acquire leases. The batch
-  succeeds only when every child succeeds, is cancelled on user cancellation, and fails at
-  the first child error, preserving the existing stop-on-first-error behavior.
+- `AddonBatchUpdate` owns one global operation id. `ActiveAddonId` is the package currently
+  prepared and `PendingAddonIds` is presentation context only. Children never acquire leases.
+  The batch publishes the complete selection in one transaction: every child succeeds, or an
+  error/cancellation before publication leaves the previously managed selection unchanged.
 - Late progress is accepted only while both the lease identity and operation id are current.
   An old lease cannot release, mutate, or publish a terminal for a newer operation.
 

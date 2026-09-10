@@ -531,7 +531,7 @@ internal static class LegacyMainWindowCharacterizationTests
         releaseManifest.SetResult(RecordingHttpHandler.JsonResponse(new LauncherManifest
         {
             Version = "characterization",
-            BaseUrl = "https://atlas.test/client/",
+            BaseUrl = "https://animeclub.fr/client/",
             Files = []
         }));
         await verification;
@@ -1231,7 +1231,7 @@ internal sealed class RecordingHttpHandler(RecordingStartupObserver observer) : 
             return Task.FromResult(JsonResponse(new LauncherManifest
             {
                 Version = "characterization",
-                BaseUrl = "https://atlas.test/client/",
+                BaseUrl = "https://animeclub.fr/client/",
                 Files = []
             }));
         }
@@ -1292,6 +1292,7 @@ internal sealed class RecordingSelfUpdateFinalizer : ILauncherSelfUpdateFinalize
         long expectedSize,
         string expectedSha256,
         string authenticatedTargetVersion,
+        LauncherUpdateManifest authenticatedManifest,
         int parentProcessId,
         CancellationToken cancellationToken)
     {

@@ -7,40 +7,68 @@ namespace WotLK.Launcher.Updater;
 
 internal sealed class LauncherUpdateTransactionStore
 {
+    private const int MaximumTransactionJsonBytes = 64 * 1024;
+    private const int MaximumSignalJsonBytes = 8 * 1024;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
         WriteIndented = true,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
         Converters = { new JsonStringEnumConverter() }
     };
 
     private readonly string _transactionsRoot;
+    private readonly ILauncherUpdateUserOperationRunner _userOperations;
+    private readonly bool _enforceProtectedArtifactAcl;
 
-    internal LauncherUpdateTransactionStore(string? transactionsRoot = null)
+    internal string TransactionsRoot => _transactionsRoot;
+
+    internal LauncherUpdateTransactionStore(
+        string? transactionsRoot = null,
+        ILauncherUpdateUserOperationRunner? userOperations = null)
     {
         _transactionsRoot = RequireLocalAbsolutePath(
             transactionsRoot ?? LauncherUpdatePaths.TransactionsRoot,
             "racine des transactions");
+        _userOperations = userOperations
+            ?? LauncherUpdateDirectUserOperationRunner.Instance;
+        _enforceProtectedArtifactAcl =
+            _userOperations is LauncherUpdateRequesterImpersonation;
     }
 
-    internal LauncherUpdateTransaction Load(string transactionPath)
+    internal LauncherUpdateTransaction Load(string transactionPath) =>
+        _userOperations.Run(() => LoadCore(transactionPath));
+
+    private LauncherUpdateTransaction LoadCore(string transactionPath)
     {
         string canonicalPath = Path.GetFullPath(transactionPath);
-        string json = File.ReadAllText(canonicalPath);
+        byte[] json = ReadStableBoundedJson(canonicalPath);
+        DemandUniqueJsonProperties(json);
         LauncherUpdateTransaction transaction = JsonSerializer.Deserialize<LauncherUpdateTransaction>(
             json,
             JsonOptions)
             ?? throw new InvalidDataException("Transaction de mise à jour illisible.");
         ValidateShape(transaction, canonicalPath);
+        LauncherUpdateElevationSecurity.DemandNoReparseTransactionPaths(transaction);
         return transaction;
     }
 
     internal void Save(LauncherUpdateTransaction transaction)
     {
         ArgumentNullException.ThrowIfNull(transaction);
-        ValidateShape(transaction, Path.GetFullPath(transaction.TransactionPath));
-        string json = JsonSerializer.Serialize(transaction, JsonOptions) + Environment.NewLine;
-        WriteAtomic(transaction.TransactionPath, json);
+        _userOperations.Run(() =>
+        {
+            ValidateShape(transaction, Path.GetFullPath(transaction.TransactionPath));
+            LauncherUpdateElevationSecurity.DemandNoReparseTransactionPaths(transaction);
+            string json = JsonSerializer.Serialize(transaction, JsonOptions)
+                + Environment.NewLine;
+            if (System.Text.Encoding.UTF8.GetByteCount(json) > MaximumTransactionJsonBytes)
+            {
+                throw new InvalidDataException("Transaction de mise à jour trop volumineuse.");
+            }
+
+            WriteAtomic(transaction.TransactionPath, json);
+        });
     }
 
     internal void WriteStartedSignal(
@@ -48,9 +76,14 @@ internal sealed class LauncherUpdateTransactionStore
         LauncherUpdateProcessSignal signal)
     {
         ValidateSignal(transaction, signal);
-        WriteAtomic(
-            transaction.StartedSignalPath,
-            JsonSerializer.Serialize(signal, JsonOptions) + Environment.NewLine);
+        _userOperations.Run(() =>
+        {
+            LauncherUpdateElevationSecurity.ValidateNoReparsePoints(
+                transaction.StartedSignalPath);
+            WriteAtomic(
+                transaction.StartedSignalPath,
+                JsonSerializer.Serialize(signal, JsonOptions) + Environment.NewLine);
+        });
     }
 
     internal void WriteHelperAcceptedSignal(
@@ -58,9 +91,17 @@ internal sealed class LauncherUpdateTransactionStore
         LauncherUpdateProcessSignal signal)
     {
         ValidateSignal(transaction, signal);
+        LauncherUpdateElevationSecurity.ValidateNoReparsePoints(
+            transaction.HelperAcceptedSignalPath);
+        string content = JsonSerializer.Serialize(signal, JsonOptions)
+            + Environment.NewLine;
         WriteAtomic(
             transaction.HelperAcceptedSignalPath,
-            JsonSerializer.Serialize(signal, JsonOptions) + Environment.NewLine);
+            content);
+        ValidateProtectedArtifactAfterWrite(
+            transaction,
+            transaction.HelperAcceptedSignalPath,
+            content);
     }
 
     internal void WriteReadySignal(
@@ -68,28 +109,122 @@ internal sealed class LauncherUpdateTransactionStore
         LauncherUpdateProcessSignal signal)
     {
         ValidateSignal(transaction, signal);
-        WriteAtomic(
-            transaction.ReadySignalPath,
-            JsonSerializer.Serialize(signal, JsonOptions) + Environment.NewLine);
+        _userOperations.Run(() =>
+        {
+            LauncherUpdateElevationSecurity.ValidateNoReparsePoints(
+                transaction.ReadySignalPath);
+            WriteAtomic(
+                transaction.ReadySignalPath,
+                JsonSerializer.Serialize(signal, JsonOptions) + Environment.NewLine);
+        });
+    }
+
+    internal void WriteProtectedCommitSignal(
+        LauncherUpdateTransaction transaction,
+        LauncherUpdateProcessSignal signal)
+    {
+        ValidateSignal(transaction, signal);
+        if (!signal.IsElevated)
+        {
+            throw new InvalidDataException("Le commit protégé doit provenir du helper élevé.");
+        }
+
+        string path = LauncherUpdateElevationSecurity.GetProtectedCommitSignalPath(
+            transaction.TargetPath,
+            transaction.TransactionId);
+        LauncherUpdateElevationSecurity.ValidateNoReparsePoints(path);
+        string content = JsonSerializer.Serialize(signal, JsonOptions)
+            + Environment.NewLine;
+        WriteAtomic(path, content);
+        ValidateProtectedArtifactAfterWrite(transaction, path, content);
     }
 
     internal LauncherUpdateProcessSignal? TryReadStartedSignal(
         LauncherUpdateTransaction transaction) =>
-        TryReadSignal(transaction.StartedSignalPath, transaction.TransactionId);
+        _userOperations.Run(() =>
+            TryReadSignal(transaction.StartedSignalPath, transaction.TransactionId));
 
     internal LauncherUpdateProcessSignal? TryReadHelperAcceptedSignal(
-        LauncherUpdateTransaction transaction) =>
-        TryReadSignal(transaction.HelperAcceptedSignalPath, transaction.TransactionId);
+        LauncherUpdateTransaction transaction) => TryReadProtectedSignal(
+        transaction,
+        transaction.HelperAcceptedSignalPath);
 
     internal LauncherUpdateProcessSignal? TryReadReadySignal(
         LauncherUpdateTransaction transaction) =>
-        TryReadSignal(transaction.ReadySignalPath, transaction.TransactionId);
+        _userOperations.Run(() =>
+            TryReadSignal(transaction.ReadySignalPath, transaction.TransactionId));
+
+    internal LauncherUpdateProcessSignal? TryReadProtectedCommitSignal(
+        LauncherUpdateTransaction transaction) => TryReadProtectedSignal(
+        transaction,
+        LauncherUpdateElevationSecurity.GetProtectedCommitSignalPath(
+            transaction.TargetPath,
+            transaction.TransactionId));
 
     internal void DeleteSignals(LauncherUpdateTransaction transaction)
     {
         TryDeleteFile(transaction.HelperAcceptedSignalPath);
-        TryDeleteFile(transaction.StartedSignalPath);
-        TryDeleteFile(transaction.ReadySignalPath);
+        _userOperations.Run(() =>
+        {
+            TryDeleteFile(transaction.StartedSignalPath);
+            TryDeleteFile(transaction.ReadySignalPath);
+        });
+    }
+
+    internal void AppendJournal(LauncherUpdateTransaction transaction, string message) =>
+        _userOperations.Run(() => LauncherUpdateJournal.Append(transaction, message));
+
+    internal void TryDeleteUserFile(string path) =>
+        _userOperations.Run(() => TryDeleteFile(path));
+
+    internal void TryDeleteUserDirectory(string path) =>
+        _userOperations.Run(() => TryDeleteDirectory(path));
+
+    internal bool UserFileExists(string path) =>
+        _userOperations.Run(() => File.Exists(path));
+
+    internal FileStream OpenUserFileForStableRead(string path) =>
+        _userOperations.Run(() => OpenStableRead(path));
+
+    internal void DemandProtectedFileForElevation(
+        LauncherUpdateTransaction transaction,
+        string path) =>
+        _userOperations.Run(() =>
+        {
+            if (SamePath(path, transaction.TargetPath))
+            {
+                LauncherUpdateElevationSecurity.DemandProtectedTargetForElevation(
+                    transaction);
+            }
+            else
+            {
+                LauncherUpdateElevationSecurity.DemandProtectedSwapFileForElevation(
+                    transaction,
+                    path);
+            }
+        });
+
+    internal async Task<string> ComputeUserFileSha256Async(
+        string path,
+        CancellationToken cancellationToken)
+    {
+        await using FileStream stream = OpenUserFileForStableRead(path);
+        byte[] hash = await SHA256.HashDataAsync(stream, cancellationToken)
+            .ConfigureAwait(false);
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    internal static bool AreEquivalent(
+        LauncherUpdateTransaction left,
+        LauncherUpdateTransaction right)
+    {
+        ArgumentNullException.ThrowIfNull(left);
+        ArgumentNullException.ThrowIfNull(right);
+        LauncherUpdateManifest? leftManifest = left.AuthenticatedManifest;
+        LauncherUpdateManifest? rightManifest = right.AuthenticatedManifest;
+        return left with { AuthenticatedManifest = null }
+               == right with { AuthenticatedManifest = null }
+               && ManifestsEquivalent(leftManifest, rightManifest);
     }
 
     internal static async Task<string> ComputeSha256Async(
@@ -160,10 +295,19 @@ internal sealed class LauncherUpdateTransactionStore
         }
 
         RequireExactChild(transaction.CandidatePath, workspace, "candidate.exe");
-        RequireExactChild(transaction.HelperPath, workspace, "updater.exe");
+        string expectedHelperPath = LauncherUpdateElevationSecurity.GetProtectedHelperPath(
+            target,
+            transaction.TransactionId);
+        if (!SamePath(transaction.HelperPath, expectedHelperPath))
+        {
+            throw new InvalidDataException("Chemin du helper protégé incohérent.");
+        }
+
+        string helperDirectory = Path.GetDirectoryName(expectedHelperPath)
+            ?? throw new InvalidDataException("Dossier du helper protégé absent.");
         RequireExactChild(
             transaction.HelperAcceptedSignalPath,
-            workspace,
+            helperDirectory,
             "helper-accepted.json");
         RequireExactChild(transaction.StartedSignalPath, workspace, "started.json");
         RequireExactChild(transaction.ReadySignalPath, workspace, "ready.json");
@@ -196,12 +340,29 @@ internal sealed class LauncherUpdateTransactionStore
             throw new InvalidDataException("Métadonnées de validation incomplètes.");
         }
 
-        // Null preserves recovery of transactions created by launcher 1.1.2.
-        if (transaction.AuthenticatedTargetVersion is not null
-            && !LauncherUpdateVersionPolicy.IsValid(
-                transaction.AuthenticatedTargetVersion))
+        bool hasNewProcess = transaction.NewProcessId is > 0;
+        if (transaction.NewProcessId is <= 0
+            || hasNewProcess != transaction.NewProcessStartedAt.HasValue)
         {
-            throw new InvalidDataException("Version cible authentifiée invalide.");
+            throw new InvalidDataException(
+                "Identité du nouveau processus de mise à jour incohérente.");
+        }
+
+        LauncherUpdateManifest? manifest = transaction.AuthenticatedManifest;
+        if (!LauncherUpdateVersionPolicy.IsValid(transaction.AuthenticatedTargetVersion)
+            || manifest is null
+            || !string.Equals(
+                transaction.AuthenticatedTargetVersion,
+                manifest.Version,
+                StringComparison.Ordinal)
+            || manifest.Size != transaction.ExpectedSize
+            || !string.Equals(
+                manifest.Sha256,
+                transaction.CandidateSha256,
+                StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(manifest.Signature))
+        {
+            throw new InvalidDataException("Preuve signée de mise à jour incohérente.");
         }
     }
 
@@ -238,6 +399,21 @@ internal sealed class LauncherUpdateTransactionStore
     private static bool IsSha256(string value) =>
         value.Length == 64 && value.All(Uri.IsHexDigit);
 
+    private static bool ManifestsEquivalent(
+        LauncherUpdateManifest? left,
+        LauncherUpdateManifest? right) =>
+        ReferenceEquals(left, right)
+        || left is not null
+           && right is not null
+           && left.SchemaVersion == right.SchemaVersion
+           && string.Equals(left.KeyId, right.KeyId, StringComparison.Ordinal)
+           && string.Equals(left.Version, right.Version, StringComparison.Ordinal)
+           && string.Equals(left.Url, right.Url, StringComparison.Ordinal)
+           && left.Size == right.Size
+           && string.Equals(left.Sha256, right.Sha256, StringComparison.Ordinal)
+           && string.Equals(left.PublishedAt, right.PublishedAt, StringComparison.Ordinal)
+           && string.Equals(left.Signature, right.Signature, StringComparison.Ordinal);
+
     private static bool SamePath(string left, string right) =>
         string.Equals(
             Path.GetFullPath(left).TrimEnd(Path.DirectorySeparatorChar),
@@ -254,19 +430,75 @@ internal sealed class LauncherUpdateTransactionStore
         }
     }
 
+    private LauncherUpdateProcessSignal? TryReadProtectedSignal(
+        LauncherUpdateTransaction transaction,
+        string path)
+    {
+        if (_enforceProtectedArtifactAcl)
+        {
+            try
+            {
+                _userOperations.Run(() =>
+                    LauncherUpdateElevationSecurity
+                        .DemandProtectedHelperArtifactForElevation(
+                            transaction,
+                            path));
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        return TryReadSignal(path, transaction.TransactionId);
+    }
+
+    private void ValidateProtectedArtifactAfterWrite(
+        LauncherUpdateTransaction transaction,
+        string path,
+        string expectedContent)
+    {
+        if (!_enforceProtectedArtifactAcl)
+        {
+            return;
+        }
+
+        _userOperations.Run(() =>
+            LauncherUpdateElevationSecurity.DemandProtectedHelperArtifactForElevation(
+                transaction,
+                path));
+        byte[] expectedHash = SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(expectedContent));
+        byte[] actualHash;
+        using (FileStream stream = OpenStableRead(path))
+        {
+            actualHash = SHA256.HashData(stream);
+        }
+
+        if (!CryptographicOperations.FixedTimeEquals(expectedHash, actualHash))
+        {
+            throw new InvalidDataException(
+                "Un artefact protégé du helper a changé après son écriture.");
+        }
+    }
+
     private static LauncherUpdateProcessSignal? TryReadSignal(
         string path,
         Guid transactionId)
     {
         try
         {
-            if (!File.Exists(path))
+            using FileStream stream = OpenStableRead(path);
+            if (stream.Length <= 0 || stream.Length > MaximumSignalJsonBytes)
             {
                 return null;
             }
 
+            byte[] json = new byte[checked((int)stream.Length)];
+            stream.ReadExactly(json);
+            DemandUniqueJsonProperties(json);
             LauncherUpdateProcessSignal? signal = JsonSerializer.Deserialize<LauncherUpdateProcessSignal>(
-                File.ReadAllText(path),
+                json,
                 JsonOptions);
             return signal is { ProcessId: > 0 }
                    && signal.TransactionId == transactionId
@@ -284,7 +516,9 @@ internal sealed class LauncherUpdateTransactionStore
         string fullPath = Path.GetFullPath(path);
         string directory = Path.GetDirectoryName(fullPath)
             ?? throw new InvalidDataException("Dossier de transaction absent.");
+        LauncherUpdateElevationSecurity.ValidateNoReparsePoints(fullPath);
         Directory.CreateDirectory(directory);
+        LauncherUpdateElevationSecurity.ValidateNoReparsePoints(fullPath);
         string temporaryPath = Path.Combine(
             directory,
             "." + Path.GetFileName(fullPath) + "." + Guid.NewGuid().ToString("N") + ".tmp");
@@ -305,11 +539,88 @@ internal sealed class LauncherUpdateTransactionStore
                 stream.Flush(flushToDisk: true);
             }
 
+            LauncherUpdateElevationSecurity.ValidateNoReparsePoints(fullPath);
             File.Move(temporaryPath, fullPath, overwrite: true);
         }
         finally
         {
             TryDeleteFile(temporaryPath);
+        }
+    }
+
+    private static FileStream OpenStableRead(string path)
+    {
+        string fullPath = Path.GetFullPath(path);
+        LauncherUpdateElevationSecurity.ValidateNoReparsePoints(fullPath);
+        FileStream? stream = null;
+        try
+        {
+            stream = new FileStream(
+                fullPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                128 * 1024,
+                FileOptions.SequentialScan);
+            LauncherUpdateElevationSecurity.ValidateNoReparsePoints(fullPath);
+            FileStream result = stream;
+            stream = null;
+            return result;
+        }
+        finally
+        {
+            stream?.Dispose();
+        }
+    }
+
+    private static byte[] ReadStableBoundedJson(string path)
+    {
+        using FileStream stream = OpenStableRead(path);
+        if (stream.Length <= 0 || stream.Length > MaximumTransactionJsonBytes)
+        {
+            throw new InvalidDataException("Transaction de mise à jour trop volumineuse.");
+        }
+
+        byte[] json = new byte[checked((int)stream.Length)];
+        stream.ReadExactly(json);
+        return json;
+    }
+
+    private static void DemandUniqueJsonProperties(byte[] json)
+    {
+        using JsonDocument document = JsonDocument.Parse(
+            json,
+            new JsonDocumentOptions
+            {
+                AllowTrailingCommas = false,
+                CommentHandling = JsonCommentHandling.Disallow,
+                MaxDepth = 16
+            });
+        DemandUniqueJsonProperties(document.RootElement);
+    }
+
+    private static void DemandUniqueJsonProperties(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
+            foreach (JsonProperty property in element.EnumerateObject())
+            {
+                if (!names.Add(property.Name))
+                {
+                    throw new InvalidDataException(
+                        "Propriété dupliquée dans la transaction de mise à jour.");
+                }
+
+                DemandUniqueJsonProperties(property.Value);
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (JsonElement child in element.EnumerateArray())
+            {
+                DemandUniqueJsonProperties(child);
+            }
         }
     }
 }

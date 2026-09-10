@@ -145,39 +145,10 @@ public partial class UninstallerWindow : Window
 
     private static (UninstallerEngine Engine, InstallerLog Log) CreateEngine(string root)
     {
-        InstallerEnvironment production = InstallerEnvironment.CreateProduction();
-        AtlasInstallState state = UninstallerEngine.ReadState(root);
-        InstallerEnvironment environment;
-        if (state.IsTestInstallation)
-        {
-            bool guarded = root.Contains("Atlas Launcher 04D2 Test", StringComparison.OrdinalIgnoreCase)
-                && state.RegistrySubKey.Contains("AtlasLauncher.04D2.Test.", StringComparison.Ordinal)
-                && state.DesktopShortcutPath.Contains("04D2 Test", StringComparison.OrdinalIgnoreCase)
-                && state.StartMenuShortcutPath.Contains("04D2 Test", StringComparison.OrdinalIgnoreCase)
-                && state.InstallerLogPath.Contains("Atlas Launcher 04D2 Test", StringComparison.OrdinalIgnoreCase);
-            if (!guarded)
-            {
-                throw new InvalidDataException("L'identité de l'installation de test est invalide.");
-            }
-
-            environment = production with
-            {
-                DefaultInstallPath = root,
-                DesktopShortcutPath = state.DesktopShortcutPath,
-                StartMenuShortcutPath = state.StartMenuShortcutPath,
-                RegistrySubKey = state.RegistrySubKey,
-                DetectionRegistrySubKeys = [state.RegistrySubKey],
-                LogPath = state.InstallerLogPath,
-                IsTest = true,
-                AllowedTestInstallRoots = [root]
-            };
-        }
-        else
-        {
-            environment = production with { DefaultInstallPath = root };
-        }
-
-        InstallerLog log = new(environment.LogPath);
+        InstallerEnvironment environment = InstallerEnvironment.CreateProduction();
+        environment.DemandAllowedDestination(root);
+        InstallerProtectedPathSecurity.DemandTrustedDirectory(root);
+        InstallerLog log = InstallerLog.CreateProduction();
         WindowsInstallerRegistry registry = new(log);
         WindowsInstallerShortcutService shortcuts = new();
         WindowsInstallerProcessInspector processes = new(log);

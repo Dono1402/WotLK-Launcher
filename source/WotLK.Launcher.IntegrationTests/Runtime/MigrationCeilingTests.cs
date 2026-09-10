@@ -16,24 +16,213 @@ internal static class MigrationCeilingTests
             "Le developpement peut suivre toutes les migrations lorsque la variable est absente.");
         Equal<uint?>(5, LauncherSchemaMigrationCeiling.Resolve("5", isProduction: true),
             "Le plafond de production attendu doit etre accepte.");
+        True(
+            LauncherSchemaMigrator.SupportsRequiredLockingSyntax("8.4.6")
+            && LauncherSchemaMigrator.SupportsRequiredLockingSyntax("8.0.36-0ubuntu0")
+            && !LauncherSchemaMigrator.SupportsRequiredLockingSyntax("5.7.44")
+            && !LauncherSchemaMigrator.SupportsRequiredLockingSyntax("10.11.8-MariaDB"),
+            "Les schemas avec SKIP LOCKED doivent refuser explicitement MySQL 5.7 et MariaDB.");
 
         ExpectConfigurationFailure(null, isProduction: true);
         foreach (string invalid in new[] { "", "0", "-1", "+3", "03", " 3", "3 ", "3.0", "4294967296" })
             ExpectConfigurationFailure(invalid, isProduction: true);
 
         IReadOnlyList<LauncherSchemaMigration> embedded = new EmbeddedLauncherSchemaMigrationSource().Load();
-        Equal(6, embedded.Count, "Les six migrations doivent rester embarquees.");
+        Equal(10, embedded.Count, "Les dix migrations doivent rester embarquees.");
         Equal((uint)4, embedded[3].Version, "La frontiere d'identite doit rester versionnee en 0004.");
         Equal("atlas_profile_identity_boundary", embedded[3].Name,
             "La migration de frontiere ne doit pas etre remplacee.");
         Equal((uint)5, embedded[4].Version, "0005 doit conserver sa version.");
         Equal("social_profile", embedded[4].Name,
             "La migration du profil social doit rester embarquee.");
-        Equal((uint)6, embedded[^1].Version, "0006 doit etre la derniere migration locale versionnee.");
-        Equal("private_chat", embedded[^1].Name, "La messagerie privee doit rester en migration 0006.");
+        Equal("private_chat", embedded[5].Name, "La messagerie privee doit rester en migration 0006.");
+        Equal("chat_workspace", embedded[6].Name, "L'espace de chat doit rester en migration 0007.");
+        Equal("global_presence", embedded[7].Name, "La presence globale doit rester en migration 0008.");
+        Equal((uint)9, embedded[8].Version, "Les familles de session doivent rester versionnees en 0009.");
+        Equal("auth_session_families", embedded[8].Name,
+            "Les familles de session doivent rester en migration 0009.");
+        Equal((uint)10, embedded[^1].Version, "0010 doit etre la derniere migration locale versionnee.");
+        Equal("auth_session_gc", embedded[^1].Name,
+            "Les index de collecte des sessions doivent rester en migration 0010.");
+        foreach (string indexName in new[]
+                 {
+                     "ix_atlas_session_revoked_gc",
+                     "ix_atlas_session_expired_gc",
+                     "ix_atlas_session_account_revoked",
+                     "ix_atlas_session_account_active",
+                     "ix_atlas_session_account_active_order"
+                 })
+        {
+            True(embedded[^1].Sql.Contains(indexName, StringComparison.Ordinal),
+                $"La migration 0010 doit embarquer l'index {indexName}.");
+        }
+        Equal(256, LauncherDatabase.RefreshHistoryCleanupBatchSize,
+            "La purge opportuniste de l'historique refresh doit rester bornee par requete.");
+        Equal(3, LauncherDatabase.AuthTransactionDeadlockRetryLimit,
+            "Les transactions d'authentification doivent conserver une reprise bornee sur interblocage MySQL.");
+        Equal(4096, LauncherDatabase.MaximumRefreshRotationsPerFamily,
+            "Une famille active ne doit jamais accumuler plus de 4096 preuves de rotation.");
+        DateTimeOffset absoluteDeadline = DateTimeOffset.UtcNow.AddMinutes(1);
+        SessionTokens deadlineBound = new TokenService().Create(
+            accessMinutes: 15,
+            refreshDays: 30,
+            absoluteRefreshExpiresAt: absoluteDeadline);
+        True(deadlineBound.AccessExpiresAt == absoluteDeadline
+            && deadlineBound.RefreshExpiresAt == absoluteDeadline,
+            "Une rotation proche de l'echeance absolue doit borner aussi le jeton d'acces a cette echeance.");
+        Equal(12, LauncherDatabase.MaximumActiveSessionsPerAccount,
+            "Le nombre global de sessions actives par compte doit rester explicitement borne.");
+        Equal(64, LauncherDatabase.MaximumSessionTombstonesPerAccount,
+            "Le nombre de tombstones conserves par compte doit rester explicitement borne.");
+        Equal(60, LauncherDatabase.SessionTombstoneRetentionMinutes,
+            "La retention temporelle des tombstones doit rester courte et explicite.");
+        Equal(64, LauncherDatabase.SessionGarbageCollectionBatchSize,
+            "Chaque requete de collecte des sessions doit rester bornee.");
+        Equal(64, LauncherDatabase.SessionRevocationBatchSize,
+            "Une transaction ne doit revoquer au plus qu'un lot fixe de 64 sessions.");
+        Equal(77, LauncherDatabase.AccountSessionRepairProbeSize,
+            "Le probe de reparation doit lire au plus plafond actif + budget de 64 + sentinelle.");
+        Equal(
+            LauncherDatabase.MaximumActiveSessionsPerAccount,
+            LauncherDatabase.SessionListLimit,
+            "La liste des sessions ne doit pas lire davantage que le plafond actif du compte.");
+        True(
+            LauncherDatabase.ActiveSessionProbeSql.Contains(
+                "FORCE INDEX (ix_atlas_session_account_active)",
+                StringComparison.OrdinalIgnoreCase)
+            && LauncherDatabase.ActiveSessionProbeSql.Contains(
+                "ORDER BY refresh_expires_at ASC, id ASC",
+                StringComparison.OrdinalIgnoreCase)
+            && LauncherDatabase.ActiveSessionProbeSql.Contains(
+                "LIMIT @probeLimit",
+                StringComparison.OrdinalIgnoreCase)
+            && LauncherDatabase.ActiveSessionProbeSql.Contains(
+                "FOR UPDATE",
+                StringComparison.OrdinalIgnoreCase),
+            "Le login doit verrouiller un probe actif indexe, deterministe et explicitement borne avant de choisir ses victimes.");
+        True(
+            LauncherDatabase.ExcessSessionTombstoneIdsSql.Contains(
+                "FORCE INDEX (ix_atlas_session_account_revoked)",
+                StringComparison.OrdinalIgnoreCase)
+            && LauncherDatabase.ExcessSessionTombstoneIdsSql.Contains(
+                "ORDER BY revoked_at ASC, id ASC",
+                StringComparison.OrdinalIgnoreCase)
+            && LauncherDatabase.ExcessSessionTombstoneIdsSql.Contains(
+                "LIMIT @probeLimit",
+                StringComparison.OrdinalIgnoreCase),
+            "Le plafond par compte doit verrouiller ses tombstones du plus ancien au plus recent, dans le meme ordre que la collecte globale.");
+        True(
+            LauncherDatabase.ListSessionsSql.Contains(
+                "LIMIT @sessionLimit",
+                StringComparison.OrdinalIgnoreCase),
+            "La requete de liste des sessions doit conserver une limite SQL parametree.");
+        string cleanupSql = LauncherDatabase.RefreshHistoryCleanupSql;
+        int expiryFilter = cleanupSql.IndexOf(
+            "WHERE expires_at <= UTC_TIMESTAMP()",
+            StringComparison.OrdinalIgnoreCase);
+        int expiryOrder = cleanupSql.IndexOf(
+            "ORDER BY expires_at",
+            StringComparison.OrdinalIgnoreCase);
+        int batchLimit = cleanupSql.IndexOf(
+            "LIMIT @batchLimit",
+            StringComparison.OrdinalIgnoreCase);
+        True(expiryFilter >= 0 && expiryOrder > expiryFilter && batchLimit > expiryOrder,
+            "La purge refresh doit utiliser l'index d'expiration, supprimer les plus anciennes lignes et conserver une limite parametree.");
+        True(cleanupSql.Contains("token_hash ASC", StringComparison.OrdinalIgnoreCase)
+            && cleanupSql.Contains(
+                "FORCE INDEX (ix_atlas_refresh_history_expiry)",
+                StringComparison.OrdinalIgnoreCase)
+            && cleanupSql.Contains(
+                "FOR UPDATE SKIP LOCKED",
+                StringComparison.OrdinalIgnoreCase)
+            && LauncherDatabase.RefreshHistoryDeleteSql.Contains(
+                "WHERE token_hash = @tokenHash",
+                StringComparison.OrdinalIgnoreCase),
+            "La purge refresh doit verrouiller un lot d'expirations non occupees puis supprimer seulement ces cles exactes.");
+        string replayLocatorSql = LauncherDatabase.ReplayHistoryLocatorSql;
+        string replaySessionLockSql = LauncherDatabase.ReplaySessionLockSql;
+        string replayRevalidationSql = LauncherDatabase.ReplayHistoryRevalidationSql;
+        True(replayLocatorSql.Contains(
+                "expires_at > UTC_TIMESTAMP()",
+                StringComparison.OrdinalIgnoreCase)
+            && !replayLocatorSql.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase)
+            && !replayLocatorSql.Contains("atlas_launcher_session", StringComparison.OrdinalIgnoreCase)
+            && replaySessionLockSql.Contains(
+                "absolute_expires_at > UTC_TIMESTAMP()",
+                StringComparison.OrdinalIgnoreCase)
+            && replaySessionLockSql.Contains(
+                "account_id = @accountId",
+                StringComparison.OrdinalIgnoreCase)
+            && replaySessionLockSql.Contains("revoked_at IS NULL", StringComparison.OrdinalIgnoreCase)
+            && replaySessionLockSql.Contains(
+                "FOR UPDATE",
+                StringComparison.OrdinalIgnoreCase)
+            && replayRevalidationSql.Contains("session_id = @sessionId", StringComparison.OrdinalIgnoreCase)
+            && replayRevalidationSql.Contains("expires_at > UTC_TIMESTAMP()", StringComparison.OrdinalIgnoreCase)
+            && replayRevalidationSql.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase),
+            "La detection de rejeu doit localiser sans verrou, verrouiller la session, puis revalider la preuve et ses echeances.");
+        True(
+            LauncherDatabase.RefreshHistoryCountSql.Contains(
+                "FORCE INDEX (ix_atlas_refresh_history_session)",
+                StringComparison.OrdinalIgnoreCase)
+            && LauncherDatabase.RefreshHistoryCountSql.Contains(
+                "WHERE session_id = @sessionId",
+                StringComparison.OrdinalIgnoreCase),
+            "Le plafond de rotation doit compter une seule famille par l'index de session de 0009.");
+        True(
+            LauncherDatabase.PurgeRefreshHistoryBySessionSql.Contains(
+                "DELETE FROM atlas_launcher_refresh_history",
+                StringComparison.OrdinalIgnoreCase)
+            && LauncherDatabase.PurgeRefreshHistoryBySessionSql.Contains(
+                "WHERE session_id = @sessionId",
+                StringComparison.OrdinalIgnoreCase),
+            "Une revocation ciblee doit supprimer atomiquement tout l'historique de sa famille.");
+        foreach (string cleanup in new[]
+                 {
+                     LauncherDatabase.RevokedSessionCleanupSql,
+                     LauncherDatabase.ExpiredSessionCleanupSql
+                 })
+        {
+            True(!cleanup.Contains("NOT EXISTS", StringComparison.OrdinalIgnoreCase)
+                && cleanup.Contains("FORCE INDEX", StringComparison.OrdinalIgnoreCase)
+                && cleanup.Contains("LIMIT @batchLimit", StringComparison.OrdinalIgnoreCase)
+                && cleanup.Contains("FOR UPDATE SKIP LOCKED", StringComparison.OrdinalIgnoreCase),
+                "Chaque classe de collecte doit verrouiller un lot fixe de parents avant toute lecture de l'historique.");
+        }
+        True(
+            LauncherDatabase.RevokedSessionCleanupSql.Contains(
+                "ORDER BY revoked_at ASC, id ASC",
+                StringComparison.OrdinalIgnoreCase)
+            && LauncherDatabase.ExpiredSessionCleanupSql.Contains(
+                "revoked_at IS NULL",
+                StringComparison.OrdinalIgnoreCase)
+            && LauncherDatabase.ExpiredSessionCleanupSql.Contains(
+                "FORCE INDEX (ix_atlas_session_expired_gc)",
+                StringComparison.OrdinalIgnoreCase)
+            && LauncherDatabase.ExpiredSessionCleanupSql.Contains(
+                "access_expires_at <= UTC_TIMESTAMP()",
+                StringComparison.OrdinalIgnoreCase)
+            && LauncherDatabase.ExpiredSessionDeleteSql.Contains(
+                "access_expires_at <= UTC_TIMESTAMP()",
+                StringComparison.OrdinalIgnoreCase)
+            && LauncherDatabase.ExpiredSessionCleanupSql.Contains(
+                "ORDER BY absolute_expires_at ASC, id ASC",
+                StringComparison.OrdinalIgnoreCase),
+            "Les collectes revoquee et expiree doivent etre disjointes et deterministes.");
+        True(
+            LauncherDatabase.RefreshHistoryExistenceLockSql.Contains(
+                "FORCE INDEX (ix_atlas_refresh_history_session)",
+                StringComparison.OrdinalIgnoreCase)
+            && LauncherDatabase.RefreshHistoryExistenceLockSql.Contains(
+                "WHERE session_id = @sessionId",
+                StringComparison.OrdinalIgnoreCase)
+            && LauncherDatabase.RefreshHistoryExistenceLockSql.Contains(
+                "FOR UPDATE",
+                StringComparison.OrdinalIgnoreCase),
+            "Apres verrouillage du lot parent, chaque famille doit revalider son historique par l'index de session avant suppression.");
 
         Console.WriteLine(
-            "Migration ceiling configuration OK: production 0005 preserved; private chat embedded as local 0006.");
+            "Migration ceiling configuration OK: production 0005 preserved; migrations locales 0006-0010 embedded; bounded session/history cleanup, replay lock order, rotation and account caps verified.");
         return 0;
     }
 
@@ -87,11 +276,11 @@ internal static class MigrationCeilingTests
             logger);
 
         IReadOnlyList<LauncherSchemaMigrationOutcome> first = await migrator.MigrateAsync();
-        Equal(6, first.Count, "Le resultat doit rendre visibles les migrations eligibles et bloquees.");
+        Equal(10, first.Count, "Le resultat doit rendre visibles les migrations eligibles et bloquees.");
         True(first.Take(3).All(item => item.State == LauncherSchemaMigrationState.Applied),
             "Une base fraiche doit appliquer 0001, 0002 et 0003.");
         True(first.Skip(3).All(item => item.State == LauncherSchemaMigrationState.BlockedByCeiling),
-            "0004, 0005 et 0006 doivent etre explicitement bloquees.");
+            "0004 a 0010 doivent etre explicitement bloquees.");
         True(logger.Messages.Any(message => message.Contains("0004", StringComparison.Ordinal)
             && message.Contains("0003", StringComparison.Ordinal)
             && message.Contains("bloquee", StringComparison.Ordinal)),
@@ -108,7 +297,7 @@ internal static class MigrationCeilingTests
         True(second.Take(3).All(item => item.State == LauncherSchemaMigrationState.AlreadyApplied),
             "La seconde execution doit conserver 0001-0003 sans modification.");
         True(second.Skip(3).All(item => item.State == LauncherSchemaMigrationState.BlockedByCeiling),
-            "0004, 0005 et 0006 doivent rester bloquees lors d'une seconde execution.");
+            "0004 a 0010 doivent rester bloquees lors d'une seconde execution.");
         await AssertHistoryAsync(builder.ConnectionString, [1U, 2U, 3U]);
     }
 
@@ -117,13 +306,13 @@ internal static class MigrationCeilingTests
         await ResetFreshSchemaAsync(builder.ConnectionString);
         LauncherServerOptions unrestricted = CreateOptions(builder, maximumSchemaVersion: null);
         await new LauncherSchemaMigrator(unrestricted).MigrateAsync();
-        await AssertHistoryAsync(builder.ConnectionString, [1U, 2U, 3U, 4U, 5U, 6U]);
+        await AssertHistoryAsync(builder.ConnectionString, [1U, 2U, 3U, 4U, 5U, 6U, 7U, 8U, 9U, 10U]);
 
         LauncherServerOptions capped = CreateOptions(builder, maximumSchemaVersion: 3);
         await ExpectAsync<InvalidOperationException>(
             () => new LauncherSchemaMigrator(capped).MigrateAsync(),
             "Une base contenant deja des migrations superieures a 0003 doit refuser ce plafond.");
-        await AssertHistoryAsync(builder.ConnectionString, [1U, 2U, 3U, 4U, 5U, 6U]);
+        await AssertHistoryAsync(builder.ConnectionString, [1U, 2U, 3U, 4U, 5U, 6U, 7U, 8U, 9U, 10U]);
     }
 
     private static async Task ValidateAppliedChecksumStillProtectedAsync(MySqlConnectionStringBuilder builder)
@@ -139,10 +328,12 @@ internal static class MigrationCeilingTests
             Sql = changedSql,
             Sha256 = SHA256.HashData(Encoding.UTF8.GetBytes(changedSql))
         };
+        LauncherSchemaMigration[] changedMigrations = original.ToArray();
+        changedMigrations[1] = changed;
         await ExpectAsync<InvalidOperationException>(
             () => new LauncherSchemaMigrator(
                 options,
-                new FixedMigrationSource([original[0], changed, original[2], original[3], original[4], original[5]]),
+                new FixedMigrationSource(changedMigrations),
                 new LauncherSchemaValidator(),
                 "04C.3a-checksum").MigrateAsync(),
             "Le plafond ne doit pas contourner le controle des checksums appliques.");
@@ -243,6 +434,21 @@ internal static class MigrationCeilingTests
         await using MySqlCommand command = connection.CreateCommand();
         command.CommandText = """
             SET FOREIGN_KEY_CHECKS = 0;
+            DROP TABLE IF EXISTS atlas_launcher_refresh_history;
+            DROP TABLE IF EXISTS atlas_launcher_presence;
+            DROP TABLE IF EXISTS atlas_launcher_chat_v2_event;
+            DROP TABLE IF EXISTS atlas_launcher_chat_v2_preferences;
+            DROP TABLE IF EXISTS atlas_launcher_chat_v2_reaction;
+            DROP TABLE IF EXISTS atlas_launcher_chat_v2_request;
+            DROP TABLE IF EXISTS atlas_launcher_chat_v2_message;
+            DROP TABLE IF EXISTS atlas_launcher_chat_v2_member;
+            DROP TABLE IF EXISTS atlas_launcher_chat_v2_thread;
+            DROP TABLE IF EXISTS atlas_launcher_chat_v2_sequence;
+            DROP TABLE IF EXISTS atlas_launcher_chat_outbox;
+            DROP TABLE IF EXISTS atlas_launcher_chat_inbox;
+            DROP TABLE IF EXISTS atlas_launcher_chat_message;
+            DROP TABLE IF EXISTS atlas_launcher_chat_conversation;
+            DROP TABLE IF EXISTS atlas_launcher_chat_account;
             DROP TABLE IF EXISTS atlas_launcher_avatar_upload_attempt;
             DROP TABLE IF EXISTS atlas_launcher_profile_avatar;
             DROP TABLE IF EXISTS atlas_launcher_avatar_variant;

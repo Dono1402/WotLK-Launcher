@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using System.Security.Cryptography;
+using WotLK.Launcher;
 using WotLK.Launcher.Installer.Setup;
 using WotLK.Launcher.Updater;
 
@@ -299,11 +300,13 @@ internal static class LauncherInstalledAppVersionTests
             targetPath,
             workspace,
             Path.Combine(workspace, "candidate.exe"),
-            Path.Combine(workspace, "updater.exe"),
+            LauncherUpdateElevationSecurity.GetProtectedHelperPath(targetPath, id),
             targetPath + ".new",
             targetPath + ".backup",
             Path.Combine(workspace, "transaction.json"),
-            Path.Combine(workspace, "helper-accepted.json"),
+            LauncherUpdateElevationSecurity.GetProtectedHelperAcceptedSignalPath(
+                targetPath,
+                id),
             Path.Combine(workspace, "started.json"),
             Path.Combine(workspace, "ready.json"),
             1,
@@ -311,7 +314,11 @@ internal static class LauncherInstalledAppVersionTests
             new string('b', 64),
             LauncherUpdateTransactionPhase.Committed,
             DateTimeOffset.UtcNow,
-            AuthenticatedTargetVersion: authenticatedTargetVersion);
+            AuthenticatedTargetVersion: authenticatedTargetVersion,
+            AuthenticatedManifest: TestManifest(
+                authenticatedTargetVersion,
+                1,
+                new string('b', 64)));
     }
 
     private static LauncherUpdateExecutionResult RunAtomicUpdate(
@@ -327,8 +334,11 @@ internal static class LauncherInstalledAppVersionTests
         byte[] candidate = System.Text.Encoding.UTF8.GetBytes(
             "isolated launcher 1.2.0");
         string candidatePath = Path.Combine(workspace, "candidate.exe");
-        string helperPath = Path.Combine(workspace, "updater.exe");
+        string helperPath = LauncherUpdateElevationSecurity.GetProtectedHelperPath(
+            targetPath,
+            id);
         File.WriteAllBytes(candidatePath, candidate);
+        Directory.CreateDirectory(Path.GetDirectoryName(helperPath)!);
         File.WriteAllBytes(helperPath, previous);
         string suffix = ".atlas-" + id.ToString("N");
         LauncherUpdateTransaction transaction = new(
@@ -342,7 +352,9 @@ internal static class LauncherInstalledAppVersionTests
             targetPath + suffix + ".new",
             targetPath + suffix + ".backup",
             Path.Combine(workspace, "transaction.json"),
-            Path.Combine(workspace, "helper-accepted.json"),
+            LauncherUpdateElevationSecurity.GetProtectedHelperAcceptedSignalPath(
+                targetPath,
+                id),
             Path.Combine(workspace, "started.json"),
             Path.Combine(workspace, "ready.json"),
             candidate.LongLength,
@@ -350,7 +362,11 @@ internal static class LauncherInstalledAppVersionTests
             Hash(candidate),
             LauncherUpdateTransactionPhase.Prepared,
             DateTimeOffset.UtcNow,
-            AuthenticatedTargetVersion: "1.2.0");
+            AuthenticatedTargetVersion: "1.2.0",
+            AuthenticatedManifest: TestManifest(
+                "1.2.0",
+                candidate.LongLength,
+                Hash(candidate)));
         LauncherUpdateTransactionStore store = new(transactionsRoot);
         store.Save(transaction);
         ReadyApplicationLauncher applicationLauncher = new(store);
@@ -373,6 +389,21 @@ internal static class LauncherInstalledAppVersionTests
 
     private static string Hash(byte[] payload) =>
         Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
+
+    private static LauncherUpdateManifest TestManifest(
+        string version,
+        long size,
+        string sha256) => new()
+    {
+        SchemaVersion = 1,
+        KeyId = "integration-test",
+        Version = version,
+        Url = $"https://update.animeclub.fr/launcher/{version}/WotLK-Launcher.exe",
+        Size = size,
+        Sha256 = sha256,
+        PublishedAt = "2026-09-09T00:00:00Z",
+        Signature = "integration-test-signature"
+    };
 
     private sealed class ExitedParentWaiter : ILauncherUpdateParentWaiter
     {
@@ -411,6 +442,8 @@ internal static class LauncherInstalledAppVersionTests
     private sealed class ReadyProcess(int processId) : ILauncherUpdateLaunchedProcess
     {
         public int ProcessId { get; } = processId;
+
+        public DateTimeOffset StartedAt { get; } = DateTimeOffset.UtcNow;
 
         public bool HasExited { get; private set; }
 

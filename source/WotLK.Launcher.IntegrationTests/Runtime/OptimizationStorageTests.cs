@@ -43,6 +43,16 @@ internal static class OptimizationStorageTests
             File.WriteAllText(path + ".bak", "[]");
             try { LauncherSettings.LoadFrom(path); throw new InvalidOperationException("Both invalid files must not silently reset preferences."); }
             catch (JsonException) { }
+
+            string oversizedPath = Path.Combine(root, "oversized-settings.json");
+            File.WriteAllBytes(oversizedPath, new byte[LauncherSettings.MaxSettingsFileBytes + 1]);
+            File.WriteAllText(oversizedPath + ".bak", "{\"GameLocale\":\"enUS\"}");
+            LauncherSettings boundedRecovery = LauncherSettings.LoadFrom(oversizedPath);
+            Check(boundedRecovery.GameLocale == "enUS" && boundedRecovery.RecoveryNotice is not null,
+                "An oversized primary settings file is rejected before parsing and recovers the bounded backup.");
+            File.WriteAllBytes(oversizedPath + ".bak", new byte[LauncherSettings.MaxSettingsFileBytes + 1]);
+            try { LauncherSettings.LoadFrom(oversizedPath); throw new InvalidOperationException("Two oversized settings files must be rejected."); }
+            catch (JsonException) { }
             await ValidateCacheOrderingAsync(root);
             Console.WriteLine("Optimization storage PASS: atomic replacement, backup/corrupt-file recovery, missing primary, locked-write preservation, clear recovery notice and ordered background cache invalidation.");
             return 0;

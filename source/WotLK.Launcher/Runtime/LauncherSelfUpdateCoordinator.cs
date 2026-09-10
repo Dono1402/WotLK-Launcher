@@ -1122,6 +1122,7 @@ internal sealed class LauncherSelfUpdateCoordinator : ILauncherSelfUpdateRuntime
                     manifest.Size,
                     manifest.Sha256,
                     manifest.Version,
+                    manifest,
                     _getProcessId(),
                     token)
                 .ConfigureAwait(false);

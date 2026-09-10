@@ -9,11 +9,13 @@ internal interface IGameFileVerifier
         string installRoot,
         LauncherManifest manifest,
         Action<GameVerificationProgress>? reportProgress,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        IGameInstallRootLease? rootLease = null);
 
     IReadOnlyList<string> FindRemovedFiles(
         string installRoot,
-        LauncherManifest manifest);
+        LauncherManifest manifest,
+        IGameInstallRootLease? rootLease = null);
 }
 
 internal sealed class GameFileVerifier : IGameFileVerifier
@@ -42,9 +44,10 @@ internal sealed class GameFileVerifier : IGameFileVerifier
         string installRoot,
         LauncherManifest manifest,
         Action<GameVerificationProgress>? reportProgress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IGameInstallRootLease? rootLease = null)
     {
-        LauncherManifest? cachedManifest = _manifestStore.Load(installRoot);
+        LauncherManifest? cachedManifest = _manifestStore.Load(installRoot, rootLease);
         if (cachedManifest is not null && cachedManifest.Files.Count > 0)
         {
             return new GameFileComparisonResult(
@@ -54,12 +57,14 @@ internal sealed class GameFileVerifier : IGameFileVerifier
                 manifest.Files.Count);
         }
 
-        string? installedVersion = _clientStateReader.ReadInstalledVersion(installRoot);
+        string? installedVersion = _clientStateReader.ReadInstalledVersion(
+            installRoot,
+            rootLease);
         if (!string.IsNullOrWhiteSpace(manifest.Version)
             && string.Equals(installedVersion, manifest.Version, StringComparison.OrdinalIgnoreCase)
             && _hasPlayableClient(installRoot))
         {
-            _manifestStore.Save(installRoot, manifest);
+            _manifestStore.Save(installRoot, manifest, rootLease);
             return new GameFileComparisonResult(
                 [],
                 GameFileComparisonSource.InstalledVersion,
@@ -79,7 +84,7 @@ internal sealed class GameFileVerifier : IGameFileVerifier
                 manifest.Files.Count));
 
             string target = GamePathPolicy.GetSafeTargetPath(installRoot, file.Path);
-            if (!File.Exists(target) || new FileInfo(target).Length != file.Size)
+            if (!File.Exists(target))
             {
                 missingOrChanged.Add(file);
                 continue;
@@ -87,7 +92,31 @@ internal sealed class GameFileVerifier : IGameFileVerifier
 
             try
             {
-                string localHash = await ComputeSha256Async(target, cancellationToken);
+                string localHash;
+                if (rootLease is not null)
+                {
+                    using IGameInstallReadLease readLease = rootLease.OpenFileForRead(target);
+                    if (readLease.Stream.Length != file.Size)
+                    {
+                        missingOrChanged.Add(file);
+                        continue;
+                    }
+
+                    localHash = await ComputeSha256Async(
+                        readLease.Stream,
+                        cancellationToken);
+                }
+                else
+                {
+                    if (new FileInfo(target).Length != file.Size)
+                    {
+                        missingOrChanged.Add(file);
+                        continue;
+                    }
+
+                    localHash = await ComputeSha256Async(target, cancellationToken);
+                }
+
                 if (!string.Equals(localHash, file.Sha256, StringComparison.OrdinalIgnoreCase))
                 {
                     missingOrChanged.Add(file);
@@ -108,14 +137,15 @@ internal sealed class GameFileVerifier : IGameFileVerifier
 
     public IReadOnlyList<string> FindRemovedFiles(
         string installRoot,
-        LauncherManifest manifest)
+        LauncherManifest manifest,
+        IGameInstallRootLease? rootLease = null)
     {
         HashSet<string> remotePaths = manifest.Files
             .Select(file => GamePathPolicy.NormalizeManifestPath(file.Path))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         HashSet<string> removedPaths = new(StringComparer.OrdinalIgnoreCase);
 
-        LauncherManifest? cachedManifest = _manifestStore.Load(installRoot);
+        LauncherManifest? cachedManifest = _manifestStore.Load(installRoot, rootLease);
         if (cachedManifest is not null && cachedManifest.Files.Count > 0)
         {
             foreach (LauncherFile cachedFile in cachedManifest.Files)
@@ -134,7 +164,8 @@ internal sealed class GameFileVerifier : IGameFileVerifier
                 installRoot,
                 remotePaths,
                 removedPaths,
-                retiredDirectory);
+                retiredDirectory,
+                rootLease);
         }
 
         return removedPaths.ToList();
@@ -187,11 +218,27 @@ internal sealed class GameFileVerifier : IGameFileVerifier
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
+    internal static async Task<string> ComputeSha256Async(
+        Stream stream,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        if (stream.CanSeek)
+        {
+            stream.Position = 0;
+        }
+
+        using SHA256 sha = SHA256.Create();
+        byte[] hash = await sha.ComputeHashAsync(stream, cancellationToken);
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
     private static void AddRetiredDirectoryFilesIfAbsent(
         string installRoot,
         HashSet<string> remotePaths,
         HashSet<string> removedPaths,
-        string relativeDirectory)
+        string relativeDirectory,
+        IGameInstallRootLease? rootLease)
     {
         string normalizedPrefix = GamePathPolicy
             .NormalizeManifestPath(relativeDirectory)
@@ -209,12 +256,56 @@ internal sealed class GameFileVerifier : IGameFileVerifier
             return;
         }
 
+        if (rootLease is not null)
+        {
+            AddFilesNoFollow(
+                installRoot,
+                directory,
+                removedPaths,
+                rootLease);
+            return;
+        }
+
         foreach (string file in Directory.EnumerateFiles(
                      directory,
                      "*",
                      SearchOption.AllDirectories))
         {
             removedPaths.Add(Path.GetRelativePath(installRoot, file).Replace('\\', '/'));
+        }
+    }
+
+    private static void AddFilesNoFollow(
+        string installRoot,
+        string directory,
+        HashSet<string> removedPaths,
+        IGameInstallRootLease rootLease)
+    {
+        using IGameInstallDirectoryLease directoryLease = rootLease.AcquireDirectory(
+            directory,
+            createIfMissing: false);
+        directoryLease.Revalidate();
+        foreach (string entry in Directory.EnumerateFileSystemEntries(directory))
+        {
+            FileAttributes attributes = File.GetAttributes(entry);
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new InvalidDataException(
+                    "Le nettoyage des anciens addons refuse un lien de système de fichiers: "
+                    + entry);
+            }
+
+            if ((attributes & FileAttributes.Directory) != 0)
+            {
+                directoryLease.DemandChildDirectorySafe(entry, allowMissing: false);
+                AddFilesNoFollow(installRoot, entry, removedPaths, rootLease);
+                continue;
+            }
+
+            directoryLease.DemandChildFileSafe(entry, allowMissing: false);
+            using IGameInstallReadLease readLease = rootLease.OpenFileForRead(entry);
+            _ = readLease.Stream.Length;
+            removedPaths.Add(Path.GetRelativePath(installRoot, entry).Replace('\\', '/'));
         }
     }
 }

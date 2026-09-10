@@ -18,6 +18,17 @@ internal interface IAddonManagementService
         Action<string>? log,
         CancellationToken cancellationToken);
 
+    Task ApplySelectionTransactionAsync(
+        AddonCatalog catalog,
+        string installRoot,
+        IReadOnlyDictionary<string, bool> selection,
+        IReadOnlySet<string> forceReinstallIds,
+        bool allowExternalReplacement,
+        bool resolveDependencies,
+        IProgress<AddonTransferProgress>? progress,
+        Action<string>? log,
+        CancellationToken cancellationToken);
+
     IReadOnlyList<ManualAddonInstallation> InspectManualAddons(AddonCatalog catalog, string installRoot) => [];
 
     Task<AddonVerificationResult> VerifyAsync(AddonCatalog catalog, string installRoot, string addonId, CancellationToken cancellationToken)
@@ -29,7 +40,8 @@ internal interface IAddonManagementService
     Task ApplyPackageAsync(AddonCatalog catalog, string installRoot, AddonPackage package, bool install,
         bool forceReinstall, bool allowExternalReplacement, IProgress<AddonTransferProgress>? progress,
         Action<string>? log, CancellationToken cancellationToken)
-        => ApplySelectionAsync(new AddonCatalog { SchemaVersion = catalog.SchemaVersion, ClientInterface = catalog.ClientInterface, Addons = [package] },
+        => ApplySelectionAsync(new AddonCatalog { SchemaVersion = catalog.SchemaVersion, ClientInterface = catalog.ClientInterface,
+                GeneratedAtUtc = catalog.GeneratedAtUtc, Addons = [package] },
             installRoot, new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase) { [package.Id] = install }, progress, log, cancellationToken);
 }
 
@@ -73,6 +85,30 @@ internal sealed class LegacyAddonManagementService : IAddonManagementService
             progress,
             log,
             cancellationToken);
+
+    public Task ApplySelectionTransactionAsync(
+        AddonCatalog catalog,
+        string installRoot,
+        IReadOnlyDictionary<string, bool> selection,
+        IReadOnlySet<string> forceReinstallIds,
+        bool allowExternalReplacement,
+        bool resolveDependencies,
+        IProgress<AddonTransferProgress>? progress,
+        Action<string>? log,
+        CancellationToken cancellationToken) =>
+        AddonInstallServices.ApplySelectionAsync(
+            _httpClient,
+            catalog,
+            installRoot,
+            selection,
+            progress,
+            log,
+            cancellationToken,
+            forceReinstall: false,
+            allowExternalReplacement: allowExternalReplacement,
+            resolveDependencies: resolveDependencies,
+            rootLease: null,
+            forceReinstallIds: forceReinstallIds);
 
     public IReadOnlyList<ManualAddonInstallation> InspectManualAddons(AddonCatalog catalog, string installRoot)
         => AddonInstallServices.InspectManualAddons(catalog, installRoot);

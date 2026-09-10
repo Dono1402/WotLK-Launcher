@@ -6,7 +6,22 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 const port = Number(process.env.PORT || 4322);
 const feedRoot = resolve(process.env.WOTLK_FEED_ROOT || "/srv/wotlk/launcher-feed");
 const token = process.env.WOTLK_LAUNCHER_TOKEN || "";
-const publicBaseUrl = (process.env.WOTLK_PUBLIC_BASE_URL || "http://152.228.225.7/wotlk/").replace(/\/?$/, "/");
+const publicBaseUrl = normalizePublicBaseUrl(
+  process.env.WOTLK_PUBLIC_BASE_URL || "https://animeclub.fr/wotlk/",
+);
+
+function normalizePublicBaseUrl(value) {
+  const url = new URL(value);
+  const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
+    throw new Error("WOTLK_PUBLIC_BASE_URL must use HTTPS (HTTP is permitted only for loopback development)");
+  }
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error("WOTLK_PUBLIC_BASE_URL must not contain credentials, a query, or a fragment");
+  }
+  url.pathname = url.pathname.replace(/\/?$/, "/");
+  return url.toString();
+}
 
 function send(res, status, body, headers = {}) {
   const text = typeof body === "string" ? body : JSON.stringify(body);

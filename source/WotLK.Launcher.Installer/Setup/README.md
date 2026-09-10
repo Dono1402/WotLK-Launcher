@@ -33,23 +33,25 @@ Medium-integrity process with the installation directory as its working folder.
 `InstallerEngine` performs one single-flight transaction:
 
 1. detect and block any registered or on-disk legacy launcher;
-2. validate destination, access, drive type, and free space;
+2. require the exact `%ProgramFiles%\Atlas Launcher` destination, verify the
+   protected parent ACL, drive type, and free space;
 3. create a staging directory beside the destination;
 4. stream the embedded payload to a partial file while measuring bytes and
    computing SHA-256;
-5. copy the setup as `Uninstall.exe` and write the install state;
+5. copy the setup from the handle retained before the UI as `Uninstall.exe` and
+   write the install state;
 6. atomically move staging into the destination;
 7. create selected shortcuts;
 8. write the x64 HKLM uninstall registration last;
-9. finalize the log and state.
+9. finalize the in-memory diagnostic state.
 
 On failure, the registration, owned shortcuts, committed destination, staging,
 and empty parent directories created by that attempt are rolled back. A
 pre-existing empty destination is restored as an empty directory.
 
-Technical details are appended to
-`%LocalAppData%\Atlas Launcher\Installer\install.log`; token/password/secret and
-Bearer-shaped values are redacted.
+Production setup keeps diagnostics in process memory and does not write an
+elevated log into a user-controlled profile directory. File-backed logs exist
+only in the isolated test harness under its temporary root.
 
 ## Uninstaller size decision
 
@@ -58,6 +60,13 @@ keeps uninstall independent of an installed .NET runtime and avoids a fifth
 project, but it duplicates the full setup size inside the installation. For the
 1.5.0 release, sizes and hashes are recorded in
 `releases/v1.5.0/release-candidate.json` and `releases/v1.5.0/LIVRAISON.md`.
+
+The setup executable is opened with read-only sharing at the beginning of
+`App.OnStartup`; size calculation and the `Uninstall.exe` copy use that retained
+handle. This closes substitutions after managed startup. The Windows loader and
+UAC interval before the first managed instruction remains outside this in-process
+control; a future separately embedded and signed uninstaller would remove the
+need to copy the running setup at all.
 
 The uninstaller asks for confirmation in interactive mode and supports a tested
 `--quiet` mode used by `QuietUninstallString`. It only removes the files listed by

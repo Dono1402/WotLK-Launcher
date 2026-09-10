@@ -8,6 +8,8 @@ internal static partial class AddonInstallServices
     internal static void ValidatePlan(AddonCatalog catalog, string installRoot, IEnumerable<string> installIds,
         IEnumerable<string> removalIds, bool allowExternalReplacement, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(catalog);
+        ValidateCatalog(catalog);
         if (!GameInstallServices.HasPlayableClient(installRoot))
             throw new InvalidOperationException("Installe d'abord le client WotLK avant de gérer ses addons.");
         string addonsDirectory = GetAddonsDirectory(installRoot);
@@ -20,7 +22,8 @@ internal static partial class AddonInstallServices
     }
 
     private static void PreflightSelection(AddonCatalog catalog, string addonsDirectory, AddonInstallState state,
-        IReadOnlyList<AddonPackage> installOrder, HashSet<string> removeIds, bool allowExternalReplacement, CancellationToken cancellationToken)
+        IReadOnlyList<AddonPackage> installOrder, HashSet<string> removeIds, bool allowExternalReplacement,
+        CancellationToken cancellationToken, IGameInstallRootLease? rootLease = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         foreach (AddonPackage package in installOrder)
@@ -68,7 +71,13 @@ internal static partial class AddonInstallServices
         }
         // Check descendants too: moving a directory must not carry an unchecked
         // junction into a backup or recursive cleanup operation.
-        foreach (string _ in EnumerateOwnedFiles(addonsDirectory, targetFolders, cancellationToken)) { }
+        foreach (string _ in EnumerateOwnedFiles(
+                     addonsDirectory,
+                     targetFolders,
+                     cancellationToken,
+                     rootLease))
+        {
+        }
     }
 
     internal static IReadOnlyList<ManualAddonInstallation> InspectManualAddons(AddonCatalog catalog, string installRoot)
@@ -146,7 +155,43 @@ internal static partial class AddonInstallServices
         return result;
     }
 
-    private static IEnumerable<string> EnumerateOwnedFiles(string root, IReadOnlyList<string> folders, CancellationToken cancellationToken)
+    private static async Task<Dictionary<string, InstalledAddonFile>>
+        CreateInstalledFileManifestAsync(
+            string root,
+            IReadOnlyList<string> folders,
+            CancellationToken cancellationToken,
+            IGameInstallRootLease rootLease)
+    {
+        Dictionary<string, InstalledAddonFile> result = new(
+            StringComparer.OrdinalIgnoreCase);
+        foreach (string path in EnumerateOwnedFiles(
+                     root,
+                     folders,
+                     cancellationToken,
+                     rootLease))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using IGameInstallReadLease readLease = rootLease.OpenFileForRead(path);
+            string relative = Path.GetRelativePath(root, path).Replace('\\', '/');
+            result.Add(relative, new InstalledAddonFile
+            {
+                Size = readLease.Stream.Length,
+                Sha256 = Convert.ToHexString(
+                        await SHA256.HashDataAsync(
+                            readLease.Stream,
+                            cancellationToken))
+                    .ToLowerInvariant()
+            });
+        }
+
+        return result;
+    }
+
+    private static IEnumerable<string> EnumerateOwnedFiles(
+        string root,
+        IReadOnlyList<string> folders,
+        CancellationToken cancellationToken,
+        IGameInstallRootLease? rootLease = null)
     {
         int files = 0;
         Stack<string> pending = new(folders.Select(folder => Path.Combine(root, folder)));
@@ -155,14 +200,24 @@ internal static partial class AddonInstallServices
             cancellationToken.ThrowIfCancellationRequested();
             AddonLocalInventory.EnsureNotLinked(directory);
             if (!Directory.Exists(directory)) continue;
+            using IGameInstallDirectoryLease? directoryLease = rootLease?.AcquireDirectory(
+                directory,
+                createIfMissing: false);
             foreach (string path in Directory.EnumerateFiles(directory))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 AddonLocalInventory.EnsureNotLinked(path);
+                directoryLease?.DemandChildFileSafe(path, allowMissing: false);
+                using IGameInstallReadLease? readLease = rootLease?.OpenFileForRead(path);
+                _ = readLease?.Stream.Length;
                 if (++files > MaximumArchiveEntries) throw new IOException("Addon inventory exceeds the supported file count.");
                 yield return path;
             }
-            foreach (string child in Directory.EnumerateDirectories(directory)) pending.Push(child);
+            foreach (string child in Directory.EnumerateDirectories(directory))
+            {
+                directoryLease?.DemandChildDirectorySafe(child, allowMissing: false);
+                pending.Push(child);
+            }
         }
     }
 }

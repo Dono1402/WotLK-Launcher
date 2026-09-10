@@ -43,7 +43,7 @@
                        "components":  [
                                           {
                                               "name":  "Bibliotheques WotLK Classic 30403",
-                                              "url":  "http://152.228.225.7/launcher/addons/packages/ElvUI-13.61-libraries-wotlk-30403.zip",
+                                              "url":  "https://animeclub.fr/wotlk/addons/packages/ElvUI-13.61-libraries-wotlk-30403.zip",
                                               "size":  193217,
                                               "sha256":  "bd1f00d9dbe478ed6ae4d7843fab4731d858118cf9df06b63a5d04e3b1a87ce1",
                                               "stripPrefix":  ""
@@ -89,7 +89,7 @@
                        "description":  "Alertes de boss pour les raids et donjons Vanilla, Burning Crusade et WotLK.",
                        "version":  "11.0.34+r337+r122+r713",
                        "interface":  "30403",
-                       "url":  "http://152.228.225.7/launcher/addons/packages/DBM-Core-11.0.34-wotlk-30403.zip",
+                       "url":  "https://animeclub.fr/wotlk/addons/packages/DBM-Core-11.0.34-wotlk-30403.zip",
                        "size":  7382836,
                        "sha256":  "8a6d083da9b7606418a77c98c56ec71b79d6c870ce1bbc87bc8c8650e49febe6",
                        "installHash":  "83ea150ee1dc85adb80d618c9a38bfa7fd732641d3e798c5d3bebbc8db514054",

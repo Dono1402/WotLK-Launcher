@@ -51,16 +51,19 @@ internal interface IGameFullFileVerifier
         string installRoot,
         LauncherManifest manifest,
         Action<GameFullVerificationProgress>? reportProgress,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        IGameInstallRootLease? rootLease = null);
 }
 
 internal sealed class GameFullFileVerifier : IGameFullFileVerifier
 {
     private readonly Func<string, CancellationToken, Task<string>> _computeSha256Async;
+    private readonly bool _usesDefaultHasher;
 
     internal GameFullFileVerifier(
         Func<string, CancellationToken, Task<string>>? computeSha256Async = null)
     {
+        _usesDefaultHasher = computeSha256Async is null;
         _computeSha256Async = computeSha256Async
             ?? GameFileVerifier.ComputeSha256Async;
     }
@@ -69,7 +72,8 @@ internal sealed class GameFullFileVerifier : IGameFullFileVerifier
         string installRoot,
         LauncherManifest manifest,
         Action<GameFullVerificationProgress>? reportProgress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IGameInstallRootLease? rootLease = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(installRoot);
         ArgumentNullException.ThrowIfNull(manifest);
@@ -82,7 +86,8 @@ internal sealed class GameFullFileVerifier : IGameFullFileVerifier
             GameManagedFileVerification result = await VerifyOneAsync(
                 installRoot,
                 file,
-                cancellationToken);
+                cancellationToken,
+                rootLease);
             results.Add(result);
             reportProgress?.Invoke(new GameFullVerificationProgress(
                 file.Path,
@@ -96,7 +101,8 @@ internal sealed class GameFullFileVerifier : IGameFullFileVerifier
     private async Task<GameManagedFileVerification> VerifyOneAsync(
         string installRoot,
         LauncherFile file,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IGameInstallRootLease? rootLease)
     {
         string target;
         try
@@ -114,6 +120,31 @@ internal sealed class GameFullFileVerifier : IGameFullFileVerifier
 
         try
         {
+            if (rootLease is not null)
+            {
+                using IGameInstallReadLease readLease = rootLease.OpenFileForRead(target);
+                if (readLease.Stream.Length != file.Size)
+                {
+                    return new GameManagedFileVerification(
+                        file,
+                        GameManagedFileStatus.SizeMismatch);
+                }
+
+                string stableHash = _usesDefaultHasher
+                    ? await GameFileVerifier.ComputeSha256Async(
+                        readLease.Stream,
+                        cancellationToken)
+                    : await _computeSha256Async(target, cancellationToken);
+                return new GameManagedFileVerification(
+                    file,
+                    string.Equals(
+                        stableHash,
+                        file.Sha256,
+                        StringComparison.OrdinalIgnoreCase)
+                        ? GameManagedFileStatus.Valid
+                        : GameManagedFileStatus.HashMismatch);
+            }
+
             _ = File.GetAttributes(target);
             if (new FileInfo(target).Length != file.Size)
             {

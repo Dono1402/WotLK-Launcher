@@ -1341,6 +1341,7 @@ internal static class V2LifecycleIsolationTests
             long expectedSize,
             string expectedSha256,
             string authenticatedTargetVersion,
+            LauncherUpdateManifest authenticatedManifest,
             int parentProcessId,
             CancellationToken cancellationToken) =>
             throw new InvalidOperationException(
@@ -1365,6 +1366,19 @@ internal static class V2LifecycleIsolationTests
             AddonCatalog catalog,
             string installRoot,
             IReadOnlyDictionary<string, bool> selection,
+            IProgress<AddonTransferProgress>? progress,
+            Action<string>? log,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                "Le test lifecycle ne doit muter aucun addon.");
+
+        public Task ApplySelectionTransactionAsync(
+            AddonCatalog catalog,
+            string installRoot,
+            IReadOnlyDictionary<string, bool> selection,
+            IReadOnlySet<string> forceReinstallIds,
+            bool allowExternalReplacement,
+            bool resolveDependencies,
             IProgress<AddonTransferProgress>? progress,
             Action<string>? log,
             CancellationToken cancellationToken) =>

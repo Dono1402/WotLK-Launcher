@@ -802,8 +802,8 @@
                                         <Grid>
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                             <StackPanel>
-                                                <TextBlock Style="{StaticResource AtlasInstaller.Text.Caption}" Text="JOURNAL D’INSTALLATION"/>
-                                                <TextBlock Margin="0,4,0,0" FontSize="13" FontWeight="Medium" Foreground="#CAD3DB" Text="%LocalAppData%\Atlas Launcher\Installer\install.log" TextWrapping="Wrap"/>
+                                                <TextBlock Style="{StaticResource AtlasInstaller.Text.Caption}" Text="INSTALLATION ANNULÉE"/>
+                                                <TextBlock Margin="0,4,0,0" FontSize="13" FontWeight="Medium" Foreground="#CAD3DB" Text="Les changements incomplets ont été retirés." TextWrapping="Wrap"/>
                                             </StackPanel>
                                             <TextBlock Grid.Column="1" Margin="18,0,0,0" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource AtlasInstaller.Brush.Green}" Text="ROLLBACK TERMINÉ"/>
                                         </Grid>

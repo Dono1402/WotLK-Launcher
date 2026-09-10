@@ -487,14 +487,20 @@ internal static class GameVerificationTests
         return new LauncherManifest
         {
             Version = version,
-            BaseUrl = "https://atlas.test/client/",
+            BaseUrl = "https://animeclub.fr/client/",
             Files = files.ToList()
         };
     }
 
     private static LauncherFile FileEntry(string path, long size, string hash)
     {
-        return new LauncherFile { Path = path, Size = size, Sha256 = hash };
+        string validHash = GameManifestValidator.IsSha256(hash)
+            ? hash
+            : Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(
+                        Encoding.UTF8.GetBytes(hash)))
+                .ToLowerInvariant();
+        return new LauncherFile { Path = path, Size = size, Sha256 = validHash };
     }
 
     private static GameClientVerificationResult ResultUpToDate()
@@ -544,7 +550,7 @@ internal sealed class VerificationEnvironment : IDisposable
         Settings = new LauncherSettings
         {
             InstallPath = Root,
-            ManifestUrl = "https://atlas.test/manifest.json",
+            ManifestUrl = "https://animeclub.fr/manifest.json",
             GameLocale = "frFR",
             AutomaticLauncherUpdates = false
         };
@@ -581,7 +587,10 @@ internal sealed class VerificationEnvironment : IDisposable
             Verifier,
             Store,
             _ => true,
-            _ => false);
+            _ => false,
+            (installRoot, _) =>
+                GameInstallServices.CreateNoOpGameInstallRootLeaseForTests(
+                    installRoot));
     }
 
     internal GameRuntimeCoordinator CreateCoordinator(

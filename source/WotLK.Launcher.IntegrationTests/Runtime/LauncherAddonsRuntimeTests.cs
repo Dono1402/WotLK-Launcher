@@ -26,10 +26,11 @@ internal static partial class LauncherAddonsRuntimeTests
     internal static async Task<int> RunAsync(string? captureDirectory)
     {
         await CharacterizeCatalogAndLegacyPipelineAsync();
+        await CharacterizeLowLevelBatchContractAsync();
         await CharacterizeCatalogProjectionAsync();
         await CharacterizeRuntimeOperationsAsync();
         await CharacterizeFailuresCancellationAndShutdownAsync();
-        await CharacterizeSequentialBatchAsync();
+        await CharacterizeAtomicBatchAsync();
         _ = AddonDependencyPlannerTests.Run();
         _ = await AddonIntegrityTests.RunAsync();
         await CharacterizeAdvancedActionsAsync();
@@ -47,7 +48,7 @@ internal static partial class LauncherAddonsRuntimeTests
         string repositoryRoot = FindRepositoryRoot();
         string catalogPath = Path.Combine(repositoryRoot, "current", "addons", "catalog.json");
         byte[] productionCatalog = await File.ReadAllBytesAsync(catalogPath);
-        Uri catalogUri = new("https://atlas.test/addons/catalog.json");
+        Uri catalogUri = new("https://animeclub.fr/addons/catalog.json");
         using (MappedHttpHandler catalogHandler = new())
         using (HttpClient catalogHttp = new(catalogHandler))
         {
@@ -87,7 +88,7 @@ internal static partial class LauncherAddonsRuntimeTests
                 dependencies: ["dependency-addon"],
                 components:
                 [
-                    CreateComponent("Module Alpha", "https://atlas.test/alpha-component.zip", componentV1)
+                    CreateComponent("Module Alpha", "https://animeclub.fr/alpha-component.zip", componentV1)
                 ],
                 replacements: new Dictionary<string, string>(StringComparer.Ordinal)
                 {
@@ -122,7 +123,9 @@ internal static partial class LauncherAddonsRuntimeTests
                 },
                 new InlineProgress<AddonTransferProgress>(progress.Add),
                 log: null,
-                CancellationToken.None);
+                CancellationToken.None,
+                rootLease: GameInstallServices.CreateNoOpGameInstallRootLeaseForTests(
+                    root));
 
             string addonsDirectory = AddonInstallServices.GetAddonsDirectory(root);
             string alphaDirectory = Path.Combine(addonsDirectory, "AtlasAlpha");
@@ -135,6 +138,9 @@ internal static partial class LauncherAddonsRuntimeTests
                 "Les dépendances du catalogue doivent être installées avant leur addon dépendant.");
             True(progress.Count >= 2 && progress[^1].BytesReceived == componentV1.Length,
                 "La progression legacy doit exposer les octets réellement reçus pour chaque archive.");
+            SequenceEqual([dependency.Id, alphaV1.Id],
+                progress.Select(item => item.AddonId).Distinct(StringComparer.OrdinalIgnoreCase),
+                "La progression legacy doit identifier chaque package sans dépendre de son nom d'affichage.");
 
             IReadOnlyDictionary<string, AddonInspection> installed = AddonInstallServices.Inspect(catalogV1, root);
             Equal(AddonLocalStatus.Installed, installed[alphaV1.Id].Status,
@@ -181,7 +187,9 @@ internal static partial class LauncherAddonsRuntimeTests
                         new Dictionary<string, bool> { [alphaV2.Id] = true },
                         progress: null,
                         log: null,
-                        CancellationToken.None),
+                        CancellationToken.None,
+                        rootLease: GameInstallServices.CreateNoOpGameInstallRootLeaseForTests(
+                            root)),
                     "Une mise à jour réseau en échec doit remonter au coordinateur.");
             }
 
@@ -205,7 +213,9 @@ internal static partial class LauncherAddonsRuntimeTests
                 new Dictionary<string, bool> { [alphaV1.Id] = true },
                 progress: null,
                 log: null,
-                CancellationToken.None);
+                CancellationToken.None,
+                rootLease: GameInstallServices.CreateNoOpGameInstallRootLeaseForTests(
+                    root));
             Equal(AddonLocalStatus.Installed,
                 AddonInstallServices.Inspect(CreateCatalog(alphaV1), root)[alphaV1.Id].Status,
                 "La réparation doit réutiliser le même pipeline d'installation.");
@@ -220,7 +230,9 @@ internal static partial class LauncherAddonsRuntimeTests
                     new Dictionary<string, bool> { [dependency.Id] = true },
                     progress: null,
                     log: null,
-                    cancelled.Token),
+                    cancelled.Token,
+                    rootLease: GameInstallServices.CreateNoOpGameInstallRootLeaseForTests(
+                        root)),
                 "Le token legacy doit interrompre une installation avant mutation.");
             True(Directory.Exists(Path.Combine(addonsDirectory, "AtlasDependency")),
                 "Une installation annulée doit conserver la dépendance déjà installée.");
@@ -242,7 +254,9 @@ internal static partial class LauncherAddonsRuntimeTests
                     new Dictionary<string, bool> { [blockingPackage.Id] = true },
                     progress: null,
                     log: null,
-                    downloadCancellation.Token);
+                    downloadCancellation.Token,
+                    rootLease: GameInstallServices.CreateNoOpGameInstallRootLeaseForTests(
+                        root));
                 await blockingHandler.ReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
                 downloadCancellation.Cancel();
                 await ThrowsAsync<OperationCanceledException>(
@@ -259,13 +273,124 @@ internal static partial class LauncherAddonsRuntimeTests
                 new Dictionary<string, bool> { [alphaV1.Id] = false },
                 progress: null,
                 log: null,
-                CancellationToken.None);
+                CancellationToken.None,
+                rootLease: GameInstallServices.CreateNoOpGameInstallRootLeaseForTests(
+                    root));
             True(!Directory.Exists(alphaDirectory), "La suppression doit retirer le dossier géré.");
             True(File.Exists(Path.Combine(unmanagedDirectory, "keep.txt")),
                 "La suppression ne doit jamais toucher un dossier utilisateur non géré.");
             Equal(AddonLocalStatus.NotInstalled,
                 AddonInstallServices.Inspect(CreateCatalog(alphaV1), root)[alphaV1.Id].Status,
                 "La suppression doit nettoyer uniquement l'entrée Atlas correspondante.");
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    private static async Task CharacterizeLowLevelBatchContractAsync()
+    {
+        string root = CreatePlayableClientRoot();
+        try
+        {
+            byte[] dependencyArchive = CreateArchive(new Dictionary<string, string>
+            {
+                ["AtlasDependency/AtlasDependency.toc"] = "## Interface: 30403\n"
+            });
+            byte[] mainArchive = CreateArchive(new Dictionary<string, string>
+            {
+                ["AtlasMain/AtlasMain.toc"] = "## Interface: 30403\n"
+            });
+            AddonPackage dependency = CreatePackage(
+                "batch-dependency",
+                "Dépendance hors plan",
+                "1.0.0",
+                "AtlasDependency",
+                dependencyArchive);
+            AddonPackage main = CreatePackage(
+                "batch-main",
+                "Package approuvé",
+                "1.0.0",
+                "AtlasMain",
+                mainArchive,
+                dependencies: [dependency.Id]);
+            AddonCatalog catalog = CreateCatalog(main, dependency);
+            using MappedHttpHandler handler = new();
+            handler.Responses[new Uri(main.Url)] = mainArchive;
+            using HttpClient http = new(handler);
+            List<AddonTransferProgress> progress = [];
+
+            await AddonInstallServices.ApplySelectionAsync(
+                http,
+                catalog,
+                root,
+                new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [main.Id] = true
+                },
+                allowExternalReplacement: false,
+                resolveDependencies: false,
+                progress: new InlineProgress<AddonTransferProgress>(progress.Add),
+                log: null,
+                cancellationToken: CancellationToken.None,
+                rootLease: GameInstallServices.CreateNoOpGameInstallRootLeaseForTests(root),
+                forceReinstallIds: new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+            IReadOnlyDictionary<string, AddonInspection> inspections = AddonInstallServices.Inspect(catalog, root);
+            Equal(AddonLocalStatus.Installed, inspections[main.Id].Status,
+                "La transaction legacy doit installer le package présent dans le plan.");
+            Equal(AddonLocalStatus.NotInstalled, inspections[dependency.Id].Status,
+                "Le service groupé ne doit pas résoudre une seconde fois une dépendance absente du plan approuvé.");
+            True(progress.Count > 0 && progress.All(item => item.AddonId == main.Id),
+                "Chaque événement de transfert groupé doit identifier le package par son ID stable.");
+
+            handler.Responses[new Uri(dependency.Url)] = dependencyArchive;
+            await AddonInstallServices.ApplySelectionAsync(
+                http,
+                CreateCatalog(dependency),
+                root,
+                new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [dependency.Id] = true
+                },
+                progress: null,
+                log: null,
+                cancellationToken: CancellationToken.None,
+                resolveDependencies: false,
+                rootLease: GameInstallServices.CreateNoOpGameInstallRootLeaseForTests(root));
+            string addonsDirectory = AddonInstallServices.GetAddonsDirectory(root);
+            string mainToc = Path.Combine(addonsDirectory, "AtlasMain", "AtlasMain.toc");
+            string dependencyToc = Path.Combine(
+                addonsDirectory,
+                "AtlasDependency",
+                "AtlasDependency.toc");
+            await File.WriteAllTextAsync(mainToc, "main sentinel\n");
+            await File.WriteAllTextAsync(dependencyToc, "dependency sentinel\n");
+            progress.Clear();
+
+            await AddonInstallServices.ApplySelectionAsync(
+                http,
+                catalog,
+                root,
+                new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [main.Id] = true,
+                    [dependency.Id] = true
+                },
+                progress: new InlineProgress<AddonTransferProgress>(progress.Add),
+                log: null,
+                cancellationToken: CancellationToken.None,
+                resolveDependencies: false,
+                rootLease: GameInstallServices.CreateNoOpGameInstallRootLeaseForTests(root),
+                forceReinstallIds: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { main.Id });
+
+            True(!(await File.ReadAllTextAsync(mainToc)).Contains("sentinel", StringComparison.Ordinal),
+                "Le package explicitement forcé doit être remplacé même lorsque son état est déjà à jour.");
+            Equal("dependency sentinel\n", await File.ReadAllTextAsync(dependencyToc),
+                "Un package à jour du même lot ne doit pas être forcé implicitement.");
+            True(progress.Count > 0 && progress.All(item => item.AddonId == main.Id),
+                "Le téléchargement forcé doit rester limité à l'ID annoncé dans le plan.");
         }
         finally
         {
@@ -543,7 +668,7 @@ internal static partial class LauncherAddonsRuntimeTests
             };
             await CompleteAsync(environment.Coordinator.TryInvokePrimary("progress"));
             SequenceEqual([10L, 60L, 100L], publishedBytes,
-                "La progression doit être coalescée à 80 ms sans retarder la valeur terminale.");
+                "L'identité doit précéder le réseau sans inventer d'octets, puis la progression doit être coalescée à 80 ms sans retarder la valeur terminale.");
         }
 
         AddonCatalog shutdownCatalog = CreateCatalog(CreateFakePackage("late", "Résultat tardif"));
@@ -606,17 +731,48 @@ internal static partial class LauncherAddonsRuntimeTests
             "Les autres addons doivent redevenir utilisables après la libération du bail.");
     }
 
-    private static async Task CharacterizeSequentialBatchAsync()
+    private static async Task CharacterizeAtomicBatchAsync()
     {
         AddonCatalog catalog = CreateCatalog(
             CreateFakePackage("alpha", "Alpha", version: "2.0.0"),
             CreateFakePackage("beta", "Beta", version: "2.0.0"),
-            CreateFakePackage("charlie", "Charlie", version: "2.0.0"));
+            CreateFakePackage("charlie", "Charlie", version: "2.0.0"),
+            CreateFakePackage("catalog-only", "Hors sélection"));
+
+        FakeAddonManagementService preflightService = new(catalog)
+        {
+            PlanFailure = new AddonPlanException("dependency-missing", ["beta"])
+        };
+        foreach (AddonPackage package in catalog.Addons.Take(3))
+        {
+            preflightService.SetInspection(package.Id, Managed(AddonLocalStatus.UpdateAvailable, "1.0.0"));
+        }
+        preflightService.SetInspection("catalog-only", Managed(AddonLocalStatus.Installed, "1.0.0"));
+        await using (AddonsEnvironment environment = new(preflightService, isGameRunning: false))
+        {
+            await LoadCatalogAsync(environment.Coordinator);
+            AddonsActionCompletion completion = await CompleteAsync(environment.Coordinator.TryUpdateAll());
+            Equal(AddonsActionCompletionStatus.Failed, completion.Status,
+                "Un préflight global en échec doit refuser le lot.");
+            Equal(0, preflightService.TransactionCalls,
+                "Le préflight doit finir avant l'ouverture de la transaction de mutation.");
+            Equal(0, preflightService.CommittedTransactions,
+                "Un préflight en échec ne doit produire aucun commit.");
+            True(completion.Snapshot.Items.Where(item => item.Id is "alpha" or "beta" or "charlie")
+                    .All(item => item.LocalStatus == AddonLocalStatus.UpdateAvailable),
+                "Un échec de préflight sur Beta doit laisser Alpha et tout le lot inchangés.");
+            SequenceEqual(["beta"], completion.Snapshot.FailedAddonIds,
+                "Le préflight doit identifier le package concerné.");
+            SequenceEqual(["alpha", "charlie"], completion.Snapshot.UnprocessedAddonIds,
+                "Tous les autres membres du lot atomique doivent rester à reprendre.");
+        }
+
         FakeAddonManagementService failureService = new(catalog);
-        foreach (AddonPackage package in catalog.Addons)
+        foreach (AddonPackage package in catalog.Addons.Take(3))
         {
             failureService.SetInspection(package.Id, Managed(AddonLocalStatus.UpdateAvailable, "1.0.0"));
         }
+        failureService.SetInspection("catalog-only", Managed(AddonLocalStatus.Installed, "1.0.0"));
         TaskCompletionSource failingSecondStarted = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource releaseFailingSecond = new(
@@ -641,8 +797,8 @@ internal static partial class LauncherAddonsRuntimeTests
                 uiState.ApplyRuntimeView(AddonsStateAdapter.Project(args.Snapshot));
             AddonsActionStartResult start = environment.Coordinator.TryUpdateAll();
             await failingSecondStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-            Equal(2, uiState.Current.UpdateCount,
-                "Les compteurs doivent refléter immédiatement le premier succès du batch.");
+            Equal(3, uiState.Current.UpdateCount,
+                "Aucun compteur ne doit publier Alpha avant le commit atomique du lot.");
             Equal(3, uiState.Current.VisibleAddons.Length,
                 "Le filtre Mises à jour doit conserver les cibles visibles jusqu'à la fin du batch.");
             releaseFailingSecond.TrySetResult();
@@ -650,38 +806,86 @@ internal static partial class LauncherAddonsRuntimeTests
             Equal(AddonsActionCompletionStatus.Failed, completion.Status,
                 "Le batch doit s'arrêter sur la première erreur.");
             SequenceEqual(["alpha", "beta"], failureService.AppliedAddonIds,
-                "Tout mettre à jour doit être strictement séquentiel et ne pas poursuivre après erreur.");
+                "La préparation doit rester séquentielle et s'arrêter sur Beta.");
             Equal(1, failureService.MaximumConcurrency,
                 "Aucun téléchargement addon concurrent ne doit être introduit.");
-            Equal(AddonLocalStatus.Installed,
+            Equal(1, failureService.TransactionCalls,
+                "Tout mettre à jour doit appeler une seule transaction de service.");
+            Equal(0, failureService.CommittedTransactions,
+                "L'échec de Beta doit abandonner les mutations préparées pour Alpha.");
+            SequenceEqual(["alpha", "beta", "charlie"], failureService.TransactionSelectionIds.Single(),
+                "La transaction doit contenir exactement le plan confirmé, dans son ordre.");
+            SequenceEqual([false], failureService.ResolveDependenciesValues,
+                "Le service ne doit pas réétendre les dépendances après validation du plan.");
+            Equal(3, failureService.AppliedCatalogSizes.Single(),
+                "Le catalogue de transaction doit exclure les packages hors plan.");
+            Equal(AddonLocalStatus.UpdateAvailable,
                 environment.Coordinator.CurrentSnapshot.Items.Single(item => item.Id == "alpha").LocalStatus,
-                "Un succès antérieur du batch doit rester enregistré.");
+                "Alpha doit rester inchangé lorsque la préparation de Beta échoue.");
             Equal(AddonsErrorCategory.Disk,
                 environment.Coordinator.CurrentSnapshot.Items.Single(item => item.Id == "beta").ErrorCategory,
                 "Seul l'addon ayant échoué doit porter l'erreur.");
             Equal(AddonLocalStatus.UpdateAvailable,
                 environment.Coordinator.CurrentSnapshot.Items.Single(item => item.Id == "charlie").LocalStatus,
                 "Les addons non encore traités doivent rester à mettre à jour.");
-            Equal(2, uiState.Current.VisibleAddons.Length,
-                "Le filtre doit être réappliqué dès la fin du batch.");
+            Equal(3, uiState.Current.VisibleAddons.Length,
+                "Le filtre doit conserver les trois mises à jour après le rollback.");
             SequenceEqual(["beta"], completion.Snapshot.FailedAddonIds,
                 "La reprise doit mémoriser uniquement l’élément en échec.");
-            SequenceEqual(["charlie"], completion.Snapshot.UnprocessedAddonIds,
-                "La reprise doit distinguer les éléments non encore traités.");
+            SequenceEqual(["alpha", "charlie"], completion.Snapshot.UnprocessedAddonIds,
+                "La reprise doit inclure Alpha, car aucune préparation n'a été publiée.");
             failureService.ApplyBehavior = null;
-            await CompleteAsync(environment.Coordinator.TryRetryFailed());
-            SequenceEqual(["alpha", "beta", "beta", "charlie"], failureService.AppliedAddonIds,
-                "La reprise doit traiter l’échec et le reste sans réinstaller le premier succès.");
+            AddonsActionCompletion retry = await CompleteAsync(environment.Coordinator.TryRetryFailed());
+            Equal(LauncherOperationType.AddonSynchronization, retry.TerminalResult!.OperationType,
+                "La reprise d'UpdateAll doit utiliser le plan InstallSelection prévu.");
+            True(failureService.TransactionSelectionIds[1].Length == 3
+                    && failureService.TransactionSelectionIds[1]
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase)
+                        .SetEquals(["alpha", "beta", "charlie"]),
+                "La reprise doit rejouer tout le lot atomique, y compris Alpha.");
+            Equal(2, failureService.TransactionCalls,
+                "L'échec puis la reprise doivent représenter deux transactions groupées.");
+            Equal(1, failureService.CommittedTransactions,
+                "Seule la reprise réussie doit publier une mutation.");
+            True(environment.Coordinator.CurrentSnapshot.Items
+                    .Where(item => item.Id is "alpha" or "beta" or "charlie")
+                    .All(item => item.LocalStatus == AddonLocalStatus.Installed),
+                "Le commit de reprise doit publier les trois mises à jour ensemble.");
             True(environment.Coordinator.CurrentSnapshot.FailedAddonIds.IsEmpty
-                && environment.Coordinator.CurrentSnapshot.UnprocessedAddonIds.IsEmpty,
+                    && environment.Coordinator.CurrentSnapshot.UnprocessedAddonIds.IsEmpty,
                 "Une reprise réussie doit effacer la liste d’échecs et de restants.");
         }
 
+        FakeAddonManagementService commitFailureService = new(catalog)
+        {
+            NextCommitFailure = new IOException("state write failure")
+        };
+        foreach (AddonPackage package in catalog.Addons.Take(3))
+        {
+            commitFailureService.SetInspection(package.Id, Managed(AddonLocalStatus.UpdateAvailable, "1.0.0"));
+        }
+        commitFailureService.SetInspection("catalog-only", Managed(AddonLocalStatus.Installed, "1.0.0"));
+        await using (AddonsEnvironment environment = new(commitFailureService, isGameRunning: false))
+        {
+            await LoadCatalogAsync(environment.Coordinator);
+            AddonsActionCompletion completion = await CompleteAsync(environment.Coordinator.TryUpdateAll());
+            Equal(AddonsActionCompletionStatus.Failed, completion.Status,
+                "Un échec de publication de l'état doit faire échouer le lot préparé.");
+            SequenceEqual(["alpha", "beta", "charlie"], commitFailureService.AppliedAddonIds,
+                "L'échec d'état simulé doit survenir après la préparation des trois packages.");
+            Equal(0, commitFailureService.CommittedTransactions,
+                "La publication d'état en échec ne doit laisser aucun commit partiel.");
+            True(completion.Snapshot.Items.Where(item => item.Id is "alpha" or "beta" or "charlie")
+                    .All(item => item.LocalStatus == AddonLocalStatus.UpdateAvailable),
+                "Le rollback de l'état doit conserver Alpha et les autres versions antérieures.");
+        }
+
         FakeAddonManagementService cancelService = new(catalog);
-        foreach (AddonPackage package in catalog.Addons)
+        foreach (AddonPackage package in catalog.Addons.Take(3))
         {
             cancelService.SetInspection(package.Id, Managed(AddonLocalStatus.UpdateAvailable, "1.0.0"));
         }
+        cancelService.SetInspection("catalog-only", Managed(AddonLocalStatus.Installed, "1.0.0"));
         TaskCompletionSource secondStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         cancelService.ApplyBehavior = async (call, token) =>
         {
@@ -705,8 +909,15 @@ internal static partial class LauncherAddonsRuntimeTests
                 "L'annulation doit empêcher le démarrage de l'addon suivant.");
             Equal(1, cancelService.MaximumConcurrency,
                 "L'annulation globale ne doit pas créer de branche parallèle.");
-            SequenceEqual(["beta", "charlie"], completion.Snapshot.UnprocessedAddonIds,
-                "L’annulation doit conserver les cibles restantes dans leur ordre.");
+            Equal(1, cancelService.TransactionCalls,
+                "L'annulation doit interrompre une seule transaction groupée.");
+            Equal(0, cancelService.CommittedTransactions,
+                "L'annulation de Beta doit abandonner la préparation d'Alpha.");
+            True(completion.Snapshot.Items.Where(item => item.Id is "alpha" or "beta" or "charlie")
+                    .All(item => item.LocalStatus == AddonLocalStatus.UpdateAvailable),
+                "Un lot annulé doit laisser Alpha et toutes les cibles inchangés.");
+            SequenceEqual(["alpha", "beta", "charlie"], completion.Snapshot.UnprocessedAddonIds,
+                "L’annulation doit conserver l'intégralité du lot non commis dans son ordre.");
         }
     }
 
@@ -1124,7 +1335,7 @@ internal static partial class LauncherAddonsRuntimeTests
         Category = id.Length % 2 == 0 ? "Combat" : "Interface",
         Version = version,
         Interface = AddonInstallServices.SupportedInterface,
-        Url = $"https://atlas.test/{id}.zip",
+        Url = $"https://animeclub.fr/{id}.zip",
         Size = 1,
         Sha256 = new string('a', 64),
         InstallHash = new string('b', 64),
@@ -1147,7 +1358,7 @@ internal static partial class LauncherAddonsRuntimeTests
         Category = "Test",
         Version = version,
         Interface = AddonInstallServices.SupportedInterface,
-        Url = $"https://atlas.test/{id}-{version}.zip",
+        Url = $"https://animeclub.fr/{id}-{version}.zip",
         Size = archive.Length,
         Sha256 = Hash(archive),
         InstallHash = Hash(archive),
@@ -1451,8 +1662,11 @@ internal static partial class LauncherAddonsRuntimeTests
             new(StringComparer.OrdinalIgnoreCase);
         private readonly List<string> _appliedAddonIds = [];
         private readonly List<int> _appliedCatalogSizes = [];
+        private readonly List<string[]> _transactionSelectionIds = [];
+        private readonly List<bool> _resolveDependenciesValues = [];
         private int _activeCalls;
         private int _applyCalls;
+        private int _committedTransactions;
 
         internal FakeAddonManagementService(AddonCatalog catalog)
         {
@@ -1468,6 +1682,8 @@ internal static partial class LauncherAddonsRuntimeTests
         internal Exception? NextCatalogFailure { get; set; }
 
         internal Exception? NextApplyFailure { get; set; }
+
+        internal Exception? NextCommitFailure { get; set; }
 
         internal Func<FakeApplyCall, CancellationToken, Task>? ApplyBehavior { get; set; }
 
@@ -1503,10 +1719,17 @@ internal static partial class LauncherAddonsRuntimeTests
             bool forceReinstall, bool allowExternalReplacement, IProgress<AddonTransferProgress>? progress,
             Action<string>? log, CancellationToken cancellationToken)
         {
-            if (forceReinstall) ForcedAddonIds.Add(package.Id);
-            if (allowExternalReplacement) AllowedExternalAddonIds.Add(package.Id);
-            return ApplySelectionAsync(CreateCatalog(package), installRoot,
-                new Dictionary<string, bool> { [package.Id] = install }, progress, log, cancellationToken);
+            HashSet<string> forceReinstallIds = forceReinstall ? [package.Id] : [];
+            return ApplySelectionTransactionAsync(
+                CreateCatalog(package),
+                installRoot,
+                new Dictionary<string, bool> { [package.Id] = install },
+                forceReinstallIds,
+                allowExternalReplacement,
+                resolveDependencies: false,
+                progress: progress,
+                log: log,
+                cancellationToken: cancellationToken);
         }
 
         internal IReadOnlyList<string> AppliedAddonIds
@@ -1530,6 +1753,32 @@ internal static partial class LauncherAddonsRuntimeTests
                 }
             }
         }
+
+        internal IReadOnlyList<string[]> TransactionSelectionIds
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    return _transactionSelectionIds.Select(ids => ids.ToArray()).ToArray();
+                }
+            }
+        }
+
+        internal IReadOnlyList<bool> ResolveDependenciesValues
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    return _resolveDependenciesValues.ToArray();
+                }
+            }
+        }
+
+        internal int TransactionCalls => Volatile.Read(ref _applyCalls);
+
+        internal int CommittedTransactions => Volatile.Read(ref _committedTransactions);
 
         internal void SetInspection(string addonId, AddonInspection inspection)
         {
@@ -1582,15 +1831,38 @@ internal static partial class LauncherAddonsRuntimeTests
             Action<string>? log,
             CancellationToken cancellationToken)
         {
-            Equal(1, catalog.Addons.Count,
-                "Le service fake attend le même catalogue unitaire que le pipeline réel V2.");
-            AddonPackage package = catalog.Addons.Single();
-            bool selected = selection.TryGetValue(package.Id, out bool value) && value;
+            await ApplySelectionTransactionAsync(
+                catalog,
+                installRoot,
+                selection,
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                allowExternalReplacement: false,
+                resolveDependencies: true,
+                progress: progress,
+                log: log,
+                cancellationToken: cancellationToken);
+        }
+
+        public async Task ApplySelectionTransactionAsync(
+            AddonCatalog catalog,
+            string installRoot,
+            IReadOnlyDictionary<string, bool> selection,
+            IReadOnlySet<string> forceReinstallIds,
+            bool allowExternalReplacement,
+            bool resolveDependencies,
+            IProgress<AddonTransferProgress>? progress,
+            Action<string>? log,
+            CancellationToken cancellationToken)
+        {
+            AddonPackage[] packages = catalog.Addons
+                .Where(package => selection.ContainsKey(package.Id))
+                .ToArray();
             int callIndex;
             lock (_sync)
             {
-                _appliedAddonIds.Add(package.Id);
                 _appliedCatalogSizes.Add(catalog.Addons.Count);
+                _transactionSelectionIds.Add(packages.Select(package => package.Id).ToArray());
+                _resolveDependenciesValues.Add(resolveDependencies);
                 callIndex = ++_applyCalls;
                 _activeCalls++;
                 MaximumConcurrency = Math.Max(MaximumConcurrency, _activeCalls);
@@ -1614,25 +1886,53 @@ internal static partial class LauncherAddonsRuntimeTests
                     throw failure;
                 }
 
-                FakeApplyCall call = new(
-                    callIndex,
-                    package,
-                    selected,
-                    progress,
-                    log);
-                if (ApplyBehavior is not null)
+                Dictionary<string, AddonInspection> staged = new(StringComparer.OrdinalIgnoreCase);
+                foreach (AddonPackage package in packages)
                 {
-                    await ApplyBehavior(call, cancellationToken);
-                }
-                else if (selected)
-                {
-                    progress?.Report(new AddonTransferProgress(package.Name, 100, 100));
-                }
+                    cancellationToken.ThrowIfCancellationRequested();
+                    bool selected = selection[package.Id];
+                    lock (_sync)
+                    {
+                        _appliedAddonIds.Add(package.Id);
+                        if (forceReinstallIds.Contains(package.Id))
+                        {
+                            ForcedAddonIds.Add(package.Id);
+                        }
+                        if (allowExternalReplacement)
+                        {
+                            AllowedExternalAddonIds.Add(package.Id);
+                        }
+                    }
+                    if (selected)
+                    {
+                        progress?.Report(new AddonTransferProgress(
+                            package.Name,
+                            BytesReceived: 0,
+                            TotalBytes: 100,
+                            AddonId: package.Id));
+                    }
 
-                cancellationToken.ThrowIfCancellationRequested();
-                lock (_sync)
-                {
-                    _inspections[package.Id] = selected
+                    FakeApplyCall call = new(
+                        callIndex,
+                        package,
+                        selected,
+                        progress,
+                        log);
+                    if (ApplyBehavior is not null)
+                    {
+                        await ApplyBehavior(call, cancellationToken);
+                    }
+                    else if (selected)
+                    {
+                        progress?.Report(new AddonTransferProgress(
+                            package.Name,
+                            BytesReceived: 100,
+                            TotalBytes: 100,
+                            AddonId: package.Id));
+                    }
+
+                    cancellationToken.ThrowIfCancellationRequested();
+                    staged[package.Id] = selected
                         ? new AddonInspection(
                             AddonLocalStatus.Installed,
                             IsManaged: true,
@@ -1641,6 +1941,26 @@ internal static partial class LauncherAddonsRuntimeTests
                             InstalledFolders: package.Folders.ToArray(),
                             InstalledAtUtc: DateTimeOffset.Parse("2026-09-02T12:00:00Z"))
                         : Unmanaged(AddonLocalStatus.NotInstalled);
+                }
+
+                Exception? commitFailure;
+                lock (_sync)
+                {
+                    commitFailure = NextCommitFailure;
+                    NextCommitFailure = null;
+                }
+                if (commitFailure is not null)
+                {
+                    throw commitFailure;
+                }
+                cancellationToken.ThrowIfCancellationRequested();
+                lock (_sync)
+                {
+                    foreach ((string addonId, AddonInspection inspection) in staged)
+                    {
+                        _inspections[addonId] = inspection;
+                    }
+                    _committedTransactions++;
                 }
             }
             finally

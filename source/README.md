@@ -14,6 +14,40 @@ Les cartes utilisent les logos de projet distribues par CurseForge. Les URL d'or
 
 Le compte Atlas permet de modifier et valider l'e-mail via Brevo, de choisir l'avatar, de changer le mot de passe, de consulter les sessions actives et d'en revoquer une a distance. Le tableau de bord affiche aussi l'etat direct des passerelles et du worldserver. La double authentification et les codes de recuperation restent des ameliorations futures.
 
+Les routes d'authentification appliquent un quota par action et par adresse IPv4
+ou prefixe IPv6 `/64`, ainsi qu'une limite de 8 Kio avant la deserialisation des
+petits DTO JSON. Une rotation d'adresses provenant de plusieurs prefixes, d'un
+botnet ou de plusieurs sorties proxy reste hors de portee d'un quota local par
+IP; une protection de production complete demande aussi un quota lie a
+l'identite apres validation et/ou un WAF en amont. Independamment de ce
+residuel, les quatre routes qui emettent des jetons (inscription, login, refresh
+et changement de mot de passe) repondent avec `Cache-Control: no-store` et
+`Pragma: no-cache`. Le login maintient au plus 12 sessions actives par compte
+dans la meme transaction et revoque les plus anciennes, y compris celles sans
+nom d'appareil. Sous le schema 0010, toute revocation prend les verrous dans
+l'ordre compte, session, historique et conserve au plus 64 sessions revoquees
+recentes : la 65e fait supprimer les plus anciennes, de sorte qu'un compte
+occupe au plus 12 lignes actives et 64 tombstones. Une ligne
+revoquee reste eligible au retry idempotent de logout jusqu'a 60 minutes tant
+que ce plafond n'est pas atteint. Les tombstones plus anciens et les sessions
+expirees sont aussi supprimes globalement par lots indexes de 64 avant une
+creation de compte, un login ou un changement de mot de passe; chaque classe
+de parents utilise sa propre transaction et est verrouillee avant le controle
+ponctuel de son historique.
+L'historique expire est d'abord draine par lots de 256, et un parent n'est
+collecte qu'une fois son historique vide. Un retard anormal superieur au budget
+de reparation de 64 lignes fait echouer la transaction emettrice au lieu de
+transformer une requete d'authentification en traitement non borne.
+Sous le schema 0009, chaque famille active
+conserve au plus 4 096 empreintes de refresh consommees; la tentative suivante
+revoque la famille et invalide aussi ses tickets Hermes. Toute revocation purge
+l'historique de la famille dans la meme transaction. Les preuves deja expirees
+de familles qui atteignent naturellement leur echeance sont drainees par lots
+de 256 au debut des requetes de refresh suivantes; ce reliquat temporaire depend
+donc du trafic de refresh, tandis que les preuves non expirees restent bornees a
+12 x 4 096 par compte. Le schema 0010 ne s'active qu'apres validation exacte de
+ses index de collecte BTREE visibles et de leurs composantes ascendantes.
+
 `account` reste la table technique d'identite AzerothCore et conserve notamment
 les comptes `rndbot` de Playerbots. Seule l'existence d'une ligne dans
 `atlas_launcher_profile` donne acces aux fonctions Atlas (session launcher,
@@ -73,8 +107,9 @@ dotnet publish WotLK.Launcher/WotLK.Launcher.csproj -c Release -r win-x64 --self
 
 ## Publication
 
-Les binaires publics sont signes et deployes par
-`Publish-Launcher-Atlas.sh`. La publication doit etre executee en root sur
+Le manifeste public est signe en ECDSA P-256 et deploye avec le package par
+`Publish-Launcher-Atlas.sh`. Les executables PE ne sont pas encore signes avec
+Authenticode tant qu'un certificat de signature de code n'est pas integre. La publication doit etre executee en root sur
 Atlas avec `ATLAS_LAUNCHER_SIGNING_KEY_ID=atlas-prod-p256-2026-01`; elle utilise
 uniquement `/etc/atlas-release-signing/launcher-update-private.pem`, publie le
 package versionne avant le manifeste et verifie l'ancre publique embarquee.

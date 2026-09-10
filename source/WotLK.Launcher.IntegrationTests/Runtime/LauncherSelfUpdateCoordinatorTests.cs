@@ -338,7 +338,7 @@ internal static class LauncherSelfUpdateCoordinatorTests
         using (SelfUpdateHarness refused = new())
         {
             await refused.DiscoverUpdateAsync();
-            refused.Finalizer.Handler = (_, _, _, _, _, _, _) =>
+            refused.Finalizer.Handler = (_, _, _, _, _, _, _, _) =>
                 throw new IOException("helper-secret-refusal");
             LauncherSelfUpdateStartResult start = refused.Coordinator.TryStartUpdate();
             LauncherSelfUpdateCompletion result = await start.Completion!;
@@ -365,6 +365,7 @@ internal static class LauncherSelfUpdateCoordinatorTests
                 size,
                 hash,
                 version,
+                manifest,
                 parent,
                 token) =>
             {
@@ -376,7 +377,8 @@ internal static class LauncherSelfUpdateCoordinatorTests
                     size,
                     hash,
                     version,
-                    parent);
+                    parent,
+                    manifest);
             };
 
             LauncherSelfUpdateStartResult start = accepted.Coordinator.TryStartUpdate();
@@ -695,7 +697,7 @@ internal static class LauncherSelfUpdateCoordinatorTests
 
     private sealed class FakeSelfUpdateFinalizer(string root) : ILauncherSelfUpdateFinalizer
     {
-        internal Func<string, string, long, string, string, int, CancellationToken, Task<LauncherUpdateTransaction>>?
+        internal Func<string, string, long, string, string, LauncherUpdateManifest, int, CancellationToken, Task<LauncherUpdateTransaction>>?
             Handler { get; set; }
         internal int Calls { get; private set; }
         internal string? AuthenticatedTargetVersion { get; private set; }
@@ -706,6 +708,7 @@ internal static class LauncherSelfUpdateCoordinatorTests
             long expectedSize,
             string expectedSha256,
             string authenticatedTargetVersion,
+            LauncherUpdateManifest authenticatedManifest,
             int parentProcessId,
             CancellationToken cancellationToken)
         {
@@ -717,6 +720,7 @@ internal static class LauncherSelfUpdateCoordinatorTests
                     expectedSize,
                     expectedSha256,
                     authenticatedTargetVersion,
+                    authenticatedManifest,
                     parentProcessId,
                     cancellationToken)
                 ?? Task.FromResult(CreateTransaction(
@@ -725,7 +729,8 @@ internal static class LauncherSelfUpdateCoordinatorTests
                     expectedSize,
                     expectedSha256,
                     authenticatedTargetVersion,
-                    parentProcessId));
+                    parentProcessId,
+                    authenticatedManifest));
         }
 
         internal LauncherUpdateTransaction CreateTransaction(
@@ -734,7 +739,8 @@ internal static class LauncherSelfUpdateCoordinatorTests
             long size,
             string hash,
             string authenticatedTargetVersion,
-            int parentProcessId)
+            int parentProcessId,
+            LauncherUpdateManifest authenticatedManifest)
         {
             Guid id = Guid.NewGuid();
             string workspace = Path.Combine(root, "transaction-" + id.ToString("N"));
@@ -745,11 +751,13 @@ internal static class LauncherSelfUpdateCoordinatorTests
                 targetPath,
                 workspace,
                 candidatePath,
-                Path.Combine(workspace, "updater.exe"),
+                LauncherUpdateElevationSecurity.GetProtectedHelperPath(targetPath, id),
                 targetPath + ".new",
                 targetPath + ".backup",
                 Path.Combine(workspace, "transaction.json"),
-                Path.Combine(workspace, "helper-accepted.json"),
+                LauncherUpdateElevationSecurity.GetProtectedHelperAcceptedSignalPath(
+                    targetPath,
+                    id),
                 Path.Combine(workspace, "started.json"),
                 Path.Combine(workspace, "ready.json"),
                 size,
@@ -757,7 +765,8 @@ internal static class LauncherSelfUpdateCoordinatorTests
                 hash,
                 LauncherUpdateTransactionPhase.Prepared,
                 DateTimeOffset.UtcNow,
-                AuthenticatedTargetVersion: authenticatedTargetVersion);
+                AuthenticatedTargetVersion: authenticatedTargetVersion,
+                AuthenticatedManifest: authenticatedManifest);
         }
     }
 

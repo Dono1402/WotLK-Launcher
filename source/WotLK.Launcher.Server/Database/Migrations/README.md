@@ -54,6 +54,57 @@ The public API and game-inbox worker remain disabled with a schema ceiling below
 The production ceiling stays at 5; adding this local migration does not authorize
 applying it to production.
 
+`0007_chat_workspace.sql` adds the versioned chat workspace tables, and
+`0008_global_presence.sql` adds the shared presence projection.
+
+`0009_auth_session_families.sql` gives every launcher session an immutable
+absolute refresh deadline and archives each consumed refresh-token hash. A replay
+of any archived token revokes the current session in that family. Existing
+sessions are backfilled with their current refresh deadline, so applying the
+migration cannot extend a token that was already issued.
+
+Runtime policy caps each active family at 4,096 archived rotations by counting
+through `ix_atlas_refresh_history_session` while the session row is locked. The
+4,096th archive is accepted; the next request revokes the family. Replay,
+logout, targeted session revocation, password replacement, same-device login,
+older-device cleanup and global session-cap cleanup delete the revoked families'
+history in the same transaction. Expired history for families that simply age
+out is removed opportunistically in bounded batches of 256 on later refreshes.
+
+MySQL commits each DDL statement independently. The migrator therefore inspects
+and reconciles every 0009 artifact (column, backfill, index and history table)
+before recording its checksum. A restart can resume after any completed DDL
+step, while an incompatible pre-existing column or index is rejected. An exact
+fully built schema without its history row is validated and safely adopted.
+
+`0010_auth_session_gc.sql` adds the composite indexes used by bounded session
+garbage collection and by the per-account active/tombstone ceilings. Revoked
+rows are eligible for global deletion after 60 minutes; naturally expired rows
+also wait for their advertised access token to expire. Each registration,
+login or password replacement drains at most 64 revoked and 64 expired parent
+candidates after first draining 256 expired history rows. Each fixed parent
+set has its own transaction and is locked before its history is checked by
+indexed point lookup. A
+parent with remaining history is skipped, so `ON DELETE CASCADE` cannot amplify
+a parent batch. Every revocation is serialized by the account row before the
+session and its history are locked. The runtime retains only the 64 newest
+revoked rows, which bounds one account at 12 active sessions plus 64 logout
+tombstones even within the time window. A pre-existing backlog needing more
+than 64 repairs aborts token issuance without partial mutation; it never turns
+one request transaction into an unbounded loop.
+
+Schemas 0009 and later require Oracle MySQL 8.0 or newer. Their bounded cleanup
+uses `SELECT ... FOR UPDATE SKIP LOCKED`; startup rejects MySQL 5.7 and MariaDB
+before applying or serving these schema versions. The disposable concurrency
+suite targets MySQL 8.4.
+
+The 0010 reconciler validates each required index's ordered columns and ASC
+direction, uniqueness, BTREE type and visibility. After an interrupted DDL or a manually prepared
+partial schema it adds every missing index in one `ALTER TABLE`; an incompatible
+or invisible index is rejected. A complete index set without its history row is
+validated and adopted, and the final ceiling validation repeats these checks on
+every startup.
+
 Named MySQL locks are scoped from the database name. Migration commands never
 run concurrently in the same schema, while separate test and production schemas
 do not block each other.

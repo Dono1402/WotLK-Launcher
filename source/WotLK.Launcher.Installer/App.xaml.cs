@@ -7,30 +7,44 @@ public partial class App : Application
 {
     protected override async void OnStartup(StartupEventArgs e)
     {
-        base.OnStartup(e);
-
-        if (InstallerServices.IsUninstallMode(e.Args))
+        bool uninstallMode = InstallerServices.IsUninstallMode(e.Args);
+        // Capture and lock the setup before base.OnStartup can raise any managed
+        // startup callback capable of constructing UI or deferring source use.
+        InstallerSetupSource? setupSource = uninstallMode
+            ? null
+            : InstallerSetupSource.CaptureCurrentProcess();
+        try
         {
-            bool quiet = e.Args.Any(arg =>
-                string.Equals(arg, "/quiet", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "--quiet", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "/silent", StringComparison.OrdinalIgnoreCase));
-            if (quiet)
+            base.OnStartup(e);
+
+            if (uninstallMode)
             {
-                ShutdownMode = ShutdownMode.OnExplicitShutdown;
-                int exitCode = await UninstallerWindow.RunQuietAsync();
-                Shutdown(exitCode);
+                bool quiet = e.Args.Any(arg =>
+                    string.Equals(arg, "/quiet", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(arg, "--quiet", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(arg, "/silent", StringComparison.OrdinalIgnoreCase));
+                if (quiet)
+                {
+                    ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                    int exitCode = await UninstallerWindow.RunQuietAsync();
+                    Shutdown(exitCode);
+                    return;
+                }
+
+                UninstallerWindow uninstaller = new();
+                MainWindow = uninstaller;
+                uninstaller.Show();
                 return;
             }
 
-            UninstallerWindow uninstaller = new();
-            MainWindow = uninstaller;
-            uninstaller.Show();
-            return;
+            InstallerWizardWindow window = new(setupSource!);
+            MainWindow = window;
+            window.Show();
         }
-
-        InstallerWizardWindow window = new();
-        MainWindow = window;
-        window.Show();
+        catch
+        {
+            setupSource?.Dispose();
+            throw;
+        }
     }
 }

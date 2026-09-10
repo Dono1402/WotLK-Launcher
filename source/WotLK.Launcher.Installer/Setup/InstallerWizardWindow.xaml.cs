@@ -15,11 +15,34 @@ public partial class InstallerWizardWindow : Window
     private InstallerNoticeKind _lastNotice;
 
     public InstallerWizardWindow()
+        : this(InstallerSetupSource.CaptureCurrentProcess())
     {
-        InstallerManropeValidator.ValidateOrThrow();
-        _runtime = InstallerWizardRuntime.CreateProduction();
-        State = _runtime.State;
-        InitializeWindow();
+    }
+
+    internal InstallerWizardWindow(InstallerSetupSource setupSource)
+    {
+        InstallerWizardRuntime? runtime = null;
+        try
+        {
+            InstallerManropeValidator.ValidateOrThrow();
+            runtime = InstallerWizardRuntime.CreateProduction(setupSource);
+            _runtime = runtime;
+            State = runtime.State;
+            InitializeWindow();
+        }
+        catch
+        {
+            if (runtime is null)
+            {
+                setupSource.Dispose();
+            }
+            else
+            {
+                runtime.Dispose();
+            }
+
+            throw;
+        }
     }
 
     internal InstallerWizardWindow(InstallerPreviewScenario scenario)

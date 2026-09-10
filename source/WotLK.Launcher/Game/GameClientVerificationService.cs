@@ -16,19 +16,27 @@ internal sealed class GameClientVerificationService : IGameClientVerificationSer
     private readonly IInstalledManifestStore _manifestStore;
     private readonly Func<string, bool> _hasPlayableClient;
     private readonly Func<string, bool> _isGameRunning;
+    private readonly Func<
+        string,
+        GameInstallRootLeaseMode,
+        IGameInstallRootLease> _acquireInstallRootLease;
 
     internal GameClientVerificationService(
         IGameManifestClient manifestClient,
         IGameFileVerifier fileVerifier,
         IInstalledManifestStore manifestStore,
         Func<string, bool>? hasPlayableClient = null,
-        Func<string, bool>? isGameRunning = null)
+        Func<string, bool>? isGameRunning = null,
+        Func<string, GameInstallRootLeaseMode, IGameInstallRootLease>?
+            acquireInstallRootLease = null)
     {
         _manifestClient = manifestClient ?? throw new ArgumentNullException(nameof(manifestClient));
         _fileVerifier = fileVerifier ?? throw new ArgumentNullException(nameof(fileVerifier));
         _manifestStore = manifestStore ?? throw new ArgumentNullException(nameof(manifestStore));
         _hasPlayableClient = hasPlayableClient ?? GameInstallServices.HasPlayableClient;
         _isGameRunning = isGameRunning ?? GameInstallServices.IsGameRunning;
+        _acquireInstallRootLease = acquireInstallRootLease
+            ?? GameInstallServices.AcquireGameInstallRootLease;
     }
 
     public async Task<GameClientVerificationResult> VerifyAsync(
@@ -49,6 +57,10 @@ internal sealed class GameClientVerificationService : IGameClientVerificationSer
                 GameAction.Install,
                 GameUpdateKnowledge.Unknown);
         }
+
+        using IGameInstallRootLease rootLease = _acquireInstallRootLease(
+            settings.InstallPath,
+            GameInstallRootLeaseMode.ExistingClient);
 
         if (_isGameRunning(settings.InstallPath))
         {
@@ -79,15 +91,18 @@ internal sealed class GameClientVerificationService : IGameClientVerificationSer
                 settings.InstallPath,
                 manifest,
                 reportFileProgress ? reportProgress : null,
-                cancellationToken);
+                cancellationToken,
+                rootLease);
         IReadOnlyList<string> removedFiles = _fileVerifier.FindRemovedFiles(
             settings.InstallPath,
-            manifest);
+            manifest,
+            rootLease);
         int changeCount = comparison.MissingOrChangedFiles.Count + removedFiles.Count;
 
         if (changeCount == 0)
         {
-            _manifestStore.Save(settings.InstallPath, manifest);
+            rootLease.Revalidate();
+            _manifestStore.Save(settings.InstallPath, manifest, rootLease);
             return Result(
                 GameVerificationOutcome.UpToDate,
                 GameAction.Play,

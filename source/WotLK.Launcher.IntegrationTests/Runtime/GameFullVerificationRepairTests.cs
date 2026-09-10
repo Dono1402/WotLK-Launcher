@@ -219,9 +219,9 @@ internal static class GameFullVerificationRepairTests
 
         LauncherManifest current = Manifest(
             "repair-v2",
-            Entry("Data/valid.bin", valid, "https://atlas.test/valid.bin"),
-            Entry("Data/corrupt.bin", corruptExpected, "https://atlas.test/corrupt.bin"),
-            Entry("Data/missing.bin", missingExpected, "https://atlas.test/missing.bin"));
+            Entry("Data/valid.bin", valid, "https://animeclub.fr/valid.bin"),
+            Entry("Data/corrupt.bin", corruptExpected, "https://animeclub.fr/corrupt.bin"),
+            Entry("Data/missing.bin", missingExpected, "https://animeclub.fr/missing.bin"));
         environment.SetManifest(current);
         environment.Downloads.Responder = (_, request, _) => request.RequestUri!.AbsolutePath switch
         {
@@ -827,7 +827,7 @@ internal static class GameFullVerificationRepairTests
         return new LauncherManifest
         {
             Version = version,
-            BaseUrl = "https://atlas.test/client/",
+            BaseUrl = "https://animeclub.fr/client/",
             Files = files.ToList()
         };
     }
@@ -947,7 +947,7 @@ internal sealed class RepairBlockingTransferService(
 
     public Uri BuildFileUri(LauncherManifest manifest, LauncherFile file)
     {
-        return new Uri("https://atlas.test/repair.bin");
+        return new Uri("https://animeclub.fr/repair.bin");
     }
 
     public async Task DownloadAsync(
@@ -957,7 +957,8 @@ internal sealed class RepairBlockingTransferService(
         long expectedSize,
         string expectedSha256,
         Action<GameFileTransferProgress>? reportProgress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IGameInstallRootLease? rootLease = null)
     {
         reportProgress?.Invoke(new GameFileTransferProgress(
             operationId,

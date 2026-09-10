@@ -5,9 +5,9 @@ Date de l'audit : 2026-09-03
 Branche : `ui/redesign-v2`
 
 Baseline auditee : `1fbcfe4275388f8bddf91d449c7a9ab205989fcd`
-Decision : **B - V2 pas encore prete a devenir l'interface par defaut.**
+Decision : **B - branche source pas encore prete a etre publiee en production.**
 
-La parite fonctionnelle locale est proche et l'architecture ne presente pas de duplication d'autorite dangereuse. Le rollout public reste bloque par la chaine de confiance du self-update. Deux validations de production et plusieurs validations Windows/DPI restent egalement a effectuer avant 05A.
+La parite fonctionnelle locale est proche et l'architecture ne presente pas de duplication d'autorite dangereuse. La chaine de confiance du self-update est maintenant implementee et testee localement. Le rollout public reste bloque par les feeds Jeu/Addons non signes, deux validations de production et plusieurs validations Windows/DPI avant 05A.
 
 ## Corrections 04B.4
 
@@ -49,7 +49,7 @@ Legende : `REAL`, `PREVIEW ONLY`, `READ ONLY`, `A VENIR`, `LEGACY ONLY`, `NON AP
 | Addons | Traitement par lot | REAL | Execution serialisee, aucune file utilisateur implicite globale. |
 | Addons | Reparation | REAL | Pipeline addons existant. |
 | Addons | Suppression | REAL | Confirmation et traitement existants. |
-| Addons | Jeu ouvert | REAL | Blocage/retour utilisateur conserves. |
+| Addons | Jeu ouvert | REAL | Autorise ; etat affiche et conseil `/reload` apres succes. |
 | Compte | Profil | REAL | Projection de la session Atlas. |
 | Compte | Avatar | REAL | Upload, crop, suppression et cache client ; smoke production restant. |
 | Compte | E-mail | REAL | Affichage, changement et renvoi de verification. |
@@ -116,7 +116,7 @@ Aucune duplication d'autorite dangereuse n'a ete detectee. Les `UiState` et adap
 - Un seul bail de maintenance peut etre actif.
 - `Play` utilise un verrou single-flight distinct.
 - `Play` peut coexister avec `Verify` uniquement si le client local est jouable.
-- `Play` ne coexiste pas avec Install, Update, Repair, mutation Addon, batch Addon ou self-update.
+- `Play` ne coexiste pas avec Install, Update, Repair ou self-update ; il peut coexister avec les mutations et batchs Addons.
 - `Verify` ne coexiste avec aucune operation mutante.
 - Install, Update, Repair, Addons et self-update sont mutuellement exclusifs.
 - Annulation utilisateur et annulation de fermeture sont distinctes.
@@ -191,11 +191,13 @@ Le manifeste ne declare pas explicitement PerMonitorV2. Le processus observe res
 | Parametres existants | Oui | Oui | Oui | Fonctions futures clairement desactivees | Non |
 | Patch notes | Page/zone legacy | Overlay V2 | Oui | Pas de page Actualites dediee | Non |
 | Centre Activite | Non | Oui | Superieur | Nouvelle fonction V2 | Non |
-| Self-update | Oui | Oui | Fonctionnelle | Remplacement atomique V2 | **Oui, securite transport** |
+| Self-update | Oui | Oui | Fonctionnelle | Manifeste signe et remplacement atomique | **Oui, smoke UAC reel** |
 | 2FA/recuperation globale | Non | A venir | Identique | Aucun backend invente | Non |
-| Demarrage par defaut | Legacy | `--ui-v2` | Intentionnel | Bascule reservee a 05A | Non |
+| Demarrage par defaut | `--legacy` | Sans argument ou `--ui-v2` | Intentionnel | Repli legacy explicite conserve | Non |
 
-Le lancement sans argument reste strictement legacy. `--ui-v2` reste requis pour la V2 reelle. Aucun changement de `OnStartup` vers la V2 par defaut n'est inclus.
+Le lancement sans argument ouvre la V2 reelle. `--ui-v2` reste accepte comme
+alias explicite et comme prealable des modes preview; `--legacy` conserve le
+repli vers l'ancienne interface. Les combinaisons contradictoires sont refusees.
 
 ## Base et serveur
 
@@ -216,21 +218,19 @@ Ce delta est compatible avec la production 0001-0003 si les tables avatar 0002/0
 
 ## Manifeste self-update
 
-Le manifeste self-update est encore charge depuis :
+Le manifeste self-update est charge uniquement depuis :
 
-`http://152.228.225.7/launcher/launcher-update.json`
+`https://animeclub.fr/wotlk/launcher/launcher-update.json`
 
-Le SHA-256 du binaire provient du meme manifeste HTTP non signe. Un attaquant en position d'interception pourrait donc remplacer simultanement le binaire et son empreinte. Le remplacement atomique et le rollback protegent contre un echec local, pas contre cette substitution.
+Le launcher refuse HTTP, les changements d'origine/port et les redirections non conformes. Le manifeste est signe en ECDSA P-256 avec une cle publique de production embarquee ; sa version, son URL, sa taille, son SHA-256 et sa date sont verifies avant telechargement. Le package est rehache avant preparation, puis la preuve signee et le candidat sont verifies de nouveau de l'autre cote de la frontiere UAC.
 
-Classification : **RED, bloquant pour une publication publique et pour le passage V2 par defaut tant que l'auto-update peut appliquer ce contenu.**
+Le durcissement UAC de ce diff lie le helper au PID demandeur vivant, execute uniquement un bootstrap depuis la cible protegee, copie le helper dans un repertoire protege et refuse les reparse points. Les lectures/ecritures du workspace utilisateur sont effectuees avec le jeton non eleve capture ; le candidat est conserve par un handle stable pendant sa copie vers le staging protege, qui est rehache juste avant le swap atomique. Le helper refait aussi la politique anti-downgrade apres rechargement.
 
-Recommandation :
+Classification : **GREEN pour la chaine self-update authentifiee en tests synthetiques ; YELLOW pour l'exploitation Windows tant que le smoke reel UAC/`Program Files` avec rollback n'a pas ete execute.**
 
-1. distribuer le manifeste et les artefacts sur un nom HTTPS stable et refuser tout downgrade HTTP ;
-2. signer le manifeste et verifier la signature avec une cle publique embarquee dans le launcher ;
-3. jusqu'a cette chaine de confiance, desactiver l'application automatique et distribuer uniquement une release manuelle provenant d'un canal de confiance.
+Le manifeste Jeu par defaut du launcher et celui ecrit par l'installeur utilisent `https://animeclub.fr/wotlk/manifest.json`. L'installeur remplace les anciennes valeurs HTTP ou hors origine canonique. Le client refuse aussi les `baseUrl`, archives Addons et URL de fichiers Jeu non HTTPS, et borne les manifestes, catalogues et flux avant ecriture.
 
-Le manifeste Jeu par defaut du launcher est en HTTPS, mais l'installeur contient encore une valeur HTTP historique pour le manifeste Jeu. Ce point doit etre aligne avant une nouvelle diffusion de l'installeur.
+Les feeds Jeu et Addons restent non signes : leurs SHA-256 sont fournis par le meme document distant qui selectionne les artefacts. La signature de chaque feed et sa verification avec une cle publique embarquee restent une dependance distincte du rollout avant de qualifier ces deux canaux d'authentifies.
 
 ## Resultats de validation
 
@@ -247,7 +247,10 @@ Resultat observe : 0 erreur, 0 avertissement.
 
 ### Suites locales executees
 
-29 suites fonctionnelles et 7 suites WPF/visuelles sont vertes, dont : caracterisation legacy, composition/runtime, verification, coordinateur global, maintenance Jeu, reparation, dashboard, auth, lancement, logout, parametres, compte/avatar/sessions, amis, addons, activite, self-update atomique/runtime, backend avatar sans MySQL et le nouveau `--v2-rollout-audit`.
+La matrice de securite actuelle comporte 25 scenarios synthetiques/headless
+verts, couvrant notamment auth/session, stockage, Addons, maintenance Jeu,
+filesystem, self-update, installateur, migrations, composition et coordination.
+Le scenario Settings WPF hors ecran est egalement vert apres execution separee.
 
 Les tests externes suivants n'ont pas ete annonces comme verts dans cet audit :
 
@@ -260,9 +263,9 @@ Les tests externes suivants n'ont pas ete annonces comme verts dans cet audit :
 ### GREEN - pret
 
 - Quatre builds Release sans erreur ni avertissement.
-- 36 suites locales fonctionnelles/WPF vertes.
-- Legacy sans argument conserve et tests de caracterisation verts.
-- V2 reelle toujours derriere `--ui-v2` ; previews isolees sans effet de bord.
+- 25 scenarios locaux synthetiques/headless verts et Settings WPF hors ecran vert.
+- V2 reelle sans argument et repli explicite `--legacy` couverts par les tests de routage.
+- Previews isolees derriere `--ui-v2`, sans effet de bord.
 - Autorites runtime, operation ids, annulations et compatibilites coherentes.
 - Navigation longue, responsive minimal, overlays et focus testes automatiquement.
 - Le bouton Mises a jour de la page Jeu et le lecteur de patch note ne sont pas decoratifs.
@@ -278,24 +281,25 @@ Les tests externes suivants n'ont pas ete annonces comme verts dans cet audit :
 - Installation/update/lancement Jeu et mutations Addons contre la production a revalider avant rollout.
 - Migration 0004 reportee, non bloquante pour la V2 actuelle.
 
-### RED - bloque 05A/publication
+### RED - bloque la qualification de securite production
 
-1. Manifeste self-update et empreinte distribues par HTTP non signe : chaine de confiance insuffisante.
+1. Feeds Jeu et Addons non signes : leurs documents distants peuvent encore selectionner simultanement un artefact et son SHA-256.
 2. Delta serveur social 03B.1 non deploye : les vrais avatars sociaux ne sont pas encore disponibles en production.
-3. Handoff updater et remplacement reel sous UAC/`Program Files` non valides manuellement.
+3. Chaine self-update authentifiee et frontiere UAC durcie en tests, mais handoff et rollback reels sous UAC/`Program Files` pas encore valides manuellement.
 
-## Decision et gates 05A
+## Decision et gates de publication
 
-**Decision B : ne pas rendre la V2 par defaut maintenant.**
+**Decision : conserver le routage source actuel vers la V2 par defaut, mais ne
+pas publier cette branche en production avant la levee des gates RED.**
 
-Avant 05A :
+Avant publication :
 
-1. securiser la chaine de distribution self-update ;
+1. valider la chaine self-update actuelle sous UAC/`Program Files` avec rollback ;
 2. deployer puis smocker le delta social 03B.1 sans 0004 ;
 3. effectuer le smoke avatar production ;
-4. valider l'updater reel sous UAC avec rollback ;
-5. valider DPI 100/125/150 %, chrome et clavier sur Windows ;
-6. executer une recette production courte Jeu/Addons/Auth/Amis ;
-7. conserver un rollback explicite vers le lancement legacy.
+4. valider DPI 100/125/150 %, chrome et clavier sur Windows ;
+5. executer une recette production courte Jeu/Addons/Auth/Amis ;
+6. conserver un rollback explicite vers `--legacy`.
 
-04B.4 ne bascule pas le demarrage, ne supprime pas la legacy, ne pousse rien et ne deploie rien.
+Le code conserve la legacy et la V2 par defaut. Cet audit local ne deploie rien
+en production.

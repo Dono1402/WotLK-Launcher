@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using WotLK.Launcher;
 using WotLK.Launcher.Game;
 using WotLK.Launcher.Runtime;
@@ -13,8 +14,11 @@ internal static class GameClientMaintenanceTests
     internal static async Task<int> RunAsync()
     {
         CharacterizeFileUriConstruction();
+        await RejectInsecureDirectDownloadBeforeRequestAsync();
+        await ValidateManifestResponseSecurityAsync();
         await DownloadCreatesTemporaryFileThenReplacesAsync();
         await RejectInvalidSizeAndRemoveTemporaryFileAsync();
+        await RejectOversizedChunkedDownloadBeforeExcessWriteAsync();
         await RejectInvalidHashAndRemoveTemporaryFileAsync();
         await PreserveLegacySingleHttpAttemptAsync();
         await FailWhenFinalFileRemainsLockedAsync();
@@ -24,6 +28,7 @@ internal static class GameClientMaintenanceTests
         await RestartCleanlyAfterCancellationAsync();
         CharacterizeSafeCleanupAndHistoricalRetries();
         await InstallAbsentClientAndFinalizeInHistoricalOrderAsync();
+        await RejectUnsafeInstallRootBeforeManifestOrRegistrationAsync();
         await RejectEmptyManifestBeforeStoppingGameAsync();
         await UpdateWithoutFileChangesStillFinalizesAsync();
         await DownloadMissingAndDifferentFilesAsync();
@@ -42,32 +47,293 @@ internal static class GameClientMaintenanceTests
     {
         using HttpClient http = new(new ScriptedDownloadHandler());
         GameFileTransferService transfer = new(http);
+        True(GameManifestValidator.IsAllowedRemoteUri(new Uri("https://animeclub.fr/wotlk/manifest.json"))
+            && GameManifestValidator.IsAllowedRemoteUri(new Uri("https://animeclub.fr/wotlk/files/client.bin")),
+            "Les URL de production du manifeste et des fichiers restent acceptées sans accès réseau.");
         LauncherManifest manifest = Manifest(
             "uri-v1",
             FileEntry("Data/patch file.MPQ", [], url: string.Empty));
 
         Equal(
-            "https://atlas.test/client/files/Data/patch%20file.MPQ",
+            "https://animeclub.fr/client/files/Data/patch%20file.MPQ",
             transfer.BuildFileUri(manifest, manifest.Files[0]).AbsoluteUri,
             "Une URL absente doit conserver files/ et l'échappement segment par segment.");
 
         manifest.Files[0].Url = "/packages/client.bin";
         Equal(
-            "https://atlas.test/client/packages/client.bin",
+            "https://animeclub.fr/client/packages/client.bin",
             transfer.BuildFileUri(manifest, manifest.Files[0]).AbsoluteUri,
             "Une URL relative doit rester résolue depuis baseUrl.");
 
-        manifest.Files[0].Url = "https://cdn.atlas.test/client.bin";
+        manifest.Files[0].Url = "https://animeclub.fr/client-direct.bin";
         Equal(
-            "https://cdn.atlas.test/client.bin",
+            "https://animeclub.fr/client-direct.bin",
             transfer.BuildFileUri(manifest, manifest.Files[0]).AbsoluteUri,
             "Une URL absolue doit rester prioritaire.");
 
         manifest.BaseUrl = string.Empty;
         manifest.Files[0].Url = string.Empty;
-        Throws<InvalidOperationException>(
+        Throws<InvalidDataException>(
             () => transfer.BuildFileUri(manifest, manifest.Files[0]),
-            "baseUrl manquant doit conserver l'erreur legacy.");
+            "baseUrl manquant doit être refusé.");
+
+        foreach (string unsafeUrl in new[]
+                 {
+                     "http://animeclub.fr/client.bin",
+                     "file:///C:/client.bin",
+                     "https://user@animeclub.fr/client.bin",
+                     "https://animeclub.fr:444/client.bin",
+                     "https://127.0.0.1/client.bin",
+                     "https://[::1]/client.bin",
+                     "https://localhost/client.bin",
+                     "https://evil.example/client.bin",
+                     "https://animeclub.fr.evil.example/client.bin",
+                     "https://animeclub.fr/client.bin#fragment"
+                 })
+        {
+            manifest.BaseUrl = "https://animeclub.fr/client/";
+            manifest.Files[0].Url = unsafeUrl;
+            Throws<InvalidDataException>(
+                () => transfer.BuildFileUri(manifest, manifest.Files[0]),
+                "Une URL absolue non sûre doit être refusée: " + unsafeUrl);
+        }
+
+        manifest.BaseUrl = "http://animeclub.fr/client/";
+        manifest.Files[0].Url = "files/client.bin";
+        Throws<InvalidDataException>(
+            () => transfer.BuildFileUri(manifest, manifest.Files[0]),
+            "Un baseUrl HTTP doit être refusé.");
+    }
+
+    private static async Task RejectUnsafeInstallRootBeforeManifestOrRegistrationAsync()
+    {
+        using MaintenanceEnvironment environment = new();
+        environment.Platform.PreparationFailure = new InvalidDataException(
+            "unsafe-install-root");
+        environment.SetManifest(Manifest(
+            "must-not-load",
+            FileEntry("Data/client.bin", Encoding.UTF8.GetBytes("payload"))));
+
+        await ThrowsAsync<InvalidDataException>(() => environment.RunAsync(
+            LauncherOperationKind.GameInstall));
+        True(!environment.Events.Contains("manifest-load")
+             && environment.Platform.StopCalls == 0
+             && environment.Platform.RegisterCalls == 0
+             && environment.Store.SaveCalls == 0,
+            "Une racine non sûre doit échouer avant manifeste, téléchargement, cache et registre.");
+    }
+
+    private static async Task RejectInsecureDirectDownloadBeforeRequestAsync()
+    {
+        using TempDirectory temp = new("AtlasTransferInsecureUri");
+        ScriptedDownloadHandler handler = new((_, _, _) => throw new InvalidOperationException("Aucune requête attendue."));
+        using HttpClient http = new(handler);
+        GameFileTransferService transfer = new(http);
+        byte[] payload = Encoding.UTF8.GetBytes("secure-origin-only");
+
+        foreach (string rejected in new[]
+        {
+            "http://animeclub.fr/wotlk/files/client.bin",
+            "https://animeclub.fr:444/wotlk/files/client.bin",
+            "https://user@animeclub.fr/wotlk/files/client.bin",
+            "https://127.0.0.1/client.bin",
+            "https://[::1]/client.bin",
+            "https://localhost/client.bin",
+            "https://evil.example/client.bin",
+            "https://animeclub.fr.evil.example/client.bin"
+        })
+        {
+            await ThrowsAsync<InvalidDataException>(() => transfer.DownloadAsync(
+                1,
+                new Uri(rejected),
+                Path.Combine(temp.Path, "client.bin"),
+                payload.Length,
+                Hash(payload),
+                null,
+                CancellationToken.None));
+        }
+
+        Equal(0, handler.RequestCount,
+            "Schéma, port, userinfo, IP, loopback et hôtes hors liste sont refusés avant toute requête.");
+        True(!File.Exists(Path.Combine(temp.Path, "client.bin")),
+            "Une origine de téléchargement refusée ne doit créer aucun fichier.");
+
+        HttpResponseMessage downgraded = Response(payload);
+        downgraded.RequestMessage = new HttpRequestMessage(
+            HttpMethod.Get,
+            "http://animeclub.fr/wotlk/files/client.bin");
+        handler.Responder = (_, _, _) => downgraded;
+        await ThrowsAsync<InvalidDataException>(() => transfer.DownloadAsync(
+            2,
+            new Uri("https://animeclub.fr/wotlk/files/client.bin"),
+            Path.Combine(temp.Path, "redirected.bin"),
+            payload.Length,
+            Hash(payload),
+            null,
+            CancellationToken.None));
+        True(!File.Exists(Path.Combine(temp.Path, "redirected.bin")),
+            "Un downgrade HTTP après redirection doit être refusé avant écriture.");
+
+        HttpResponseMessage hiddenSameOriginRedirect = Response(payload);
+        hiddenSameOriginRedirect.RequestMessage = new HttpRequestMessage(
+            HttpMethod.Get,
+            "https://animeclub.fr/wotlk/files/another-client.bin");
+        handler.Responder = (_, _, _) => hiddenSameOriginRedirect;
+        await ThrowsAsync<InvalidDataException>(() => transfer.DownloadAsync(
+            2,
+            new Uri("https://animeclub.fr/wotlk/files/client.bin"),
+            Path.Combine(temp.Path, "hidden-redirect.bin"),
+            payload.Length,
+            Hash(payload),
+            null,
+            CancellationToken.None));
+        True(!File.Exists(Path.Combine(temp.Path, "hidden-redirect.bin")),
+            "Une URL finale différente ne peut pas masquer une redirection automatique, même sur le même hôte.");
+
+        int requestsBeforeRedirect = handler.RequestCount;
+        handler.Responder = (_, _, _) => new HttpResponseMessage(HttpStatusCode.Found)
+        {
+            Headers = { Location = new Uri("http://animeclub.fr/wotlk/files/client.bin") }
+        };
+        await ThrowsAsync<HttpRequestException>(() => transfer.DownloadAsync(
+            3,
+            new Uri("https://animeclub.fr/wotlk/files/client.bin"),
+            Path.Combine(temp.Path, "redirect-status.bin"),
+            payload.Length,
+            Hash(payload),
+            null,
+            CancellationToken.None));
+        Equal(
+            requestsBeforeRedirect + 1,
+            handler.RequestCount,
+            "Une réponse 3xx ne doit déclencher aucun second hop HTTP.");
+        True(
+            !File.Exists(Path.Combine(temp.Path, "redirect-status.bin")),
+            "Une réponse 3xx ne doit créer aucun fichier.");
+    }
+
+    private static async Task ValidateManifestResponseSecurityAsync()
+    {
+        LauncherManifest manifest = Manifest(
+            "strict-manifest-v1",
+            FileEntry("Data/client.bin", Encoding.UTF8.GetBytes("manifest-file")));
+        string json = JsonSerializer.Serialize(manifest);
+
+        ScriptedDownloadHandler insecureHandler = new((_, _, _) => throw new InvalidOperationException("Aucune requête attendue."));
+        using (HttpClient insecureHttp = new(insecureHandler))
+        {
+            GameManifestClient insecureClient = new(insecureHttp);
+            foreach (string rejected in new[]
+            {
+                "http://animeclub.fr/wotlk/manifest.json",
+                "https://animeclub.fr:8443/wotlk/manifest.json",
+                "https://user@animeclub.fr/wotlk/manifest.json",
+                "https://127.0.0.1/manifest.json",
+                "https://[::1]/manifest.json",
+                "https://localhost/manifest.json",
+                "https://evil.example/manifest.json",
+                "https://animeclub.fr.evil.example/manifest.json"
+            })
+            {
+                await ThrowsAsync<InvalidDataException>(() => insecureClient.LoadAsync(
+                    rejected,
+                    CancellationToken.None));
+            }
+        }
+        Equal(0, insecureHandler.RequestCount,
+            "Toute origine de manifeste autre que https://animeclub.fr:443 doit être refusée avant le transport.");
+
+        await WithManifestResponseAsync(Response(Encoding.UTF8.GetBytes(json)), async client =>
+        {
+            LauncherManifest loaded = await client.LoadAsync(
+                "https://animeclub.fr/manifest.json",
+                CancellationToken.None);
+            Equal(manifest.Version, loaded.Version, "Un manifeste strict valide doit rester lisible.");
+            return true;
+        });
+
+        string unknown = json[..^1] + ",\"unexpected\":true}";
+        await Reject(Response(Encoding.UTF8.GetBytes(unknown)), "Une propriété inconnue doit être refusée.");
+
+        string duplicate = json.Replace(
+            "\"version\":\"strict-manifest-v1\"",
+            "\"version\":\"strict-manifest-v1\",\"version\":\"shadow\"",
+            StringComparison.Ordinal);
+        await Reject(Response(Encoding.UTF8.GetBytes(duplicate)), "Une propriété dupliquée doit être refusée.");
+
+        HttpResponseMessage redirectedToHttp = Response(Encoding.UTF8.GetBytes(json));
+        redirectedToHttp.RequestMessage = new HttpRequestMessage(
+            HttpMethod.Get,
+            "http://animeclub.fr/wotlk/manifest.json");
+        await Reject(redirectedToHttp, "Un downgrade HTTP du manifeste après redirection doit être refusé.");
+
+        HttpResponseMessage hiddenSameOriginRedirect = Response(Encoding.UTF8.GetBytes(json));
+        hiddenSameOriginRedirect.RequestMessage = new HttpRequestMessage(
+            HttpMethod.Get,
+            "https://animeclub.fr/wotlk/manifest-v2.json");
+        await Reject(hiddenSameOriginRedirect,
+            "Une URL finale différente ne peut pas masquer une redirection automatique du manifeste.");
+
+        ScriptedDownloadHandler redirectHandler = new((_, _, _) => new HttpResponseMessage(HttpStatusCode.Found)
+        {
+            Headers = { Location = new Uri("https://evil.example/manifest.json") }
+        });
+        using (HttpClient redirectHttp = new(redirectHandler))
+        {
+            GameManifestClient redirectClient = new(redirectHttp);
+            await ThrowsAsync<HttpRequestException>(() => redirectClient.LoadAsync(
+                "https://animeclub.fr/wotlk/manifest.json",
+                CancellationToken.None));
+        }
+        Equal(1, redirectHandler.RequestCount,
+            "Une réponse 3xx du manifeste n'est jamais suivie vers sa destination.");
+
+        HttpResponseMessage declaredOversize = Response("{}"u8.ToArray());
+        declaredOversize.Content.Headers.ContentLength = GameManifestValidator.MaximumManifestBytes + 1L;
+        await Reject(declaredOversize, "Une taille de manifeste déclarée excessive doit être refusée avant lecture.");
+
+        byte[] streamedOversize = Enumerable.Repeat((byte)' ', GameManifestValidator.MaximumManifestBytes + 1).ToArray();
+        await Reject(
+            Response(streamedOversize, chunkSize: 64 * 1024, includeContentLength: false),
+            "Un manifeste chunked excessif doit être borné pendant la lecture.");
+
+        LauncherManifest invalidHash = Manifest("invalid-hash", FileEntry("Data/a.bin", []));
+        invalidHash.Files[0].Sha256 = "bad";
+        Throws<InvalidDataException>(() => GameManifestValidator.Validate(invalidHash), "Un SHA-256 invalide doit être refusé.");
+
+        LauncherManifest duplicatePaths = Manifest(
+            "duplicate-paths",
+            FileEntry("Data/a.bin", []),
+            FileEntry("data\\A.bin", []));
+        Throws<InvalidDataException>(() => GameManifestValidator.Validate(duplicatePaths), "Les chemins Windows dupliqués doivent être refusés.");
+
+        LauncherManifest excessiveTotal = Manifest("excessive-total");
+        excessiveTotal.Files = Enumerable.Range(0, 9).Select(index => new LauncherFile
+        {
+            Path = $"Data/file-{index}.bin",
+            Size = GameManifestValidator.MaximumFileBytes,
+            Sha256 = new string('0', 64),
+            Url = string.Empty
+        }).ToList();
+        Throws<InvalidDataException>(() => GameManifestValidator.Validate(excessiveTotal), "La taille totale du manifeste doit être bornée.");
+
+        async Task Reject(HttpResponseMessage response, string message)
+        {
+            Exception error = await WithManifestResponseAsync(response, client => ThrowsAnyAsync(() => client.LoadAsync(
+                "https://animeclub.fr/manifest.json",
+                CancellationToken.None)));
+            True(error is JsonException or InvalidDataException or InvalidOperationException, message);
+        }
+
+        static async Task<T> WithManifestResponseAsync<T>(
+            HttpResponseMessage response,
+            Func<GameManifestClient, Task<T>> action)
+        {
+            ScriptedDownloadHandler handler = new((_, _, _) => response);
+            using HttpClient http = new(handler);
+            GameManifestClient client = new(http);
+            return await action(client);
+        }
     }
 
     private static async Task DownloadCreatesTemporaryFileThenReplacesAsync()
@@ -83,7 +349,7 @@ internal static class GameClientMaintenanceTests
 
         await transfer.DownloadAsync(
             41,
-            new Uri("https://atlas.test/client.bin"),
+            new Uri("https://animeclub.fr/client.bin"),
             target,
             payload.Length,
             Hash(payload),
@@ -116,14 +382,14 @@ internal static class GameClientMaintenanceTests
         InvalidOperationException error = await ThrowsAsync<InvalidOperationException>(() =>
             transfer.DownloadAsync(
                 1,
-                new Uri("https://atlas.test/client.bin"),
+                new Uri("https://animeclub.fr/client.bin"),
                 target,
                 payload.Length + 1,
                 Hash(payload),
                 null,
                 CancellationToken.None));
 
-        True(error.Message.Contains("Taille invalide", StringComparison.Ordinal), "L'erreur de taille legacy doit être conservée.");
+        True(error.Message.Contains("Taille", StringComparison.Ordinal), "L'erreur de taille legacy doit être conservée.");
         True(!File.Exists(target), "Une taille invalide ne doit jamais produire un fichier final.");
         AssertNoTemporaryFiles(temp.Path);
     }
@@ -140,7 +406,7 @@ internal static class GameClientMaintenanceTests
         InvalidOperationException error = await ThrowsAsync<InvalidOperationException>(() =>
             transfer.DownloadAsync(
                 2,
-                new Uri("https://atlas.test/client.bin"),
+                new Uri("https://animeclub.fr/client.bin"),
                 target,
                 payload.Length,
                 new string('0', 64),
@@ -149,6 +415,34 @@ internal static class GameClientMaintenanceTests
 
         True(error.Message.Contains("Hash invalide", StringComparison.Ordinal), "L'erreur SHA-256 legacy doit être conservée.");
         True(!File.Exists(target), "Un hash invalide ne doit jamais produire un fichier final.");
+        AssertNoTemporaryFiles(temp.Path);
+    }
+
+    private static async Task RejectOversizedChunkedDownloadBeforeExcessWriteAsync()
+    {
+        using TempDirectory temp = new("AtlasTransferStreamBound");
+        byte[] expected = Enumerable.Repeat((byte)0x41, 64).ToArray();
+        byte[] oversized = expected.Concat([(byte)0x42]).ToArray();
+        ScriptedDownloadHandler handler = new((_, _, _) =>
+            Response(oversized, chunkSize: expected.Length, includeContentLength: false));
+        using HttpClient http = new(handler);
+        GameFileTransferService transfer = new(http);
+        string target = Path.Combine(temp.Path, "client.bin");
+        List<GameFileTransferProgress> progress = [];
+
+        InvalidOperationException error = await ThrowsAsync<InvalidOperationException>(() => transfer.DownloadAsync(
+            7,
+            new Uri("https://animeclub.fr/client.bin"),
+            target,
+            expected.Length,
+            Hash(expected),
+            progress.Add,
+            CancellationToken.None));
+
+        True(error.Message.Contains("Taille invalide", StringComparison.Ordinal), "Le dépassement chunked doit produire une erreur de taille.");
+        True(progress.Count > 0 && progress.Max(item => item.DownloadedBytes) == expected.Length,
+            "L'octet excédentaire doit être rejeté avant écriture et avant progression.");
+        True(!File.Exists(target), "Un flux excessif ne doit pas produire de fichier final.");
         AssertNoTemporaryFiles(temp.Path);
     }
 
@@ -164,7 +458,7 @@ internal static class GameClientMaintenanceTests
 
         await ThrowsAsync<HttpRequestException>(() => transfer.DownloadAsync(
             3,
-            new Uri("https://atlas.test/client.bin"),
+            new Uri("https://animeclub.fr/client.bin"),
             Path.Combine(temp.Path, "client.bin"),
             payload.Length,
             Hash(payload),
@@ -208,7 +502,7 @@ internal static class GameClientMaintenanceTests
 
         IOException error = await ThrowsAsync<IOException>(() => transfer.DownloadAsync(
             4,
-            new Uri("https://atlas.test/client.bin"),
+            new Uri("https://animeclub.fr/client.bin"),
             target,
             payload.Length,
             Hash(payload),
@@ -232,7 +526,7 @@ internal static class GameClientMaintenanceTests
 
         await ThrowsAsync<OperationCanceledException>(() => transfer.DownloadAsync(
             5,
-            new Uri("https://atlas.test/client.bin"),
+            new Uri("https://animeclub.fr/client.bin"),
             target,
             payload.Length,
             Hash(payload),
@@ -261,7 +555,7 @@ internal static class GameClientMaintenanceTests
 
         await ThrowsAsync<OperationCanceledException>(() => transfer.DownloadAsync(
             6,
-            new Uri("https://atlas.test/client.bin"),
+            new Uri("https://animeclub.fr/client.bin"),
             target,
             payload.Length,
             Hash(payload),
@@ -290,7 +584,7 @@ internal static class GameClientMaintenanceTests
 
         await ThrowsAsync<OperationCanceledException>(() => transfer.DownloadAsync(
             operation.OperationId,
-            new Uri("https://atlas.test/client.bin"),
+            new Uri("https://animeclub.fr/client.bin"),
             Path.Combine(temp.Path, "client.bin"),
             payload.Length,
             Hash(payload),
@@ -428,7 +722,7 @@ internal static class GameClientMaintenanceTests
         using MaintenanceEnvironment environment = new();
         environment.SetManifest(Manifest("empty"));
 
-        InvalidOperationException error = await ThrowsAsync<InvalidOperationException>(() =>
+        InvalidDataException error = await ThrowsAsync<InvalidDataException>(() =>
             environment.RunAsync(LauncherOperationKind.GameInstall));
 
         Equal("Le manifeste ne contient aucun fichier.", error.Message, "Le manifeste vide doit conserver l'erreur legacy.");
@@ -491,7 +785,7 @@ internal static class GameClientMaintenanceTests
             environment.SetManifest(Manifest("unsafe", FileEntry(unsafePath, payload)));
             environment.Downloads.Responder = (_, _, _) => Response(payload);
 
-            await ThrowsAsync<InvalidOperationException>(() =>
+            await ThrowsAsync<InvalidDataException>(() =>
                 environment.RunAsync(LauncherOperationKind.GameInstall));
             Equal(0, environment.Platform.RegisterCalls, "Un chemin refusé ne doit jamais finaliser l'installation.");
             True(!File.Exists(environment.Store.GetPath(environment.Root)), "Un chemin refusé ne doit pas écrire de cache complet.");
@@ -617,7 +911,7 @@ internal static class GameClientMaintenanceTests
         return new LauncherManifest
         {
             Version = version,
-            BaseUrl = "https://atlas.test/client/",
+            BaseUrl = "https://animeclub.fr/client/",
             Files = files.ToList()
         };
     }
@@ -638,7 +932,10 @@ internal static class GameClientMaintenanceTests
         return Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
     }
 
-    private static HttpResponseMessage Response(byte[] content, int? chunkSize = null)
+    private static HttpResponseMessage Response(
+        byte[] content,
+        int? chunkSize = null,
+        bool includeContentLength = true)
     {
         Stream stream = chunkSize is null
             ? new MemoryStream(content, writable: false)
@@ -647,7 +944,10 @@ internal static class GameClientMaintenanceTests
         {
             Content = new StreamContent(stream)
         };
-        response.Content.Headers.ContentLength = content.LongLength;
+        if (includeContentLength)
+        {
+            response.Content.Headers.ContentLength = content.LongLength;
+        }
         return response;
     }
 
@@ -803,7 +1103,7 @@ internal sealed class MaintenanceEnvironment : IDisposable
             fullVerifierOverride);
         Request = new GameClientMaintenanceRequest(
             Root,
-            "https://atlas.test/manifest.json",
+            "https://animeclub.fr/manifest.json",
             "frFR");
     }
 
@@ -907,13 +1207,19 @@ internal sealed class RecordingManifestStore(
 
     public string GetPath(string installRoot) => inner.GetPath(installRoot);
 
-    public LauncherManifest? Load(string installRoot) => inner.Load(installRoot);
+    public LauncherManifest? Load(
+        string installRoot,
+        IGameInstallRootLease? rootLease = null)
+        => inner.Load(installRoot, rootLease);
 
-    public void Save(string installRoot, LauncherManifest manifest)
+    public void Save(
+        string installRoot,
+        LauncherManifest manifest,
+        IGameInstallRootLease? rootLease = null)
     {
         SaveCalls++;
         events.Add("cache-save");
-        inner.Save(installRoot, manifest);
+        inner.Save(installRoot, manifest, rootLease);
     }
 }
 
@@ -925,22 +1231,25 @@ internal sealed class RecordingFileVerifier(
         string installRoot,
         LauncherManifest manifest,
         Action<GameVerificationProgress>? reportProgress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IGameInstallRootLease? rootLease = null)
     {
         events.Add("compare-files");
         return inner.FindMissingOrChangedFilesAsync(
             installRoot,
             manifest,
             reportProgress,
-            cancellationToken);
+            cancellationToken,
+            rootLease);
     }
 
     public IReadOnlyList<string> FindRemovedFiles(
         string installRoot,
-        LauncherManifest manifest)
+        LauncherManifest manifest,
+        IGameInstallRootLease? rootLease = null)
     {
         events.Add("find-removed");
-        return inner.FindRemovedFiles(installRoot, manifest);
+        return inner.FindRemovedFiles(installRoot, manifest, rootLease);
     }
 }
 
@@ -950,18 +1259,24 @@ internal sealed class RecordingCleanupService(
 {
     public IReadOnlyList<string> FindRemovedFiles(
         string installRoot,
-        LauncherManifest manifest)
+        LauncherManifest manifest,
+        IGameInstallRootLease? rootLease = null)
     {
-        return inner.FindRemovedFiles(installRoot, manifest);
+        return inner.FindRemovedFiles(installRoot, manifest, rootLease);
     }
 
     public int DeleteRemovedFiles(
         string installRoot,
         IReadOnlyList<string> relativePaths,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IGameInstallRootLease? rootLease = null)
     {
         events.Add("delete-removed");
-        return inner.DeleteRemovedFiles(installRoot, relativePaths, cancellationToken);
+        return inner.DeleteRemovedFiles(
+            installRoot,
+            relativePaths,
+            cancellationToken,
+            rootLease);
     }
 }
 
@@ -971,9 +1286,32 @@ internal sealed class RecordingInstallPlatform(
 {
     internal Exception? RegistrationFailure { get; set; }
 
+    internal Exception? PreparationFailure { get; set; }
+
     internal int StopCalls { get; private set; }
 
     internal int RegisterCalls { get; private set; }
+
+    public void PrepareInstallRoot(string installRoot)
+    {
+        if (PreparationFailure is not null)
+        {
+            throw PreparationFailure;
+        }
+    }
+
+    public IGameInstallRootLease AcquireInstallRootLease(
+        string installRoot,
+        GameInstallRootLeaseMode mode)
+    {
+        if (PreparationFailure is not null)
+        {
+            throw PreparationFailure;
+        }
+
+        return GameInstallServices.CreateNoOpGameInstallRootLeaseForTests(
+            installRoot);
+    }
 
     public void StopRunningGameProcesses(string installRoot)
     {
@@ -984,7 +1322,8 @@ internal sealed class RecordingInstallPlatform(
     public GameApplicationRegistration RegisterGameApplication(
         string installRoot,
         string clientVersion,
-        string gameLocale)
+        string gameLocale,
+        IGameInstallRootLease? rootLease = null)
     {
         RegisterCalls++;
         events.Add("register-game");
@@ -1009,7 +1348,7 @@ internal sealed class ThrowingFileTransferService(Exception exception) : IGameFi
 {
     public Uri BuildFileUri(LauncherManifest manifest, LauncherFile file)
     {
-        return new Uri("https://atlas.test/failure.bin");
+        return new Uri("https://animeclub.fr/failure.bin");
     }
 
     public Task DownloadAsync(
@@ -1019,7 +1358,8 @@ internal sealed class ThrowingFileTransferService(Exception exception) : IGameFi
         long expectedSize,
         string expectedSha256,
         Action<GameFileTransferProgress>? reportProgress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IGameInstallRootLease? rootLease = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromException(exception);

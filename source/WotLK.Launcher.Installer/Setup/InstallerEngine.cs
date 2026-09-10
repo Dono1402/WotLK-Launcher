@@ -69,6 +69,7 @@ internal sealed class InstallerEngine
     };
 
     private readonly InstallerEnvironment _environment;
+    private readonly InstallerSetupSource _setupSource;
     private readonly IInstallerPayloadSource _payload;
     private readonly InstallerPathValidator _pathValidator;
     private readonly IInstallerRegistry _registry;
@@ -80,6 +81,7 @@ internal sealed class InstallerEngine
 
     internal InstallerEngine(
         InstallerEnvironment environment,
+        InstallerSetupSource setupSource,
         IInstallerPayloadSource payload,
         InstallerPathValidator pathValidator,
         IInstallerRegistry registry,
@@ -89,6 +91,7 @@ internal sealed class InstallerEngine
         IInstallerFaultInjector? faults = null)
     {
         _environment = environment;
+        _setupSource = setupSource;
         _payload = payload;
         _pathValidator = pathValidator;
         _registry = registry;
@@ -102,8 +105,7 @@ internal sealed class InstallerEngine
     {
         get
         {
-            long setupBytes = new FileInfo(_environment.SetupExecutablePath).Length;
-            return checked(_payload.Length + setupBytes + InstallerProduct.FreeSpaceMargin);
+            return checked(_payload.Length + _setupSource.Length + InstallerProduct.FreeSpaceMargin);
         }
     }
 
@@ -113,6 +115,23 @@ internal sealed class InstallerEngine
     internal ExistingInstallation DetectExistingInstallation() => _registry.Detect(
         _environment.DetectionRegistrySubKeys,
         GetFallbackInstallPaths());
+
+    internal bool CanCreateShortcut(string shortcutPath)
+    {
+        try
+        {
+            DemandSecureShortcutParent(shortcutPath);
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException
+            or UnauthorizedAccessException
+            or InvalidDataException
+            or ArgumentException
+            or NotSupportedException)
+        {
+            return false;
+        }
+    }
 
     internal async Task<InstallerInstallResult> InstallAsync(
         InstallerRequest request,
@@ -160,6 +179,14 @@ internal sealed class InstallerEngine
 
             destination = validation.FullPath;
             _environment.DemandAllowedDestination(destination);
+            InstallerPathValidator.DemandNoReparsePoints(destination);
+            if (!InstallerEnvironment.SamePath(
+                    _setupSource.Path,
+                    _environment.SetupExecutablePath))
+            {
+                throw new InvalidOperationException("La source setup verrouillée ne correspond pas à l'exécutable attendu.");
+            }
+
             string launcherPath = Path.Combine(destination, InstallerProduct.LauncherFileName);
             IReadOnlyList<int> running = _processes.FindByExactPath(launcherPath);
             if (running.Count > 0)
@@ -176,8 +203,33 @@ internal sealed class InstallerEngine
             string parent = Path.GetDirectoryName(destination)
                 ?? throw new InvalidOperationException("Le dossier parent de l'installation est invalide.");
             firstExistingParent = FindFirstExistingParent(parent);
-            Directory.CreateDirectory(parent);
+            if (!_environment.IsTest)
+            {
+                if (!Directory.Exists(parent)
+                    || !InstallerEnvironment.SamePath(
+                        parent,
+                        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles)))
+                {
+                    throw new UnauthorizedAccessException(
+                        "Le dossier parent Program Files protégé est introuvable.");
+                }
+
+                InstallerProtectedPathSecurity.DemandTrustedDirectory(parent);
+            }
+            else
+            {
+                Directory.CreateDirectory(parent);
+            }
+
+            InstallerPathValidator.DemandNoReparsePoints(parent);
+            InstallerPathValidator.DemandNoReparsePoints(destination);
             destinationExistedEmpty = Directory.Exists(destination);
+            if (!_environment.IsTest && destinationExistedEmpty)
+            {
+                throw new IOException(
+                    "Le dossier Atlas Launcher existe déjà. Désinstalle l'installation existante avant de continuer.");
+            }
+
             if (destinationExistedEmpty && Directory.EnumerateFileSystemEntries(destination).Any())
             {
                 throw new IOException("Le dossier d'installation n'est plus vide.");
@@ -185,12 +237,14 @@ internal sealed class InstallerEngine
 
             staging = Path.Combine(parent, $".atlas-launcher-staging-{Guid.NewGuid():N}");
             Directory.CreateDirectory(staging);
+            DemandSecureTransactionDirectory(parent, staging);
             Report(progress, InstallerWorkPhase.CreatingDirectory, 5, 0, 0, "Dossier de préparation créé");
             _faults.AfterPhase(InstallerWorkPhase.CreatingDirectory);
+            DemandSecureTransactionDirectory(parent, staging);
 
             string stagedLauncher = Path.Combine(staging, InstallerProduct.LauncherFileName);
             string stagedUninstaller = Path.Combine(staging, InstallerProduct.UninstallerFileName);
-            long setupLength = new FileInfo(_environment.SetupExecutablePath).Length;
+            long setupLength = _setupSource.Length;
             long totalCopyBytes = checked(_payload.Length + setupLength);
             long copiedBytes = 0;
 
@@ -208,13 +262,15 @@ internal sealed class InstallerEngine
             }
 
             copiedBytes = await CopyFileAsync(
-                _environment.SetupExecutablePath,
+                _setupSource.RewindForCopy(),
+                setupLength,
                 stagedUninstaller,
                 copiedBytes,
                 totalCopyBytes,
                 progress,
                 cancellationToken);
             _faults.AfterPhase(InstallerWorkPhase.InstallingFiles);
+            DemandSecureTransactionDirectory(parent, staging);
 
             string finalLauncher = Path.Combine(destination, InstallerProduct.LauncherFileName);
             string finalUninstaller = Path.Combine(destination, InstallerProduct.UninstallerFileName);
@@ -230,7 +286,6 @@ internal sealed class InstallerEngine
                 _environment.StartMenuShortcutPath,
                 _environment.RegistrySubKey,
                 DateTimeOffset.UtcNow,
-                _environment.LogPath,
                 _environment.IsTest);
             string statePath = Path.Combine(staging, InstallerProduct.InstallStateFileName);
             await File.WriteAllTextAsync(
@@ -240,24 +295,34 @@ internal sealed class InstallerEngine
 
             if (destinationExistedEmpty)
             {
+                InstallerPathValidator.DemandNoReparsePoints(destination);
                 Directory.Delete(destination);
             }
 
+            DemandSecureTransactionDirectory(parent, staging);
+            InstallerPathValidator.DemandNoReparsePoints(destination);
             Directory.Move(staging, destination);
             staging = null;
             destinationCommitted = true;
+            DemandSecureCommittedInstallation(destination);
 
             Report(progress, InstallerWorkPhase.CreatingShortcuts, 84, copiedBytes, totalCopyBytes, "Création des raccourcis");
             if (request.CreateDesktopShortcut)
             {
+                DemandSecureCommittedInstallation(destination);
+                DemandSecureShortcutParent(_environment.DesktopShortcutPath);
                 desktopShortcutAttempted = true;
                 _shortcuts.Create(_environment.DesktopShortcutPath, finalLauncher, destination);
+                DemandSecureShortcutParent(_environment.DesktopShortcutPath);
             }
 
             if (request.CreateStartMenuShortcut)
             {
+                DemandSecureCommittedInstallation(destination);
+                DemandSecureShortcutParent(_environment.StartMenuShortcutPath);
                 startMenuShortcutAttempted = true;
                 _shortcuts.Create(_environment.StartMenuShortcutPath, finalLauncher, destination);
+                DemandSecureShortcutParent(_environment.StartMenuShortcutPath);
             }
 
             _faults.AfterPhase(InstallerWorkPhase.CreatingShortcuts);
@@ -267,6 +332,7 @@ internal sealed class InstallerEngine
             long estimatedKiB = Math.Max(1, (installedBytes + 1023) / 1024);
             Report(progress, InstallerWorkPhase.RegisteringWindows, 94, copiedBytes, totalCopyBytes, "Enregistrement dans Windows");
             registryWriteAttempted = true;
+            DemandSecureCommittedInstallation(destination);
             _registry.Register(new InstalledApplicationRegistration(
                 _environment.RegistrySubKey,
                 destination,
@@ -327,6 +393,9 @@ internal sealed class InstallerEngine
         CancellationToken cancellationToken)
     {
         string partial = targetPath + ".partial";
+        InstallerPathValidator.DemandNoReparsePoints(
+            Path.GetDirectoryName(partial)
+            ?? throw new InvalidDataException("Dossier de préparation absent."));
         byte[] buffer = new byte[1024 * 1024];
         long payloadBytes = 0;
         using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -364,13 +433,17 @@ internal sealed class InstallerEngine
                 "Le payload Atlas Launcher embarqué n'a pas passé la validation SHA-256.");
         }
 
+        InstallerPathValidator.DemandNoReparsePoints(
+            Path.GetDirectoryName(targetPath)
+            ?? throw new InvalidDataException("Dossier de préparation absent."));
         File.Move(partial, targetPath);
         _log.Info($"Payload validé : {payloadBytes} octets, SHA-256 {actualHash}.");
         return alreadyCopied + payloadBytes;
     }
 
     private static async Task<long> CopyFileAsync(
-        string sourcePath,
+        Stream source,
+        long expectedLength,
         string targetPath,
         long alreadyCopied,
         long totalCopyBytes,
@@ -378,15 +451,11 @@ internal sealed class InstallerEngine
         CancellationToken cancellationToken)
     {
         string partial = targetPath + ".partial";
+        InstallerPathValidator.DemandNoReparsePoints(
+            Path.GetDirectoryName(partial)
+            ?? throw new InvalidDataException("Dossier de préparation absent."));
         byte[] buffer = new byte[1024 * 1024];
         long fileBytes = 0;
-        await using FileStream source = new(
-            sourcePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            buffer.Length,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
         await using (FileStream output = new(
             partial,
             FileMode.CreateNew,
@@ -412,13 +481,79 @@ internal sealed class InstallerEngine
             output.Flush(flushToDisk: true);
         }
 
-        if (fileBytes != source.Length)
+        if (fileBytes != expectedLength)
         {
             throw new InvalidDataException("La copie du désinstalleur est incomplète.");
         }
 
+        InstallerPathValidator.DemandNoReparsePoints(
+            Path.GetDirectoryName(targetPath)
+            ?? throw new InvalidDataException("Dossier de préparation absent."));
         File.Move(partial, targetPath);
         return alreadyCopied + fileBytes;
+    }
+
+    private void DemandSecureTransactionDirectory(string parent, string staging)
+    {
+        InstallerPathValidator.DemandNoReparsePoints(parent);
+        InstallerPathValidator.DemandNoReparsePoints(staging);
+        if (_environment.IsTest)
+        {
+            return;
+        }
+
+        InstallerProtectedPathSecurity.DemandTrustedDirectory(parent);
+        InstallerProtectedPathSecurity.DemandTrustedDirectory(staging);
+    }
+
+    private void DemandSecureCommittedInstallation(string destination)
+    {
+        InstallerPathValidator.DemandNoReparsePoints(destination);
+        if (_environment.IsTest)
+        {
+            return;
+        }
+
+        InstallerProtectedPathSecurity.DemandTrustedDirectory(destination);
+        InstallerProtectedPathSecurity.DemandTrustedFile(
+            Path.Combine(destination, InstallerProduct.LauncherFileName));
+        InstallerProtectedPathSecurity.DemandTrustedFile(
+            Path.Combine(destination, InstallerProduct.UninstallerFileName));
+        InstallerProtectedPathSecurity.DemandTrustedFile(
+            Path.Combine(destination, InstallerProduct.InstallStateFileName));
+    }
+
+    private void DemandSecureShortcutParent(string shortcutPath)
+    {
+        InstallerPathValidator.DemandNoReparsePoints(shortcutPath);
+        if (_environment.IsTest)
+        {
+            return;
+        }
+
+        string expected = InstallerEnvironment.SamePath(
+            shortcutPath,
+            InstallerProduct.GetDesktopShortcutPath())
+            ? InstallerProduct.GetDesktopShortcutPath()
+            : InstallerProduct.GetStartMenuShortcutPath();
+        if (!InstallerEnvironment.SamePath(shortcutPath, expected))
+        {
+            throw new UnauthorizedAccessException("Le chemin du raccourci par machine n'est pas valide.");
+        }
+
+        string parent = Path.GetDirectoryName(shortcutPath)
+            ?? throw new InvalidDataException("Le dossier du raccourci est absent.");
+        string existing = FindFirstExistingParent(parent);
+        InstallerProtectedPathSecurity.DemandTrustedDirectory(existing);
+        if (Directory.Exists(parent))
+        {
+            InstallerProtectedPathSecurity.DemandTrustedDirectory(parent);
+        }
+
+        if (File.Exists(shortcutPath))
+        {
+            InstallerProtectedPathSecurity.DemandTrustedFile(shortcutPath);
+        }
     }
 
     private void Rollback(
@@ -550,12 +685,26 @@ internal sealed class InstallerEngine
             return;
         }
 
-        foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+        if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
         {
-            File.SetAttributes(file, FileAttributes.Normal);
+            Directory.Delete(path);
+            return;
         }
 
-        Directory.Delete(path, recursive: true);
+        foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.TopDirectoryOnly))
+        {
+            File.Delete(file);
+        }
+
+        foreach (string directory in Directory.EnumerateDirectories(
+                     path,
+                     "*",
+                     SearchOption.TopDirectoryOnly))
+        {
+            DeleteDirectoryTree(directory);
+        }
+
+        Directory.Delete(path);
     }
 
     private static void TryRollback(Action action, ICollection<Exception> errors)
@@ -570,9 +719,26 @@ internal sealed class InstallerEngine
         }
     }
 
-    private static long CalculateDirectorySize(string path) =>
-        Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories)
+    private static long CalculateDirectorySize(string path)
+    {
+        if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+        {
+            return 0;
+        }
+
+        long size = Directory.EnumerateFiles(path, "*", SearchOption.TopDirectoryOnly)
+            .Where(file => (File.GetAttributes(file) & FileAttributes.ReparsePoint) == 0)
             .Sum(file => new FileInfo(file).Length);
+        foreach (string directory in Directory.EnumerateDirectories(
+                     path,
+                     "*",
+                     SearchOption.TopDirectoryOnly))
+        {
+            size = checked(size + CalculateDirectorySize(directory));
+        }
+
+        return size;
+    }
 
     private IEnumerable<string> GetFallbackInstallPaths()
     {

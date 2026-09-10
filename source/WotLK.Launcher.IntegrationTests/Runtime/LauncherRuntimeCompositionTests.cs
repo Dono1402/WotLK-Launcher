@@ -309,6 +309,7 @@ internal sealed class RuntimeCompositionSelfUpdateFinalizer : ILauncherSelfUpdat
         long expectedSize,
         string expectedSha256,
         string authenticatedTargetVersion,
+        LauncherUpdateManifest authenticatedManifest,
         int parentProcessId,
         CancellationToken cancellationToken) =>
         throw new InvalidOperationException("Aucun handoff self-update n'est attendu.");
@@ -318,10 +319,15 @@ internal sealed class TemporaryClient : IDisposable
 {
     internal TemporaryClient()
     {
+        string? volumeRoot = Path.GetPathRoot(Path.GetFullPath(AppContext.BaseDirectory));
+        if (string.IsNullOrWhiteSpace(volumeRoot))
+        {
+            throw new InvalidOperationException("Racine de volume de test introuvable.");
+        }
+
         Root = Path.Combine(
-            Path.GetTempPath(),
-            "AtlasRuntimeComposition",
-            Guid.NewGuid().ToString("N"));
+            volumeRoot,
+            "AtlasRuntimeComposition-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Root);
         Settings = new LauncherSettings
         {

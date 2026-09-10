@@ -1,10 +1,9 @@
-using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
-using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using WotLK.Launcher.Server;
 using WotLK.Launcher.Server.Avatars;
@@ -72,6 +71,13 @@ if (!Regex.IsMatch(options.WorldDatabaseName, "^[A-Za-z0-9_]{1,64}$", RegexOptio
 if (!string.IsNullOrWhiteSpace(options.PlayerbotsDatabaseName)
     && !Regex.IsMatch(options.PlayerbotsDatabaseName, "^[A-Za-z0-9_]{1,64}\\z", RegexOptions.CultureInvariant))
     throw new InvalidOperationException("LauncherServer:PlayerbotsDatabaseName est invalide.");
+if (options.AccessTokenMinutes <= 0
+    || options.RefreshTokenDays <= 0
+    || (long)options.AccessTokenMinutes > (long)options.RefreshTokenDays * 24 * 60)
+{
+    throw new InvalidOperationException(
+        "Les durees de jeton exigent 0 < AccessTokenMinutes <= RefreshTokenDays.");
+}
 
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<TokenService>();
@@ -99,18 +105,13 @@ builder.Services.AddHttpClient<BrevoEmailClient>(client =>
 });
 builder.Services.AddTransient<EmailVerificationService>();
 builder.Services.AddAtlasAvatarBackend(options);
-builder.Services.AddRateLimiter(rateLimiter =>
-{
-    rateLimiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    rateLimiter.AddFixedWindowLimiter("auth", limiter =>
-    {
-        limiter.PermitLimit = 10;
-        limiter.Window = TimeSpan.FromMinutes(1);
-        limiter.QueueLimit = 0;
-    });
-});
+builder.Services.Configure<ForwardedHeadersOptions>(
+    AuthenticationRateLimiting.ConfigureForwardedHeaders);
+builder.Services.AddAtlasAuthenticationRateLimiting();
 
 WebApplication app = builder.Build();
+app.UseForwardedHeaders();
+app.UseAtlasAuthenticationRequestBodyLimits();
 app.UseRateLimiter();
 
 LauncherDatabase database = app.Services.GetRequiredService<LauncherDatabase>();
@@ -130,13 +131,15 @@ app.MapPost("/api/v1/accounts", async (
     EmailVerificationService emailVerification,
     CancellationToken cancellationToken) =>
 {
-    string? validation = ValidateRegistration(request);
-    if (validation is not null)
-        return Results.BadRequest(new { error = validation });
+    AuthenticationResponseHeaders.Apply(context.Response);
+    if (AuthenticationInputValidation.Registration(request) is { } rejection)
+        return rejection.ToResult();
+    string? deviceName = context.Request.Headers["X-Atlas-Device"].FirstOrDefault();
+    if (AuthenticationInputValidation.DeviceName(deviceName) is { } deviceRejection)
+        return deviceRejection.ToResult();
 
     try
     {
-        string? deviceName = context.Request.Headers["X-Atlas-Device"].FirstOrDefault();
         AuthResponse response = await db.RegisterAsync(
             request, deviceName, cancellationToken);
         await emailVerification.SendAsync(
@@ -148,59 +151,64 @@ app.MapPost("/api/v1/accounts", async (
     {
         return Results.Conflict(new { error = ex.Message });
     }
-}).RequireRateLimiting("auth");
+}).RequireRateLimiting(AuthenticationRateLimiting.Registration);
 
 app.MapPost("/api/v1/auth/login", async (
     LoginRequest request,
+    HttpContext context,
     LauncherDatabase db,
     CancellationToken cancellationToken) =>
 {
+    AuthenticationResponseHeaders.Apply(context.Response);
+    if (AuthenticationInputValidation.Login(request) is { } rejection)
+        return rejection.ToResult();
+
     AtlasLoginResult result = await db.LoginAsync(request, cancellationToken);
     return AuthenticationEndpointResults.FromLogin(result);
-}).RequireRateLimiting("auth");
+}).RequireRateLimiting(AuthenticationRateLimiting.Login);
 
 app.MapPost("/api/v1/auth/refresh", async (
-    RefreshRequest request,
+    RefreshRequest? request,
+    HttpContext context,
     LauncherDatabase db,
+    HermesTicketClient hermes,
     CancellationToken cancellationToken) =>
 {
-    AuthResponse? response = await db.RefreshAsync(request.RefreshToken, cancellationToken);
-    return response is null
-        ? Results.Unauthorized()
-        : Results.Ok(response);
-}).RequireRateLimiting("auth");
+    AuthenticationResponseHeaders.Apply(context.Response);
+    if (AuthenticationInputValidation.Refresh(request, out string refreshToken)
+        is { } rejection)
+    {
+        return rejection.ToResult();
+    }
+
+    LauncherDatabase.RefreshSessionResult result =
+        await db.RefreshSessionAsync(refreshToken, cancellationToken);
+    return await AuthenticationEndpointResults.FromRefreshAsync(
+        result,
+        username => TryRevokeHermesAsync(hermes, username));
+}).RequireRateLimiting(AuthenticationRateLimiting.Refresh);
 
 app.MapPost("/api/v1/auth/logout", async (
+    LogoutRequest? request,
     HttpContext context,
     LauncherDatabase db,
     HermesTicketClient hermes,
     CancellationToken cancellationToken) =>
 {
     string? token = ReadBearer(context);
-    if (token is null)
+    AuthenticationInputValidation.Logout(request, out string? refreshToken);
+    LauncherDatabase.LogoutSessionResult? result = await db.LogoutSessionAsync(
+        token,
+        refreshToken,
+        cancellationToken);
+    if (result is null)
         return Results.Unauthorized();
 
-    AuthenticatedAccount? account =
-        await AuthenticateAsync(context, db, cancellationToken);
-    if (account is null)
-        return Results.Unauthorized();
-
-    await db.LogoutAsync(token, cancellationToken);
-    try
-    {
-        await hermes.RevokeAsync(account.Username, cancellationToken);
-    }
-    catch (HttpRequestException)
-    {
-        // Launcher logout must still succeed if Hermes is temporarily unavailable.
-    }
-    catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
-    {
-        // An internal Hermes timeout must not keep the local launcher session alive.
-    }
+    if (result.RevokedNow)
+        await TryRevokeHermesAsync(hermes, result.Username);
 
     return Results.NoContent();
-});
+}).RequireRateLimiting(AuthenticationRateLimiting.Logout);
 
 app.MapGet("/api/v1/me", async (
     HttpContext context,
@@ -223,14 +231,14 @@ app.MapPatch("/api/v1/me/email", async (
     AuthenticatedAccount? account = await AuthenticateAsync(context, db, cancellationToken);
     if (account is null)
         return Results.Unauthorized();
-    if (!new EmailAddressAttribute().IsValid(request.Email))
-        return Results.BadRequest(new { error = "Adresse e-mail invalide." });
+    if (AuthenticationInputValidation.ChangeEmail(request) is { } rejection)
+        return rejection.ToResult();
 
     try
     {
         AccountProfile profile = await db.ChangeEmailAsync(
             account.AccountId,
-            request.Email,
+            request.Email!,
             cancellationToken);
         EmailVerificationDispatchResult delivery =
             await emailVerification.SendAsync(
@@ -258,10 +266,10 @@ app.MapPatch("/api/v1/me/email", async (
     {
         return Results.Conflict(new { error = "Cette adresse e-mail est déjà utilisée." });
     }
-});
+}).RequireRateLimiting(AuthenticationRateLimiting.ProfileMutation);
 
 app.MapPatch("/api/v1/me/social-profile", async (
-    UpdateSocialProfileRequest request,
+    UpdateSocialProfileRequest? request,
     HttpContext context,
     LauncherDatabase db,
     CancellationToken cancellationToken) =>
@@ -270,12 +278,13 @@ app.MapPatch("/api/v1/me/social-profile", async (
     if (account is null)
         return Results.Unauthorized();
 
-    string statusMessage = request.StatusMessage?.Trim() ?? string.Empty;
-    string bio = request.Bio?.Trim() ?? string.Empty;
-    if (statusMessage.Length > 80)
-        return Results.BadRequest(new { error = "Le statut ne peut pas dépasser 80 caractères." });
-    if (bio.Length > 280)
-        return Results.BadRequest(new { error = "La bio ne peut pas dépasser 280 caractères." });
+    if (AuthenticationInputValidation.SocialProfile(
+            request,
+            out string statusMessage,
+            out string bio) is { } rejection)
+    {
+        return rejection.ToResult();
+    }
 
     if (!db.SocialProfilesAvailable)
     {
@@ -289,7 +298,7 @@ app.MapPatch("/api/v1/me/social-profile", async (
         statusMessage,
         bio,
         cancellationToken));
-}).RequireRateLimiting("auth");
+}).RequireRateLimiting(AuthenticationRateLimiting.ProfileMutation);
 
 app.MapPost("/api/v1/me/email/resend", async (
     HttpContext context,
@@ -340,7 +349,7 @@ app.MapPost("/api/v1/me/email/resend", async (
             },
             statusCode: StatusCodes.Status502BadGateway)
     };
-}).RequireRateLimiting("auth");
+}).RequireRateLimiting(AuthenticationRateLimiting.EmailDispatch);
 
 app.MapGet("/api/v1/email/verify", (
     string? token,
@@ -363,7 +372,7 @@ app.MapGet("/api/v1/email/verify", (
             serverOptions.PublicBaseUrl),
         "text/html; charset=utf-8",
         Encoding.UTF8);
-}).RequireRateLimiting("auth");
+}).RequireRateLimiting(AuthenticationRateLimiting.EmailVerification);
 
 app.MapPost("/api/v1/email/verify", async (
     HttpContext context,
@@ -371,8 +380,7 @@ app.MapPost("/api/v1/email/verify", async (
     CancellationToken cancellationToken) =>
 {
     SetVerificationPageHeaders(context);
-    if (!context.Request.HasFormContentType
-        || context.Request.ContentLength > 4096)
+    if (!AuthenticationInputValidation.IsBoundedEmailVerificationForm(context.Request))
     {
         return Results.Content(
             EmailVerificationPages.Invalid(),
@@ -410,30 +418,41 @@ app.MapPost("/api/v1/email/verify", async (
         "text/html; charset=utf-8",
         Encoding.UTF8,
         statusCode);
-}).RequireRateLimiting("auth");
+}).RequireRateLimiting(AuthenticationRateLimiting.EmailVerification);
 
 app.MapPost("/api/v1/me/password", async (
     ChangePasswordRequest request,
     HttpContext context,
     LauncherDatabase db,
+    HermesTicketClient hermes,
     CancellationToken cancellationToken) =>
 {
+    AuthenticationResponseHeaders.Apply(context.Response);
+    string? token = ReadBearer(context);
+    if (token is null)
+        return Results.Unauthorized();
+
     AuthenticatedAccount? account = await AuthenticateAsync(context, db, cancellationToken);
     if (account is null)
         return Results.Unauthorized();
-    if (request.NewPassword.Length is < 10 or > 128)
-        return Results.BadRequest(new { error = "Le nouveau mot de passe doit contenir entre 10 et 128 caractères." });
+    if (AuthenticationInputValidation.Password(request) is { } rejection)
+        return rejection.ToResult();
 
-    bool changed = await db.ChangePasswordAsync(
+    AuthResponse? response = await db.ChangePasswordAsync(
         account.AccountId,
+        token,
         request.CurrentPassword,
         request.NewPassword,
         cancellationToken);
-    return changed ? Results.NoContent() : Results.Unauthorized();
-}).RequireRateLimiting("auth");
+    if (response is null)
+        return Results.Unauthorized();
+
+    await TryRevokeHermesAsync(hermes, account.Username);
+    return Results.Ok(response);
+}).RequireRateLimiting(AuthenticationRateLimiting.Password);
 
 app.MapPatch("/api/v1/me/avatar", async (
-    ChangeAvatarRequest request,
+    ChangeAvatarRequest? request,
     HttpContext context,
     LauncherDatabase db,
     CancellationToken cancellationToken) =>
@@ -442,18 +461,17 @@ app.MapPatch("/api/v1/me/avatar", async (
     if (account is null)
         return Results.Unauthorized();
 
-    string? avatarKey = string.IsNullOrWhiteSpace(request.AvatarKey)
-        ? null
-        : request.AvatarKey.Trim().ToLowerInvariant();
-    string[] allowed = ["gold", "ice", "emerald", "crimson"];
-    if (avatarKey is not null && !allowed.Contains(avatarKey, StringComparer.Ordinal))
-        return Results.BadRequest(new { error = "Avatar inconnu." });
+    if (AuthenticationInputValidation.Avatar(request, out string? avatarKey)
+        is { } rejection)
+    {
+        return rejection.ToResult();
+    }
 
     return Results.Ok(await db.ChangeAvatarAsync(
         account.AccountId,
         avatarKey,
         cancellationToken));
-});
+}).RequireRateLimiting(AuthenticationRateLimiting.ProfileMutation);
 
 app.MapGet("/api/v1/me/sessions", async (
     HttpContext context,
@@ -488,7 +506,7 @@ app.MapDelete("/api/v1/me/sessions/{sessionId}", async (
         cancellationToken)
         ? Results.NoContent()
         : Results.NotFound();
-});
+}).RequireRateLimiting(AuthenticationRateLimiting.ProfileMutation);
 
 app.MapGet("/api/v1/friends", async (
     HttpContext context,
@@ -511,9 +529,8 @@ app.MapPost("/api/v1/friends/requests", async (
     if (account is null)
         return Results.Unauthorized();
 
-    string username = request.Username.Trim();
-    if (username.Length is < 2 or > 32)
-        return Results.BadRequest(new { error = "Saisis un nom d'utilisateur Atlas valide." });
+    if (AuthenticationInputValidation.Friend(request, out string username) is { } rejection)
+        return rejection.ToResult();
 
     FriendRequestResult result = await db.SendFriendRequestAsync(
         account.AccountId,
@@ -547,7 +564,7 @@ app.MapPost("/api/v1/friends/requests", async (
         }),
         _ => Results.BadRequest()
     };
-}).RequireRateLimiting("auth");
+}).RequireRateLimiting(AuthenticationRateLimiting.Friendship);
 
 app.MapPost("/api/v1/friends/{friendAccountId:int}/accept", async (
     uint friendAccountId,
@@ -564,7 +581,7 @@ app.MapPost("/api/v1/friends/{friendAccountId:int}/accept", async (
         friendAccountId,
         cancellationToken);
     return accepted ? Results.NoContent() : Results.NotFound();
-}).RequireRateLimiting("auth");
+}).RequireRateLimiting(AuthenticationRateLimiting.Friendship);
 
 app.MapDelete("/api/v1/friends/{friendAccountId:int}", async (
     uint friendAccountId,
@@ -581,7 +598,7 @@ app.MapDelete("/api/v1/friends/{friendAccountId:int}", async (
         friendAccountId,
         cancellationToken);
     return removed ? Results.NoContent() : Results.NotFound();
-});
+}).RequireRateLimiting(AuthenticationRateLimiting.Friendship);
 
 app.MapGet("/api/v1/status", async (
     HttpContext context,
@@ -608,7 +625,7 @@ app.MapPost("/api/v1/game-ticket", async (
     return account is null
         ? Results.Unauthorized()
         : Results.Ok(await hermes.CreateAsync(account, cancellationToken));
-}).RequireRateLimiting("auth");
+}).RequireRateLimiting(AuthenticationRateLimiting.GameTicket);
 
 app.MapGet("/manifest.json", async (
     HttpContext context,
@@ -685,6 +702,24 @@ app.MapGet("/addons/packages/{**relativePath}", async (
 
 app.Run();
 
+static async Task TryRevokeHermesAsync(
+    HermesTicketClient hermes,
+    string username)
+{
+    try
+    {
+        await hermes.RevokeAsync(username, CancellationToken.None);
+    }
+    catch (HttpRequestException)
+    {
+        // The authoritative launcher-session revocation has already committed.
+    }
+    catch (TaskCanceledException)
+    {
+        // The Hermes client has its own short timeout.
+    }
+}
+
 static async Task<IResult> GetPatchNotesAsync(
     HttpContext context,
     LauncherDatabase db,
@@ -739,17 +774,6 @@ static async Task<AuthenticatedAccount?> AuthenticateAsync(
 
 static string? ReadBearer(HttpContext context)
     => AtlasRequestAuthentication.ReadBearer(context);
-
-static string? ValidateRegistration(RegisterRequest request)
-{
-    if (!Regex.IsMatch(request.Username.Trim(), "^[A-Za-z0-9_]{3,20}$"))
-        return "Le nom d'utilisateur doit contenir 3 à 20 lettres, chiffres ou underscores.";
-    if (!new EmailAddressAttribute().IsValid(request.Email))
-        return "Adresse e-mail invalide.";
-    if (request.Password.Length is < 10 or > 128)
-        return "Le mot de passe doit contenir entre 10 et 128 caractères.";
-    return null;
-}
 
 static string? ResolveUnderRoot(string root, string relativePath)
 {

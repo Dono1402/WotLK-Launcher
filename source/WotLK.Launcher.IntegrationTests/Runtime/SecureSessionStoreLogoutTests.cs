@@ -62,6 +62,32 @@ internal static class SecureSessionStoreLogoutTests
             SecureSessionStore.Clear(lockedPath);
             Check(!File.Exists(lockedPath), "Clearing succeeds after the exclusive lock is released.");
 
+            string oversizedPath = Path.Combine(root, "oversized.bin");
+            await File.WriteAllBytesAsync(oversizedPath, new byte[SecureSessionStore.MaxProtectedSessionBytes + 1]);
+            Check(SecureSessionStore.Load(oversizedPath) is null,
+                "An oversized encrypted session is rejected before DPAPI or JSON parsing.");
+            Check(File.Exists(oversizedPath) && new FileInfo(oversizedPath).Length == 0,
+                "Rejecting an oversized encrypted session invalidates the same open file without a path race.");
+
+            string corruptPath = Path.Combine(root, "corrupt.bin");
+            await File.WriteAllBytesAsync(corruptPath, syntheticSession);
+            Check(SecureSessionStore.Load(corruptPath) is null
+                  && File.Exists(corruptPath)
+                  && new FileInfo(corruptPath).Length == 0,
+                "A DPAPI-invalid session is invalidated through the same stable handle.");
+
+            string roundTripPath = Path.Combine(root, "round-trip.bin");
+            StoredLauncherSession expected = new(
+                "atl_refresh-" + new string('A', 43),
+                DateTimeOffset.UtcNow.AddDays(1));
+            SecureSessionStore.Save(expected, roundTripPath);
+            StoredLauncherSession? restored = SecureSessionStore.Load(roundTripPath);
+            Check(restored == expected,
+                "Atomic DPAPI persistence round-trips through the path-specific test seam.");
+            SecureSessionStore.Clear(roundTripPath);
+            Check(!File.Exists(roundTripPath),
+                "The inter-process store lock also protects the normal clear path.");
+
             Console.WriteLine($"Secure session logout PASS: {assertions} assertions; synthetic temporary files only, no real session or SSO registry accessed.");
             return 0;
         }

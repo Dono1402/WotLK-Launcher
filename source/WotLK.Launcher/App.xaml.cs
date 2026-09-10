@@ -38,6 +38,29 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (e.Args.Length > 0
+            && string.Equals(
+                e.Args[0],
+                GameInstallServices.GameUninstallCleanupArgument,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            base.OnStartup(e);
+            Shutdown(GameInstallServices.RunGameUninstallCleanup(e.Args));
+            return;
+        }
+
+        if (LauncherUpdateCommandLine.TryParseBootstrap(
+                e.Args,
+                out string bootstrapTransactionPath,
+                out int bootstrapRequesterProcessId))
+        {
+            base.OnStartup(e);
+            Shutdown(LauncherUpdateBootstrapRunner.Run(
+                bootstrapTransactionPath,
+                bootstrapRequesterProcessId));
+            return;
+        }
+
         if (LauncherUpdateCommandLine.TryParseHelper(
                 e.Args,
                 out bool recovery,
@@ -70,14 +93,33 @@ public partial class App : Application
             gate!.ActivationRequested += SingleInstanceGate_ActivationRequested;
         }
 
-        LauncherUpdateStartupSession? updateStartup = startupMode is
-            LauncherStartupMode.Legacy or LauncherStartupMode.UiV2
-                ? LauncherUpdateStartupSession.Begin(
-                    e.Args,
-                    recoverInterruptedTransactions: true)
-                : null;
+        LauncherUpdateStartupSession? updateStartup = null;
+        GameUninstallMigrationResult? gameUninstallMigration = null;
+        if (startupMode is LauncherStartupMode.Legacy or LauncherStartupMode.UiV2)
+        {
+            updateStartup = LauncherUpdateStartupSession.Begin(
+                e.Args,
+                recoverInterruptedTransactions: true);
+            _ = TryRunGameUninstallMigrationForFinalLauncher(
+                updateStartup.HasPendingTransactions,
+                neutralizeGameUninstaller: () => gameUninstallMigration =
+                    GameInstallServices
+                        .NeutralizeRegisteredGameUninstallerForPendingUpdateAtStartup(),
+                migrateGameUninstaller: () => gameUninstallMigration =
+                    GameInstallServices.MigrateRegisteredGameUninstallerAtStartup());
+        }
 
         base.OnStartup(e);
+
+        if (gameUninstallMigration?.Status
+            == GameUninstallMigrationStatus.Neutralized)
+        {
+            MessageBox.Show(
+                "L'ancienne entrée de désinstallation WotLK a été désactivée pendant la finalisation du launcher. Elle sera recréée depuis le binaire final au prochain démarrage normal si la preuve locale peut être validée; sinon une réparation locale sera nécessaire.",
+                "Réparation de la désinstallation WotLK requise",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
 
         if (startupMode == LauncherStartupMode.InvalidArguments)
         {
@@ -127,6 +169,23 @@ public partial class App : Application
             () => StartLegacy(updateStartup, startMinimized),
             () => StartRuntimeV2(updateStartup, startMinimized),
             previewMode => StartV2Preview(previewMode, e.Args));
+    }
+
+    internal static bool TryRunGameUninstallMigrationForFinalLauncher(
+        bool hasPendingUpdateTransaction,
+        Action neutralizeGameUninstaller,
+        Action migrateGameUninstaller)
+    {
+        ArgumentNullException.ThrowIfNull(neutralizeGameUninstaller);
+        ArgumentNullException.ThrowIfNull(migrateGameUninstaller);
+        if (hasPendingUpdateTransaction)
+        {
+            neutralizeGameUninstaller();
+            return false;
+        }
+
+        migrateGameUninstaller();
+        return true;
     }
 
     internal static LauncherStartupMode ResolveStartupMode(IEnumerable<string> arguments)

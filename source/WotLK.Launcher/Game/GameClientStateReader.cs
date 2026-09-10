@@ -26,27 +26,95 @@ internal sealed class GameClientStateReader
             GameUpdateKnowledge.Unknown);
     }
 
-    internal string? ReadInstalledVersion(string installPath)
+    internal string? ReadInstalledVersion(
+        string installPath,
+        IGameInstallRootLease? rootLease = null)
     {
-        string markerPath = Path.Combine(installPath, GameInstallServices.ClientMarkerFileName);
-        if (!File.Exists(markerPath))
+        if (rootLease is not null)
         {
-            return null;
+            installPath = GameInstallServices.DemandLeaseMatchesGameRoot(
+                installPath,
+                rootLease);
+        }
+
+        string markerPath = Path.Combine(installPath, GameInstallServices.ClientMarkerFileName);
+        IGameInstallReadLease? readLease = null;
+        FileStream? standalone = null;
+        if (rootLease is not null)
+        {
+            using IGameInstallDirectoryLease rootDirectory = rootLease.AcquireDirectory(
+                installPath,
+                createIfMissing: false);
+            rootDirectory.DemandChildFileSafe(markerPath, allowMissing: true);
+            if (!File.Exists(markerPath))
+            {
+                return null;
+            }
+
+            readLease = rootLease.OpenFileForRead(markerPath);
+        }
+        else
+        {
+            try
+            {
+                standalone = new FileStream(
+                    markerPath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read,
+                    bufferSize: 16 * 1024,
+                    FileOptions.SequentialScan);
+            }
+            catch (Exception exception) when (exception is IOException
+                                               or UnauthorizedAccessException)
+            {
+                return null;
+            }
         }
 
         try
         {
-            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(markerPath));
+            Stream source = readLease?.Stream ?? standalone!;
+            if (source.Length is <= 0 or > GameInstallServices.MaximumInstallMarkerBytes)
+            {
+                return null;
+            }
+
+            using JsonDocument document = JsonDocument.Parse(
+                source,
+                new JsonDocumentOptions
+                {
+                    AllowTrailingCommas = false,
+                    CommentHandling = JsonCommentHandling.Disallow,
+                    MaxDepth = 16
+                });
+            BoundedJsonHttpContent.RejectDuplicateProperties(
+                document.RootElement,
+                "Le marqueur local du client WotLK");
             if (!document.RootElement.TryGetProperty("clientVersion", out JsonElement versionElement))
             {
                 return null;
             }
 
-            return versionElement.GetString();
+            string? version = versionElement.ValueKind == JsonValueKind.String
+                ? versionElement.GetString()
+                : null;
+            return version is { Length: > 0 and <= 128 }
+                   && !version.Any(char.IsControl)
+                ? version
+                : null;
         }
-        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is JsonException
+                                      or InvalidDataException
+                                      or IOException
+                                      or UnauthorizedAccessException)
         {
             return null;
+        }
+        finally
+        {
+            readLease?.Dispose();
+            standalone?.Dispose();
         }
     }
 }

@@ -7,15 +7,25 @@ namespace WotLK.Launcher.Installer.Setup;
 internal sealed partial class InstallerLog : IDisposable
 {
     private readonly object _gate = new();
-    private readonly string _path;
+    private readonly string? _path;
     private bool _disposed;
 
     internal InstallerLog(string path)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
         _path = System.IO.Path.GetFullPath(path);
     }
 
-    internal string Path => _path;
+    private InstallerLog()
+    {
+    }
+
+    internal static InstallerLog CreateProduction() => new();
+
+    internal string Path => _path
+        ?? throw new InvalidOperationException("Le journal en mémoire n'a pas de chemin disque.");
+
+    internal bool IsPersistent => _path is not null;
 
     internal void Info(string message) => Write("INFO", message);
 
@@ -50,6 +60,11 @@ internal sealed partial class InstallerLog : IDisposable
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_path is null)
+            {
+                return;
+            }
+
             string? directory = System.IO.Path.GetDirectoryName(_path);
             if (!string.IsNullOrWhiteSpace(directory))
             {

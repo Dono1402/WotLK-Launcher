@@ -396,7 +396,8 @@ public partial class ChatViewV2
             || ownerId.ToString(CultureInfo.InvariantCulture) != NodeText(_richSnapshot["ownerAccountId"])
             || !action.TryGetProperty("sequence", out JsonElement sequenceElement)
             || !long.TryParse(sequenceElement.ToString(), NumberStyles.None, CultureInfo.InvariantCulture, out long sequence)
-            || !long.TryParse(NodeText(_richSnapshot["sequence"]), out long currentSequence) || sequence > currentSequence
+            || !long.TryParse(NodeText(_richSnapshot["sequence"]), NumberStyles.None, CultureInfo.InvariantCulture, out long currentSequence)
+            || sequence != currentSequence
             || !action.TryGetProperty("payload", out JsonElement payload) || payload.ValueKind != JsonValueKind.Object) return false;
         if (payload.TryGetProperty("threadId", out JsonElement threadId)
             && action.GetProperty("action").GetString() is not ("selectThread" or "threadSelf" or "member")

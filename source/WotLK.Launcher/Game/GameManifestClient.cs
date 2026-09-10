@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace WotLK.Launcher.Game;
 
@@ -13,7 +14,9 @@ internal sealed class GameManifestClient(HttpClient httpClient) : IGameManifestC
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = false,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        MaxDepth = 24
     };
 
     private readonly HttpClient _httpClient = httpClient
@@ -23,17 +26,36 @@ internal sealed class GameManifestClient(HttpClient httpClient) : IGameManifestC
         string manifestUrl,
         CancellationToken cancellationToken)
     {
-        using HttpResponseMessage response = await _httpClient.GetAsync(
+        Uri manifestUri = GameManifestValidator.RequireHttpsUri(
             manifestUrl,
+            "URL du manifeste du client");
+        using HttpResponseMessage response = await _httpClient.GetAsync(
+            manifestUri,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken);
+        Uri responseUri = GameManifestValidator.RequireHttpsUri(
+            response.RequestMessage?.RequestUri ?? manifestUri,
+            "URL finale du manifeste du client");
+        if (!responseUri.Equals(manifestUri))
+        {
+            throw new InvalidDataException(
+                "La redirection automatique du manifeste du client est refusée.");
+        }
         response.EnsureSuccessStatusCode();
 
-        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        return await JsonSerializer.DeserializeAsync<LauncherManifest>(
-                stream,
-                JsonOptions,
-                cancellationToken)
+        byte[] payload = await BoundedJsonHttpContent.ReadAsync(
+            response.Content,
+            GameManifestValidator.MaximumManifestBytes,
+            "Le manifeste du client",
+            cancellationToken);
+        using JsonDocument document = JsonDocument.Parse(payload, new JsonDocumentOptions
+        {
+            MaxDepth = JsonOptions.MaxDepth
+        });
+        BoundedJsonHttpContent.RejectDuplicateProperties(document.RootElement, "Le manifeste du client");
+        LauncherManifest manifest = document.RootElement.Deserialize<LauncherManifest>(JsonOptions)
             ?? throw new InvalidOperationException("Impossible de lire le manifeste.");
+        GameManifestValidator.Validate(manifest);
+        return manifest;
     }
 }

@@ -85,24 +85,42 @@ Les harnais déterministes associés se lancent avec :
 
 ## Addons V2 réels - checkpoint 04A.2
 
-En mode `--ui-v2`, la page Addons utilise le catalogue authentifié historique et délègue toutes les mutations à `AddonInstallServices` via `LegacyAddonManagementService`. Elle ne possède aucun téléchargeur, extracteur, calcul de hash, format d'état ou mécanisme de suppression propre.
+En mode `--ui-v2`, la page Addons utilise le catalogue historique chargé en
+HTTPS et strictement validé, puis délègue toutes les mutations à
+`AddonInstallServices` via `LegacyAddonManagementService`. Elle ne possède
+aucun téléchargeur, extracteur, calcul de hash, format d'état ou mécanisme de
+suppression propre.
 
 Caractérisation du comportement conservé :
 
-- `AddonInstallServices.LoadCatalogAsync` charge et valide le schéma 1 pour l'interface 30403 ; la recherche et les filtres restent ensuite entièrement locaux.
+- `AddonInstallServices.LoadCatalogAsync` exige HTTPS, borne la réponse à 1 Mio même sans `Content-Length`, refuse le JSON ambigu ou inconnu, puis valide strictement le schéma 1 pour l'interface 30403 ; la recherche et les filtres restent ensuite entièrement locaux.
 - `AddonInstallServices.Inspect` est la seule source de l'état local. Un dossier seul est `DetectedUnmanaged`, jamais installé. Une entrée valide de `.atlas-addons.json` fournit version, hash, dossiers et date ; un dossier géré absent produit `MissingFiles`.
-- Installer, mettre à jour et réparer passent tous par `ApplySelectionAsync`. Chaque action V2 lui fournit un catalogue limité au package ciblé afin de ne pas modifier les autres addons.
-- Une mise à jour ne publie sa nouvelle version qu'après téléchargement, validation et application réussis. La transaction historique restaure les dossiers précédents si l'application échoue.
-- Supprimer passe par la même sélection avec `false` et ne retire que les dossiers enregistrés comme gérés. L'opération n'est pas présentée comme annulable, car la phase de déplacement/suppression legacy ne consulte pas de token interne.
-- Les composants supplémentaires sont téléchargés et extraits dans la même transaction que l'archive principale. `dependencies` est actuellement une métadonnée de catalogue : le pipeline historique ne résout pas automatiquement de graphe de dépendances.
+- Installer, mettre à jour et réparer passent tous par `ApplySelectionAsync`. Une action unitaire lui fournit le seul package ciblé ; un lot lui fournit le catalogue ordonné limité au plan déjà approuvé, afin qu'aucun autre addon ne soit modifié.
+- Toute la sélection est téléchargée, extraite et copiée dans un staging avant
+  mutation. L'état final unique est borné, sérialisé puis relu par le parseur de
+  production avant le premier remplacement de dossier. Un échec de publication
+  de `.atlas-addons.json` restaure tous les dossiers déjà remplacés.
+- Supprimer passe par la même sélection avec `false` et ne retire que les dossiers enregistrés comme gérés. L'interface ne propose volontairement aucune commande d'annulation utilisateur pour cette opération ; le token d'arrêt ou d'annulation interne reste toutefois observé pendant la transaction et tout déplacement déjà effectué est restauré si elle est interrompue.
+- Les composants supplémentaires sont téléchargés et extraits dans la même transaction que l'archive principale. Avant cette transaction, le coordinateur développe la demande explicite avec `AddonDependencyPlanner`, place chaque dépendance requise avant son dépendant et bloque la suppression d'un addon encore requis. Le service groupé reçoit ensuite ce plan fermé avec `resolveDependencies: false`, afin de ne pas ajouter une seconde fois des packages hors du plan confirmé.
+- Toutes les archives principales et de composants doivent utiliser HTTPS. Leur taille déclarée est imposée pendant le flux et tout octet excédentaire est refusé avant écriture; la taille et le SHA-256 sont ensuite revérifiés avant extraction.
 - La progression disponible est constituée des octets reçus et de la taille attendue par archive. La V2 en dérive pour l'affichage pourcentage, débit et estimation ; les phases sans mesure sont indéterminées. Les publications sont coalescées à 80 ms, sauf changement de phase et valeur terminale.
 - WoW ouvert n'interdit pas les mutations addon et n'est jamais fermé par ce pipeline. Après un succès, la V2 conseille `/reload` sans tenter de l'injecter dans le jeu.
 - Un `401` invalide la session par `LauncherSessionCoordinator`. Les erreurs réseau, disque, accès et fichier verrouillé restent attachées à la ligne concernée et les logs ne contiennent que l'identifiant, l'opération, la version, la phase, le résultat et la catégorie d'erreur.
 - Un rafraîchissement distant en échec conserve le catalogue déjà chargé en mémoire. Aucun nouveau cache persistant de catalogue n'est introduit.
 
-`Tout mettre à jour` est réel lorsque plusieurs mises à jour sont disponibles. Il conserve un seul bail global `Addons`, traite les packages un par un dans l'ordre alphabétique, enregistre chaque succès, s'arrête au premier échec et partage une annulation globale. Aucun téléchargement parallèle n'est lancé.
+Le catalogue contient encore lui-même les SHA-256 attendus sans signature de
+publication. La signature du catalogue et sa vérification par une clé publique
+embarquée restent une dépendance du déploiement du feed Addons; HTTPS, les
+bornes et le JSON strict ne remplacent pas cette authentification de l'éditeur.
 
-Pendant ce batch, les compteurs suivent immédiatement les états réellement enregistrés, mais les lignes initialement visibles sous le filtre `Mises à jour` restent épinglées jusqu'à la fin de l'opération. Le filtre est alors réappliqué en une fois afin d'éviter des disparitions successives pendant le téléchargement.
+`Tout mettre à jour` est réel lorsque plusieurs mises à jour sont disponibles.
+Il conserve un seul bail global `Addons`, prépare les packages un par un dans
+l'ordre alphabétique, valide l'état candidat complet, puis publie la sélection
+en une transaction groupée. Toute erreur avant cette publication laisse les
+dossiers gérés inchangés; un échec d'écriture de l'état déclenche le rollback
+du groupe. Aucun téléchargement parallèle n'est lancé.
+
+Pendant ce batch, les compteurs et les états locaux restent ceux d'avant l'opération tant que la transaction groupée n'est pas publiée. Après le commit unique, l'inventaire est relu et le filtre `Mises à jour` est réappliqué en une fois ; un échec ou une annulation laisse donc toutes les lignes du lot à reprendre.
 
 Matrice de concurrence effective :
 
@@ -116,7 +134,7 @@ Matrice de concurrence effective :
 | Addons + GameInstall/GameUpdate/GameRepair | refus immédiat `Busy` |
 | Addons + Verify | refus immédiat `Busy` |
 | Addons + LauncherAutoUpdate | refus immédiat `Busy` |
-| Addons + Play | refus immédiat `RejectedByCompatibility` |
+| Addons + Play | autorisé par le coordinateur global |
 | Play + Verify non mutante, client jouable | autorisé par le coordinateur global |
 
 `TryBegin` ne met aucune action en file d'attente. La présence d'un processus WoW déjà ouvert ne constitue pas un bail `Play` et reste donc compatible avec la gestion des addons.

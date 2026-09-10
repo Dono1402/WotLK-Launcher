@@ -1,8 +1,12 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Security.Principal;
+using System.Text.Json;
 using System.Windows;
+using Microsoft.Win32.SafeHandles;
+using WotLK.Launcher.Updater;
 
 namespace WotLK.Launcher;
 
@@ -10,6 +14,14 @@ internal static class GameDirectoryAccess
 {
     private const string GrantAccessSwitch = "--grant-game-access";
     private const int OperationCancelledError = 1223;
+    private const uint TokenQuery = 0x0008;
+    private const uint FileAddFile = 0x0002;
+    private const uint FileAddSubdirectory = 0x0004;
+    private const uint FileDeleteChild = 0x0040;
+    private const uint DeleteAccess = 0x00010000;
+    private const uint OpenExisting = 3;
+    private const uint FileFlagBackupSemantics = 0x02000000;
+    private const uint FileFlagOpenReparsePoint = 0x00200000;
 
     internal static bool IsGrantAccessMode(IReadOnlyList<string> args)
     {
@@ -19,7 +31,13 @@ internal static class GameDirectoryAccess
 
     internal static int RunGrantAccess(IReadOnlyList<string> args)
     {
-        if (args.Count != 3)
+        if (args.Count != 4
+            || !int.TryParse(
+                args[3],
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out int requesterProcessId)
+            || requesterProcessId <= 0)
         {
             return 2;
         }
@@ -28,6 +46,19 @@ internal static class GameDirectoryAccess
         {
             var root = GameInstallServices.NormalizeAndValidateGameRoot(args[1]);
             var sid = new SecurityIdentifier(args[2]);
+            string currentExecutable = Path.GetFullPath(
+                Environment.ProcessPath
+                ?? throw new InvalidOperationException("Executable launcher introuvable."));
+            if (!LauncherUpdateSecurity.IsCurrentProcessElevated()
+                || !ValidateRequesterAndGrantRoot(
+                    requesterProcessId,
+                    currentExecutable,
+                    sid,
+                    root))
+            {
+                return 3;
+            }
+
             return GrantAccess(root, sid);
         }
         catch
@@ -38,32 +69,8 @@ internal static class GameDirectoryAccess
 
     internal static void PrepareElevatedSession(string installRoot)
     {
-        try
-        {
-            using var identity = WindowsIdentity.GetCurrent();
-            var principal = new WindowsPrincipal(identity);
-            var sid = identity.User;
-            if (sid is null ||
-                !principal.IsInRole(WindowsBuiltInRole.Administrator))
-            {
-                return;
-            }
-
-            var root = GameInstallServices.NormalizeAndValidateGameRoot(installRoot);
-            var markerPath = Path.Combine(root, ".wotlk-launcher-user-access-v1");
-            if (File.Exists(markerPath))
-            {
-                return;
-            }
-
-            if (GrantAccess(root, sid) == 0)
-            {
-                File.WriteAllText(markerPath, sid.Value);
-            }
-        }
-        catch
-        {
-        }
+        // ACL changes are only allowed through the requester-bound helper mode.
+        _ = installRoot;
     }
 
     internal static bool EnsureWritable(Window owner, string installRoot)
@@ -83,6 +90,9 @@ internal static class GameDirectoryAccess
             throw new InvalidOperationException("Impossible de preparer les droits du dossier WotLK.");
         }
 
+        DemandStableGrantRootForCurrentUser(root);
+        DemandAdmissibleElevatedGrantTarget(root);
+
         var startInfo = new ProcessStartInfo
         {
             FileName = currentExe,
@@ -93,6 +103,8 @@ internal static class GameDirectoryAccess
         startInfo.ArgumentList.Add(GrantAccessSwitch);
         startInfo.ArgumentList.Add(root);
         startInfo.ArgumentList.Add(sid);
+        startInfo.ArgumentList.Add(Environment.ProcessId.ToString(
+            System.Globalization.CultureInfo.InvariantCulture));
 
         try
         {
@@ -133,6 +145,9 @@ internal static class GameDirectoryAccess
         if (string.IsNullOrWhiteSpace(currentExe) || !File.Exists(currentExe) || string.IsNullOrWhiteSpace(sid))
             throw new InvalidOperationException("Impossible de preparer les droits du dossier WotLK.");
 
+        DemandStableGrantRootForCurrentUser(root);
+        DemandAdmissibleElevatedGrantTarget(root);
+
         ProcessStartInfo start = new()
         {
             FileName = currentExe, UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden
@@ -140,6 +155,8 @@ internal static class GameDirectoryAccess
         start.ArgumentList.Add(GrantAccessSwitch);
         start.ArgumentList.Add(root);
         start.ArgumentList.Add(sid);
+        start.ArgumentList.Add(Environment.ProcessId.ToString(
+            System.Globalization.CultureInfo.InvariantCulture));
         try
         {
             using Process? process = await Task.Run(() => Process.Start(start)).ConfigureAwait(false);
@@ -208,20 +225,12 @@ internal static class GameDirectoryAccess
 
     private static int GrantAccess(string root, SecurityIdentifier sid)
     {
+        ValidateGrantRoot(root);
+        DemandAdmissibleElevatedGrantTarget(root);
         Directory.CreateDirectory(root);
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = Path.Combine(Environment.SystemDirectory, "icacls.exe"),
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WindowStyle = ProcessWindowStyle.Hidden
-        };
-        startInfo.ArgumentList.Add(root);
-        startInfo.ArgumentList.Add("/grant");
-        startInfo.ArgumentList.Add($"*{sid.Value}:(OI)(CI)M");
-        startInfo.ArgumentList.Add("/T");
-        startInfo.ArgumentList.Add("/C");
-        startInfo.ArgumentList.Add("/Q");
+        ValidateGrantRoot(root);
+        DemandAdmissibleElevatedGrantTarget(root);
+        ProcessStartInfo startInfo = BuildIcaclsStartInfo(root, sid);
 
         using var process = Process.Start(startInfo);
         if (process is null)
@@ -232,4 +241,359 @@ internal static class GameDirectoryAccess
         process.WaitForExit();
         return process.ExitCode;
     }
+
+    internal static ProcessStartInfo BuildIcaclsStartInfo(
+        string root,
+        SecurityIdentifier sid)
+    {
+        ProcessStartInfo startInfo = new()
+        {
+            FileName = Path.Combine(Environment.SystemDirectory, "icacls.exe"),
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
+        startInfo.ArgumentList.Add(root);
+        startInfo.ArgumentList.Add("/grant");
+        startInfo.ArgumentList.Add($"*{sid.Value}:(OI)(CI)M");
+        startInfo.ArgumentList.Add("/L");
+        startInfo.ArgumentList.Add("/C");
+        startInfo.ArgumentList.Add("/Q");
+        return startInfo;
+    }
+
+    internal static void ValidateGrantRoot(string root)
+    {
+        string current = Path.GetFullPath(root);
+        while (!string.IsNullOrEmpty(current))
+        {
+            if (Directory.Exists(current)
+                && (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new InvalidDataException(
+                    "Le dossier WotLK traverse un lien ou un point de jonction.");
+            }
+
+            string? parent = Path.GetDirectoryName(
+                current.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            if (string.IsNullOrEmpty(parent) || SamePath(parent, current))
+            {
+                break;
+            }
+
+            current = parent;
+        }
+    }
+
+    internal static bool ValidateRequester(
+        int requesterProcessId,
+        string expectedExecutablePath,
+        SecurityIdentifier expectedSid)
+    {
+        try
+        {
+            using Process requester = Process.GetProcessById(requesterProcessId);
+            if (requester.HasExited
+                || !ProcessMatchesPath(requester, expectedExecutablePath)
+                || !OpenProcessToken(
+                    requester.SafeHandle,
+                    TokenQuery,
+                    out SafeAccessTokenHandle token))
+            {
+                return false;
+            }
+
+            using (token)
+            using (WindowsIdentity identity = new(token.DangerousGetHandle()))
+            {
+                return identity.User is not null && identity.User.Equals(expectedSid);
+            }
+        }
+        catch (Exception ex) when (ex is ArgumentException
+                                   or InvalidOperationException
+                                   or Win32Exception
+                                   or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    internal static void DemandStableGrantRootForCurrentUser(string root)
+    {
+        ValidateGrantRoot(root);
+        string existing = Path.GetFullPath(root);
+        while (!Directory.Exists(existing))
+        {
+            if (File.Exists(existing))
+            {
+                throw new InvalidDataException("Le chemin WotLK désigne un fichier.");
+            }
+
+            existing = Path.GetDirectoryName(existing)
+                ?? throw new InvalidDataException("Dossier parent WotLK absent.");
+        }
+
+        LauncherUpdateElevationSecurity.DemandProtectedDirectoryForElevation(existing);
+
+        if (HasDirectoryAccess(existing, FileAddFile)
+            || HasDirectoryAccess(existing, FileAddSubdirectory)
+            || HasDirectoryAccess(existing, FileDeleteChild))
+        {
+            throw new UnauthorizedAccessException(
+                "Le dossier WotLK a changé de droits pendant la demande élevée.");
+        }
+
+        string child = existing;
+        while (true)
+        {
+            string? parent = Path.GetDirectoryName(child.TrimEnd(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar));
+            if (string.IsNullOrWhiteSpace(parent) || SamePath(parent, child))
+            {
+                break;
+            }
+
+            if (HasDirectoryAccess(parent, FileAddSubdirectory)
+                && (HasDirectoryAccess(parent, FileDeleteChild)
+                    || HasDirectoryAccess(child, DeleteAccess)))
+            {
+                throw new UnauthorizedAccessException(
+                    "Un ancêtre du dossier WotLK peut remplacer la cible pendant l'élévation.");
+            }
+
+            child = parent;
+        }
+
+        ValidateGrantRoot(root);
+    }
+
+    internal static void DemandAdmissibleElevatedGrantTarget(string root)
+    {
+        string canonicalRoot = GameInstallServices.NormalizeAndValidateGameRoot(root);
+        ValidateGrantRoot(canonicalRoot);
+        if (!Directory.Exists(canonicalRoot))
+        {
+            if (!SamePath(canonicalRoot, LauncherSettings.GetDefaultInstallPath()))
+            {
+                throw new UnauthorizedAccessException(
+                    "Un nouveau dossier protégé ne peut être créé que pour le chemin WotLK par défaut.");
+            }
+
+            return;
+        }
+
+        try
+        {
+            using IEnumerator<string> entries = Directory
+                .EnumerateFileSystemEntries(canonicalRoot)
+                .GetEnumerator();
+            if (!entries.MoveNext())
+            {
+                if (SamePath(canonicalRoot, LauncherSettings.GetDefaultInstallPath()))
+                {
+                    return;
+                }
+
+                throw new UnauthorizedAccessException(
+                    "Un dossier protégé vide n'est accepté que pour le chemin WotLK par défaut.");
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new UnauthorizedAccessException(
+                "Le contenu du dossier protégé WotLK ne peut pas être vérifié.",
+                ex);
+        }
+
+        if (HasManagedInstallMarker(canonicalRoot)
+            || HasExpectedPlayableClient(canonicalRoot))
+        {
+            return;
+        }
+
+        throw new UnauthorizedAccessException(
+            "Le dossier protégé choisi contient des fichiers qui ne prouvent pas une installation WotLK Atlas.");
+    }
+
+    private static bool ValidateRequesterAndGrantRoot(
+        int requesterProcessId,
+        string expectedExecutablePath,
+        SecurityIdentifier expectedSid,
+        string root)
+    {
+        try
+        {
+            using Process requester = Process.GetProcessById(requesterProcessId);
+            if (requester.HasExited
+                || !ProcessMatchesPath(requester, expectedExecutablePath)
+                || !OpenProcessToken(
+                    requester.SafeHandle,
+                    TokenQuery,
+                    out SafeAccessTokenHandle token))
+            {
+                return false;
+            }
+
+            using (token)
+            using (WindowsIdentity identity = new(token.DangerousGetHandle()))
+            {
+                if (identity.User is null || !identity.User.Equals(expectedSid))
+                {
+                    return false;
+                }
+
+                WindowsIdentity.RunImpersonated(
+                    token,
+                    () =>
+                    {
+                        DemandStableGrantRootForCurrentUser(root);
+                        DemandAdmissibleElevatedGrantTarget(root);
+                    });
+                return true;
+            }
+        }
+        catch (Exception ex) when (ex is ArgumentException
+                                   or InvalidOperationException
+                                   or Win32Exception
+                                   or UnauthorizedAccessException
+                                   or IOException)
+        {
+            return false;
+        }
+    }
+
+    private static bool HasDirectoryAccess(string directory, uint desiredAccess)
+    {
+        using SafeFileHandle handle = CreateFile(
+            directory,
+            desiredAccess,
+            FileShare.ReadWrite | FileShare.Delete,
+            IntPtr.Zero,
+            OpenExisting,
+            FileFlagBackupSemantics | FileFlagOpenReparsePoint,
+            IntPtr.Zero);
+        if (!handle.IsInvalid)
+        {
+            return true;
+        }
+
+        const int accessDenied = 5;
+        return Marshal.GetLastWin32Error() != accessDenied;
+    }
+
+    private static bool ProcessMatchesPath(Process process, string expectedPath)
+    {
+        try
+        {
+            string? actualPath = process.MainModule?.FileName;
+            return actualPath is not null && SamePath(actualPath, expectedPath);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException
+                                   or Win32Exception
+                                   or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    private static bool HasManagedInstallMarker(string root)
+    {
+        string marker = Path.Combine(root, GameInstallServices.ClientMarkerFileName);
+        if (!File.Exists(marker))
+        {
+            return false;
+        }
+
+        try
+        {
+            LauncherUpdateElevationSecurity.ValidateNoReparsePoints(marker);
+            using FileStream stream = new(
+                marker,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                16 * 1024,
+                FileOptions.SequentialScan);
+            if (stream.Length <= 0 || stream.Length > 16 * 1024)
+            {
+                return false;
+            }
+
+            using JsonDocument document = JsonDocument.Parse(
+                stream,
+                new JsonDocumentOptions
+                {
+                    AllowTrailingCommas = false,
+                    CommentHandling = JsonCommentHandling.Disallow,
+                    MaxDepth = 8
+                });
+            JsonElement rootElement = document.RootElement;
+            return rootElement.ValueKind == JsonValueKind.Object
+                   && rootElement.TryGetProperty("registeredApp", out JsonElement app)
+                   && string.Equals(
+                       app.GetString(),
+                       GameInstallServices.AppDisplayName,
+                       StringComparison.Ordinal)
+                   && rootElement.TryGetProperty("installRoot", out JsonElement installRoot)
+                   && installRoot.ValueKind == JsonValueKind.String
+                   && SamePath(installRoot.GetString()!, root);
+        }
+        catch (Exception ex) when (ex is IOException
+                                   or UnauthorizedAccessException
+                                   or JsonException
+                                   or InvalidDataException
+                                   or ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static bool HasExpectedPlayableClient(string root)
+    {
+        string gameExecutable = GameInstallServices.GetGameExecutablePath(root);
+        string gameLauncher = GameInstallServices.GetGameLauncherPath(root);
+        if (!File.Exists(gameExecutable) || !File.Exists(gameLauncher))
+        {
+            return false;
+        }
+
+        try
+        {
+            LauncherUpdateElevationSecurity.ValidateNoReparsePoints(gameExecutable);
+            LauncherUpdateElevationSecurity.ValidateNoReparsePoints(gameLauncher);
+            return true;
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
+    }
+
+    private static bool SamePath(string left, string right) =>
+        string.Equals(
+            Path.GetFullPath(left).TrimEnd(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar),
+            Path.GetFullPath(right).TrimEnd(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar),
+            StringComparison.OrdinalIgnoreCase);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool OpenProcessToken(
+        SafeProcessHandle processHandle,
+        uint desiredAccess,
+        out SafeAccessTokenHandle tokenHandle);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern SafeFileHandle CreateFile(
+        string fileName,
+        uint desiredAccess,
+        FileShare shareMode,
+        IntPtr securityAttributes,
+        uint creationDisposition,
+        uint flagsAndAttributes,
+        IntPtr templateFile);
 }

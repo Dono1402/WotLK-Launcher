@@ -1,10 +1,10 @@
 # Atlas Launcher secure update channel
 
-## Scope and current audit
+## Scope and 2026-09-03 audit snapshot
 
 Audit performed on 2026-09-03 without changing Caddy or production files.
 
-Current deployed chain:
+Chain observed at the start of the 2026-09-03 audit:
 
 ```text
 Atlas Launcher 1.1.0
@@ -21,7 +21,7 @@ Observed responses:
 - `https://animeclub.fr/wotlk/launcher-update.json` returns `404`;
 - `https://animeclub.fr/wotlk/launcher/launcher-update.json` returns `404`.
 
-The deployed manifest schema is currently:
+The manifest schema observed at the start of that audit was:
 
 ```json
 {
@@ -37,7 +37,7 @@ the manifest, copy artifacts, then replace the public manifest. Before 04C.1,
 there was no signature and the mutable top-level package could be replaced
 before the manifest.
 
-## Target chain
+## Secure chain implemented by 04C.1
 
 ```text
 Atlas Launcher 04C.1+

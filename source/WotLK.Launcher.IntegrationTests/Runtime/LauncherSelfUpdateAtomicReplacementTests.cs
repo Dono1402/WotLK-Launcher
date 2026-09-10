@@ -1,6 +1,10 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Security.Cryptography;
+using System.Security.Principal;
 using System.Text;
+using System.Text.Json;
+using WotLK.Launcher;
 using WotLK.Launcher.Updater;
 
 internal static class LauncherSelfUpdateAtomicReplacementTests
@@ -8,6 +12,10 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
     internal static async Task<int> RunAsync()
     {
         CharacterizeSingleExecutableReleaseContract();
+        ValidateGameDirectoryElevationBoundary();
+        ValidateRequesterImpersonationBoundary();
+        ValidateUpdaterProtectedPathBoundary();
+        await ValidateActiveExecutableSharingBoundaryAsync();
         ValidateInternalCommandLineContract();
         ValidateHelperRequesterBoundary();
         ValidateHelperHashDoesNotCaptureWpfContext();
@@ -15,6 +23,10 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         await PrepareTransactionWithoutTouchingActiveReleaseAsync();
         await RejectInvalidAuthenticatedVersionBeforeTransactionAsync();
         await RejectInvalidCandidateBeforeTouchingReleaseAsync();
+        await RejectCandidateSwapAfterInitialValidationAsync();
+        await RejectStagedSwapBeforeAtomicMoveAsync();
+        await RejectStagedSwapAfterFinalValidationAsync();
+        await RefuseSwapWhenProtectedAclValidatorRejectsAsync();
         await KeepPreviousReleaseAcrossPreSwapCrashPointsAsync();
         await RetryTransientAtomicSwapFailureAsync();
         await AbandonPermanentAtomicSwapFailureAsync();
@@ -23,6 +35,8 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         await RecoverCrashAfterNewLauncherStartAsync();
         await RecoverCrashAfterReadyConfirmationAsync();
         await RecoverCrashAfterCommitPersistedAsync();
+        await RejectForgedCommittedPhaseWithoutProtectedProofAsync();
+        await RefuseStaleRecoveryOverUnknownNewerTargetAsync();
         await RollBackWhenNewLauncherCannotStartAsync();
         await RollBackWhenNewLauncherExitsImmediatelyAsync();
         await RejectReadyFromExitedLauncherAsync();
@@ -34,8 +48,19 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         await AbandonPermanentWindowsLockAsync();
         await KeepTargetWholeDuringAtomicSwapAsync();
         await RefuseUnsafeTransactionPathsAsync();
+        RejectAmbiguousAndOversizedTransactionJson();
+        RejectAmbiguousAndOversizedProcessSignals();
+        RejectUserWorkspaceReparseSwapAtWrite();
+        HoldCandidateIdentityAcrossPrivilegedCopyBoundary();
         await LeaveReleaseUntouchedWhenParentDoesNotExitAsync();
         Console.WriteLine("Launcher self-update atomic replacement OK (04B.3a).");
+        return 0;
+    }
+
+    internal static int RunCommandLineSecurity()
+    {
+        ValidateInternalCommandLineContract();
+        Console.WriteLine("Launcher self-update command-line security OK.");
         return 0;
     }
 
@@ -58,6 +83,296 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             "Le manifeste d'auto-update doit continuer à cibler un unique EXE.");
     }
 
+    private static void ValidateGameDirectoryElevationBoundary()
+    {
+        using WindowsIdentity identity = WindowsIdentity.GetCurrent();
+        SecurityIdentifier sid = identity.User
+            ?? throw new InvalidOperationException("SID Windows de test absent.");
+        string executable = Environment.ProcessPath
+            ?? throw new InvalidOperationException("Exécutable de test absent.");
+        True(
+            GameDirectoryAccess.ValidateRequester(
+                Environment.ProcessId,
+                executable,
+                sid),
+            "Le helper ACL doit lier le PID vivant, son exécutable et son SID.");
+        True(
+            !GameDirectoryAccess.ValidateRequester(
+                Environment.ProcessId,
+                executable,
+                new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null)),
+            "Un SID arbitraire ne doit jamais être accepté pour un PID valide.");
+
+        ProcessStartInfo icacls = GameDirectoryAccess.BuildIcaclsStartInfo(
+            @"C:\Atlas Test",
+            sid);
+        string[] arguments = icacls.ArgumentList.ToArray();
+        True(arguments.Contains("/L", StringComparer.OrdinalIgnoreCase),
+            "icacls doit agir sur le lien lui-même si la racine change en reparse point.");
+        True(!arguments.Contains("/T", StringComparer.OrdinalIgnoreCase),
+            "La concession ACL ne doit jamais parcourir récursivement les enfants.");
+
+        string root = Path.Combine(
+            Path.GetTempPath(),
+            "Atlas Game ACL reparse " + Guid.NewGuid().ToString("N"));
+        string target = Path.Combine(root, "target");
+        string junction = Path.Combine(root, "junction");
+        Directory.CreateDirectory(target);
+        CreateDirectoryJunction(junction, target);
+        try
+        {
+            Throws<InvalidDataException>(
+                () => GameDirectoryAccess.ValidateGrantRoot(
+                    Path.Combine(junction, "WotLK")),
+                "Une jonction dans l'ascendance du client doit être refusée.");
+        }
+        finally
+        {
+            if (Directory.Exists(junction))
+            {
+                Directory.Delete(junction);
+            }
+
+            Directory.Delete(root, recursive: true);
+        }
+
+        string controlledParent = NewNonSensitiveTestRoot("acl-controlled-parent");
+        string lockedChild = Path.Combine(controlledParent, "locked-child");
+        Directory.CreateDirectory(lockedChild);
+        try
+        {
+            RunIcacls(
+                lockedChild,
+                "/inheritance:r",
+                "/grant:r",
+                "*S-1-5-18:(OI)(CI)F",
+                "*S-1-5-32-544:(OI)(CI)F");
+            True(!GameDirectoryAccess.CanWrite(lockedChild),
+                "Le scénario synthétique doit avoir un enfant non inscriptible.");
+            Throws<UnauthorizedAccessException>(
+                () => GameDirectoryAccess.DemandStableGrantRootForCurrentUser(lockedChild),
+                "Un enfant verrouillé sous un parent utilisateur remplaçable doit être refusé avant UAC.");
+        }
+        finally
+        {
+            try
+            {
+                RunIcacls(
+                    lockedChild,
+                    "/inheritance:e",
+                    "/grant:r",
+                    $"*{sid.Value}:(OI)(CI)F");
+            }
+            catch
+            {
+            }
+
+            if (Directory.Exists(controlledParent))
+            {
+                Directory.Delete(controlledParent, recursive: true);
+            }
+        }
+
+        string admissibilityRoot = NewNonSensitiveTestRoot("acl-admissibility");
+        string arbitraryApplication = Path.Combine(admissibilityRoot, "OtherApplication");
+        string emptyWotlk = Path.Combine(admissibilityRoot, "EmptyWotLK");
+        string managedWotlk = Path.Combine(admissibilityRoot, "ManagedWotLK");
+        Directory.CreateDirectory(arbitraryApplication);
+        Directory.CreateDirectory(emptyWotlk);
+        Directory.CreateDirectory(managedWotlk);
+        File.WriteAllText(Path.Combine(arbitraryApplication, "service.exe"), "foreign");
+        File.WriteAllText(
+            Path.Combine(managedWotlk, GameInstallServices.ClientMarkerFileName),
+            JsonSerializer.Serialize(new
+            {
+                registeredApp = GameInstallServices.AppDisplayName,
+                installRoot = managedWotlk
+            }));
+        try
+        {
+            Throws<UnauthorizedAccessException>(
+                () => GameDirectoryAccess.DemandAdmissibleElevatedGrantTarget(
+                    arbitraryApplication),
+                "Un dossier protégé non vide d'une autre application ne doit jamais recevoir Modify.");
+            Throws<UnauthorizedAccessException>(
+                () => GameDirectoryAccess.DemandAdmissibleElevatedGrantTarget(emptyWotlk),
+                "Un dossier protégé vide arbitraire ne doit jamais recevoir Modify.");
+            GameDirectoryAccess.DemandAdmissibleElevatedGrantTarget(managedWotlk);
+            Throws<UnauthorizedAccessException>(
+                () => GameDirectoryAccess.DemandAdmissibleElevatedGrantTarget(
+                    Path.Combine(admissibilityRoot, "UnmanagedMissingDirectory")),
+                "Un chemin protégé inexistant arbitraire doit être refusé; seul le chemin WotLK par défaut est admissible.");
+        }
+        finally
+        {
+            Directory.Delete(admissibilityRoot, recursive: true);
+        }
+    }
+
+    private static void ValidateRequesterImpersonationBoundary()
+    {
+        if (!OperatingSystem.IsWindows()
+            || LauncherUpdateSecurity.IsCurrentProcessElevated())
+        {
+            return;
+        }
+
+        using LauncherUpdateRequesterImpersonation requester =
+            LauncherUpdateRequesterImpersonation.Capture(Environment.ProcessId);
+        Equal(
+            Path.GetFullPath(LauncherUpdatePaths.TransactionsRoot),
+            Path.GetFullPath(requester.TransactionsRoot),
+            "La racine LocalAppData doit être dérivée du jeton du demandeur, y compris en UAC OTS.");
+        requester.DemandMatchesRequester(
+            Environment.ProcessId,
+            Environment.ProcessPath
+            ?? throw new InvalidOperationException("Exécutable de test absent."));
+        Throws<UnauthorizedAccessException>(
+            () => requester.DemandMatchesRequester(
+                Environment.ProcessId,
+                Path.Combine(Path.GetTempPath(), "recycled-requester.exe")),
+            "Le jeton capturé doit rester lié au même objet processus et au même exécutable.");
+    }
+
+    private static void ValidateUpdaterProtectedPathBoundary()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using AtomicUpdateEnvironment environment = new();
+        using WindowsIdentity identity = WindowsIdentity.GetCurrent();
+        SecurityIdentifier sid = identity.User
+            ?? throw new InvalidOperationException("SID Windows de test absent.");
+        string install = Path.GetDirectoryName(environment.TargetPath)
+            ?? throw new InvalidOperationException("Dossier cible de test absent.");
+        try
+        {
+            RunIcacls(
+                install,
+                "/inheritance:r",
+                "/grant:r",
+                $"*{sid.Value}:(OI)(CI)RX",
+                "*S-1-5-18:(OI)(CI)F",
+                "*S-1-5-32-544:(OI)(CI)F",
+                "/T",
+                "/C");
+            True(!GameDirectoryAccess.CanWrite(install),
+                "Le scénario updater doit avoir une cible directement non inscriptible.");
+            Throws<UnauthorizedAccessException>(
+                () => LauncherUpdateElevationSecurity.DemandProtectedTargetForElevation(
+                    environment.Transaction),
+                "Une cible dont le propriétaire ou un ancêtre peut réouvrir les droits doit être refusée avant UAC.");
+        }
+        finally
+        {
+            try
+            {
+                RunIcacls(
+                    install,
+                    "/inheritance:e",
+                    "/grant:r",
+                    $"*{sid.Value}:(OI)(CI)F",
+                    "/T",
+                    "/C");
+            }
+            catch
+            {
+            }
+        }
+
+        Throws<InvalidDataException>(
+            () => LauncherUpdateElevationSecurity.DemandProtectedSwapFileForElevation(
+                environment.Transaction,
+                environment.Transaction.HelperPath),
+            "Un fichier autre que staged/backup ne doit jamais entrer dans le validateur de swap.");
+    }
+
+    private static async Task ValidateActiveExecutableSharingBoundaryAsync()
+    {
+        if (!OperatingSystem.IsWindows() || LauncherUpdateSecurity.IsCurrentProcessElevated())
+        {
+            return;
+        }
+
+        using AtomicUpdateEnvironment environment = new();
+        using WindowsIdentity identity = WindowsIdentity.GetCurrent();
+        SecurityIdentifier sid = identity.User
+            ?? throw new InvalidOperationException("SID Windows de test absent.");
+        string install = Path.GetDirectoryName(environment.TargetPath)
+            ?? throw new InvalidOperationException("Dossier cible de test absent.");
+        string commandInterpreter = Environment.GetEnvironmentVariable("ComSpec")
+            ?? Path.Combine(Environment.SystemDirectory, "cmd.exe");
+        File.Copy(commandInterpreter, environment.TargetPath, overwrite: true);
+        using Process process = Process.Start(new ProcessStartInfo
+        {
+            FileName = environment.TargetPath,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            ArgumentList = { "/d", "/c", "ping -n 30 127.0.0.1 >nul" }
+        }) ?? throw new InvalidOperationException("L'image EXE de test n'a pas démarré.");
+
+        try
+        {
+            RunIcacls(
+                install,
+                "/inheritance:r",
+                "/grant:r",
+                $"*{sid.Value}:(OI)(CI)RX",
+                "*S-1-5-18:(OI)(CI)F",
+                "*S-1-5-32-544:(OI)(CI)F",
+                "/T",
+                "/C");
+            RunIcacls(
+                environment.TargetPath,
+                "/grant:r",
+                $"*{sid.Value}:M",
+                "*S-1-5-18:F",
+                "*S-1-5-32-544:F",
+                "/C");
+
+            UnauthorizedAccessException rejected;
+            try
+            {
+                LauncherUpdateElevationSecurity.DemandProtectedTargetForElevation(
+                    environment.Transaction);
+                throw new InvalidOperationException(
+                    "La DACL modifiable de la cible active aurait dû être refusée.");
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                rejected = exception;
+            }
+
+            True(
+                rejected.Message.Contains("propriétaire ou les droits", StringComparison.Ordinal),
+                "Une image EXE verrouillée doit atteindre la décision DACL; une sharing violation ne doit pas être classée comme droit d'écriture.");
+        }
+        finally
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                await process.WaitForExitAsync();
+            }
+
+            try
+            {
+                RunIcacls(
+                    install,
+                    "/inheritance:e",
+                    "/grant:r",
+                    $"*{sid.Value}:(OI)(CI)F",
+                    "/T",
+                    "/C");
+            }
+            catch
+            {
+            }
+        }
+    }
+
     private static void ValidateInternalCommandLineContract()
     {
         True(LauncherUpdateCommandLine.TryParseHelper(
@@ -77,6 +392,12 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
              && recovery
              && requesterProcessId == 43,
             "Le mode helper Recovery doit être distinct.");
+        True(LauncherUpdateCommandLine.TryParseBootstrap(
+                [LauncherUpdateCommandLine.BootstrapSwitch, @"C:\temp\transaction.json", "44"],
+                out _,
+                out requesterProcessId)
+             && requesterProcessId == 44,
+            "Le bootstrap élevé doit avoir un mode explicite et strict.");
         True(!LauncherUpdateCommandLine.TryParseHelper(
                 [LauncherUpdateCommandLine.ApplySwitch, "one", "extra"],
                 out _,
@@ -94,9 +415,17 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         string postUpdate = LauncherUpdateCommandLine.BuildPostUpdateArgument(id);
         Equal(id, LauncherUpdateCommandLine.FindPostUpdateTransaction([postUpdate]),
             "Le handshake doit transporter uniquement l'identifiant de transaction.");
+        True(LauncherUpdateCommandLine.HasPostUpdateMarker([postUpdate]),
+            "Un handshake post-update valide doit activer le gate de migration.");
+        string malformedPostUpdate = postUpdate[..^32] + "not-a-guid";
+        True(LauncherUpdateCommandLine.HasPostUpdateMarker([malformedPostUpdate])
+             && LauncherUpdateCommandLine.FindPostUpdateTransaction(
+                 [malformedPostUpdate]) is null,
+            "Le préfixe post-update réservé doit activer le gate même si son identifiant est invalide.");
         SequenceEqual(
             ["--ui-v2"],
-            LauncherUpdateCommandLine.ApplicationArguments(["--ui-v2", postUpdate]),
+            LauncherUpdateCommandLine.ApplicationArguments(
+                ["--ui-v2", postUpdate, malformedPostUpdate]),
             "L'argument interne ne doit pas modifier la résolution du mode UI.");
         Equal(
             "\"C:\\Program Files (x86)\\Atlas Launcher\\AtlasLauncher.exe\" " + postUpdate,
@@ -228,6 +557,25 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             "Le candidat élevé doit être arrêté avant le rollback.");
         Equal(environment.TargetPath, stoppedPath,
             "Seule la cible validée peut être arrêtée avant le rollback.");
+
+        WindowsLauncherUpdateApplicationLauncher staleLauncher = new(
+            environment.Store,
+            launchProcess: (_, _, _) => environment.Store.WriteStartedSignal(
+                environment.Transaction,
+                new LauncherUpdateProcessSignal(
+                    environment.Transaction.TransactionId,
+                    Environment.ProcessId,
+                    IsElevated: false,
+                    DateTimeOffset.UtcNow - TimeSpan.FromMinutes(5))),
+            processMatchesPath: (processId, path) =>
+                processId == Environment.ProcessId
+                && string.Equals(path, environment.TargetPath, StringComparison.OrdinalIgnoreCase));
+        await ThrowsAsync<InvalidDataException>(
+            () => staleLauncher.LaunchUpdatedAsync(
+                environment.Transaction,
+                TimeSpan.FromSeconds(1),
+                TimeSpan.FromMilliseconds(10),
+                CancellationToken.None));
     }
 
     private sealed class NonPumpingSynchronizationContext : SynchronizationContext
@@ -254,6 +602,7 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             environment.NewBytes.Length,
             Hash(environment.NewBytes),
             "1.2.0",
+            CreateTestManifest("1.2.0", environment.NewBytes),
             Environment.ProcessId,
             CancellationToken.None);
 
@@ -264,8 +613,8 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             "La préparation ne doit jamais modifier la release active.");
         BytesEqual(environment.NewBytes, await File.ReadAllBytesAsync(transaction.CandidatePath),
             "Le candidat durable doit être complet avant le helper.");
-        BytesEqual(environment.OldBytes, await File.ReadAllBytesAsync(transaction.HelperPath),
-            "Le helper doit être une copie valide de l'ancienne release single-file.");
+        True(!File.Exists(transaction.HelperPath),
+            "Le launcher non élevé ne doit jamais déposer le helper avant le bootstrap protégé.");
         True(!File.Exists(downloaded),
             "Le téléchargement initial doit être nettoyé après sa copie durable validée.");
         True(File.Exists(transaction.TransactionPath),
@@ -292,6 +641,85 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             "Une mise à jour échouée doit conserver l'ancienne version Windows.");
     }
 
+    private static async Task RejectCandidateSwapAfterInitialValidationAsync()
+    {
+        using AtomicUpdateEnvironment environment = new(
+            faultInjector: new MutatingFaultInjector(
+                LauncherUpdateFaultPoint.AfterCandidateValidation,
+                transaction => File.WriteAllBytes(
+                    transaction.CandidatePath,
+                    CreatePayload("attacker-candidate"))));
+        LauncherUpdateExecutionResult result = await environment.Service.ApplyAsync(
+            environment.Transaction);
+
+        Equal(LauncherUpdateExecutionOutcome.PreviousVersionIntact, result.Outcome,
+            "Un candidat modifié entre le premier hash et le staging doit être refusé.");
+        await environment.AssertTargetIsOldAsync();
+        Equal(0, environment.Launcher.UpdatedLaunchCalls,
+            "Le candidat remplacé dans LocalAppData ne doit jamais être lancé.");
+    }
+
+    private static async Task RejectStagedSwapBeforeAtomicMoveAsync()
+    {
+        using AtomicUpdateEnvironment environment = new(
+            faultInjector: new MutatingFaultInjector(
+                LauncherUpdateFaultPoint.AfterBackupCreated,
+                transaction => File.WriteAllBytes(
+                    transaction.StagedPath,
+                    CreatePayload("attacker-staged"))));
+        LauncherUpdateExecutionResult result = await environment.Service.ApplyAsync(
+            environment.Transaction);
+
+        Equal(LauncherUpdateExecutionOutcome.PreviousVersionIntact, result.Outcome,
+            "Le fichier staged doit être rehaché immédiatement avant le swap atomique.");
+        await environment.AssertTargetIsOldAsync();
+        Equal(0, environment.Launcher.UpdatedLaunchCalls,
+            "Un staged altéré ne doit jamais remplacer le launcher.");
+    }
+
+    private static async Task RejectStagedSwapAfterFinalValidationAsync()
+    {
+        using AtomicUpdateEnvironment environment = new(
+            faultInjector: new MutatingFaultInjector(
+                LauncherUpdateFaultPoint.AfterStagedValidatedBeforeAtomicSwap,
+                transaction => File.WriteAllBytes(
+                    transaction.StagedPath,
+                    CreatePayload("attacker-after-final-hash"))));
+        LauncherUpdateExecutionResult result = await environment.Service.ApplyAsync(
+            environment.Transaction);
+
+        Equal(LauncherUpdateExecutionOutcome.PreviousVersionIntact, result.Outcome,
+            "Le staged modifié dans la dernière fenêtre post-hash doit être rehaché dans la tentative MoveFileEx.");
+        await environment.AssertTargetIsOldAsync();
+        Equal(0, environment.Launcher.UpdatedLaunchCalls,
+            "Une mutation post-hash ne doit jamais atteindre la cible finale.");
+    }
+
+    private static async Task RefuseSwapWhenProtectedAclValidatorRejectsAsync()
+    {
+        int stagedChecks = 0;
+        using AtomicUpdateEnvironment environment = new(
+            protectedFileValidator: (transaction, path) =>
+            {
+                if (string.Equals(
+                        path,
+                        transaction.StagedPath,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    stagedChecks++;
+                    throw new UnauthorizedAccessException("simulated inherited writable ACL");
+                }
+            });
+        LauncherUpdateExecutionResult result = await environment.Service.ApplyAsync(
+            environment.Transaction);
+
+        Equal(LauncherUpdateExecutionOutcome.PreviousVersionIntact, result.Outcome,
+            "Un staged dont l'ACL héritée reste modifiable doit être refusé avant MoveFileEx.");
+        True(stagedChecks > 0,
+            "Le validateur ACL requester doit examiner chaque staged créé par le helper élevé.");
+        await environment.AssertTargetIsOldAsync();
+    }
+
     private static async Task RejectInvalidAuthenticatedVersionBeforeTransactionAsync()
     {
         using AtomicUpdateEnvironment environment = new();
@@ -309,6 +737,7 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             environment.NewBytes.Length,
             Hash(environment.NewBytes),
             "1.2.0-preview",
+            CreateTestManifest("1.2.0-preview", environment.NewBytes),
             Environment.ProcessId,
             CancellationToken.None));
 
@@ -326,14 +755,24 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             LauncherUpdateFaultPoint.BeforeCandidateValidation,
             LauncherUpdateFaultPoint.AfterCandidateValidation,
             LauncherUpdateFaultPoint.AfterCandidateStaged,
-            LauncherUpdateFaultPoint.AfterBackupCreated
+            LauncherUpdateFaultPoint.AfterBackupCreated,
+            LauncherUpdateFaultPoint.AfterStagedValidatedBeforeAtomicSwap
         ];
 
         foreach (LauncherUpdateFaultPoint point in points)
         {
             using AtomicUpdateEnvironment environment = new(faultPoint: point);
-            await ThrowsAsync<LauncherUpdateSimulatedCrashException>(
-                () => environment.Service.ApplyAsync(environment.Transaction));
+            try
+            {
+                await ThrowsAsync<LauncherUpdateSimulatedCrashException>(
+                    () => environment.Service.ApplyAsync(environment.Transaction));
+            }
+            catch (InvalidOperationException exception)
+            {
+                throw new InvalidOperationException(
+                    $"Le point de crash synthétique {point} n'a pas été observé.",
+                    exception);
+            }
             await environment.AssertTargetIsOldAsync();
 
             LauncherUpdateExecutionResult recovered = await environment.RecoveryService.RecoverAsync(
@@ -361,6 +800,35 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         await environment.AssertTargetIsOldAsync();
         Equal(1, environment.RecoveryLauncher.RollbackLaunchCalls,
             "L'ancienne version doit être relancée après récupération.");
+    }
+
+    private static async Task RefuseStaleRecoveryOverUnknownNewerTargetAsync()
+    {
+        using AtomicUpdateEnvironment environment = new();
+        byte[] newerRelease = CreatePayload("newer-release-installed-later");
+        await File.WriteAllBytesAsync(
+            environment.Transaction.BackupPath,
+            environment.OldBytes);
+        await File.WriteAllBytesAsync(environment.TargetPath, newerRelease);
+        LauncherUpdateTransaction stale = environment.Transaction with
+        {
+            Phase = LauncherUpdateTransactionPhase.BackupReady,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+        environment.Store.Save(stale);
+
+        LauncherUpdateExecutionResult result = await environment.RecoveryService.RecoverAsync(
+            stale);
+        Equal(LauncherUpdateExecutionOutcome.RecoveryRequired, result.Outcome,
+            "Une récupération ancienne doit rester fail-close face à une cible plus récente inconnue.");
+        Equal("UnexpectedTarget", result.FailureCategory,
+            "La récupération doit distinguer une cible étrangère d'une cible absente.");
+        Equal(
+            Hash(newerRelease),
+            await LauncherUpdateTransactionStore.ComputeSha256Async(
+                environment.TargetPath,
+                CancellationToken.None),
+            "Une transaction 1.1→1.2 obsolète ne doit jamais écraser une cible 1.3 installée ensuite.");
     }
 
     private static async Task RetryTransientAtomicSwapFailureAsync()
@@ -475,6 +943,29 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         True(!File.Exists(environment.Transaction.BackupPath)
              && !File.Exists(environment.Transaction.TransactionPath),
             "La reprise doit terminer le nettoyage d'un commit interrompu.");
+    }
+
+    private static async Task RejectForgedCommittedPhaseWithoutProtectedProofAsync()
+    {
+        using AtomicUpdateEnvironment environment = new();
+        await File.WriteAllBytesAsync(
+            environment.Transaction.BackupPath,
+            environment.OldBytes);
+        await File.WriteAllBytesAsync(
+            environment.TargetPath,
+            environment.NewBytes);
+        LauncherUpdateTransaction forged = environment.Transaction with
+        {
+            Phase = LauncherUpdateTransactionPhase.Committed,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+        environment.Store.Save(forged);
+
+        LauncherUpdateExecutionResult recovered =
+            await environment.RecoveryService.RecoverAsync(forged);
+        Equal(LauncherUpdateExecutionOutcome.RolledBack, recovered.Outcome,
+            "Un Phase=Committed modifiable dans LocalAppData ne doit pas remplacer la preuve protégée.");
+        await environment.AssertTargetIsOldAsync();
     }
 
     private static async Task RollBackWhenNewLauncherCannotStartAsync()
@@ -751,6 +1242,194 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         Throws<InvalidDataException>(
             () => environment.Store.Save(externalWorkspace),
             "Le marqueur doit rester sous la racine interne des transactions.");
+
+        LauncherUpdateTransaction userWritableHelper = environment.Transaction with
+        {
+            HelperPath = Path.Combine(environment.Transaction.WorkspacePath, "updater.exe")
+        };
+        Throws<InvalidDataException>(
+            () => environment.Store.Save(userWritableHelper),
+            "Un helper situé dans le workspace LocalAppData doit être refusé.");
+
+        LauncherUpdateManifest changedManifest = CreateTestManifest(
+            "1.2.1",
+            environment.NewBytes);
+        LauncherUpdateTransaction mismatchedProof = environment.Transaction with
+        {
+            AuthenticatedManifest = changedManifest
+        };
+        Throws<InvalidDataException>(
+            () => environment.Store.Save(mismatchedProof),
+            "La preuve signée doit rester liée à la version, la taille et l'empreinte transactionnelles.");
+    }
+
+    private static void RejectUserWorkspaceReparseSwapAtWrite()
+    {
+        using AtomicUpdateEnvironment environment = new();
+        string workspace = environment.Transaction.WorkspacePath;
+        string parkedWorkspace = workspace + ".parked";
+        string victim = Path.Combine(
+            Path.GetTempPath(),
+            "AtlasUpdaterProtectedWriteVictim",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(victim);
+
+        void SwapWorkspace()
+        {
+            Directory.Move(workspace, parkedWorkspace);
+            CreateDirectoryJunction(workspace, victim);
+        }
+
+        try
+        {
+            SwapAndDenyUserOperationRunner runner = new(SwapWorkspace);
+            LauncherUpdateTransactionStore store = new(
+                environment.TransactionsRoot,
+                runner);
+            Throws<UnauthorizedAccessException>(
+                () => store.Save(environment.Transaction),
+                "Une écriture transaction doit rester enfermée dans le jeton utilisateur après un swap de jonction.");
+            True(runner.RunCalls == 1,
+                "Save doit obligatoirement traverser la frontière d'impersonation utilisateur.");
+            True(!File.Exists(Path.Combine(victim, "transaction.json")),
+                "Le helper élevé ne doit jamais écrire transaction.json dans la cible d'une jonction.");
+
+            Directory.Delete(workspace);
+            Directory.Move(parkedWorkspace, workspace);
+            runner = new SwapAndDenyUserOperationRunner(SwapWorkspace);
+            store = new LauncherUpdateTransactionStore(environment.TransactionsRoot, runner);
+            Throws<UnauthorizedAccessException>(
+                () => store.AppendJournal(environment.Transaction, "reparse-race"),
+                "Le journal doit rester enfermé dans le jeton utilisateur après un swap de jonction.");
+            True(runner.RunCalls == 1,
+                "Le journal doit obligatoirement traverser la frontière d'impersonation utilisateur.");
+            True(!File.Exists(Path.Combine(victim, "updater.log")),
+                "Le helper élevé ne doit jamais écrire updater.log dans la cible d'une jonction.");
+        }
+        finally
+        {
+            if (Directory.Exists(workspace)
+                && (File.GetAttributes(workspace) & FileAttributes.ReparsePoint) != 0)
+            {
+                Directory.Delete(workspace);
+            }
+
+            if (Directory.Exists(parkedWorkspace) && !Directory.Exists(workspace))
+            {
+                Directory.Move(parkedWorkspace, workspace);
+            }
+
+            if (Directory.Exists(victim))
+            {
+                Directory.Delete(victim, recursive: true);
+            }
+        }
+    }
+
+    private static void RejectAmbiguousAndOversizedTransactionJson()
+    {
+        using (AtomicUpdateEnvironment environment = new())
+        {
+            string json = File.ReadAllText(environment.Transaction.TransactionPath);
+            string duplicate = json.Replace(
+                "\"SchemaVersion\": 2,",
+                "\"SchemaVersion\": 2,\n  \"SchemaVersion\": 2,",
+                StringComparison.Ordinal);
+            True(!string.Equals(json, duplicate, StringComparison.Ordinal),
+                "Le fixture doit pouvoir injecter une propriété JSON dupliquée.");
+            File.WriteAllText(environment.Transaction.TransactionPath, duplicate);
+            Throws<InvalidDataException>(
+                () => environment.Store.Load(environment.Transaction.TransactionPath),
+                "Une propriété transactionnelle dupliquée doit être refusée avant toute élévation.");
+        }
+
+        using (AtomicUpdateEnvironment environment = new())
+        {
+            string json = File.ReadAllText(environment.Transaction.TransactionPath);
+            string unknown = json.Replace(
+                "\"SchemaVersion\": 2,",
+                "\"SchemaVersion\": 2,\n  \"UnexpectedPrivilegedPath\": \"C:\\\\Windows\",",
+                StringComparison.Ordinal);
+            File.WriteAllText(environment.Transaction.TransactionPath, unknown);
+            Throws<JsonException>(
+                () => environment.Store.Load(environment.Transaction.TransactionPath),
+                "Une propriété transactionnelle inconnue doit être refusée.");
+        }
+
+        using (AtomicUpdateEnvironment environment = new())
+        {
+            File.WriteAllBytes(
+                environment.Transaction.TransactionPath,
+                new byte[64 * 1024 + 1]);
+            Throws<InvalidDataException>(
+                () => environment.Store.Load(environment.Transaction.TransactionPath),
+                "La lecture du JSON transactionnel doit être bornée avant désérialisation.");
+        }
+    }
+
+    private static void RejectAmbiguousAndOversizedProcessSignals()
+    {
+        using (AtomicUpdateEnvironment environment = new())
+        {
+            File.WriteAllBytes(
+                environment.Transaction.ReadySignalPath,
+                new byte[8 * 1024 + 1]);
+            True(environment.Store.TryReadReadySignal(environment.Transaction) is null,
+                "Un ready.json surdimensionné doit être rejeté avant allocation/désérialisation.");
+        }
+
+        using (AtomicUpdateEnvironment environment = new())
+        {
+            LauncherUpdateProcessSignal signal = new(
+                environment.Transaction.TransactionId,
+                42,
+                IsElevated: false,
+                DateTimeOffset.UtcNow);
+            string json = JsonSerializer.Serialize(signal);
+            string duplicate = json.Replace(
+                "\"ProcessId\":42",
+                "\"ProcessId\":42,\"processId\":43",
+                StringComparison.Ordinal);
+            True(!string.Equals(json, duplicate, StringComparison.Ordinal),
+                "Le fixture signal doit injecter une propriété dupliquée sans tenir compte de la casse.");
+            File.WriteAllText(environment.Transaction.ReadySignalPath, duplicate);
+            True(environment.Store.TryReadReadySignal(environment.Transaction) is null,
+                "Un signal avec propriété dupliquée doit être rejeté.");
+        }
+
+        using (AtomicUpdateEnvironment environment = new())
+        {
+            LauncherUpdateProcessSignal signal = new(
+                environment.Transaction.TransactionId,
+                42,
+                IsElevated: false,
+                DateTimeOffset.UtcNow);
+            string json = JsonSerializer.Serialize(signal);
+            string unknown = json[..^1] + ",\"PrivilegedPath\":\"C:\\\\Windows\"}";
+            File.WriteAllText(environment.Transaction.ReadySignalPath, unknown);
+            True(environment.Store.TryReadReadySignal(environment.Transaction) is null,
+                "Un signal avec propriété inconnue doit être rejeté.");
+        }
+    }
+
+    private static void HoldCandidateIdentityAcrossPrivilegedCopyBoundary()
+    {
+        using AtomicUpdateEnvironment environment = new();
+        using FileStream stableCandidate = environment.Store.OpenUserFileForStableRead(
+            environment.Transaction.CandidatePath);
+        Throws<IOException>(
+            () => File.WriteAllBytes(
+                environment.Transaction.CandidatePath,
+                CreatePayload("replacement")),
+            "Le handle candidat transmis au copieur protégé doit refuser toute réécriture concurrente.");
+        Throws<IOException>(
+            () => File.Move(
+                environment.Transaction.CandidatePath,
+                environment.Transaction.CandidatePath + ".moved"),
+            "Le handle candidat doit refuser un renommage qui changerait son identité pendant la copie.");
+        string hash = Convert.ToHexString(SHA256.HashData(stableCandidate)).ToLowerInvariant();
+        Equal(environment.Transaction.CandidateSha256, hash,
+            "Le handle stable doit conserver exactement l'identité du candidat authentifié.");
     }
 
     private static async Task LeaveReleaseUntouchedWhenParentDoesNotExitAsync()
@@ -789,6 +1468,19 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         throw new DirectoryNotFoundException("Racine du dépôt introuvable.");
     }
 
+    private static string NewNonSensitiveTestRoot(string scenario)
+    {
+        string? volumeRoot = Path.GetPathRoot(Path.GetFullPath(AppContext.BaseDirectory));
+        if (string.IsNullOrWhiteSpace(volumeRoot))
+        {
+            throw new InvalidOperationException("Racine de volume de test introuvable.");
+        }
+
+        return Path.Combine(
+            volumeRoot,
+            "AtlasLauncherElevationTest-" + scenario + "-" + Guid.NewGuid().ToString("N"));
+    }
+
     private static byte[] CreatePayload(string marker, int size = 256 * 1024)
     {
         byte[] markerBytes = Encoding.UTF8.GetBytes(marker);
@@ -803,6 +1495,71 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
 
     private static string Hash(byte[] payload) =>
         Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
+
+    private static LauncherUpdateManifest CreateTestManifest(
+        string version,
+        byte[] payload) => new()
+    {
+        SchemaVersion = 1,
+        KeyId = "atlas-test-key",
+        Version = version,
+        Url = $"https://update.animeclub.fr/launcher/{version}/AtlasLauncher.exe",
+        Size = payload.LongLength,
+        Sha256 = Hash(payload),
+        PublishedAt = "2026-09-09T00:00:00Z",
+        Signature = "test-signature"
+    };
+
+    private static void CreateDirectoryJunction(string junctionPath, string targetPath)
+    {
+        ProcessStartInfo startInfo = new()
+        {
+            FileName = Path.Combine(Environment.SystemDirectory, "cmd.exe"),
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardError = true
+        };
+        startInfo.ArgumentList.Add("/d");
+        startInfo.ArgumentList.Add("/c");
+        startInfo.ArgumentList.Add("mklink");
+        startInfo.ArgumentList.Add("/J");
+        startInfo.ArgumentList.Add(junctionPath);
+        startInfo.ArgumentList.Add(targetPath);
+        using Process process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Impossible de créer la jonction de test.");
+        process.WaitForExit();
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                "La création de la jonction de test a échoué: "
+                + process.StandardError.ReadToEnd());
+        }
+    }
+
+    private static void RunIcacls(string path, params string[] arguments)
+    {
+        ProcessStartInfo startInfo = new()
+        {
+            FileName = Path.Combine(Environment.SystemDirectory, "icacls.exe"),
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardError = true
+        };
+        startInfo.ArgumentList.Add(path);
+        foreach (string argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        using Process process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Impossible de lancer icacls pour le test.");
+        process.WaitForExit();
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                "icacls a échoué pendant le test: " + process.StandardError.ReadToEnd());
+        }
+    }
 
     private static async Task<T> ThrowsAsync<T>(Func<Task> action)
         where T : Exception
@@ -903,15 +1660,14 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             LauncherUpdateRetryPolicy? retryPolicy = null,
             bool parentExits = true,
             ILauncherAtomicFileMover? atomicMover = null,
+            ILauncherUpdateFaultInjector? faultInjector = null,
             bool recoveryProcessIsAlive = true,
             LauncherInstalledAppVersionSyncStatus registrationStatus =
-                LauncherInstalledAppVersionSyncStatus.Updated)
+                LauncherInstalledAppVersionSyncStatus.Updated,
+            Action<LauncherUpdateTransaction, string>? protectedFileValidator = null)
         {
             _faultPoint = faultPoint;
-            Root = Path.Combine(
-                Path.GetTempPath(),
-                "AtlasLauncherAtomicTests",
-                Guid.NewGuid().ToString("N"));
+            Root = NewNonSensitiveTestRoot("atomic");
             TransactionsRoot = Path.Combine(Root, "SelfUpdate", "Transactions");
             Directory.CreateDirectory(TransactionsRoot);
             OldBytes = CreatePayload("old-release");
@@ -927,9 +1683,10 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             Launcher = new FakeApplicationLauncher(Store, launchBehavior);
             RecoveryLauncher = new FakeApplicationLauncher(Store, FakeLaunchBehavior.Ready);
             LauncherUpdateRetryPolicy policy = retryPolicy ?? FastRetryPolicy();
-            ILauncherUpdateFaultInjector injector = faultPoint is null
-                ? NullLauncherUpdateFaultInjector.Instance
-                : new ThrowingFaultInjector(faultPoint.Value);
+            ILauncherUpdateFaultInjector injector = faultInjector
+                ?? (faultPoint is null
+                    ? NullLauncherUpdateFaultInjector.Instance
+                    : new ThrowingFaultInjector(faultPoint.Value));
             VersionSynchronizer = new RecordingInstalledAppVersionSynchronizer(
                 registrationStatus);
             Service = new LauncherAtomicReplacementService(
@@ -939,7 +1696,8 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
                 Launcher,
                 policy,
                 injector,
-                installedAppVersionSynchronizer: VersionSynchronizer);
+                installedAppVersionSynchronizer: VersionSynchronizer,
+                protectedFileValidator: protectedFileValidator);
             RecoveryService = new LauncherAtomicReplacementService(
                 Store,
                 new WindowsLauncherAtomicFileMover(),
@@ -951,6 +1709,13 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
                     && Launcher.LastProcess is { HasExited: false } process
                     && process.ProcessId == processId
                     && string.Equals(path, TargetPath, StringComparison.OrdinalIgnoreCase),
+                processMatchesIdentity: (processId, path, startedAt) =>
+                    recoveryProcessIsAlive
+                    && Launcher.LastProcess is { HasExited: false } process
+                    && process.ProcessId == processId
+                    && string.Equals(path, TargetPath, StringComparison.OrdinalIgnoreCase)
+                    && (process.StartedAt - startedAt).Duration()
+                       <= TimeSpan.FromSeconds(1),
                 stopProcess: (processId, path) =>
                 {
                     if (Launcher.LastProcess is { HasExited: false } process
@@ -960,7 +1725,8 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
                         process.Kill();
                     }
                 },
-                installedAppVersionSynchronizer: VersionSynchronizer);
+                installedAppVersionSynchronizer: VersionSynchronizer,
+                protectedFileValidator: protectedFileValidator);
         }
 
         internal string Root { get; }
@@ -1021,8 +1787,11 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             string workspace = Path.Combine(TransactionsRoot, id.ToString("N"));
             Directory.CreateDirectory(workspace);
             string candidate = Path.Combine(workspace, "candidate.exe");
-            string helper = Path.Combine(workspace, "updater.exe");
+            string helper = LauncherUpdateElevationSecurity.GetProtectedHelperPath(
+                TargetPath,
+                id);
             File.WriteAllBytes(candidate, NewBytes);
+            Directory.CreateDirectory(Path.GetDirectoryName(helper)!);
             File.WriteAllBytes(helper, OldBytes);
             string suffix = ".atlas-" + id.ToString("N");
             return new LauncherUpdateTransaction(
@@ -1036,7 +1805,9 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
                 TargetPath + suffix + ".new",
                 TargetPath + suffix + ".backup",
                 Path.Combine(workspace, "transaction.json"),
-                Path.Combine(workspace, "helper-accepted.json"),
+                LauncherUpdateElevationSecurity.GetProtectedHelperAcceptedSignalPath(
+                    TargetPath,
+                    id),
                 Path.Combine(workspace, "started.json"),
                 Path.Combine(workspace, "ready.json"),
                 NewBytes.Length,
@@ -1044,7 +1815,42 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
                 Hash(NewBytes),
                 LauncherUpdateTransactionPhase.Prepared,
                 DateTimeOffset.UtcNow,
-                AuthenticatedTargetVersion: "1.2.0");
+                AuthenticatedTargetVersion: "1.2.0",
+                AuthenticatedManifest: CreateTestManifest("1.2.0", NewBytes));
+        }
+    }
+
+    private sealed class SwapAndDenyUserOperationRunner(Action swap)
+        : ILauncherUpdateUserOperationRunner
+    {
+        private bool _swapped;
+
+        internal int RunCalls { get; private set; }
+
+        public void Run(Action operation)
+        {
+            ArgumentNullException.ThrowIfNull(operation);
+            EnterDeniedBoundary();
+        }
+
+        public T Run<T>(Func<T> operation)
+        {
+            ArgumentNullException.ThrowIfNull(operation);
+            EnterDeniedBoundary();
+            throw new InvalidOperationException("Frontière utilisateur non bloquante.");
+        }
+
+        private void EnterDeniedBoundary()
+        {
+            RunCalls++;
+            if (!_swapped)
+            {
+                _swapped = true;
+                swap();
+            }
+
+            throw new UnauthorizedAccessException(
+                "Écriture refusée par le jeton utilisateur synthétique.");
         }
     }
 
@@ -1093,6 +1899,21 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
             if (current == point)
             {
                 throw new LauncherUpdateSimulatedCrashException(point);
+            }
+        }
+    }
+
+    private sealed class MutatingFaultInjector(
+        LauncherUpdateFaultPoint point,
+        Action<LauncherUpdateTransaction> mutate) : ILauncherUpdateFaultInjector
+    {
+        public void Hit(
+            LauncherUpdateFaultPoint current,
+            LauncherUpdateTransaction transaction)
+        {
+            if (current == point)
+            {
+                mutate(transaction);
             }
         }
     }
@@ -1281,6 +2102,8 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         internal int KillCalls { get; private set; }
 
         public int ProcessId { get; } = processId;
+
+        public DateTimeOffset StartedAt { get; } = DateTimeOffset.UtcNow;
 
         public bool HasExited { get; private set; } = hasExited;
 

@@ -14,7 +14,8 @@ internal interface IGameFileTransferService
         long expectedSize,
         string expectedSha256,
         Action<GameFileTransferProgress>? reportProgress,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        IGameInstallRootLease? rootLease = null);
 }
 
 internal sealed record GameFileTransferRetryPolicy(
@@ -52,23 +53,7 @@ internal sealed class GameFileTransferService : IGameFileTransferService
 
     public Uri BuildFileUri(LauncherManifest manifest, LauncherFile file)
     {
-        ArgumentNullException.ThrowIfNull(manifest);
-        ArgumentNullException.ThrowIfNull(file);
-
-        if (Uri.TryCreate(file.Url, UriKind.Absolute, out Uri? absoluteUri))
-        {
-            return absoluteUri;
-        }
-
-        string baseUrl = string.IsNullOrWhiteSpace(manifest.BaseUrl)
-            ? throw new InvalidOperationException("baseUrl manquant dans le manifeste.")
-            : manifest.BaseUrl.TrimEnd('/') + "/";
-
-        string relativeUrl = string.IsNullOrWhiteSpace(file.Url)
-            ? "files/" + EscapeRelativeUrl(file.Path)
-            : file.Url.TrimStart('/');
-
-        return new Uri(new Uri(baseUrl), relativeUrl);
+        return GameManifestValidator.ResolveFileUri(manifest, file);
     }
 
     public async Task DownloadAsync(
@@ -78,21 +63,59 @@ internal sealed class GameFileTransferService : IGameFileTransferService
         long expectedSize,
         string expectedSha256,
         Action<GameFileTransferProgress>? reportProgress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IGameInstallRootLease? rootLease = null)
     {
         ArgumentNullException.ThrowIfNull(uri);
         ArgumentException.ThrowIfNullOrWhiteSpace(targetPath);
+        _ = GameManifestValidator.RequireHttpsUri(uri, "URL de téléchargement du client");
+        if (expectedSize is < 0 or > GameManifestValidator.MaximumFileBytes)
+        {
+            throw new InvalidDataException("Taille de téléchargement du client invalide.");
+        }
+
+        if (!GameManifestValidator.IsSha256(expectedSha256))
+        {
+            throw new InvalidDataException("SHA-256 de téléchargement du client invalide.");
+        }
+
+        string targetDirectory = Path.GetDirectoryName(targetPath)
+            ?? throw new InvalidOperationException("Chemin cible invalide.");
+        // For production maintenance the directory chain is acquired before
+        // the network wait and held until replacement/cleanup completes.
+        using IGameInstallDirectoryLease? targetDirectoryLease =
+            rootLease?.AcquireDirectory(
+                targetDirectory,
+                createIfMissing: true);
+        targetDirectoryLease?.DemandChildFileSafe(targetPath, allowMissing: true);
 
         // v1.1.0 performs one HTTP request. Its retries only cover final replacement.
         using HttpResponseMessage response = await _httpClient.GetAsync(
             uri,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken);
+        Uri responseUri = GameManifestValidator.RequireHttpsUri(
+            response.RequestMessage?.RequestUri ?? uri,
+            "URL finale de téléchargement du client");
+        if (!responseUri.Equals(uri))
+        {
+            throw new InvalidDataException(
+                "La redirection automatique du téléchargement du client est refusée.");
+        }
         response.EnsureSuccessStatusCode();
 
-        string targetDirectory = Path.GetDirectoryName(targetPath)
-            ?? throw new InvalidOperationException("Chemin cible invalide.");
-        Directory.CreateDirectory(targetDirectory);
+        long? responseLength = response.Content.Headers.ContentLength;
+        if (responseLength is < 0 || responseLength.HasValue && responseLength.Value != expectedSize)
+        {
+            throw new InvalidOperationException(
+                $"Taille invalide pour {Path.GetFileName(targetPath)}: réponse distante inattendue.");
+        }
+
+        if (targetDirectoryLease is null)
+        {
+            Directory.CreateDirectory(targetDirectory);
+        }
+
         string tempPath = Path.Combine(
             targetDirectory,
             "." + Path.GetFileName(targetPath) + "." + Guid.NewGuid().ToString("N") + ".download");
@@ -113,10 +136,18 @@ internal sealed class GameFileTransferService : IGameFileTransferService
 
                 while (true)
                 {
-                    int read = await remote.ReadAsync(buffer, cancellationToken);
+                    int requested = (int)Math.Min(buffer.Length, expectedSize - written + 1L);
+                    int read = await remote.ReadAsync(buffer.AsMemory(0, requested), cancellationToken);
                     if (read == 0)
                     {
                         break;
+                    }
+
+                    if (written > expectedSize - read)
+                    {
+                        throw new InvalidOperationException(
+                            $"Taille invalide pour {Path.GetFileName(targetPath)}: " +
+                            $"plus de {GameTransferFormatting.FormatBytes(expectedSize)} recus.");
                     }
 
                     await local.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
@@ -124,11 +155,11 @@ internal sealed class GameFileTransferService : IGameFileTransferService
                     reportProgress?.Invoke(new GameFileTransferProgress(
                         operationId,
                         written,
-                        expectedSize >= 0 ? expectedSize : null,
+                        expectedSize,
                         GameFileTransferStage.Downloading));
                 }
 
-                if (expectedSize >= 0 && written != expectedSize)
+                if (written != expectedSize)
                 {
                     throw new InvalidOperationException(
                         $"Taille invalide pour {Path.GetFileName(targetPath)}: " +
@@ -137,9 +168,22 @@ internal sealed class GameFileTransferService : IGameFileTransferService
                 }
             }
 
-            string downloadedHash = await GameFileVerifier.ComputeSha256Async(
-                tempPath,
-                cancellationToken);
+            targetDirectoryLease?.DemandChildFileSafe(tempPath, allowMissing: false);
+            using IGameInstallFileReplacementLease? replacementLease =
+                rootLease?.OpenFileForReplacement(tempPath);
+            string downloadedHash;
+            if (replacementLease is not null)
+            {
+                downloadedHash = await ComputeSha256Async(
+                    replacementLease.Stream,
+                    cancellationToken);
+            }
+            else
+            {
+                downloadedHash = await GameFileVerifier.ComputeSha256Async(
+                    tempPath,
+                    cancellationToken);
+            }
             if (!string.Equals(
                     downloadedHash,
                     expectedSha256,
@@ -152,21 +196,23 @@ internal sealed class GameFileTransferService : IGameFileTransferService
             reportProgress?.Invoke(new GameFileTransferProgress(
                 operationId,
                 expectedSize,
-                expectedSize >= 0 ? expectedSize : null,
+                expectedSize,
                 GameFileTransferStage.Applying));
             await MoveDownloadedFileWithRetryAsync(
                 tempPath,
                 targetPath,
-                cancellationToken);
+                cancellationToken,
+                targetDirectoryLease,
+                replacementLease);
             reportProgress?.Invoke(new GameFileTransferProgress(
                 operationId,
                 expectedSize,
-                expectedSize >= 0 ? expectedSize : null,
+                expectedSize,
                 GameFileTransferStage.Completed));
         }
         catch
         {
-            DeleteFileIfExists(tempPath);
+            DeleteFileIfExists(tempPath, targetDirectoryLease);
             throw;
         }
     }
@@ -174,7 +220,9 @@ internal sealed class GameFileTransferService : IGameFileTransferService
     private async Task MoveDownloadedFileWithRetryAsync(
         string tempPath,
         string targetPath,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IGameInstallDirectoryLease? targetDirectoryLease = null,
+        IGameInstallFileReplacementLease? replacementLease = null)
     {
         Exception? lastError = null;
         for (int attempt = 0; attempt < _retryPolicy.ReplacementAttempts; attempt++)
@@ -182,12 +230,29 @@ internal sealed class GameFileTransferService : IGameFileTransferService
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
+                targetDirectoryLease?.Revalidate();
+                if (replacementLease is not null)
+                {
+                    replacementLease.ReplaceFile(targetPath);
+                    return;
+                }
+
+                targetDirectoryLease?.DemandChildFileSafe(tempPath, allowMissing: false);
+                targetDirectoryLease?.DemandChildFileSafe(targetPath, allowMissing: true);
                 if (File.Exists(targetPath))
                 {
-                    TrySetNormalAttributes(targetPath);
+                    if (targetDirectoryLease is null)
+                    {
+                        TrySetNormalAttributes(targetPath);
+                    }
+                    else
+                    {
+                        targetDirectoryLease.NormalizeChildFileAttributes(targetPath);
+                    }
                 }
 
                 File.Move(tempPath, targetPath, overwrite: true);
+                targetDirectoryLease?.DemandChildFileSafe(targetPath, allowMissing: false);
                 return;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -203,19 +268,23 @@ internal sealed class GameFileTransferService : IGameFileTransferService
             lastError);
     }
 
-    private static string EscapeRelativeUrl(string path)
-    {
-        return string.Join(
-            "/",
-            path.Replace('\\', '/')
-                .Split('/', StringSplitOptions.RemoveEmptyEntries)
-                .Select(Uri.EscapeDataString));
-    }
-
-    private static void DeleteFileIfExists(string path)
+    private static void DeleteFileIfExists(
+        string path,
+        IGameInstallDirectoryLease? parentLease = null)
     {
         try
         {
+            if (parentLease is not null)
+            {
+                parentLease.DemandChildFileSafe(path, allowMissing: true);
+                if (File.Exists(path))
+                {
+                    parentLease.DeleteChildFile(path);
+                }
+
+                return;
+            }
+
             if (File.Exists(path))
             {
                 TrySetNormalAttributes(path);
@@ -225,6 +294,17 @@ internal sealed class GameFileTransferService : IGameFileTransferService
         catch
         {
         }
+    }
+
+    private static async Task<string> ComputeSha256Async(
+        Stream stream,
+        CancellationToken cancellationToken)
+    {
+        stream.Position = 0;
+        using System.Security.Cryptography.SHA256 sha =
+            System.Security.Cryptography.SHA256.Create();
+        byte[] digest = await sha.ComputeHashAsync(stream, cancellationToken);
+        return Convert.ToHexString(digest).ToLowerInvariant();
     }
 
     private static void TrySetNormalAttributes(string path)

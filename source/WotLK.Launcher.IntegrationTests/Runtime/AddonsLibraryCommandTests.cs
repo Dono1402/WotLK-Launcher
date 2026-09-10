@@ -55,7 +55,12 @@ internal static class AddonsLibraryCommandTests
                     dialogs.Confirm = _ => true;
                     state.PrimaryCommand.Execute("feature");
                     await Idle();
-                    Check(service.Applied.Select(item => item.Id).SequenceEqual(new[] { "base", "feature" }), "Confirmed installation executes dependencies before the selected addon.");
+                    Check(service.TransactionSelections.Count == 1
+                            && service.TransactionSelections[0].SequenceEqual(new[] { "base", "feature" })
+                            && service.Applied.Select(item => item.Id).SequenceEqual(new[] { "base", "feature" }),
+                        "Confirmed installation executes the dependency before the selected addon inside one grouped transaction.");
+                    Check(service.ResolveDependenciesValues.SequenceEqual(new[] { false }),
+                        "The confirmed dependency plan is closed before the grouped service transaction.");
                     Check(service.Applied.All(item => !item.AllowExternal) && writableChecks == 1, "A dependency plan grants no consent to replace unrelated manual installations.");
 
                     int appliedBefore = service.Applied.Count;
@@ -197,6 +202,8 @@ internal static class AddonsLibraryCommandTests
             ["removable"] = new(AddonLocalStatus.Installed, true, "1.0", new string('a', 64), ["removable"], DateTimeOffset.UtcNow)
         };
         internal List<(string Id, bool Forced, bool AllowExternal)> Applied { get; } = [];
+        internal List<string[]> TransactionSelections { get; } = [];
+        internal List<bool> ResolveDependenciesValues { get; } = [];
         internal List<string> Verified { get; } = [];
         internal List<string> RemoveAttempts { get; } = [];
         internal List<string> Removed { get; } = [];
@@ -205,27 +212,70 @@ internal static class AddonsLibraryCommandTests
         public IReadOnlyDictionary<string, AddonInspection> Inspect(AddonCatalog catalog, string installRoot) =>
             catalog.Addons.ToDictionary(item => item.Id, item => _installed.GetValueOrDefault(item.Id) ?? new AddonInspection(AddonLocalStatus.NotInstalled, false), StringComparer.OrdinalIgnoreCase);
         public Task ApplySelectionAsync(AddonCatalog catalog, string installRoot, IReadOnlyDictionary<string, bool> selection,
-            IProgress<AddonTransferProgress>? progress, Action<string>? log, CancellationToken cancellationToken) => throw new InvalidOperationException("The command must invoke explicit package operations.");
-        public Task ApplyPackageAsync(AddonCatalog catalog, string installRoot, AddonPackage package, bool install, bool forceReinstall,
-            bool allowExternalReplacement, IProgress<AddonTransferProgress>? progress, Action<string>? log, CancellationToken cancellationToken)
+            IProgress<AddonTransferProgress>? progress, Action<string>? log, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The command must invoke the grouped package transaction.");
+        public Task ApplySelectionTransactionAsync(AddonCatalog catalog, string installRoot,
+            IReadOnlyDictionary<string, bool> selection, IReadOnlySet<string> forceReinstallIds,
+            bool allowExternalReplacement, bool resolveDependencies, IProgress<AddonTransferProgress>? progress,
+            Action<string>? log, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!install)
+            AddonPackage[] packages = catalog.Addons
+                .Where(package => selection.ContainsKey(package.Id))
+                .ToArray();
+            TransactionSelections.Add(packages.Select(package => package.Id).ToArray());
+            ResolveDependenciesValues.Add(resolveDependencies);
+
+            Dictionary<string, AddonInspection> stagedInstalled = new(
+                _installed,
+                StringComparer.OrdinalIgnoreCase);
+            List<(string Id, bool Forced, bool AllowExternal)> stagedApplied = [];
+            List<string> stagedRemoved = [];
+            foreach (AddonPackage package in packages)
             {
-                RemoveAttempts.Add(package.Id);
-                if (RemoveFailuresRemaining > 0)
+                cancellationToken.ThrowIfCancellationRequested();
+                bool install = selection[package.Id];
+                if (!install)
                 {
-                    RemoveFailuresRemaining--;
-                    throw new IOException("Synthetic removal failure.");
+                    RemoveAttempts.Add(package.Id);
+                    if (RemoveFailuresRemaining > 0)
+                    {
+                        RemoveFailuresRemaining--;
+                        throw new IOException("Synthetic removal failure.");
+                    }
+
+                    stagedInstalled.Remove(package.Id);
+                    stagedRemoved.Add(package.Id);
+                    continue;
                 }
-                _installed.Remove(package.Id);
-                Removed.Add(package.Id);
-                return Task.CompletedTask;
+
+                stagedApplied.Add((
+                    package.Id,
+                    forceReinstallIds.Contains(package.Id),
+                    allowExternalReplacement));
+                stagedInstalled[package.Id] = new AddonInspection(
+                    AddonLocalStatus.Installed,
+                    true,
+                    package.Version,
+                    package.Sha256,
+                    package.Folders,
+                    DateTimeOffset.UtcNow);
             }
-            Applied.Add((package.Id, forceReinstall, allowExternalReplacement));
-            _installed[package.Id] = new(AddonLocalStatus.Installed, true, package.Version, package.Sha256, package.Folders, DateTimeOffset.UtcNow);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            _installed.Clear();
+            foreach ((string addonId, AddonInspection inspection) in stagedInstalled)
+            {
+                _installed[addonId] = inspection;
+            }
+            Applied.AddRange(stagedApplied);
+            Removed.AddRange(stagedRemoved);
             return Task.CompletedTask;
         }
+        public Task ApplyPackageAsync(AddonCatalog catalog, string installRoot, AddonPackage package, bool install, bool forceReinstall,
+            bool allowExternalReplacement, IProgress<AddonTransferProgress>? progress, Action<string>? log,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The command must invoke the grouped package transaction.");
         public Task<AddonVerificationResult> VerifyAsync(AddonCatalog catalog, string installRoot, string addonId, CancellationToken cancellationToken)
         {
             Verified.Add(addonId);

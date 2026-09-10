@@ -10,10 +10,23 @@ param(
     [string]$AtlasLauncherPath,
 
     [string]$Version = ("wotlk-classic-3.4.3.54261-frFR-{0}" -f (Get-Date -Format "yyyy.MM.dd.HHmm")),
-    [string]$BaseUrl = "http://152.228.225.7/wotlk/"
+    [string]$BaseUrl = "https://animeclub.fr/wotlk/"
 )
 
 $ErrorActionPreference = "Stop"
+
+$baseUri = $null
+if (-not [System.Uri]::TryCreate($BaseUrl, [System.UriKind]::Absolute, [ref]$baseUri) -or
+    -not [string]::IsNullOrEmpty($baseUri.UserInfo) -or
+    -not [string]::IsNullOrEmpty($baseUri.Fragment) -or
+    -not [string]::IsNullOrEmpty($baseUri.Query)) {
+    throw "BaseUrl must be an absolute HTTPS URL without credentials, query, or fragment."
+}
+$loopbackHttp = $baseUri.Scheme -eq [System.Uri]::UriSchemeHttp -and $baseUri.IsLoopback
+if ($baseUri.Scheme -ne [System.Uri]::UriSchemeHttps -and -not $loopbackHttp) {
+    throw "BaseUrl must use HTTPS (HTTP is permitted only for loopback development)."
+}
+$BaseUrl = $baseUri.AbsoluteUri.TrimEnd('/') + '/'
 
 function Get-NormalizedPath {
     param([string]$Path)

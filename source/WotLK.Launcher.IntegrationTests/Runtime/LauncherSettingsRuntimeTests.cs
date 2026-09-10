@@ -22,6 +22,21 @@ internal static class LauncherSettingsRuntimeTests
 {
     internal static async Task<int> RunAsync(string? captureDirectory)
     {
+        await RunHeadlessCasesAsync();
+        await ValidateConnectedWpfSettingsAsync(captureDirectory);
+        Console.WriteLine("Settings runtime integration OK (02G.2.1 + 04B.3b).");
+        return 0;
+    }
+
+    internal static async Task<int> RunHeadlessAsync()
+    {
+        await RunHeadlessCasesAsync();
+        Console.WriteLine("Settings runtime headless integration OK (02G.2.1 + 04B.3b).");
+        return 0;
+    }
+
+    private static async Task RunHeadlessCasesAsync()
+    {
         await CharacterizeImmediatePersistenceAsync();
         await CharacterizePersistenceRollbackAsync();
         await CharacterizePendingSaveShutdownAsync(clientWrite: false);
@@ -31,9 +46,6 @@ internal static class LauncherSettingsRuntimeTests
         await CharacterizeGameProjectionRefreshAsync();
         CharacterizeInstantQuestTextConfigFile();
         await CharacterizeInstantQuestTextRuntimePersistenceAsync();
-        await ValidateConnectedWpfSettingsAsync(captureDirectory);
-        Console.WriteLine("Settings runtime integration OK (02G.2.1 + 04B.3b).");
-        return 0;
     }
 
     private static async Task CharacterizePendingSaveShutdownAsync(bool clientWrite)
@@ -197,7 +209,9 @@ internal static class LauncherSettingsRuntimeTests
             operations,
             _ => throw new IOException("secret-value-must-not-be-logged"),
             static _ => { },
-            logs.Add);
+            logs.Add,
+            readInstantQuestText: static _ => true,
+            writeInstantQuestText: static (_, _) => true);
 
         LauncherSettingsChangeResult result = (await coordinator.TrySetInstallPathAsync(
             Path.Combine(root.Root, "private-client-token")));
@@ -297,17 +311,22 @@ internal static class LauncherSettingsRuntimeTests
     private static void CharacterizeInstantQuestTextConfigFile()
     {
         using TemporarySettingsRoot root = new();
+        using IGameInstallRootLease rootLease =
+            GameInstallServices.CreateNoOpGameInstallRootLeaseForTests(root.Root);
         string configPath = Path.Combine(root.Root, "_classic_", "WTF", "Config.wtf");
 
         True(
-            GameInstallServices.ReadInstantQuestText(root.Root),
+            GameInstallServices.ReadInstantQuestText(root.Root, rootLease),
             "Un Config.wtf absent doit conserver la valeur legacy active par défaut.");
         True(
-            GameInstallServices.SetInstantQuestText(root.Root, enabled: false),
+            GameInstallServices.SetInstantQuestText(
+                root.Root,
+                enabled: false,
+                rootLease: rootLease),
             "Désactiver doit créer uniquement la préférence demandée lorsque Config.wtf est absent.");
         True(File.Exists(configPath), "Config.wtf doit être créé au même emplacement legacy.");
         True(
-            !GameInstallServices.ReadInstantQuestText(root.Root),
+            !GameInstallServices.ReadInstantQuestText(root.Root, rootLease),
             "La valeur désactivée doit être relue immédiatement.");
 
         string[] preservedLines =
@@ -319,7 +338,10 @@ internal static class LauncherSettingsRuntimeTests
         ];
         File.WriteAllLines(configPath, preservedLines, new System.Text.UTF8Encoding(false));
         True(
-            GameInstallServices.SetInstantQuestText(root.Root, enabled: true),
+            GameInstallServices.SetInstantQuestText(
+                root.Root,
+                enabled: true,
+                rootLease: rootLease),
             "Activer doit remplacer la ligne existante.");
         string[] enabledLines = File.ReadAllLines(configPath);
         Equal("SET gxWindow \"0\"", enabledLines[0], "Le réglage précédent doit garder sa place et sa valeur.");
@@ -329,14 +351,23 @@ internal static class LauncherSettingsRuntimeTests
 
         string unchanged = File.ReadAllText(configPath);
         True(
-            !GameInstallServices.SetInstantQuestText(root.Root, enabled: true),
+            !GameInstallServices.SetInstantQuestText(
+                root.Root,
+                enabled: true,
+                rootLease: rootLease),
             "Une valeur identique ne doit pas réécrire Config.wtf.");
         Equal(unchanged, File.ReadAllText(configPath), "Le contenu identique doit rester byte-for-byte stable.");
 
-        _ = GameInstallServices.SetInstantQuestText(root.Root, enabled: false);
-        _ = GameInstallServices.EnsureDefaultClientConfig(root.Root, "frFR");
+        _ = GameInstallServices.SetInstantQuestText(
+            root.Root,
+            enabled: false,
+            rootLease: rootLease);
+        _ = GameInstallServices.EnsureDefaultClientConfig(
+            root.Root,
+            "frFR",
+            rootLease);
         True(
-            !GameInstallServices.ReadInstantQuestText(root.Root),
+            !GameInstallServices.ReadInstantQuestText(root.Root, rootLease),
             "Une réécriture legacy de Config.wtf ne doit plus réactiver le texte instantané.");
     }
 
@@ -798,14 +829,22 @@ internal static class LauncherSettingsRuntimeTests
                 TaskCompletionSource configEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
                 int configThread = 0, configWrites = 0;
                 bool failConfig = false;
-                SettingsGameLocaleApplier realApplier = new(hasPlayableClient: _ => true, writeConfig: (path, locale) =>
+                SettingsGameLocaleApplier realApplier = new(
+                    hasPlayableClient: _ => true,
+                    ensureWritable: (_, _) => Task.FromResult(true),
+                    writeConfig: (path, locale) =>
                 {
                     configThread = System.Environment.CurrentManagedThreadId;
                     Interlocked.Increment(ref configWrites);
                     configEntered.TrySetResult();
                     if (!configRelease.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException();
                     if (failConfig) throw new IOException("Synthetic Config.wtf write failure.");
-                    return GameInstallServices.EnsureDefaultClientConfig(path, locale);
+                    using IGameInstallRootLease rootLease =
+                        GameInstallServices.CreateNoOpGameInstallRootLeaseForTests(path);
+                    return GameInstallServices.EnsureDefaultClientConfig(
+                        path,
+                        locale,
+                        rootLease);
                 });
                 localeApplier.Handler = (owner, _, locale) => realApplier.ApplyAsync(owner, configRoot.Root, locale);
                 try

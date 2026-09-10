@@ -8,6 +8,8 @@ internal sealed partial class LauncherSchemaValidator
     private static readonly IReadOnlyDictionary<string, TableExpectation> LegacyV1Tables = CreateLegacyTables(false);
     private static readonly IReadOnlyDictionary<string, TableExpectation> LegacyV4Tables = CreateLegacyTables(true);
     private static readonly IReadOnlyDictionary<string, TableExpectation> LegacyV5Tables = CreateLegacyTables(true, true);
+    private static readonly IReadOnlyDictionary<string, TableExpectation> LegacyV9Tables = CreateLegacyTables(true, true, true);
+    private static readonly IReadOnlyDictionary<string, TableExpectation> LegacyV10Tables = CreateLegacyTables(true, true, true, true);
     private static readonly IReadOnlyDictionary<string, TableExpectation> AvatarV2Tables = CreateAvatarTables(false, false);
     private static readonly IReadOnlyDictionary<string, TableExpectation> AvatarV3Tables = CreateAvatarTables(true, false);
     private static readonly IReadOnlyDictionary<string, TableExpectation> AvatarV4Tables = CreateAvatarTables(true, true);
@@ -35,18 +37,79 @@ internal sealed partial class LauncherSchemaValidator
     internal Task ValidateLegacyAsync(MySqlConnection connection, CancellationToken cancellationToken)
         => ValidateAsync(connection, LegacyV1Tables, cancellationToken);
 
-    internal Task ValidateLegacyAsync(
+    internal async Task ValidateLegacyAsync(
         MySqlConnection connection,
         uint schemaVersion,
         CancellationToken cancellationToken)
-        => ValidateAsync(
+    {
+        await ValidateAsync(
             connection,
-            schemaVersion >= 5
-                ? LegacyV5Tables
+            schemaVersion >= 10
+                ? LegacyV10Tables
+                : schemaVersion >= 9
+                ? LegacyV9Tables
+                : schemaVersion >= 5
+                    ? LegacyV5Tables
                 : schemaVersion >= 4
                     ? LegacyV4Tables
                     : LegacyV1Tables,
             cancellationToken);
+        if (schemaVersion >= 9)
+            await ValidateRefreshHistoryIndexesAsync(connection, cancellationToken);
+        if (schemaVersion >= 10)
+            await ValidateSessionGarbageCollectionIndexesAsync(connection, cancellationToken);
+    }
+
+    private static async Task ValidateRefreshHistoryIndexesAsync(
+        MySqlConnection connection,
+        CancellationToken cancellationToken)
+    {
+        (string Name, string[] Columns)[] indexes =
+        [
+            ("ix_atlas_refresh_history_session", ["session_id"]),
+            ("ix_atlas_refresh_history_expiry", ["expires_at"])
+        ];
+        foreach ((string name, string[] columns) in indexes)
+        {
+            if (!await LauncherSchemaMigrator.ReadExactNonUniqueIndexAsync(
+                    connection,
+                    "atlas_launcher_refresh_history",
+                    name,
+                    columns,
+                    cancellationToken))
+            {
+                throw new InvalidOperationException(
+                    $"L'index requis {name} de la migration 0009 est absent.");
+            }
+        }
+    }
+
+    private static async Task ValidateSessionGarbageCollectionIndexesAsync(
+        MySqlConnection connection,
+        CancellationToken cancellationToken)
+    {
+        (string Name, string[] Columns)[] indexes =
+        [
+            ("ix_atlas_session_revoked_gc", ["revoked_at", "id"]),
+            ("ix_atlas_session_expired_gc", ["revoked_at", "absolute_expires_at", "id"]),
+            ("ix_atlas_session_account_revoked", ["account_id", "revoked_at", "id"]),
+            ("ix_atlas_session_account_active", ["account_id", "revoked_at", "refresh_expires_at", "id"]),
+            ("ix_atlas_session_account_active_order", ["account_id", "revoked_at", "created_at", "id"])
+        ];
+        foreach ((string name, string[] columns) in indexes)
+        {
+            if (!await LauncherSchemaMigrator.ReadExactNonUniqueIndexAsync(
+                    connection,
+                    "atlas_launcher_session",
+                    name,
+                    columns,
+                    cancellationToken))
+            {
+                throw new InvalidOperationException(
+                    $"L'index requis {name} de la migration 0010 est absent.");
+            }
+        }
+    }
 
     internal Task ValidateHistoryAsync(MySqlConnection connection, CancellationToken cancellationToken)
         => ValidateAsync(connection, HistoryTables, cancellationToken);
@@ -231,32 +294,69 @@ internal sealed partial class LauncherSchemaValidator
 
     private static IReadOnlyDictionary<string, TableExpectation> CreateLegacyTables(
         bool profileScopedReferences,
-        bool socialProfile = false)
+        bool socialProfile = false,
+        bool sessionFamilies = false,
+        bool sessionGarbageCollection = false)
     {
         string atlasOwnerTable = profileScopedReferences ? "atlas_launcher_profile" : "account";
         string atlasOwnerColumn = profileScopedReferences ? "account_id" : "id";
-        return new Dictionary<string, TableExpectation>(StringComparer.Ordinal)
+        List<string> sessionColumns =
+        [
+            C("id", "binary(16)", "NO"), C("account_id", "int unsigned", "NO"),
+            C("access_hash", "binary(32)", "NO"), C("refresh_hash", "binary(32)", "NO"),
+            C("device_name", "varchar(128)", "YES", collation: "utf8mb4_0900_ai_ci"),
+            C("access_expires_at", "datetime", "NO"), C("refresh_expires_at", "datetime", "NO")
+        ];
+        if (sessionFamilies)
+            sessionColumns.Add(C("absolute_expires_at", "datetime", "NO"));
+        sessionColumns.AddRange(
+        [
+            C("revoked_at", "datetime", "YES"),
+            C("created_at", "datetime", "NO", "CURRENT_TIMESTAMP", "DEFAULT_GENERATED"),
+            C("updated_at", "datetime", "NO", "CURRENT_TIMESTAMP", "DEFAULT_GENERATED on update CURRENT_TIMESTAMP")
+        ]);
+
+        List<string> sessionIndexes =
+        [
+            I("PRIMARY", 0, 1, "id"), I("access_hash", 0, 1, "access_hash"),
+            I("ix_atlas_session_account", 1, 1, "account_id"),
+            I("ix_atlas_session_refresh_expiry", 1, 1, "refresh_expires_at"),
+            I("refresh_hash", 0, 1, "refresh_hash")
+        ];
+        if (sessionFamilies)
+            sessionIndexes.Add(I("ix_atlas_session_absolute_expiry", 1, 1, "absolute_expires_at"));
+        if (sessionGarbageCollection)
+        {
+            sessionIndexes.AddRange(
+            [
+                I("ix_atlas_session_revoked_gc", 1, 1, "revoked_at"),
+                I("ix_atlas_session_revoked_gc", 1, 2, "id"),
+                I("ix_atlas_session_expired_gc", 1, 1, "revoked_at"),
+                I("ix_atlas_session_expired_gc", 1, 2, "absolute_expires_at"),
+                I("ix_atlas_session_expired_gc", 1, 3, "id"),
+                I("ix_atlas_session_account_revoked", 1, 1, "account_id"),
+                I("ix_atlas_session_account_revoked", 1, 2, "revoked_at"),
+                I("ix_atlas_session_account_revoked", 1, 3, "id"),
+                I("ix_atlas_session_account_active", 1, 1, "account_id"),
+                I("ix_atlas_session_account_active", 1, 2, "revoked_at"),
+                I("ix_atlas_session_account_active", 1, 3, "refresh_expires_at"),
+                I("ix_atlas_session_account_active", 1, 4, "id"),
+                I("ix_atlas_session_account_active_order", 1, 1, "account_id"),
+                I("ix_atlas_session_account_active_order", 1, 2, "revoked_at"),
+                I("ix_atlas_session_account_active_order", 1, 3, "created_at"),
+                I("ix_atlas_session_account_active_order", 1, 4, "id")
+            ]);
+        }
+
+        Dictionary<string, TableExpectation> tables = new(StringComparer.Ordinal)
         {
             ["atlas_launcher_profile"] = Table(
                 CreateProfileColumns(socialProfile),
                 [I("PRIMARY", 0, 1, "account_id"), I("email_normalized", 0, 1, "email_normalized")],
                 [F("fk_atlas_profile_account", 1, "account_id", "account", "id")]),
             ["atlas_launcher_session"] = Table(
-                [
-                    C("id", "binary(16)", "NO"), C("account_id", "int unsigned", "NO"),
-                    C("access_hash", "binary(32)", "NO"), C("refresh_hash", "binary(32)", "NO"),
-                    C("device_name", "varchar(128)", "YES", collation: "utf8mb4_0900_ai_ci"),
-                    C("access_expires_at", "datetime", "NO"), C("refresh_expires_at", "datetime", "NO"),
-                    C("revoked_at", "datetime", "YES"),
-                    C("created_at", "datetime", "NO", "CURRENT_TIMESTAMP", "DEFAULT_GENERATED"),
-                    C("updated_at", "datetime", "NO", "CURRENT_TIMESTAMP", "DEFAULT_GENERATED on update CURRENT_TIMESTAMP")
-                ],
-                [
-                    I("PRIMARY", 0, 1, "id"), I("access_hash", 0, 1, "access_hash"),
-                    I("ix_atlas_session_account", 1, 1, "account_id"),
-                    I("ix_atlas_session_refresh_expiry", 1, 1, "refresh_expires_at"),
-                    I("refresh_hash", 0, 1, "refresh_hash")
-                ],
+                sessionColumns,
+                sessionIndexes,
                 [F("fk_atlas_session_account", 1, "account_id", atlasOwnerTable, atlasOwnerColumn)]),
             ["atlas_launcher_email_verification"] = Table(
                 [
@@ -292,6 +392,23 @@ internal sealed partial class LauncherSchemaValidator
                     F("fk_atlas_friend_requester", 1, "requested_by_id", atlasOwnerTable, atlasOwnerColumn)
                 ])
         };
+        if (sessionFamilies)
+        {
+            tables["atlas_launcher_refresh_history"] = Table(
+                [
+                    C("token_hash", "binary(32)", "NO"),
+                    C("session_id", "binary(16)", "NO"),
+                    C("expires_at", "datetime", "NO"),
+                    C("consumed_at", "datetime(6)", "NO")
+                ],
+                [
+                    I("PRIMARY", 0, 1, "token_hash"),
+                    I("ix_atlas_refresh_history_expiry", 1, 1, "expires_at"),
+                    I("ix_atlas_refresh_history_session", 1, 1, "session_id")
+                ],
+                [F("fk_atlas_refresh_history_session", 1, "session_id", "atlas_launcher_session", "id")]);
+        }
+        return tables;
     }
 
     private static IReadOnlyList<string> CreateProfileColumns(bool socialProfile)

@@ -12,6 +12,9 @@ public sealed class AddonCatalog
     [JsonPropertyName("clientInterface")]
     public string ClientInterface { get; set; } = "";
 
+    [JsonPropertyName("generatedAtUtc")]
+    public DateTimeOffset GeneratedAtUtc { get; set; }
+
     [JsonPropertyName("addons")]
     public List<AddonPackage> Addons { get; set; } = [];
 }
@@ -135,7 +138,11 @@ internal sealed record AddonInspection(
     internal bool HasFileManifest { get; init; }
 }
 
-internal sealed record AddonTransferProgress(string AddonName, long BytesReceived, long TotalBytes);
+internal sealed record AddonTransferProgress(
+    string AddonName,
+    long BytesReceived,
+    long TotalBytes,
+    string AddonId = "");
 
 internal sealed class AddonSelectionItem : INotifyPropertyChanged
 {

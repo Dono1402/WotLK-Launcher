@@ -60,21 +60,23 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
 
         CancellationToken cancellationToken = operation.CancellationToken;
         cancellationToken.ThrowIfCancellationRequested();
-        Directory.CreateDirectory(request.InstallPath);
+
+        // Hold the root and its ancestors across every network wait, scan and
+        // mutation so a validated path cannot be exchanged underneath us.
+        using IGameInstallRootLease rootLease = _installPlatform.AcquireInstallRootLease(
+            request.InstallPath,
+            GameInstallRootLeaseMode.PrepareInstall);
 
         Report(GameClientMaintenancePhase.LoadingManifest);
         LauncherManifest manifest = await _manifestClient.LoadAsync(
             request.ManifestUrl,
             cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
+        GameManifestValidator.Validate(manifest);
+        rootLease.Revalidate();
         Report(
             GameClientMaintenancePhase.ManifestLoaded,
             availableVersion: manifest.Version);
-
-        if (manifest.Files.Count == 0)
-        {
-            throw new InvalidOperationException("Le manifeste ne contient aucun fichier.");
-        }
 
         _installPlatform.StopRunningGameProcesses(request.InstallPath);
         Report(GameClientMaintenancePhase.GameProcessesStopped);
@@ -88,13 +90,15 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
                     GameClientMaintenancePhase.ScanningFiles,
                     processedFileCount: progress.ProcessedFileCount,
                     totalFileCount: progress.TotalFileCount),
-                cancellationToken);
+                cancellationToken,
+                rootLease);
         cancellationToken.ThrowIfCancellationRequested();
 
         IReadOnlyList<LauncherFile> missingOrChanged = comparison.MissingOrChangedFiles;
         IReadOnlyList<string> removedFiles = _fileCleanup.FindRemovedFiles(
             request.InstallPath,
-            manifest);
+            manifest,
+            rootLease);
         long totalBytes = missingOrChanged.Sum(file => Math.Max(file.Size, 0));
         Report(
             GameClientMaintenancePhase.ComparisonCompleted,
@@ -110,7 +114,8 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
             missingOrChanged,
             removedFiles,
             isRepair: false,
-            reportProgress);
+            reportProgress,
+            rootLease);
 
         void Report(
             GameClientMaintenancePhase phase,
@@ -170,19 +175,20 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
                 "Le dossier du client n’existe pas.");
         }
 
+        using IGameInstallRootLease rootLease = _installPlatform.AcquireInstallRootLease(
+            request.InstallPath,
+            GameInstallRootLeaseMode.ExistingClient);
+
         Report(GameClientMaintenancePhase.LoadingManifest);
         LauncherManifest manifest = await _manifestClient.LoadAsync(
             request.ManifestUrl,
             cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
+        GameManifestValidator.Validate(manifest);
+        rootLease.Revalidate();
         Report(
             GameClientMaintenancePhase.ManifestLoaded,
             availableVersion: manifest.Version);
-
-        if (manifest.Files.Count == 0)
-        {
-            throw new InvalidDataException("Le manifeste ne contient aucun fichier.");
-        }
 
         Report(
             GameClientMaintenancePhase.FullVerification,
@@ -198,14 +204,16 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
                 currentFile: progress.CurrentFile,
                 processedFileCount: progress.ProcessedFileCount,
                 totalFileCount: progress.TotalFileCount),
-            cancellationToken);
+            cancellationToken,
+            rootLease);
         cancellationToken.ThrowIfCancellationRequested();
         ThrowIfFullVerificationIsBlocked(verification);
 
         IReadOnlyList<LauncherFile> repairFiles = verification.RepairFiles;
         IReadOnlyList<string> removedFiles = _fileCleanup.FindRemovedFiles(
             request.InstallPath,
-            manifest);
+            manifest,
+            rootLease);
         long totalBytes = repairFiles.Sum(file => Math.Max(file.Size, 0));
         Report(
             GameClientMaintenancePhase.ComparisonCompleted,
@@ -230,7 +238,8 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
             repairFiles,
             removedFiles,
             isRepair: true,
-            reportProgress);
+            reportProgress,
+            rootLease);
 
         void Report(
             GameClientMaintenancePhase phase,
@@ -272,7 +281,8 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
         IReadOnlyList<LauncherFile> missingOrChanged,
         IReadOnlyList<string> removedFiles,
         bool isRepair,
-        Action<GameClientMaintenanceProgress>? reportProgress)
+        Action<GameClientMaintenanceProgress>? reportProgress,
+        IGameInstallRootLease rootLease)
     {
         CancellationToken cancellationToken = operation.CancellationToken;
         if (missingOrChanged.Count == 0 && removedFiles.Count == 0)
@@ -285,7 +295,8 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
                 downloadedFileCount: 0,
                 deletedFileCount: 0,
                 isRepair,
-                reportProgress);
+                reportProgress,
+                rootLease);
         }
 
         int deletedCount = 0;
@@ -297,7 +308,8 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
             deletedCount = _fileCleanup.DeleteRemovedFiles(
                 request.InstallPath,
                 removedFiles,
-                cancellationToken);
+                cancellationToken,
+                rootLease);
             Report(
                 GameClientMaintenancePhase.CleanupCompleted,
                 removedFileCount: removedFiles.Count,
@@ -314,7 +326,8 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
                 downloadedFileCount: 0,
                 deletedFileCount: deletedCount,
                 isRepair,
-                reportProgress);
+                reportProgress,
+                rootLease);
         }
 
         long totalBytes = missingOrChanged.Sum(file => Math.Max(file.Size, 0));
@@ -384,7 +397,8 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
                         bytesPerSecond: speed,
                         remaining: remaining);
                 },
-                cancellationToken);
+                cancellationToken,
+                rootLease);
             cancellationToken.ThrowIfCancellationRequested();
             downloadedBytes += Math.Max(file.Size, 0);
         }
@@ -397,7 +411,8 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
             missingOrChanged.Count,
             deletedCount,
             isRepair,
-            reportProgress);
+            reportProgress,
+            rootLease);
 
         void Report(
             GameClientMaintenancePhase phase,
@@ -435,7 +450,8 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
         int downloadedFileCount,
         int deletedFileCount,
         bool isRepair,
-        Action<GameClientMaintenanceProgress>? reportProgress)
+        Action<GameClientMaintenanceProgress>? reportProgress,
+        IGameInstallRootLease rootLease)
     {
         return isRepair
             ? FinalizeRepair(
@@ -445,7 +461,8 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
                 outcome,
                 downloadedFileCount,
                 deletedFileCount,
-                reportProgress)
+                reportProgress,
+                rootLease)
             : FinalizeInstallation(
                 request,
                 operation,
@@ -453,7 +470,8 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
                 outcome,
                 downloadedFileCount,
                 deletedFileCount,
-                reportProgress);
+                reportProgress,
+                rootLease);
     }
 
     private static void ThrowIfFullVerificationIsBlocked(
@@ -488,10 +506,12 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
         GameClientMaintenanceOutcome outcome,
         int downloadedFileCount,
         int deletedFileCount,
-        Action<GameClientMaintenanceProgress>? reportProgress)
+        Action<GameClientMaintenanceProgress>? reportProgress,
+        IGameInstallRootLease rootLease)
     {
         operation.CancellationToken.ThrowIfCancellationRequested();
-        _manifestStore.Save(request.InstallPath, manifest);
+        rootLease.Revalidate();
+        _manifestStore.Save(request.InstallPath, manifest, rootLease);
         reportProgress?.Invoke(new GameClientMaintenanceProgress(
             operation.OperationId,
             GameClientMaintenancePhase.CacheSaved,
@@ -504,7 +524,8 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
         GameApplicationRegistration? registration = _installPlatform.RegisterGameApplication(
             request.InstallPath,
             manifest.Version,
-            request.GameLocale);
+            request.GameLocale,
+            rootLease);
         reportProgress?.Invoke(new GameClientMaintenanceProgress(
             operation.OperationId,
             GameClientMaintenancePhase.RegistrationCompleted,
@@ -533,7 +554,8 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
         GameClientMaintenanceOutcome outcome,
         int downloadedFileCount,
         int deletedFileCount,
-        Action<GameClientMaintenanceProgress>? reportProgress)
+        Action<GameClientMaintenanceProgress>? reportProgress,
+        IGameInstallRootLease rootLease)
     {
         operation.CancellationToken.ThrowIfCancellationRequested();
         operation.DisableUserCancellation();
@@ -544,7 +566,8 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
         GameApplicationRegistration? registration = _installPlatform.RegisterGameApplication(
             request.InstallPath,
             manifest.Version,
-            request.GameLocale);
+            request.GameLocale,
+            rootLease);
         reportProgress?.Invoke(new GameClientMaintenanceProgress(
             operation.OperationId,
             GameClientMaintenancePhase.RegistrationCompleted,
@@ -553,7 +576,8 @@ internal sealed class GameClientMaintenanceService : IGameClientMaintenanceServi
             UninstallerPath: registration?.UninstallerPath));
 
         operation.CancellationToken.ThrowIfCancellationRequested();
-        _manifestStore.Save(request.InstallPath, manifest);
+        rootLease.Revalidate();
+        _manifestStore.Save(request.InstallPath, manifest, rootLease);
         reportProgress?.Invoke(new GameClientMaintenanceProgress(
             operation.OperationId,
             GameClientMaintenancePhase.CacheSaved,

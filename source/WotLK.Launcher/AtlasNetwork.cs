@@ -16,6 +16,7 @@ internal static class AtlasNetwork
     public static SocketsHttpHandler CreateHandler()
         => new()
         {
+            AllowAutoRedirect = false,
             ConnectCallback = ConnectAsync,
             PooledConnectionLifetime = TimeSpan.FromMinutes(10)
         };

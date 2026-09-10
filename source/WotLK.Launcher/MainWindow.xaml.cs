@@ -1416,11 +1416,21 @@ public partial class MainWindow : Window
 
     private async void LogoutButton_Click(object sender, RoutedEventArgs e)
     {
-        await _auth.LogoutAsync();
+        Exception? remoteFailure = null;
+        try
+        {
+            await _auth.LogoutAsync();
+        }
+        catch (Exception exception)
+        {
+            remoteFailure = exception;
+        }
         ProfileButton.Visibility = Visibility.Collapsed;
         NavigateTo(LauncherPage.Game);
         ShowLogin();
-        AppendLog("Déconnecté du launcher.");
+        AppendLog(remoteFailure is null
+            ? "Déconnecté du launcher."
+            : $"Déconnecté localement, mais le serveur n'a pas confirmé la révocation : {remoteFailure.Message}");
     }
 
     private void ShowChangeEmailButton_Click(object sender, RoutedEventArgs e)

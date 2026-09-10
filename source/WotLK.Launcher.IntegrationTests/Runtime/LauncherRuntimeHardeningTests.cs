@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Net.Http;
 using System.Text.Json;
 using WotLK.Launcher;
 using WotLK.Launcher.Game;
@@ -11,6 +12,8 @@ internal static class LauncherRuntimeHardeningTests
     {
         CharacterizeLegacyInstalledVersionSemantics();
         CharacterizeLocalStateInvariant();
+        AssertAutomaticRedirectsAreDisabled();
+        await AttachBearerOnlyToExactAtlasHttpsOriginAsync();
         await CharacterizeUnexpectedRestoreFailureAsync(playableClient: true);
         await CharacterizeUnexpectedRestoreFailureAsync(playableClient: false);
         await CharacterizeIgnoredCancellationCompletingAfterCloseAsync();
@@ -19,6 +22,41 @@ internal static class LauncherRuntimeHardeningTests
         await CharacterizeFailingLogSinkAsync();
         Console.WriteLine("Launcher runtime hardening OK (02A.1).");
         return 0;
+    }
+
+    private static void AssertAutomaticRedirectsAreDisabled()
+    {
+        using SocketsHttpHandler handler = AtlasNetwork.CreateHandler();
+        True(
+            !handler.AllowAutoRedirect,
+            "Le transport partage ne doit suivre aucune redirection avant validation de l'URI cible.");
+    }
+
+    private static async Task AttachBearerOnlyToExactAtlasHttpsOriginAsync()
+    {
+        const string token = "synthetic-atlas-access-token";
+        RecordingAuthorizationHandler inner = new();
+        using HttpMessageInvoker http = new(new AtlasAuthorizationHandler(() => token, inner));
+
+        foreach ((string url, bool authorized) in new[]
+                 {
+                     ("https://animeclub.fr/api/v1/me", true),
+                     ("https://animeclub.fr:443/wotlk/manifest.json", true),
+                     ("http://animeclub.fr/api/v1/me", false),
+                     ("https://animeclub.fr:444/api/v1/me", false),
+                     ("https://user@animeclub.fr/api/v1/me", false),
+                     ("https://cdn.animeclub.fr/api/v1/me", false),
+                     ("https://animeclub.fr.example/api/v1/me", false)
+                 })
+        {
+            using HttpRequestMessage request = new(HttpMethod.Get, url);
+            request.Headers.Authorization = new("Bearer", "caller-supplied-token");
+            using HttpResponseMessage response = await http.SendAsync(request, CancellationToken.None);
+            Equal(
+                authorized ? token : null,
+                inner.LastAuthorization,
+                "Le bearer Atlas ne doit être transmis qu'à l'origine HTTPS exacte: " + url);
+        }
     }
 
     private static void CharacterizeLegacyInstalledVersionSemantics()
@@ -34,7 +72,7 @@ internal static class LauncherRuntimeHardeningTests
         Equal(" 3.4.3.54261 ", reader.ReadInstalledVersion(client.Root), "Les espaces autour de la version doivent être conservés.");
 
         WriteMarker(markerPath, new { clientVersion = string.Empty });
-        Equal(string.Empty, reader.ReadInstalledVersion(client.Root), "Une chaîne vide doit rester vide.");
+        Equal<string?>(null, reader.ReadInstalledVersion(client.Root), "Une chaîne vide ne doit pas être acceptée comme version installée.");
 
         WriteMarker(markerPath, new { clientVersion = "   " });
         Equal("   ", reader.ReadInstalledVersion(client.Root), "Une chaîne composée d'espaces doit être conservée.");
@@ -49,9 +87,8 @@ internal static class LauncherRuntimeHardeningTests
         Equal<string?>(null, reader.ReadInstalledVersion(client.Root), "Un JSON invalide doit produire null.");
 
         WriteMarker(markerPath, new { clientVersion = 30403 });
-        Throws<InvalidOperationException>(
-            () => reader.ReadInstalledVersion(client.Root),
-            "Une propriété non textuelle doit conserver l'exception legacy de JsonElement.GetString.");
+        Equal<string?>(null, reader.ReadInstalledVersion(client.Root),
+            "Une propriété non textuelle doit être rejetée sans faire remonter d'exception.");
 
         File.Delete(markerPath);
         Equal<string?>(null, reader.ReadInstalledVersion(client.Root), "Un fichier absent doit produire null.");
@@ -125,10 +162,13 @@ internal static class LauncherRuntimeHardeningTests
         Equal(LauncherSessionRestoreStatus.Unavailable, second.Status, "Le résultat observé doit être réutilisé.");
         True(firstTask.IsCompletedSuccessfully, "La tâche de restauration ne doit jamais rester fautée.");
         Equal(1, authentication.RestoreCalls, "Une exception ne doit pas déclencher une seconde restauration.");
-        Equal(1, logs.Count, "L'exception inattendue doit être journalisée une seule fois.");
-        True(logs[0].Contains(nameof(InvalidOperationException), StringComparison.Ordinal), "Le type d'erreur doit être journalisé.");
-        True(!logs[0].Contains(secret, StringComparison.Ordinal), "Le message potentiellement sensible ne doit pas être journalisé.");
-        True(!logs[0].Contains("access-token", StringComparison.OrdinalIgnoreCase), "Aucun token ne doit apparaître dans le journal.");
+        string[] authenticationLogs = logs
+            .Where(log => log.Contains("Authentification V2", StringComparison.Ordinal))
+            .ToArray();
+        Equal(1, authenticationLogs.Length, "L'exception inattendue doit être journalisée une seule fois.");
+        True(authenticationLogs[0].Contains(nameof(InvalidOperationException), StringComparison.Ordinal), "Le type d'erreur doit être journalisé.");
+        True(logs.All(log => !log.Contains(secret, StringComparison.Ordinal)), "Le message potentiellement sensible ne doit pas être journalisé.");
+        True(logs.All(log => !log.Contains("access-token", StringComparison.OrdinalIgnoreCase)), "Aucun token ne doit apparaître dans le journal.");
 
         LauncherV2RuntimePresentation.ApplySession(shell, first);
         Equal("Compte", shell.Username, "Une restauration indisponible ne doit pas modifier l'identité WPF.");
@@ -172,7 +212,8 @@ internal static class LauncherRuntimeHardeningTests
         True(restore.IsCompletedSuccessfully, "Le succès tardif doit rester observé.");
         Equal(1, authentication.RestoreCalls, "La fermeture ne doit pas relancer la restauration.");
         Equal(1, authentication.DisposeCalls, "La fermeture doit libérer l'authentification une fois.");
-        Equal(0, logs.Count, "Un succès tardif annulé ne doit pas créer une fausse erreur.");
+        Equal(0, logs.Count(log => log.Contains("Authentification V2", StringComparison.Ordinal)),
+            "Un succès tardif annulé ne doit pas créer une fausse erreur d'authentification.");
         LauncherV2RuntimePresentation.ApplySession(shell, result);
         Equal("Compte", shell.Username, "Un succès tardif ne doit pas modifier WPF après fermeture.");
         Equal(LauncherSessionRestoreStatus.Cancelled, (await runtime.InitializeAsync()).Status, "Le runtime fermé doit rester inutilisable.");
@@ -200,9 +241,12 @@ internal static class LauncherRuntimeHardeningTests
 
         Equal(LauncherSessionRestoreStatus.Cancelled, result.Status, "Une exception tardive après fermeture doit devenir Cancelled.");
         True(restore.IsCompletedSuccessfully, "L'exception tardive doit être observée et convertie en résultat.");
-        Equal(1, logs.Count, "L'exception tardive doit être journalisée une fois.");
-        True(logs[0].Contains(nameof(InvalidOperationException), StringComparison.Ordinal), "Le journal doit identifier le type d'erreur tardive.");
-        True(!logs[0].Contains(secret, StringComparison.Ordinal), "Le journal tardif ne doit pas contenir le secret.");
+        string[] authenticationLogs = logs
+            .Where(log => log.Contains("Authentification V2", StringComparison.Ordinal))
+            .ToArray();
+        Equal(1, authenticationLogs.Length, "L'exception tardive doit être journalisée une fois.");
+        True(authenticationLogs[0].Contains(nameof(InvalidOperationException), StringComparison.Ordinal), "Le journal doit identifier le type d'erreur tardive.");
+        True(logs.All(log => !log.Contains(secret, StringComparison.Ordinal)), "Le journal tardif ne doit pas contenir le secret.");
         LauncherV2RuntimePresentation.ApplySession(shell, result);
         Equal("Compte", shell.Username, "Une exception tardive ne doit pas modifier WPF.");
         Equal(1, authentication.RestoreCalls, "Une exception tardive ne doit pas relancer la restauration.");
@@ -319,6 +363,20 @@ internal static class LauncherRuntimeHardeningTests
         public override void Post(SendOrPostCallback d, object? state)
         {
             PostCalls++;
+        }
+    }
+
+    private sealed class RecordingAuthorizationHandler : HttpMessageHandler
+    {
+        internal string? LastAuthorization { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            LastAuthorization = request.Headers.Authorization?.Parameter;
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK));
         }
     }
 }

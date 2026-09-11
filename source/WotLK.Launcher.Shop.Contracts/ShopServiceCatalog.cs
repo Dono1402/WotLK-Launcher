@@ -4,12 +4,14 @@ namespace WotLK.Launcher.Shop.Contracts;
 // pricing is not defined; it must never be interpreted as a free service.
 public static class ShopServiceCatalog
 {
-    public static ShopOffer[] CreateOffers(long renameEuroCents = 500, long renameCreditEuroCents = 700) =>
+    public static ShopOffer[] CreateOffers(long renameEuroCents = 500, long renameCreditEuroCents = 700, bool accountServices = false) =>
     [
         new("character-rename", "services", new("Changement de nom", "Name change"),
             new("Le droit de choisir un nouveau nom depuis l’écran de sélection des personnages.",
                 "The ability to choose a new name on the character selection screen."),
-            new("Le nouveau nom se choisit à l’écran de sélection des personnages, après déconnexion. Il doit respecter les règles de nommage du royaume. Un renommage déjà en attente doit être terminé avant un nouvel achat.",
+            accountServices ? new("Le service est conservé sur votre compte jusqu’à utilisation. Choisissez un personnage de niveau 10 minimum et son nouveau nom à l’écran de sélection des personnages. Les règles de nommage du royaume s’appliquent. Annulation possible avant utilisation.",
+                "The service stays on your account until used. Choose a character of level 10 or above and a new name on the character selection screen. Realm naming rules apply. You can cancel before use.")
+            : new("Le nouveau nom se choisit à l’écran de sélection des personnages, après déconnexion. Il doit respecter les règles de nommage du royaume. Un renommage déjà en attente doit être terminé avant un nouvel achat.",
                 "Choose your new name on the character selection screen after logging out. Realm naming rules apply. Complete any pending name change before purchasing another."),
             [new("eur", renameEuroCents), new("credits", renameCreditEuroCents)],
             new("Faites-vous un nom. Écrivez votre prochaine légende.", "Make a name for yourself. Write your next legend."),

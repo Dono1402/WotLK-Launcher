@@ -7,6 +7,7 @@ exit. This fixture has no public listener, real account, money or game client.
 """
 import argparse
 import configparser
+import hashlib
 import importlib.util
 import json
 import os
@@ -45,6 +46,9 @@ def main():
     parser.add_argument('--hold', action='store_true', help='Keep the fixture available for bounded diagnostic tests.')
     parser.add_argument('--with-hermes', action='store_true', help='Run the isolated Hermes/3.4.3 suite, or add Hermes to --hold.')
     parser.add_argument('--hermes-package', choices=('hermes', 'hermes-disconnect'), default='hermes')
+    parser.add_argument('--api-package', choices=('api-linux', 'api-candidate'), default='api-linux')
+    parser.add_argument('--world-candidate', type=Path,
+                        help='Test an inactive release candidate whose compiled config directory points to this fixture.')
     args = parser.parse_args()
     root = Path(args.root).resolve(strict=True)
     if root.parent != Path('/opt/atlas-shop-tests') or not re.fullmatch(r'rename-[0-9A-Za-z-]+', root.name):
@@ -52,6 +56,24 @@ def main():
     if os.readlink('/proc/self/ns/net') == os.readlink('/proc/1/ns/net'):
         raise RuntimeError('PrivateNetwork=yes is mandatory for the test API/world.')
     os.umask(0o077)
+    world_binary = root / 'build/worldserver'
+    if args.world_candidate:
+        candidate = args.world_candidate.resolve(strict=True)
+        if candidate.parent != Path('/opt/arthas-next/candidates') or not re.fullmatch(r'atlas-shop-rename-[0-9A-Za-z-]+', candidate.name):
+            raise RuntimeError('Expected a dedicated AtlasShop candidate.')
+        manifest = json.loads((candidate / 'build/manifest.json').read_text())
+        config_dir = candidate / 'server/etc'
+        if not manifest.get('releaseCandidate') or manifest['configurationDirectory'] != str(config_dir):
+            raise RuntimeError('Candidate manifest does not declare its isolated configuration directory.')
+        if not config_dir.is_symlink() or config_dir.resolve(strict=True) != (root / 'etc').resolve(strict=True):
+            raise RuntimeError('Candidate must still use the test-only configuration link, never live module configurations.')
+        world_binary = candidate / 'build/worldserver'
+        with world_binary.open('rb') as stream:
+            if hashlib.file_digest(stream, 'sha256').hexdigest() != manifest['worldserverSha256']:
+                raise RuntimeError('Candidate binary differs from its build manifest.')
+    api_package = root / args.api_package
+    if not (api_package / 'WotLK.Launcher.Server').is_file():
+        raise RuntimeError('Expected an existing fixture API package.')
     if not args.hold:
         result_name = 'hermes-test-result.json' if args.with_hermes else 'native-test-result.json'
         (root / result_name).write_text(json.dumps({'passed': False, 'state': 'starting', 'startedAtUnix': int(time.time())}) + '\n')
@@ -105,7 +127,7 @@ def main():
         'ChatMediaRoot': str(root / 'media/chat'), 'FeedRoot': str(root / 'feed'),
         'AddonRoot': str(root / 'addons'), 'PublicBaseUrl': 'http://127.0.0.1:18081', 'BrevoApiKey': ''},
         'AtlasShop': {'Purchases': {'RenameEnabled': True, 'RealmId': 1}}}
-    (root / 'api-linux/appsettings.Testing.json').write_text(json.dumps(api_config, indent=2) + '\n')
+    (api_package / 'appsettings.Testing.json').write_text(json.dumps(api_config, indent=2) + '\n')
     env = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': str(root), 'TMPDIR': str(root / 'tmp'),
            'DOTNET_ENVIRONMENT': 'Testing', 'ASPNETCORE_ENVIRONMENT': 'Testing',
            'WOTLK_LAUNCHER_MAX_SCHEMA_VERSION': '12', 'DOTNET_CLI_TELEMETRY_OPTOUT': '1',
@@ -157,10 +179,10 @@ def main():
     try:
         if args.with_hermes:
             from hermes_realm_fixture import configure
-            auth_command, hermes_command = configure(root, BASE, values, password, args.hermes_package)
+            auth_command, hermes_command = configure(root, BASE, values, password, args.hermes_package, args.api_package)
             start('auth', auth_command, root)
             start('hermes', hermes_command, root / args.hermes_package)
-        api = start('api', [str(root / 'api-linux/WotLK.Launcher.Server')], root / 'api-linux')
+        api = start('api', [str(api_package / 'WotLK.Launcher.Server')], api_package)
         for _ in range(90):
             if api.poll() is not None:
                 raise RuntimeError('Test API exited; inspect its private log.')
@@ -172,7 +194,7 @@ def main():
                 time.sleep(1)
         else:
             raise RuntimeError('Test API did not become healthy.')
-        world = start('world', [str(root / 'build/worldserver'), '--config', str(etc / 'worldserver.conf')], root)
+        world = start('world', [str(world_binary), '--config', str(etc / 'worldserver.conf')], root)
         (root / 'fixture.pid').write_text(str(os.getpid()) + '\n')
         if args.hold:
             print('Fixture API healthy; world starting. Hold mode, maximum 45 minutes.', flush=True)
@@ -195,7 +217,7 @@ def main():
                 world.wait(timeout=45)
                 restart_count += 1
                 name = 'world-restart-' + str(restart_count)
-                world = start(name, [str(root / 'build/worldserver'), '--config', str(etc / 'worldserver.conf')], root)
+                world = start(name, [str(world_binary), '--config', str(etc / 'worldserver.conf')], root)
                 (root / 'world.pid').write_text(str(world.pid) + '\n')
                 log = root / 'logs' / (name + '-console.log')
                 for _ in range(180):

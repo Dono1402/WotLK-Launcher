@@ -16,7 +16,8 @@ internal sealed partial class ShopUiState
     public string BeneficiaryLabel => L("Personnage bénéficiaire", "Beneficiary character");
     public string PaymentLabel => L("Moyen de paiement", "Payment method");
     public string RecapHeading => L("Récapitulatif", "Order summary");
-    public string SummaryCharacter => L("Personnage : ", "Character: ") + (_character?.Character.Name ?? "—");
+    public string SummaryCharacter => UsesAccountService ? L("Pour votre compte · personnage à choisir en jeu", "For your account · choose a character in game")
+        : L("Personnage : ", "Character: ") + (_character?.Character.Name ?? "—");
     public string TotalLabel => L("Total", "Total");
     public string ConvertGoldLabel => L("Convertir de l’or", "Convert gold");
     public string ConversionHeading => L("Convertir mon or en Crédits Atlas", "Convert my gold into Atlas credits");

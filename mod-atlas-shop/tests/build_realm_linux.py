@@ -24,7 +24,7 @@ def sha(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-def read_flags(path, root, main=False):
+def read_flags(path, config_dir, main=False):
     text = path.read_text()
     flags = []
     for key in ('CXX_DEFINES', 'CXX_INCLUDES', 'CXX_FLAGS'):
@@ -35,7 +35,7 @@ def read_flags(path, root, main=False):
     result = []
     for flag in flags:
         if flag.startswith('-D_CONF_DIR='):
-            flag = '-D_CONF_DIR="' + str(root / 'etc') + '"'
+            flag = '-D_CONF_DIR="' + str(config_dir) + '"'
         elif main and flag.startswith('-DAC_MODULES_LIST='):
             flag = flag[:-1] + 'mod-atlas-shop,"'
         elif main and flag.startswith('-DCONFIG_FILE_LIST='):
@@ -47,10 +47,18 @@ def read_flags(path, root, main=False):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, required=True)
+    parser.add_argument('--release-candidate', action='store_true',
+                        help='Build a separate, inactive AtlasShop release with its own server/etc directory.')
     args = parser.parse_args()
     root = args.root.resolve(strict=True)
-    if root.parent != Path('/opt/atlas-shop-tests') or not re.fullmatch(r'rename-[0-9A-Za-z-]+', root.name):
-        raise RuntimeError('Expected an existing, dedicated /opt/atlas-shop-tests/rename-* directory.')
+    if args.release_candidate:
+        if root.parent != Path('/opt/arthas-next/candidates') or not re.fullmatch(r'atlas-shop-rename-[0-9A-Za-z-]+', root.name):
+            raise RuntimeError('Expected a dedicated /opt/arthas-next/candidates/atlas-shop-rename-* directory.')
+        config_dir = root / 'server/etc'
+    else:
+        if root.parent != Path('/opt/atlas-shop-tests') or not re.fullmatch(r'rename-[0-9A-Za-z-]+', root.name):
+            raise RuntimeError('Expected an existing, dedicated /opt/atlas-shop-tests/rename-* directory.')
+        config_dir = root / 'etc'
     out = root / 'build'
     out.mkdir(exist_ok=True)
     module = root / 'mod-atlas-shop'
@@ -85,9 +93,9 @@ def main():
                                      'objectSha256': sha(obj), 'flags': flags})
         return str(obj)
 
-    module_flags = read_flags(BASE / 'build/modules/CMakeFiles/modules.dir/flags.make', root)
-    common_flags = read_flags(BASE / 'build/src/common/CMakeFiles/common.dir/flags.make', root)
-    app_flags = read_flags(BASE / 'build/src/server/apps/CMakeFiles/worldserver.dir/flags.make', root, main=True)
+    module_flags = read_flags(BASE / 'build/modules/CMakeFiles/modules.dir/flags.make', config_dir)
+    common_flags = read_flags(BASE / 'build/src/common/CMakeFiles/common.dir/flags.make', config_dir)
+    app_flags = read_flags(BASE / 'build/src/server/apps/CMakeFiles/worldserver.dir/flags.make', config_dir, main=True)
     loader_text = (CURRENT / 'evidence/active-ModulesLoader.cpp').read_text()
     marker = '    // Modules\n'
     if loader_text.count(marker) != 1 or 'Addmod_atlas_shopScripts' in loader_text:
@@ -123,6 +131,7 @@ def main():
     if before != after:
         raise RuntimeError('Existing link inputs changed during the build.')
     manifest.update({'worldserverSha256': sha(out / 'worldserver'), 'registrations': sorted(expected),
+                     'configurationDirectory': str(config_dir), 'releaseCandidate': args.release_candidate,
                      'builtAtUnix': int(time.time()), 'linked': True, 'started': False})
     (out / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     print('PASS: isolated worldserver linked; all previous module registrations plus AtlasShop present.', flush=True)

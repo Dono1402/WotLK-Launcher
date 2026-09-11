@@ -4,6 +4,11 @@ Module AzerothCore pour la livraison des achats Atlas de changement de nom.
 Il traite les commandes persistantes de l'API du launcher et accorde le service
 natif `AT_LOGIN_RENAME` une seule fois. Désactivé par défaut.
 
+Le nouveau [parcours de services achetés pour le compte](../docs/BOUTIQUE-ATLAS-SERVICES-NATIFS.md)
+est préparé côté API et launcher. Ce module ne fournit pas encore le bouton
+BattlePay/VAS ni la consommation native de ces services ; il ne faut pas
+l'activer pour ce parcours.
+
 Voir [le parcours, les prérequis et les tests](../docs/BOUTIQUE-ATLAS-RENOMMAGE.md).
 Le [banc Linux isolé](../docs/BOUTIQUE-ATLAS-TEST-ROYAUME.md) lie un vrai World
 et teste l'API avec les commandes natives de personnage, sans client graphique.

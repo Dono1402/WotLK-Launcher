@@ -28,7 +28,8 @@ internal static class MigrationCeilingTests
             ExpectConfigurationFailure(invalid, isProduction: true);
 
         IReadOnlyList<LauncherSchemaMigration> embedded = new EmbeddedLauncherSchemaMigrationSource().Load();
-        Equal(12, embedded.Count, "Les douze migrations doivent rester embarquees.");
+        Equal(13, embedded.Count, "Les treize migrations doivent rester embarquees.");
+        Equal("account_services", embedded[12].Name, "Les services du compte restent en migration 0013.");
         Equal((uint)4, embedded[3].Version, "La frontiere d'identite doit rester versionnee en 0004.");
         Equal("atlas_profile_identity_boundary", embedded[3].Name,
             "La migration de frontiere ne doit pas etre remplacee.");
@@ -224,7 +225,7 @@ internal static class MigrationCeilingTests
             "Apres verrouillage du lot parent, chaque famille doit revalider son historique par l'index de session avant suppression.");
 
         Console.WriteLine(
-            "Migration ceiling configuration OK: production 0005 preserved; migrations locales 0006-0012 embedded; bounded session/history cleanup, replay lock order, rotation and account caps verified.");
+            "Migration ceiling configuration OK: production 0005 preserved; migrations locales 0006-0013 embedded; bounded session/history cleanup, replay lock order, rotation and account caps verified.");
         return 0;
     }
 
@@ -278,11 +279,11 @@ internal static class MigrationCeilingTests
             logger);
 
         IReadOnlyList<LauncherSchemaMigrationOutcome> first = await migrator.MigrateAsync();
-        Equal(12, first.Count, "Le resultat doit rendre visibles les migrations eligibles et bloquees.");
+        Equal(new EmbeddedLauncherSchemaMigrationSource().Load().Count, first.Count, "Le resultat doit rendre visibles les migrations eligibles et bloquees.");
         True(first.Take(3).All(item => item.State == LauncherSchemaMigrationState.Applied),
             "Une base fraiche doit appliquer 0001, 0002 et 0003.");
         True(first.Skip(3).All(item => item.State == LauncherSchemaMigrationState.BlockedByCeiling),
-            "0004 a 0012 doivent etre explicitement bloquees.");
+            "Toutes les migrations au-dela de 0003 doivent etre explicitement bloquees.");
         True(logger.Messages.Any(message => message.Contains("0004", StringComparison.Ordinal)
             && message.Contains("0003", StringComparison.Ordinal)
             && message.Contains("bloquee", StringComparison.Ordinal)),
@@ -299,7 +300,7 @@ internal static class MigrationCeilingTests
         True(second.Take(3).All(item => item.State == LauncherSchemaMigrationState.AlreadyApplied),
             "La seconde execution doit conserver 0001-0003 sans modification.");
         True(second.Skip(3).All(item => item.State == LauncherSchemaMigrationState.BlockedByCeiling),
-            "0004 a 0012 doivent rester bloquees lors d'une seconde execution.");
+            "Toutes les migrations au-dela de 0003 doivent rester bloquees lors d'une seconde execution.");
         await AssertHistoryAsync(builder.ConnectionString, [1U, 2U, 3U]);
     }
 
@@ -308,13 +309,14 @@ internal static class MigrationCeilingTests
         await ResetFreshSchemaAsync(builder.ConnectionString);
         LauncherServerOptions unrestricted = CreateOptions(builder, maximumSchemaVersion: null);
         await new LauncherSchemaMigrator(unrestricted).MigrateAsync();
-        await AssertHistoryAsync(builder.ConnectionString, [1U, 2U, 3U, 4U, 5U, 6U, 7U, 8U, 9U, 10U, 11U, 12U]);
+        uint[] expectedHistory = new EmbeddedLauncherSchemaMigrationSource().Load().Select(m => m.Version).ToArray();
+        await AssertHistoryAsync(builder.ConnectionString, expectedHistory);
 
         LauncherServerOptions capped = CreateOptions(builder, maximumSchemaVersion: 3);
         await ExpectAsync<InvalidOperationException>(
             () => new LauncherSchemaMigrator(capped).MigrateAsync(),
             "Une base contenant deja des migrations superieures a 0003 doit refuser ce plafond.");
-        await AssertHistoryAsync(builder.ConnectionString, [1U, 2U, 3U, 4U, 5U, 6U, 7U, 8U, 9U, 10U, 11U, 12U]);
+        await AssertHistoryAsync(builder.ConnectionString, expectedHistory);
     }
 
     private static async Task ValidateAppliedChecksumStillProtectedAsync(MySqlConnectionStringBuilder builder)

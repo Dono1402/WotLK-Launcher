@@ -27,7 +27,7 @@ internal static partial class ShopManualFundingMySqlTests
         await Sql(connection, migration.Sql[..(migration.Sql.IndexOf(';') + 1)]);
         server.MaximumSchemaVersion = 12;
         await new LauncherSchemaMigrator(server).MigrateAsync();
-        Check((await new LauncherSchemaMigrator(server).MigrateAsync()).All(m => m.State == LauncherSchemaMigrationState.AlreadyApplied),
+        Check((await new LauncherSchemaMigrator(server).MigrateAsync()).Where(m => m.Version <= 12).All(m => m.State == LauncherSchemaMigrationState.AlreadyApplied),
             "Schema 0012 recovers interrupted DDL and validates on replay.");
         await Sql(connection, "ALTER TABLE atlas_shop_order MODIFY active_character INT UNSIGNED GENERATED ALWAYS AS (IF(status='delivered',character_guid,NULL)) STORED;");
         try { await new LauncherSchemaMigrator(server).MigrateAsync(); throw new Exception("A changed generated expression was accepted."); }

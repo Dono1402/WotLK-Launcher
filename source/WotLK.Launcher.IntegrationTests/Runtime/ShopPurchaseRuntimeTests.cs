@@ -46,12 +46,43 @@ internal static class ShopPurchaseRuntimeTests
         Check(!state.HasOffers && !state.HasPurchaseOrders && !state.IsPurchaseReading, "A late status read is ignored after logout, even if the transport ignored cancellation.");
         try { new ShopPurchases(true, [null!]).Validate(); throw new Exception("Malformed order list accepted"); }
         catch (InvalidDataException) { checks++; }
+        checks += await VerifyAccountServicesAsync();
         return checks;
 
         void SelectRename()
         { state.OpenService(state.Offers.Single(o => o.Offer.Id == "character-rename")); state.SelectedCharacter = state.Characters.Single(c => c.Character.Guid == 101); }
         static ShopOrder Receipt(ShopCreateOrder input)
         { DateTimeOffset now = DateTimeOffset.UtcNow; return new(Guid.NewGuid().ToString("N"), input.OfferId, input.CharacterGuid, "Asteria", input.Currency, input.ExpectedAmountCents, "pending", null, now, now, input.IdempotencyKey); }
+        void Check(bool value, string message) { if (!value) throw new InvalidOperationException(message); checks++; }
+    }
+
+    private static async Task<int> VerifyAccountServicesAsync()
+    {
+        int checks = 0, reads = 0;
+        ShopSnapshot snapshot = ShopRuntimeTests.Snapshot with { CheckoutAvailable = true, EuroBalanceCents = 1000,
+            Purchases = new(true, [], AccountServices: true), Characters = [] };
+        using ShopUiState state = new();
+        state.Configure(_ => ++reads == 1 ? Task.FromResult(snapshot) : throw new HttpRequestException("Fixture: read unavailable after commit"));
+        state.ConfigurePurchases(new((input, _) =>
+        {
+            Check(input.CharacterGuid == 0, "Account purchases send no implicit beneficiary.");
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            return Task.FromResult(new ShopOrder(Guid.NewGuid().ToString("N"), input.OfferId, 0, "", input.Currency,
+                input.ExpectedAmountCents, "available", null, now, now, input.IdempotencyKey));
+        }, (_, _) => throw new InvalidOperationException()));
+        await state.RefreshAsync(); state.OpenService(state.Offers.Single(o => o.Offer.Id == "character-rename"));
+        Check(state.CanPurchase && !state.ShowPurchaseCharacter, "A funded account can buy without any characters.");
+        await state.PurchaseAsync();
+        Check(state.UsesAccountService && state.AvailableServiceCount == 1 && state.CanCancelPurchase && !state.CanPurchase
+            && state.EuroBalance == "—", "A failed refresh retains the account-mode receipt and makes the debited wallet unknown.");
+        snapshot = snapshot with { EuroBalanceCents = 0 };
+        state.Configure(_ => Task.FromResult(snapshot)); await state.RefreshAsync();
+        state.OpenService(state.Offers.Single(o => o.Offer.Id == "character-rename"));
+        Check(state.CanPrepareServiceFunding && state.SelectedCharacter is null, "An unfunded account can prepare a top-up without selecting a character.");
+        state.PrepareServiceFunding();
+        Check(state.IsWalletOpen && state.HasFundingReturn && state.FundingContextText.Length > 0,
+            "Funding navigation preserves the account service and its price without inventing a beneficiary.");
+        return checks;
         void Check(bool value, string message) { if (!value) throw new InvalidOperationException(message); checks++; }
     }
 }

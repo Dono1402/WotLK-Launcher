@@ -4,9 +4,9 @@ namespace WotLK.Launcher.Server.Database;
 
 internal sealed partial class LauncherSchemaValidator
 {
-    internal async Task ValidateShopOrdersAsync(MySqlConnection connection, CancellationToken token)
+    internal async Task ValidateShopOrdersAsync(MySqlConnection connection, CancellationToken token, bool accountServices = false)
     {
-        await ValidateAsync(connection, new Dictionary<string, TableExpectation>(StringComparer.Ordinal)
+        Dictionary<string, TableExpectation> tables = new(StringComparer.Ordinal)
         {
             ["atlas_shop_order"] = Table(
                 [C("sequence_id","bigint","NO",extra:"auto_increment"), FundingId("id"), C("account_id","int unsigned","NO"),
@@ -31,7 +31,19 @@ internal sealed partial class LauncherSchemaValidator
             ["atlas_shop_delivery_health"] = Table(
                 [C("realm_id","int unsigned","NO"), C("protocol","int unsigned","NO"), C("character_database","varchar(64)","NO",collation:"ascii_bin"), FundingDate("last_seen_at")],
                 [I("PRIMARY",0,1,"realm_id")], [])
-        }, token);
+        };
+        if (accountServices)
+        {
+            TableExpectation orders = tables["atlas_shop_order"];
+            tables["atlas_shop_order"] = orders with
+            {
+                Columns = [.. orders.Columns, C("redemption_key", "char(32)", "YES", collation: "ascii_bin"),
+                    C("requested_name", "varchar(12)", "YES", collation: "utf8mb4_0900_ai_ci")],
+                Indexes = [.. orders.Indexes, I("uq_atlas_shop_order_redemption", 0, 1, "account_id"),
+                    I("uq_atlas_shop_order_redemption", 0, 2, "redemption_key")]
+            };
+        }
+        await ValidateAsync(connection, tables, token);
         await using MySqlCommand generated = new("""
             SELECT GENERATION_EXPRESSION FROM information_schema.COLUMNS
             WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='atlas_shop_order' AND COLUMN_NAME='active_character';

@@ -25,12 +25,15 @@ internal sealed partial class ShopUiState
         "Wallet holds your euro top-ups. Atlas credits come from converted gold. Each operation adds funds only to its own balance; the two balances cannot be combined for a purchase.");
 
     private bool HasBoostLevelConflict => _offer?.Offer.Id == "character-level-70" && _character?.Character.Level >= 70;
-    public string EligibilityTitle => _character is null ? L("Personnage à choisir", "Choose a character")
+    public string EligibilityTitle => UsesAccountService ? L($"Services disponibles sur le compte : {AvailableServiceCount}", $"Services available on your account: {AvailableServiceCount}")
+        : _character is null ? L("Personnage à choisir", "Choose a character")
         : _offer?.Offer.Id == "character-rename" && _character.Character.RenamePending == true ? L("Renommage déjà en attente", "Name change already pending")
         : HasBoostLevelConflict ? L("Niveau 70 déjà atteint", "Already level 70 or above")
         : _character.Character.Online ? L("Personnage en ligne", "Character is online")
         : RenameAvailable && _character.Character.RenamePending == false ? L("Personnage disponible", "Character available") : L("Éligibilité à confirmer", "Eligibility to be confirmed");
-    public string EligibilityDescription => !HasCharacters ? L("Aucun personnage sur ce compte.", "No characters on this account.")
+    public string EligibilityDescription => UsesAccountService
+        ? L("Choisissez en jeu un personnage de niveau 10 minimum et son nouveau nom au moment d’utiliser le service.", "Choose a character of level 10 or above and a new name in game when you use the service.")
+        : !HasCharacters ? L("Aucun personnage sur ce compte.", "No characters on this account.")
         : _character is null ? L("Sélectionnez le personnage qui recevra ce service.", "Select the character that will receive this service.")
         : HasBoostLevelConflict ? L($"Ce personnage est déjà de niveau {_character.Character.Level}. Ce sésame vise le niveau 70.",
             $"This character is already level {_character.Character.Level}. This boost targets level 70.")
@@ -43,11 +46,11 @@ internal sealed partial class ShopUiState
         : _offer?.Offer.Id == "character-rename" ? L("Les règles de nommage et l’absence de renommage en attente devront être vérifiées avant l’achat.",
             "Naming rules and any pending name change must be checked before purchase.")
         : L("Les restrictions de ce service seront précisées avant l’ouverture.", "Service restrictions will be detailed before launch.");
-    public string EligibilityColor => HasBoostLevelConflict ? "#F1A2A2" : _character?.Character.Online == true ? "#ECD096" : "#A9C7DA";
+    public string EligibilityColor => UsesAccountService ? "#A9C7DA" : HasBoostLevelConflict ? "#F1A2A2" : _character?.Character.Online == true ? "#ECD096" : "#A9C7DA";
 
     public bool HasServiceFundingAction => _price?.MissingCents > 0;
     public bool CanPrepareServiceFunding => !_disposed && !IsLoading && CanEditPurchase && IsServiceOpen && HasServiceFundingAction
-        && _character is not null && !HasBoostLevelConflict && _snapshot is not null;
+        && (UsesAccountService || _character is not null && !HasBoostLevelConflict) && _snapshot is not null;
     public string ServiceFundingAction => _price?.Price.Currency == "eur"
         ? L($"Ajouter les {FormatEuros(_price.MissingCents ?? 0)} manquants", $"Add the missing {FormatEuros(_price.MissingCents ?? 0)}")
         : L("Obtenir les crédits manquants", "Get the missing credits");
@@ -69,8 +72,8 @@ internal sealed partial class ShopUiState
 
     internal void PrepareServiceFunding()
     {
-        if (!CanPrepareServiceFunding || _offer is null || _price?.MissingCents is not long missing || _character is null) return;
-        _fundingReturn = new(_offer.Offer.Id, _character.Character.Guid, _price.Price.Currency, _price.Price.Amount);
+        if (!CanPrepareServiceFunding || _offer is null || _price?.MissingCents is not long missing) return;
+        _fundingReturn = new(_offer.Offer.Id, UsesAccountService ? 0 : _character!.Character.Guid, _price.Price.Currency, _price.Price.Amount);
         if (_price.Price.Currency == "eur")
         {
             OpenWallet(preserveServiceReturn: true);

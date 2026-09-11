@@ -23,6 +23,7 @@ internal static partial class AuthSessionSecurityMySqlTests
     internal static async Task<int> RunAsync()
     {
         _checks = 0;
+        int availableMigrationCount = new EmbeddedLauncherSchemaMigrationSource().Load().Count;
         MySqlConnectionStringBuilder connection = ReadSafeConnection();
         await ResetSchemaAsync(connection.ConnectionString);
         try
@@ -31,12 +32,12 @@ internal static partial class AuthSessionSecurityMySqlTests
             LauncherServerOptions version8 = Options(connection, 8);
             IReadOnlyList<LauncherSchemaMigrationOutcome> firstEight =
                 await new LauncherSchemaMigrator(version8).MigrateAsync(None);
-            Check(firstEight.Count == 10
+            Check(firstEight.Count == availableMigrationCount
                 && firstEight.Take(8).All(item =>
                     item.State == LauncherSchemaMigrationState.Applied)
                 && firstEight.Skip(8).All(item =>
                     item.State == LauncherSchemaMigrationState.BlockedByCeiling),
-                "A fresh fixture applies 0001-0008 and explicitly blocks 0009-0010.");
+                "A fresh fixture applies 0001-0008 and explicitly blocks every later migration.");
 
             await SeedAccountAsync(connection.ConnectionString);
             TokenService tokenService = new();
@@ -71,11 +72,11 @@ internal static partial class AuthSessionSecurityMySqlTests
             LauncherServerOptions version9 = Options(connection, 9);
             IReadOnlyList<LauncherSchemaMigrationOutcome> migration9 =
                 await new LauncherSchemaMigrator(version9).MigrateAsync(None);
-            Check(migration9.Count == 10
+            Check(migration9.Count == availableMigrationCount
                 && migration9.Take(8).All(item =>
                     item.State == LauncherSchemaMigrationState.AlreadyApplied)
                 && migration9[8].State == LauncherSchemaMigrationState.Applied
-                && migration9[9].State == LauncherSchemaMigrationState.BlockedByCeiling,
+                && migration9.Skip(9).All(item => item.State == LauncherSchemaMigrationState.BlockedByCeiling),
                 "0009 applies once after an existing version-8 history.");
             Check(await ScalarInt64Async(
                     connection.ConnectionString,
@@ -131,10 +132,11 @@ internal static partial class AuthSessionSecurityMySqlTests
             LauncherServerOptions version10 = Options(connection, 10);
             IReadOnlyList<LauncherSchemaMigrationOutcome> migration10 =
                 await new LauncherSchemaMigrator(version10).MigrateAsync(None);
-            Check(migration10.Count == 10
+            Check(migration10.Count == availableMigrationCount
                 && migration10.Take(9).All(item =>
                     item.State == LauncherSchemaMigrationState.AlreadyApplied)
-                && migration10[9].State == LauncherSchemaMigrationState.Applied,
+                && migration10[9].State == LauncherSchemaMigrationState.Applied
+                && migration10.Skip(10).All(item => item.State == LauncherSchemaMigrationState.BlockedByCeiling),
                 "0010 resumes after one committed index and adds every missing GC index atomically.");
 
             await ExecuteAsync(
@@ -148,8 +150,9 @@ internal static partial class AuthSessionSecurityMySqlTests
                 "A complete 0010 index set without its history row is validated and adopted.");
             IReadOnlyList<LauncherSchemaMigrationOutcome> idempotent10 =
                 await new LauncherSchemaMigrator(version10).MigrateAsync(None);
-            Check(idempotent10.All(item =>
-                    item.State == LauncherSchemaMigrationState.AlreadyApplied),
+            Check(idempotent10.Take(10).All(item =>
+                    item.State == LauncherSchemaMigrationState.AlreadyApplied)
+                && idempotent10.Skip(10).All(item => item.State == LauncherSchemaMigrationState.BlockedByCeiling),
                 "A second version-10 migration run is fully idempotent.");
             await ExecuteAsync(
                 connection.ConnectionString,
@@ -468,7 +471,9 @@ internal static partial class AuthSessionSecurityMySqlTests
             current.AccessToken,
             original.RefreshToken,
             None);
-        Check(repeated is null,
+        // A current access token can still identify an already revoked family;
+        // only RevokedNow authorizes a new companion-service revocation signal.
+        Check(repeated is null || !repeated.RevokedNow,
             "A purged archived logout proof cannot emit a second cross-service revocation signal.");
     }
 
@@ -823,11 +828,14 @@ internal static partial class AuthSessionSecurityMySqlTests
         LauncherDatabase database,
         string connectionString)
     {
+        // Overflow pruning orders by refresh expiry. Make older fixtures expire
+        // first instead of depending on tied timestamps and random session IDs.
         await ExecuteAsync(
             connectionString,
             """
             UPDATE atlas_launcher_session
-            SET created_at = UTC_TIMESTAMP() - INTERVAL 2 DAY
+            SET created_at = UTC_TIMESTAMP() - INTERVAL 2 DAY,
+                refresh_expires_at = UTC_TIMESTAMP() + INTERVAL 2 MINUTE
             WHERE account_id = @accountId
               AND revoked_at IS NULL;
             """,
@@ -851,7 +859,8 @@ internal static partial class AuthSessionSecurityMySqlTests
             connectionString,
             """
             UPDATE atlas_launcher_session
-            SET created_at = UTC_TIMESTAMP() - INTERVAL 1 DAY
+            SET created_at = UTC_TIMESTAMP() - INTERVAL 1 DAY,
+                refresh_expires_at = UTC_TIMESTAMP() + INTERVAL 3 MINUTE
             WHERE access_hash = @hash;
             """,
             ("@hash", TokenService.Hash(first.AccessToken)));
@@ -884,10 +893,12 @@ internal static partial class AuthSessionSecurityMySqlTests
             AccountId,
             latest.AccessToken,
             None);
-        Check(listed.Count == LauncherDatabase.SessionListLimit
-            && listed.Any(session => session.Current)
-            && listed.All(session => session.DeviceName == "Appareil inconnu"),
-            "Session listing is SQL-bounded and uses one controlled label for missing device names.");
+        Check(listed.Count == LauncherDatabase.SessionListLimit,
+            $"Session listing is SQL-bounded ({listed.Count}/{LauncherDatabase.SessionListLimit}).");
+        Check(listed.Any(session => session.Current),
+            "The current active session appears in the bounded session list.");
+        Check(listed.All(session => session.DeviceName == "Appareil inconnu"),
+            "Missing device names use one controlled label: " + string.Join(", ", listed.Select(session => session.DeviceName)));
     }
 
     private static async Task VerifySessionGarbageCollectionAsync(

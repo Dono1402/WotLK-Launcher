@@ -170,6 +170,24 @@ internal sealed class LauncherSchemaMigrator
                         ? LauncherSchemaMigrationState.Adopted
                         : LauncherSchemaMigrationState.Applied;
                 }
+                else if (migration.Version == 13
+                    && string.Equals(migration.Name, "account_services", StringComparison.Ordinal))
+                {
+                    // 0013 is one atomic MySQL ALTER. If it committed before
+                    // its history row, validate and adopt it without replaying DDL.
+                    await using MySqlCommand probe = new("""
+                        SELECT COUNT(*) FROM information_schema.COLUMNS
+                        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='atlas_shop_order'
+                          AND COLUMN_NAME IN ('redemption_key','requested_name');
+                        """, connection);
+                    int columns = Convert.ToInt32(await probe.ExecuteScalarAsync(cancellationToken));
+                    if (columns == 0)
+                        await ExecuteMigrationAsync(connection, migration, cancellationToken);
+                    else if (columns != 2)
+                        throw new InvalidOperationException("Le schema des services de compte 0013 est incomplet.");
+                    await ValidateSchemaForVersionAsync(connection, migration.Version, cancellationToken);
+                    state = columns == 2 ? LauncherSchemaMigrationState.Adopted : LauncherSchemaMigrationState.Applied;
+                }
                 else
                 {
                     await ExecuteMigrationAsync(connection, migration, cancellationToken);
@@ -257,7 +275,7 @@ internal sealed class LauncherSchemaMigrator
         if (version >= 11)
             await _validator.ValidateShopFundingAsync(connection, cancellationToken);
         if (version >= 12)
-            await _validator.ValidateShopOrdersAsync(connection, cancellationToken);
+            await _validator.ValidateShopOrdersAsync(connection, cancellationToken, accountServices: version >= 13);
     }
 
     private static async Task ExecuteMigrationAsync(

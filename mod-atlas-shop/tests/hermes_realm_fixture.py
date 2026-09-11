@@ -7,7 +7,7 @@ import secrets
 AUTH = Path('/opt/arthas-next/candidates/dungeon-clear-20260830T183457Z/server/bin/authserver')
 
 
-def configure(root, base, values, password, package='hermes'):
+def configure(root, base, values, password, package='hermes', api_package='api-linux'):
     from run_realm_fixture import replace_options
     auth_values = {key: value for key, value in values.items() if key.startswith('LoginDatabase')}
     auth_values.update({'RealmServerPort': 13724, 'BindIP': '"127.0.0.1"',
@@ -22,7 +22,9 @@ def configure(root, base, values, password, package='hermes'):
     if not (hermes / 'HermesProxy').is_file():
         raise RuntimeError('Place the reviewed Hermes package in the dedicated fixture directory first.')
     secret = secrets.token_hex(32)
-    api_path = root / 'api-linux/appsettings.Testing.json'
+    if api_package not in ('api-linux', 'api-candidate'):
+        raise ValueError('Expected a reviewed fixture API package name.')
+    api_path = root / api_package / 'appsettings.Testing.json'
     api_config = json.loads(api_path.read_text())
     api_config['LauncherServer'].update({'HermesSharedSecret': secret,
         'HermesTicketUrl': 'http://127.0.0.1:18099/internal/launcher-ticket/'})

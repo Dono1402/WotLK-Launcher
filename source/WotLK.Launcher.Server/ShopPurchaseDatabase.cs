@@ -17,15 +17,17 @@ public sealed partial class LauncherDatabase
     private async Task<bool> ShopDeliveryHealthy(MySqlConnection connection, MySqlTransaction? transaction, ShopPurchaseOptions options, CancellationToken token)
     {
         await using MySqlCommand command = FundingCommand(connection, transaction, """
-            SELECT COUNT(*) FROM atlas_shop_delivery_health WHERE realm_id=@realm AND protocol=1
+            SELECT COUNT(*) FROM atlas_shop_delivery_health WHERE realm_id=@realm AND protocol=@protocol
             AND character_database=@characters AND last_seen_at BETWEEN UTC_TIMESTAMP(6)-INTERVAL 30 SECOND AND UTC_TIMESTAMP(6)+INTERVAL 5 SECOND;
-            """, ("@realm", options.RealmId), ("@characters", _options.CharacterDatabaseName));
+            """, ("@realm", options.RealmId), ("@characters", _options.CharacterDatabaseName),
+            ("@protocol", options.AccountServicesEnabled ? 2 : 1));
         return Convert.ToInt32(await command.ExecuteScalarAsync(token), CultureInfo.InvariantCulture) == 1;
     }
 
     internal async Task<ShopOrder> CreateShopOrderAsync(uint accountId, ShopCreateOrder input, ShopCatalog catalog, ShopPurchaseOptions options, CancellationToken token)
     {
-        if (!ShopFundingValidation.IsId(input.IdempotencyKey) || input.OfferId != "character-rename" || input.CharacterGuid == 0
+        if (!ShopFundingValidation.IsId(input.IdempotencyKey) || input.OfferId != "character-rename"
+            || (options.AccountServicesEnabled ? input.CharacterGuid != 0 : input.CharacterGuid == 0)
             || input.Currency is not ("eur" or "credits") || input.ExpectedAmountCents is <= 0 or > ShopSnapshot.MaximumBalanceCents
             || string.IsNullOrWhiteSpace(input.CatalogRevision) || input.CatalogRevision.Length > 80)
             throw new ShopFundingException("shop-invalid-order", 400);
@@ -42,7 +44,10 @@ public sealed partial class LauncherDatabase
             if (await reader.ReadAsync(token))
             {
                 ShopOrder order = ReadShopOrder(reader);
-                if (order.OfferId != input.OfferId || order.CharacterGuid != input.CharacterGuid || order.Currency != input.Currency
+                bool characterMatches = input.CharacterGuid == 0
+                    ? order.Status is "available" or "consumed" || (order.Status == "refunded" && order.CharacterGuid == 0)
+                    : order.CharacterGuid == input.CharacterGuid;
+                if (order.OfferId != input.OfferId || !characterMatches || order.Currency != input.Currency
                     || order.AmountCents != input.ExpectedAmountCents || reader.GetString("catalog_revision") != input.CatalogRevision
                     || reader.GetUInt32("realm_id") != options.RealmId)
                     throw new ShopFundingException("shop-idempotency-conflict");
@@ -62,12 +67,20 @@ public sealed partial class LauncherDatabase
             "SELECT COUNT(*) FROM atlas_shop_order WHERE account_id=@account AND created_at>UTC_TIMESTAMP(6)-INTERVAL 24 HOUR;", ("@account", accountId)))
             if (Convert.ToInt32(await quota.ExecuteScalarAsync(token), CultureInfo.InvariantCulture) >= 100)
                 throw new ShopFundingException("shop-order-limit", 429);
-        string name;
-        await using (MySqlCommand character = FundingCommand(connection, transaction, $"""
-            SELECT name,online,at_login FROM {QuoteArmoryDatabase(_options.CharacterDatabaseName)}.characters
-            WHERE guid=@guid AND account=@account AND deleteDate IS NULL FOR UPDATE;
-            """, ("@guid", input.CharacterGuid), ("@account", accountId)))
+        string name = "";
+        if (options.AccountServicesEnabled)
         {
+            await using MySqlCommand capacity = FundingCommand(connection, transaction,
+                "SELECT COUNT(*) FROM atlas_shop_order WHERE account_id=@account AND status='available';", ("@account", accountId));
+            if (Convert.ToInt32(await capacity.ExecuteScalarAsync(token), CultureInfo.InvariantCulture) >= 100)
+                throw new ShopFundingException("shop-service-limit", 409);
+        }
+        else
+        {
+            await using MySqlCommand character = FundingCommand(connection, transaction, $"""
+                SELECT name,online,at_login FROM {QuoteArmoryDatabase(_options.CharacterDatabaseName)}.characters
+                WHERE guid=@guid AND account=@account AND deleteDate IS NULL FOR UPDATE;
+                """, ("@guid", input.CharacterGuid), ("@account", accountId));
             await using MySqlDataReader reader = await character.ExecuteReaderAsync(token);
             if (!await reader.ReadAsync(token)) throw new ShopFundingException("shop-character-unavailable");
             name = reader.GetString("name");
@@ -76,10 +89,11 @@ public sealed partial class LauncherDatabase
         }
         string id = Guid.NewGuid().ToString("N");
         await FundingExecute(connection, transaction, """
-            INSERT INTO atlas_shop_order(id,account_id,realm_id,character_guid,character_name,idempotency_key,offer_id,catalog_revision,currency,amount_cents,created_at,updated_at)
-            VALUES(@id,@account,@realm,@guid,@name,@key,@offer,@revision,@currency,@amount,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6));
+            INSERT INTO atlas_shop_order(id,account_id,realm_id,character_guid,character_name,idempotency_key,offer_id,catalog_revision,currency,amount_cents,status,created_at,updated_at)
+            VALUES(@id,@account,@realm,@guid,@name,@key,@offer,@revision,@currency,@amount,@status,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6));
             """, token, ("@id", id), ("@account", accountId), ("@realm", options.RealmId), ("@guid", input.CharacterGuid), ("@name", name),
-            ("@key", input.IdempotencyKey), ("@offer", input.OfferId), ("@revision", input.CatalogRevision), ("@currency", input.Currency), ("@amount", price));
+            ("@key", input.IdempotencyKey), ("@offer", input.OfferId), ("@revision", input.CatalogRevision), ("@currency", input.Currency), ("@amount", price),
+            ("@status", options.AccountServicesEnabled ? "available" : "pending"));
         FundingWallet after = input.Currency == "eur" ? before with { Euro = before.Euro - price } : before with { Credits = before.Credits - price };
         await WriteShopWallet(connection, transaction, accountId, after, token);
         await AppendShopOrderEvent(connection, transaction, id, accountId, "purchase", input.Currency, -price, after, token);
@@ -96,7 +110,7 @@ public sealed partial class LauncherDatabase
         ShopOrder order = await FindShopOrder(connection, transaction, accountId, id, true, token)
             ?? throw new ShopFundingException("shop-order-not-found", 404);
         if (order.Status == "refunded") return order;
-        if (order.Status != "rejected" && !(cancelPending && order.Status == "pending"))
+        if (order.Status != "rejected" && !(cancelPending && order.Status is "pending" or "available"))
             throw new ShopFundingException("shop-order-already-delivered");
         // A refunded euro purchase first repays any debt created by a reversed top-up.
         long debtPaid = order.Currency == "eur" ? Math.Min(before.Debt, order.AmountCents) : 0;
@@ -136,7 +150,7 @@ public sealed partial class LauncherDatabase
         await using MySqlTransaction transaction = await connection.BeginTransactionAsync(IsolationLevel.RepeatableRead, isReadOnly: true, token);
         List<ShopOrder> orders = [];
         await using (MySqlCommand command = FundingCommand(connection, transaction,
-            "SELECT * FROM atlas_shop_order WHERE account_id=@account AND realm_id=@realm ORDER BY status IN ('pending','rejected') DESC,sequence_id DESC LIMIT 100;", ("@account", accountId), ("@realm", options.RealmId)))
+            "SELECT * FROM atlas_shop_order WHERE account_id=@account AND realm_id=@realm ORDER BY status IN ('available','pending','rejected') DESC,sequence_id DESC LIMIT 100;", ("@account", accountId), ("@realm", options.RealmId)))
         await using (MySqlDataReader reader = await command.ExecuteReaderAsync(token))
             while (await reader.ReadAsync(token)) orders.Add(ReadShopOrder(reader));
         Dictionary<uint, bool> renameFlags = [];
@@ -159,9 +173,10 @@ public sealed partial class LauncherDatabase
                 history.Add(new("order-" + reader.GetInt64("id").ToString(CultureInfo.InvariantCulture), FundingUtc(reader, "created_at"), kind,
                     currency, reader.GetInt64("amount_cents"), "completed",
                     kind == "purchase" ? new("Achat : changement de nom", "Purchase: name change") : new("Remboursement : changement de nom", "Refund: name change"),
-                    reader.GetString("character_name"), currency == "eur" ? reader.GetInt64("euro_after") - reader.GetInt64("held_after") : reader.GetInt64("credit_after")));
+                    reader.GetString("character_name") is { Length: > 0 } characterName ? characterName : null,
+                    currency == "eur" ? reader.GetInt64("euro_after") - reader.GetInt64("held_after") : reader.GetInt64("credit_after")));
             }
-        return snapshot with { CheckoutAvailable = healthy, Purchases = new(healthy, orders), EuroBalanceCents = wallet.Euro - wallet.Held,
+        return snapshot with { CheckoutAvailable = healthy, Purchases = new(healthy, orders, options.AccountServicesEnabled), EuroBalanceCents = wallet.Euro - wallet.Held,
             ManualFunding = snapshot.ManualFunding is { } funding ? funding with { HeldCents = wallet.Held, DebtCents = wallet.Debt } : null,
             CreditBalanceEuroCents = wallet.Credits, History = history.OrderByDescending(h => h.OccurredAtUtc).ThenByDescending(h => h.Id).Take(100).ToArray(),
             Characters = snapshot.Characters.Where(c => renameFlags.ContainsKey(c.Guid)).Select(c => c with {
@@ -178,12 +193,13 @@ public sealed partial class LauncherDatabase
     private static async Task<long> ShopEuroRefundReserve(MySqlConnection connection, MySqlTransaction transaction, uint account, CancellationToken token)
     {
         await using MySqlCommand command = FundingCommand(connection, transaction, """
-            SELECT COALESCE(SUM(amount_cents),0) FROM atlas_shop_order WHERE account_id=@account AND currency='eur' AND status IN ('pending','rejected');
+            SELECT COALESCE(SUM(amount_cents),0) FROM atlas_shop_order WHERE account_id=@account AND currency='eur' AND status IN ('available','pending','rejected');
             """, ("@account", account));
         return Convert.ToInt64(await command.ExecuteScalarAsync(token), CultureInfo.InvariantCulture);
     }
     private static ShopOrder ReadShopOrder(MySqlDataReader r) => new(r.GetString("id"), r.GetString("offer_id"), r.GetUInt32("character_guid"),
-        r.GetString("character_name"), r.GetString("currency"), r.GetInt64("amount_cents"), r.GetString("status"), FundingNullable(r, "reason"), FundingUtc(r, "created_at"), FundingUtc(r, "updated_at"), r.GetString("idempotency_key"));
+        r.GetString("character_name"), r.GetString("currency"), r.GetInt64("amount_cents"), r.GetString("status"), FundingNullable(r, "reason"), FundingUtc(r, "created_at"), FundingUtc(r, "updated_at"), r.GetString("idempotency_key"),
+        Enumerable.Range(0, r.FieldCount).Any(i => r.GetName(i) == "requested_name") ? FundingNullable(r, "requested_name") : null);
     private static Task WriteShopWallet(MySqlConnection c, MySqlTransaction t, uint account, FundingWallet wallet, CancellationToken token)
         => FundingExecute(c, t, "UPDATE atlas_shop_wallet SET euro_cents=@euro,credit_cents=@credits,debt_cents=@debt,updated_at=UTC_TIMESTAMP(6) WHERE account_id=@account;",
             token, ("@euro", wallet.Euro), ("@credits", wallet.Credits), ("@debt", wallet.Debt), ("@account", account));

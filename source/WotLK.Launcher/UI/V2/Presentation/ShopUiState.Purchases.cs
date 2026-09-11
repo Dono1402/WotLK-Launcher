@@ -11,8 +11,8 @@ internal sealed class ShopOrderRow(ShopOrder order)
 {
     public ShopOrder Order { get; } = order;
     public string Id => Order.Id;
-    public bool CanCancel => Order.Status is "pending" or "rejected";
-    public string Summary => Order.CharacterName + " · " + ShopUiState.OrderStatus(Order.Status);
+    public bool CanCancel => Order.Status is "available" or "pending" or "rejected";
+    public string Summary => ShopUiState.OrderSummary(Order);
     public string Detail => ShopUiState.FormatPrice(new(Order.Currency, Order.AmountCents)) + " · " + Order.Id[..8].ToUpperInvariant();
     public string CancelLabel => ShopUiState.L("Annuler et recréditer", "Cancel and restore funds");
 }
@@ -28,27 +28,34 @@ internal sealed partial class ShopUiState
     public bool IsPurchasing { get; private set; }
     public bool IsPurchaseReading { get; private set; }
     public bool CanEditPurchase => !IsPurchasing && !IsPurchaseReading && _purchaseAttempt is null;
-    public bool CanChoosePurchaseCharacter => HasCharacters && CanEditPurchase;
+    public bool UsesAccountService => _snapshot?.Purchases?.AccountServices == true && _offer?.Offer.Id == "character-rename";
+    public bool ShowPurchaseCharacter => !UsesAccountService;
+    public bool CanChoosePurchaseCharacter => ShowPurchaseCharacter && HasCharacters && CanEditPurchase;
     public bool CanManagePurchaseOrders => CanEditPurchase && !IsLoading && !IsFundingBusy && _purchaseActions is not null;
     private bool RenameAvailable => _snapshot is { CheckoutAvailable: true, Purchases.RenameAvailable: true } && _offer?.Offer.Id == "character-rename";
     public bool CanPurchase => !_disposed && !IsPurchasing && !IsPurchaseReading && !IsLoading && !IsFundingBusy && _purchaseActions is not null
-        && (_purchaseAttempt is not null || (RenameAvailable && _character?.Character is { Online: false, RenamePending: false }
+        && (_purchaseAttempt is not null || (RenameAvailable && (UsesAccountService
+            ? AvailableServiceCount < 100 : _character?.Character is { Online: false, RenamePending: false })
             && _price?.MissingCents == 0 && (_snapshot?.ManualFunding?.DebtCents ?? 0) == 0));
-    private ShopOrder? SelectedOrder => _snapshot?.Purchases?.Orders.FirstOrDefault(o => o.CharacterGuid == _character?.Character.Guid && o.OfferId == _offer?.Offer.Id);
-    public bool CanCancelPurchase => !IsPurchasing && !IsPurchaseReading && !IsLoading && !IsFundingBusy && _purchaseAttempt is null && _purchaseActions is not null && SelectedOrder?.Status is "pending" or "rejected";
+    public int AvailableServiceCount => _snapshot?.Purchases?.Orders.Count(o => o.Status == "available" && o.OfferId == _offer?.Offer.Id) ?? 0;
+    private ShopOrder? SelectedOrder => _snapshot?.Purchases?.Orders.FirstOrDefault(o => (UsesAccountService || o.CharacterGuid == _character?.Character.Guid) && o.OfferId == _offer?.Offer.Id);
+    public bool CanCancelPurchase => !IsPurchasing && !IsPurchaseReading && !IsLoading && !IsFundingBusy && _purchaseAttempt is null && _purchaseActions is not null && SelectedOrder?.Status is "available" or "pending" or "rejected";
     public bool ShowPurchaseReceipt => SelectedOrder is not null || _purchaseNotice is not null;
     public string PurchaseReceipt => (SelectedOrder is { } order
-        ? order.CharacterName + " · " + OrderStatus(order.Status) + "\n" + FormatPrice(new(order.Currency, order.AmountCents)) + " · " + order.Id[..8].ToUpperInvariant() : "")
+        ? OrderSummary(order) + "\n" + FormatPrice(new(order.Currency, order.AmountCents)) + " · " + order.Id[..8].ToUpperInvariant() : "")
         + (_purchaseNotice is not null ? (SelectedOrder is not null ? "\n" : "") + Text(_purchaseNotice) : "");
-    public string PurchaseOrdersSummary => string.Join("\n", (_snapshot?.Purchases?.Orders ?? []).Take(5).Select(o => o.CharacterName + " · " + OrderStatus(o.Status)));
+    public string PurchaseOrdersSummary => string.Join("\n", (_snapshot?.Purchases?.Orders ?? []).Take(5).Select(OrderSummary));
     public bool HasPurchaseOrders => _snapshot?.Purchases?.Orders.Count > 0;
     public IReadOnlyList<ShopOrderRow> PurchaseOrderRows => (_snapshot?.Purchases?.Orders ?? []).Select(o => new ShopOrderRow(o)).ToArray();
     public string PurchaseOrdersHeading => L("Suivi des services · ", "Service orders · ") + (_snapshot?.Purchases?.Orders.Count ?? 0);
     internal bool NeedsPurchaseRefresh => CanRefresh && _purchaseActions is not null
-        && (_purchaseAttempt is not null || _snapshot?.Purchases?.Orders.Any(o => o.Status is "pending" or "rejected") == true);
+        && (_purchaseAttempt is not null || _snapshot?.Purchases?.Orders.Any(o => o.Status is "available" or "pending" or "rejected") == true);
     public string CancelPurchaseLabel => L("Annuler et recréditer", "Cancel and restore funds");
     public string RefreshPurchaseLabel => L("Actualiser le suivi", "Refresh order status");
-    public string PurchaseHint => SelectedOrder?.Status == "delivered" && _character?.Character.RenamePending == true
+    public string PurchaseHint => UsesAccountService
+        ? L("Vous pouvez continuer à jouer après l’achat. Pour utiliser le service, revenez quand vous le souhaitez à la sélection des personnages et cliquez sur son icône. Annulation possible avant utilisation.",
+            "You can keep playing after your purchase. To use the service, return to character selection whenever you wish and click its icon. You can cancel before use.")
+        : SelectedOrder?.Status == "delivered" && _character?.Character.RenamePending == true
         ? L("L’activation est confirmée. Connectez-vous au royaume puis choisissez le nouveau nom à la sélection de ce personnage.",
             "Activation is confirmed. Connect to the realm and choose the new name on the character selection screen.")
         : RenameAvailable || SelectedOrder is not null
@@ -57,16 +64,21 @@ internal sealed partial class ShopUiState
         : L("Les achats ouvriront une fois le service disponible sur le royaume.", "Purchases will open once the service is available on the realm.");
     internal static string OrderStatus(string status) => status switch
     {
+        "available" => L("Disponible sur le compte", "Available on the account"),
+        "consumed" => L("Service utilisé", "Service used"),
         "pending" => L("Activation en attente de déconnexion", "Activation awaiting realm disconnection"),
         "delivered" => L("Activation livrée", "Activation delivered"),
         "rejected" => L("Activation impossible · remboursement en cours", "Activation unavailable · refund pending"),
         _ => L("Remboursé", "Refunded")
     };
+    internal static string OrderSummary(ShopOrder order) => (order.CharacterGuid == 0
+        ? L("Changement de nom", "Name change") : order.AppliedName is { } name ? order.CharacterName + " → " + name : order.CharacterName)
+        + " · " + OrderStatus(order.Status);
     internal void ConfigurePurchases(ShopPurchaseActions actions) { ResetPurchases(); _purchaseActions = actions; Changed(); }
     internal async Task PurchaseAsync()
     {
         if (!CanPurchase) return;
-        _purchaseAttempt ??= new(Guid.NewGuid().ToString("N"), _offer!.Offer.Id, _character!.Character.Guid,
+        _purchaseAttempt ??= new(Guid.NewGuid().ToString("N"), _offer!.Offer.Id, UsesAccountService ? 0 : _character!.Character.Guid,
             _price!.Price.Currency, _price.Price.Amount, _snapshot!.CatalogRevision);
         ShopCreateOrder attempt = _purchaseAttempt;
         await PurchaseMutationAsync(token => _purchaseActions!.Create(attempt, token), creating: true);
@@ -78,7 +90,7 @@ internal sealed partial class ShopUiState
     }
     internal async Task CancelListedPurchaseAsync(string id)
     {
-        if (!CanManagePurchaseOrders || _snapshot?.Purchases?.Orders.Any(o => o.Id == id && o.Status is "pending" or "rejected") != true) return;
+        if (!CanManagePurchaseOrders || _snapshot?.Purchases?.Orders.Any(o => o.Id == id && o.Status is "available" or "pending" or "rejected") != true) return;
         await PurchaseMutationAsync(token => _purchaseActions!.Cancel(id, token), creating: false);
     }
     private async Task PurchaseMutationAsync(Func<CancellationToken, Task<ShopOrder>> operation, bool creating)
@@ -94,7 +106,7 @@ internal sealed partial class ShopUiState
             // Keep the authoritative receipt even if the following snapshot read fails.
             if (_snapshot is { } snapshot)
                 _snapshot = snapshot with { Purchases = new(snapshot.Purchases?.RenameAvailable ?? false,
-                    new[] { order }.Concat(snapshot.Purchases?.Orders.Where(o => o.Id != order.Id) ?? []).Take(100).ToArray()),
+                    new[] { order }.Concat(snapshot.Purchases?.Orders.Where(o => o.Id != order.Id) ?? []).Take(100).ToArray(), snapshot.Purchases?.AccountServices ?? false),
                     EuroBalanceCents = order.Currency == "eur" ? null : snapshot.EuroBalanceCents,
                     CreditBalanceEuroCents = order.Currency == "credits" ? null : snapshot.CreditBalanceEuroCents,
                     Characters = snapshot.Characters.Select(c => c.Guid == order.CharacterGuid ? c with { RenamePending = order.Status is "pending" or "delivered" ? true : null } : c).ToArray() };
@@ -118,6 +130,7 @@ internal sealed partial class ShopUiState
                 ShopApiException { Code: "shop-character-online" } => new("Déconnectez votre personnage puis actualisez.", "Log out of your character, then refresh."),
                 ShopApiException { Code: "shop-rename-already-pending" } => new("Un changement de nom est déjà en attente. Actualisez le suivi.", "A name change is already pending. Refresh order status."),
                 ShopApiException { Code: "shop-wallet-debt" } => new("Un solde à régulariser bloque cet achat.", "An outstanding balance prevents this purchase."),
+                ShopApiException { Code: "shop-service-limit" } => new("Vous avez atteint la limite de services disponibles. Utilisez ou annulez un service avant un nouvel achat.", "You have reached the limit of available services. Use or cancel a service before purchasing another."),
                 _ => new("Le résultat reste à confirmer. Actualisez le suivi ou réessayez : la même commande sera reprise sans second débit.",
                     "The result still needs confirmation. Refresh or retry: the same order will resume without a second debit.")
             };

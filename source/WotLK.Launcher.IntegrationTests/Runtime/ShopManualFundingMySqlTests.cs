@@ -19,7 +19,7 @@ using WotLK.Launcher.UI.V2.Presentation;
 internal static partial class ShopManualFundingMySqlTests
 {
     private static int _checks;
-    internal static async Task<int> RunAsync(bool rename = false)
+    internal static async Task<int> RunAsync(bool rename = false, bool accountServices = false)
     {
         MySqlConnectionStringBuilder settings = new(Environment.GetEnvironmentVariable("ATLAS_SHOP_TEST_DB")
             ?? throw new InvalidOperationException("Disposable ATLAS_SHOP_TEST_DB required."));
@@ -73,7 +73,7 @@ internal static partial class ShopManualFundingMySqlTests
             WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = [] });
             builder.Logging.ClearProviders(); builder.WebHost.UseUrls("http://127.0.0.1:0");
             builder.Services.AddSingleton(new LauncherDatabase(server, new TokenService(), new LauncherSchemaMigrator(server)));
-            builder.Services.AddSingleton<ArmoryReadLimiter>(); builder.Services.AddSingleton(new ShopCatalog()); builder.Services.AddSingleton(funding);
+            builder.Services.AddSingleton<ArmoryReadLimiter>(); builder.Services.AddSingleton(new ShopCatalog(accountServices: accountServices)); builder.Services.AddSingleton(funding);
             ShopPurchaseOptions purchases = new(); builder.Services.AddSingleton(purchases);
             await using WebApplication app = builder.Build(); app.MapShopEndpoints(); await app.StartAsync();
             try
@@ -242,6 +242,7 @@ internal static partial class ShopManualFundingMySqlTests
                 await Expect("POST", $"/api/v1/shop/admin/top-ups/{quota.Id}/decision", "admin",Approve(2,"PAYPAL00000000006",2000),HttpStatusCode.Unauthorized);
                 Console.WriteLine($"Manual shop funding MySQL/API PASS: {_checks} checks; schema 0011 recovery, authorization, limits, concurrent creation/approval, rollback, holds, refunds, debt, audit and persistence. No PayPal network or game mutations.");
                 if (rename) await RunRenameStageAsync(server, connection, app, http, purchases);
+                if (accountServices) await RunAccountServicesStageAsync(server, connection, app, http, purchases);
                 return 0;
 
                 async Task<long> Amount(string sql) => Convert.ToInt64(await Scalar(connection,sql),CultureInfo.InvariantCulture);

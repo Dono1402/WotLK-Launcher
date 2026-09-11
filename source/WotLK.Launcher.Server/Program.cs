@@ -92,7 +92,8 @@ builder.Services.AddSingleton<AtlasStatusService>();
 builder.Services.AddSingleton<ArmoryReadLimiter>();
 builder.Services.AddSingleton(new ShopCatalog(
     builder.Configuration.GetValue<long?>("AtlasShop:Rename:EuroCents") ?? 500,
-    builder.Configuration.GetValue<long?>("AtlasShop:Rename:CreditEuroCents") ?? 700));
+    builder.Configuration.GetValue<long?>("AtlasShop:Rename:CreditEuroCents") ?? 700,
+    builder.Configuration.GetValue<bool>("AtlasShop:Purchases:AccountServicesEnabled")));
 ShopManualFundingOptions manualFunding = new();
 builder.Configuration.GetSection("AtlasShop:ManualPayPal").Bind(manualFunding);
 manualFunding.Validate(options.MaximumSchemaVersion);

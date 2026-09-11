@@ -58,8 +58,9 @@ internal static partial class ShopWpfTests
                     if(renameOnly)
                     {
                         await VerifyPurchasesAsync(shell,shop,captureDirectory);
+                        await VerifyAccountServicesAsync(shell,shop,captureDirectory);
                         Check(errors.Messages.Count==0,"No purchase binding errors: "+string.Join("\n",errors.Messages));
-                        Console.WriteLine("Rename WPF PASS: native double click, recipient/currency guards, wallet/credits debit, cancellation, delivered receipt, FR/EN and logout; inactive offscreen fixture only.");
+                        Console.WriteLine("Rename WPF PASS: legacy purchases and account-service purchase/stock/cancellation, beneficiary visibility, FR/EN, wallet recovery and logout; inactive offscreen fixture only, no game client.");
                         result=0; return;
                     }
                     if(fundingOnly)

@@ -3,8 +3,10 @@
 ## État au 12 septembre 2026
 
 L'achat de services pour le compte est implémenté et testé dans l'API et le
-launcher, sur des données jetables. La liaison native BattlePay/VAS dans Hermes
-et la consommation en jeu restent à implémenter et à vérifier. **Ce parcours
+launcher, sur des données jetables. Les structures de paquets BattlePay/VAS de
+Hermes sont maintenant vérifiées avec les fonctions de décodage du client
+3.4.3.54261. Leur acheminement vers le cœur et la consommation en jeu restent
+à implémenter et à vérifier. **Ce parcours
 n'est pas prêt à être activé sur le royaume public.**
 
 ## Parcours demandé
@@ -94,11 +96,38 @@ consommation unique. Une annulation, un nom refusé, une requête répétée ou 
 coupure réseau ne doivent pas perdre le service ni créer un second débit.
 
 Les structures anciennes trouvées dans d'autres cœurs ne constituent pas une
-preuve du format de cette version du client. La lecture statique de
-`WowClassic.exe` 3.4.3.54261 n'a pas permis de retrouver les structures des
-échanges concernés. Aucun paquet supposé n'a été présenté comme validé, et le
-jeu installé n'a pas été lancé. La notification dans le jeu reste également à
-relier au futur consommateur ; le message du launcher est déjà présent.
+preuve du format de cette version du client. L'analyse initiale de l'exécutable
+sur disque était insuffisante : ses sections de code nécessitent une
+initialisation. Une copie du seul exécutable a ensuite été initialisée sous
+Wine, dans un conteneur privé sur Atlas, sans réseau, limité à un CPU et 1 Gio
+de mémoire. Aucun compte, répertoire de données du jeu ou fichier personnel
+n'était monté. Ce processus a été arrêté après la lecture de ses sections.
+Le jeu installé sur le PC n'a pas été lancé. Aucun outil Computer Use n'a
+été utilisé.
+
+La lecture des sections initialisées a permis d'identifier les formats exacts.
+Le correctif `mod-atlas-shop/patches/hermes-f859d0c-account-services.patch`
+contient leurs structures et leurs tests, sans activer le service. Les messages
+synthétiques produits par Hermes ont passé **12 vérifications** avec les
+véritables fonctions de décodage du client émulées par Unicorn : listes de
+0, 1, 2 et 100 services, service consommé/révoqué, listes vides du magasin,
+liste des personnages et réponses de validation. La fonction de classement
+du client reconnaît le produit comme `PaidNameChange` et masque les services
+consommés ou révoqués. Son rappel de validation reçoit bien le jeton de la
+demande et le résultat attendu.
+
+Les **11 tests Hermes** supplémentaires couvrent aussi les demandes produites
+par le véritable sérialiseur du client, dont le nom UTF-8, la distinction
+validation/confirmation, chaque troncature et les octets superflus. Une
+vérification explicite des longueurs évite d'accepter une chaîne tronquée.
+Les exécutables et sections du client restent privés et hors Git. Le script
+`mod-atlas-shop/tests/verify_native_protocol.py` ne contient que l'oracle de
+vérification et exige la copie locale correspondante.
+
+Cela valide le format des paquets, **pas l'affichage dans un client connecté
+ni une consommation réelle**. L'acheminement, la notification dans le jeu et
+le consommateur doivent encore être reliés et testés ; le message du launcher
+est déjà présent.
 
 ## Sauvegardes et déconnexions
 

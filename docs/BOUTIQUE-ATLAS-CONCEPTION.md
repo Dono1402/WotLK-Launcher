@@ -9,16 +9,16 @@ comme celle de Blizzard dans WoW et confirmé **les deux accès, launcher et jeu
 avec les mêmes produits et le même solde**. Les crédits pourront être gagnés en
 jeu par conversion d'or. Un second portefeuille contient les euros déposés
 sur le compte. Les prestataires retenus pour sa recharge sont **Stripe et PayPal**,
-avec **Bancontact** parmi les moyens de paiement. Le premier produit et son
-tarif sont maintenant définis ci-dessous. Les autres
-produits et les règles d'attribution complémentaires restent à définir.
+avec **Bancontact** parmi les moyens de paiement. Les quatre premiers services
+et leurs deux tarifs sont définis ci-dessous. Les règles d'éligibilité et de
+livraison complémentaires restent à préciser.
 
 ### Décisions commerciales confirmées
 
 - Premier produit : **changement de nom**, puis élargissement progressif.
-- Tarif confirmé le 10 septembre au soir : **5 € depuis les Crédits Atlas ou
-  5 € depuis le portefeuille en euros**, au choix. Cette décision remplace
-  l'ancien tarif de 300 po et le parcours de paiement direct de cette offre.
+- Tarifs confirmés le 11 septembre : **5 € portefeuille / 7 € Crédits Atlas**
+  pour le nom, **60 € / 70 €** pour le sésame, **35 € / 45 €** pour la faction
+  et **20 € / 30 €** pour la race. Ces prix remplacent les tarifs précédents.
 - Le **crédit Atlas est un solde affiché en euros**, conservé en centimes entiers.
   Il pourra servir aux achats de la boutique, dont le changement de nom.
 - Le **portefeuille en euros est un solde distinct** sur le compte, comparable
@@ -28,11 +28,11 @@ produits et les règles d'attribution complémentaires restent à définir.
   **1 po = 0,01 €** et 10 000 pièces de cuivre par centime.
   Ce taux remplace les 80 po par euro initialement retenues.
 - Le montant saisi est libre : **10 po donnent 0,10 €**, **212 po donnent 2,12 €**
-  et **400 po donnent 4 €**. Le changement de nom reste à 5 € ; convertir
-  500 po permet donc d'obtenir 5 € de Crédits Atlas.
+  et **400 po donnent 4 €**. Le changement de nom coûte 7 € en Crédits Atlas ;
+  convertir 700 po permet donc d'obtenir les crédits correspondants.
 - Chaque pièce d'or entière saisie est entièrement convertie en un centime.
   Les pièces d'argent/cuivre déjà présentes restent sur le personnage.
-- Le bandeau inférieur ouvre un convertisseur centré via **Convertir**.
+- Le raccourci au-dessus du catalogue ouvre un convertisseur centré via **Convertir mon or**.
   Il remplace le catalogue directement dans la page du launcher, sans fenêtre.
   L'or est à gauche, la saisie au centre et le résultat en euros à droite ;
   la navigation supérieure et les soldes restent accessibles. Il comprend :
@@ -112,17 +112,31 @@ le montant et le moyen de recharge. Carte bancaire, PayPal et Bancontact reprenn
 les prestataires prévus ci-dessous ; la confirmation réelle reste fermée.
 
 Les cartes de services conservent leurs grandes illustrations mais adoptent les
-surfaces bleu nuit, les bordures et les arrondis du launcher. Les trois parcours
-(fiche de service, conversion, recharge) restent distincts et accessibles dans
+surfaces bleu nuit, les bordures et les arrondis du launcher. Les quatre parcours
+(fiche de service, conversion, recharge, historique) restent distincts et accessibles dans
 la page Boutique, avec Retour et Échap.
 
 ## Catalogue de services retenu le 11 septembre
 
-Le catalogue présente quatre offres : changement de nom à 5 €, sésame niveau 70,
-changement de faction et changement de race. Les trois dernières ont un tarif
-à venir. Leurs fiches sont affichées dès ce jalon, avec une grille de quatre
-cartes compactes sur une rangée et un détail au clic. Le titre reprend le style
-d’Addons et Notes de version ; une pièce d’or précise l’unité du taux de conversion.
+Le catalogue présente quatre offres, avec les tarifs approuvés suivants :
+
+| Service | Portefeuille | Crédits Atlas |
+| --- | ---: | ---: |
+| Changement de nom | 5 € | 7 € |
+| Sésame niveau 70 | 60 € | 70 € |
+| Changement de faction | 35 € | 45 € |
+| Changement de race | 20 € | 30 € |
+
+Quatre cartes compactes tiennent sur une rangée, avec un détail au clic.
+Chacune contient une accroche commerciale et deux prix séparés : portefeuille
+en bleu, Crédits Atlas en doré, avec libellés et icônes. Le titre reprend le
+style d’Addons et Notes de version ; une pièce d’or précise l’unité du taux
+de conversion, complété par le libellé visible Crédits Atlas.
+
+L'historique est accessible depuis le catalogue et la recharge, avec filtres
+par type et monnaie, date, statut, montant signé et solde après opération.
+L'aperçu utilise trois exemples et mémorise les nouvelles conversions de sa
+session. La persistance serveur des transactions reste à implémenter.
 
 Le core contient les mécanismes de niveau, race et faction, mais leur présence
 ne constitue pas un service de vente livré. Le raccordement boutique et la

@@ -9,7 +9,7 @@ internal sealed class ShopCatalog
     private readonly ShopOffer[] _offers;
     private readonly string _revision;
 
-    internal ShopCatalog(long renameEuroCents = 500, long renameCreditEuroCents = 500)
+    internal ShopCatalog(long renameEuroCents = 500, long renameCreditEuroCents = 700)
     {
         _offers = ShopServiceCatalog.CreateOffers(renameEuroCents, renameCreditEuroCents);
         _revision = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { Offers = _offers, GoldConversion = ShopGoldConversionRate.Default }))).ToLowerInvariant();

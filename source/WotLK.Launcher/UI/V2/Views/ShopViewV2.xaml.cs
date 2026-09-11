@@ -10,7 +10,9 @@ public partial class ShopViewV2 : UserControl, IDisposable
     internal ShopUiState State { get; } = new();
     internal ShopConversionViewV2 ConversionPage => ConversionView;
     internal ShopWalletViewV2 WalletPage => WalletView;
+    internal ShopHistoryViewV2 HistoryPage => HistoryView;
     internal event EventHandler? ConversionRequested;
+    internal event EventHandler? HistoryRequested;
     public static readonly DependencyProperty LayoutModeProperty = DependencyProperty.Register(
         nameof(LayoutMode), typeof(AdaptiveLayoutMode), typeof(ShopViewV2),
         new PropertyMetadata(AdaptiveLayoutMode.Wide, (target, _) => ((ShopViewV2)target).ApplyLayout()));
@@ -19,6 +21,7 @@ public partial class ShopViewV2 : UserControl, IDisposable
     {
         InitializeComponent();
         DataContext = State;
+        WalletView.HistoryRequested += HistoryRequestedFromWallet;
         SizeChanged += (_, _) => ApplyLayout();
         PageScroll.ScrollChanged += (_, e) => { if (e.ViewportWidthChange != 0) ApplyLayout(); };
         Loaded += ViewLoaded;
@@ -58,12 +61,14 @@ public partial class ShopViewV2 : UserControl, IDisposable
             item.MoveFocus(new System.Windows.Input.TraversalRequest(System.Windows.Input.FocusNavigationDirection.First));
     }
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await State.RefreshAsync();
+    private void History_Click(object sender, RoutedEventArgs e) => HistoryRequested?.Invoke(this, EventArgs.Empty);
+    private void HistoryRequestedFromWallet(object? sender, EventArgs e) => HistoryRequested?.Invoke(this, EventArgs.Empty);
     private void Credits_Click(object sender, RoutedEventArgs e)
     {
         ConversionRequested?.Invoke(this, EventArgs.Empty);
     }
     internal void ResetSession() => State.ResetSession();
-    public void Dispose() { LauncherLocalization.LocaleChanged -= LocaleChanged; State.Dispose(); }
+    public void Dispose() { LauncherLocalization.LocaleChanged -= LocaleChanged; WalletView.HistoryRequested -= HistoryRequestedFromWallet; State.Dispose(); }
     private void ApplyLayout()
     {
         if (!IsInitialized) return;

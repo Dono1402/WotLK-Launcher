@@ -14,6 +14,8 @@ using WotLK.Launcher.UI.V2.Preview;
 internal static class ShopRuntimeTests
 {
     private static int _checks;
+    internal static readonly (string Id, long Wallet, long Credits)[] ApprovedPrices =
+    [("character-rename", 500, 700), ("character-level-70", 6000, 7000), ("character-faction-change", 3500, 4500), ("character-race-change", 2000, 3000)];
     internal static ShopSnapshot Snapshot => new ShopCatalog().CreateSnapshot(
         [new(101, "Asteria", 80, false, 4_235_067), new(202, "Boréal", 70, true, null)]);
 
@@ -27,14 +29,28 @@ internal static class ShopRuntimeTests
             ShopSnapshot snapshot = Snapshot;
             snapshot.Validate();
             Check(snapshot.Offers.Select(o => o.Id).SequenceEqual(new[] { "character-rename", "character-level-70", "character-faction-change", "character-race-change" }), "All four requested services have distinct stable catalog identities.");
-            Check(snapshot.Offers.Skip(1).All(o => o.Prices.Count == 0), "Unpriced upcoming services must not be advertised as free.");
+            foreach ((string id, long wallet, long credits) in ApprovedPrices)
+            {
+                ShopOffer offer = snapshot.Offers.Single(o => o.Id == id);
+                Check(offer.Prices.Count == 2 && offer.Prices.Single(p => p.Currency == "eur").Amount == wallet
+                    && offer.Prices.Single(p => p.Currency == "credits").Amount == credits, "Every service uses its two explicitly approved wallet prices.");
+                Check(offer.Tagline is { Fr.Length: > 10, En.Length: > 10 }, "Each service has its own localized sales description.");
+            }
             Check(JsonSerializer.Serialize(snapshot.Offers) == JsonSerializer.Serialize(ShopPreviewData.Create().Offers), "Preview and server share service names, conditions and prices.");
             using (ShopUiState services = new())
             {
                 services.Configure(_ => Task.FromResult(snapshot)); await services.RefreshAsync();
                 services.OpenService(services.Offers[3]);
-                Check(services.IsServiceOpen && !services.HasPrices && services.SelectedPrice is null
-                    && services.SelectedAmount == "À venir" && !services.CanPurchase, "Upcoming service opens with no invented amount or checkout capability.");
+                Check(services.IsServiceOpen && services.HasPrices && services.SelectedPrice?.Price.Currency == "eur"
+                    && services.SelectedAmount == "20,00 €" && !services.CanPurchase, "Race change shows the approved wallet price while checkout remains closed.");
+                services.SelectedPrice = services.Prices.Single(p => p.Price.Currency == "credits");
+                Check(services.SelectedAmount == "30,00 €" && services.SelectedCurrencyLabel == "Crédits Atlas", "Changing currency updates the amount and its explicit wallet label.");
+                ShopPriceRow previousPrice = services.SelectedPrice;
+                services.OpenService(services.Offers[0]);
+                services.SelectedPrice = null;
+                services.SelectedPrice = previousPrice;
+                Check(services.SelectedAmount == "5,00 €" && services.SelectedPrice?.Price.Currency == "eur",
+                    "Transient empty and stale picker rows cannot overwrite another service's valid wallet price.");
                 services.OpenConversion();
                 Check(!services.IsServiceOpen && services.IsConversionOpen, "Converter and service page are mutually exclusive.");
                 services.OpenService(services.Offers[1]);
@@ -73,7 +89,7 @@ internal static class ShopRuntimeTests
                 wallet.Configure(_ => Task.FromResult(snapshot with { EuroBalanceCents = ShopSnapshot.MaximumBalanceCents })); await wallet.RefreshAsync();
                 Check(!wallet.HasValidWalletAmount && wallet.WalletAmountDisplay == "—", "A draft cannot exceed the shared wallet ceiling.");
             }
-            Check(snapshot.Offers.Single(o => o.Id == "character-rename").Prices.SequenceEqual(new ShopPrice[] { new("credits", 500), new("eur", 500) }), "Approved prices: EUR 5 from either Atlas credits or the euro wallet.");
+            Check(snapshot.Offers.Single(o => o.Id == "character-rename").Prices.SequenceEqual(new ShopPrice[] { new("eur", 500), new("credits", 700) }), "Name change costs EUR 5 from Wallet or EUR 7 from Atlas credits.");
             Check(!snapshot.CheckoutAvailable && snapshot.CreditBalanceEuroCents is null && snapshot.EuroBalanceCents is null, "Checkout closed and both wallets unknown.");
             Check(new ShopCatalog(600).CreateSnapshot([]).CatalogRevision != snapshot.CatalogRevision, "Price change changes revision.");
             foreach (ShopSnapshot invalid in new[]
@@ -144,7 +160,7 @@ internal static class ShopRuntimeTests
             state.SelectedCharacter = state.Characters[1];
             Check(state.CharacterHint.Contains("En ligne") && !state.CharacterHint.Contains("4 235"), "Online character never reuses offline gold.");
             LauncherLocalization.SetLocale(LauncherLocalization.EnglishLocale); state.RefreshLocale();
-            Check(state.OfferName == "Name change" && state.SelectedCharacter?.Character.Guid == 202 && state.PriceLabel == "Euro wallet · 5.00 €", "Language change preserves selection and translates the wallet.");
+            Check(state.OfferName == "Name change" && state.SelectedCharacter?.Character.Guid == 202 && state.PriceLabel == "Wallet · 5.00 €", "Language change preserves selection and translates the wallet.");
             Check(!state.CanPurchase, "Browsing milestone never initiates a purchase.");
             state.Configure(_ => Task.FromResult(snapshot with { Characters = [] })); await state.RefreshAsync();
             Check(!state.HasCharacters && state.SelectedCharacter is null, "Removed character clears beneficiary.");
@@ -163,6 +179,7 @@ internal static class ShopRuntimeTests
             Check(state.Characters.Single().Character.Guid == 303, "Late account response cannot replace the reconnected account.");
             state.ResetSession(); Check(!state.HasOffers && !state.HasCharacters && state.CreditBalance == "—", "Logout removes every account value.");
             await VerifyConversionAsync(snapshot);
+            await VerifyHistoryAsync(snapshot);
             Console.WriteLine($"Shop runtime PASS: {_checks} assertions; two wallets, character gold limits, numeric precision, preview credit/debit conservation, production gate, response bounds and account isolation. Fake HTTP only.");
             return 0;
         }
@@ -231,6 +248,78 @@ internal static class ShopRuntimeTests
         state.ConfigurePreview(preview); await state.RefreshAsync(); state.OpenConversion(); state.ConversionGold = "212";
         state.ResetSession(); await state.RefreshAsync();
         Check(!state.IsConversionOpen && !state.CanConvert && !state.CanRefresh && state.EuroBalance == "—" && state.ConversionGold == "", "Logout ends the preview capability, clears both wallets and cancels conversion.");
+    }
+
+    private static async Task VerifyHistoryAsync(ShopSnapshot catalog)
+    {
+        LauncherLocalization.SetLocale(LauncherLocalization.FrenchLocale);
+        ShopSnapshot preview = ShopPreviewData.Create(); preview.Validate();
+        Check(catalog.History is null && preview.History?.Count == 3, "Unavailable live history is distinct from explicit preview records.");
+        foreach (ShopTransaction entry in new[]
+        {
+            preview.History![0] with { Id = "" }, preview.History[0] with { AmountCents = 0 },
+            preview.History[0] with { AmountCents = 500 }, preview.History[0] with { AmountCents = -ShopSnapshot.MaximumBalanceCents - 1 },
+            preview.History[0] with { Currency = "gold" }, preview.History[0] with { Kind = "unknown" },
+            preview.History[0] with { Description = null! }, preview.History[0] with { Status = "approved" },
+            preview.History[0] with { OccurredAtUtc = default }, preview.History[0] with { OccurredAtUtc = DateTimeOffset.Now.ToOffset(TimeSpan.FromHours(1)) },
+            preview.History[0] with { BalanceAfterCents = -1 }, preview.History[0] with { Status = "pending" },
+            preview.History[1] with { Currency = "credits" }, preview.History[2] with { GoldCopper = null },
+            preview.History[2] with { Currency = "eur" }, preview.History[0] with { GoldCopper = 10000 }
+        }) Throws<InvalidDataException>(() => (preview with { History = [entry] }).Validate());
+        Throws<InvalidDataException>(() => (preview with { History = [preview.History![0], preview.History[0]] }).Validate());
+        Throws<InvalidDataException>(() => (preview with { History = [null!] }).Validate());
+        Throws<InvalidDataException>(() => (preview with { History = Enumerable.Range(0, 101).Select(i => preview.History![0] with { Id = "oversized-" + i }).ToArray() }).Validate());
+        Throws<InvalidDataException>(() => (preview with { Offers = [preview.Offers[0] with { Tagline = new("", "") }] }).Validate());
+        (preview with { History = [preview.History![1] with { Status = "pending", BalanceAfterCents = null }] }).Validate();
+        Check(JsonSerializer.Deserialize<ShopSnapshot>(JsonSerializer.Serialize(preview))!.History!.SequenceEqual(preview.History), "Transaction type, amount, currency and status survive JSON round trips.");
+
+        using ShopUiState state = new();
+        state.ConfigurePreview(preview); await state.RefreshAsync(); state.OpenHistory();
+        Check(state.IsHistoryOpen && state.HistoryAvailable && state.FilteredHistory.Count == 3 && !state.IsWalletOpen && !state.IsConversionOpen,
+            "History opens as an exclusive page with the most recent operation first.");
+        Check(state.HistoryRows[0].Transaction.Id == "preview-rename" && state.HistoryRows[0].Amount == "−5,00 €"
+            && state.HistoryRows[0].CurrencyLabel == "Portefeuille" && state.HistoryRows[0].Status == "Terminé", "History preserves debit sign, currency and completion status.");
+        state.SelectedHistoryWallet = state.HistoryWalletFilters.Single(f => f.Id == "credits");
+        Check(state.FilteredHistory.Count == 1 && state.FilteredHistory[0].Amount == "+2,65 €", "Currency filters never merge the two wallet amounts.");
+        state.SelectedHistoryKind = state.HistoryKindFilters.Single(f => f.Id == "purchase");
+        Check(state.FilteredHistory.Count == 0 && state.ShowHistoryEmpty && state.HistoryAvailable, "No matching rows is distinct from unavailable history.");
+        state.SelectedHistoryKind = new("foreign", new("Autre", "Other")); state.SelectedHistoryWallet = state.HistoryWalletFilters[0];
+        Check(state.FilteredHistory.Count == 3, "Unknown filter rows cannot replace the configured choices.");
+        state.CloseHistory(returnToOrigin: true);
+        Check(!state.IsHistoryOpen && !state.IsWalletOpen, "History entered from the catalog returns to the catalog.");
+        state.OpenWallet(); state.WalletAmount = "12,50"; state.SelectedPaymentMethod = state.PaymentMethods[1]; state.OpenHistory();
+        state.CloseHistory(returnToOrigin: true);
+        Check(state.IsWalletOpen && state.WalletAmount == "12,50" && state.WalletPaymentName == "PayPal", "History returns to the wallet without losing its unsubmitted draft.");
+        Check(state.HistoryRows.Count == 3 && state.EuroBalance == "10,00 €", "Preparing a payment never adds a transaction or credits the wallet.");
+        state.OpenConversion(); state.ConversionGold = "10";
+        Check(state.TryConvertPreview() && state.HistoryRows.Count == 4, "A successful preview conversion adds one transaction.");
+        ShopTransaction converted = state.HistoryRows[0].Transaction;
+        Check(converted.Kind == "conversion" && converted.Currency == "credits" && converted.AmountCents == 10 && converted.GoldCopper == 100000
+            && converted.BalanceAfterCents == 275 && converted.CharacterName == "Asteria", "Conversion history matches the actual committed copper debit and credit balance.");
+        Check(!state.TryConvertPreview() && state.HistoryRows.Count == 4, "A repeated completion cannot append or credit twice.");
+        await state.RefreshAsync();
+        Check(state.HistoryRows.Count == 4 && state.HistoryRows[0].Transaction.Id == converted.Id && state.EuroBalance == "10,00 €", "Refresh preserves history without reapplying transactions.");
+        LauncherLocalization.SetLocale(LauncherLocalization.EnglishLocale); state.RefreshLocale();
+        Check(state.HistoryRows[0].CurrencyLabel == "Atlas credits" && state.HistoryRows[0].Status == "Completed"
+            && state.SelectedHistoryKind.Label == "All operations", "History labels and filter choices follow the current language.");
+        state.ConfigurePreview(preview); await state.RefreshAsync(); state.OpenConversion();
+        for (int i = 0; i < 101; i++) { state.ConversionGold = "1"; Check(state.TryConvertPreview(), "Repeated legitimate conversions remain individually recorded."); }
+        Check(state.HistoryRows.Count == 100 && state.ShowHistoryLimit && state.HistoryRows.Select(r => r.Transaction.Id).Distinct().Count() == 100,
+            "History stays bounded and exposes its 100-operation limit.");
+        state.ResetSession();
+        Check(!state.IsHistoryOpen && !state.HistoryAvailable && state.HistoryRows.Count == 0 && state.SelectedHistoryWallet.Id == "all", "Logout clears all transaction data and filters.");
+        state.Configure(_ => Task.FromResult(catalog)); await state.RefreshAsync(); state.OpenHistory();
+        Check(!state.HistoryAvailable && state.HistoryCountLabel == "—" && state.ShowHistoryEmpty, "A missing journal is not reported as a confirmed zero-operation history.");
+        state.Configure(_ => Task.FromResult(catalog with { History = [] })); await state.RefreshAsync();
+        Check(state.HistoryAvailable && state.HistoryRows.Count == 0, "An available empty journal stays explicitly empty.");
+        TaskCompletionSource<ShopSnapshot> late = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        state.Configure(_ => late.Task); Task pending = state.RefreshAsync(); state.ResetSession();
+        state.Configure(_ => Task.FromResult(catalog with { History = [] })); await state.RefreshAsync();
+        late.SetResult(preview); await pending;
+        Check(state.HistoryRows.Count == 0 && !state.IsHistoryOpen, "A late previous-account response cannot restore its transactions after reconnecting.");
+        state.Configure(_ => Task.FromResult(preview)); await state.RefreshAsync();
+        state.Configure(_ => Task.FromException<ShopSnapshot>(new UnauthorizedAccessException())); await state.RefreshAsync();
+        Check(!state.HistoryAvailable && state.HistoryRows.Count == 0, "Authentication failures clear transaction data.");
     }
 
     private static HttpResponseMessage Json(ShopSnapshot value) => new(HttpStatusCode.OK)

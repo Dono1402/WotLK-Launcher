@@ -20,7 +20,12 @@ internal sealed class ShopOfferRow(ShopOffer offer) : ShopLocalizedRow
     public ShopOffer Offer { get; } = offer;
     public string Name => ShopUiState.Text(Offer.Name);
     public string Description => ShopUiState.Text(Offer.Description);
-    public string DisplayPrice => Offer.Prices.FirstOrDefault() is { } price ? ShopUiState.FormatEuros(price.Amount) : ShopUiState.L("Tarif à venir", "Price to be announced");
+    public string Tagline => ShopUiState.Text(Offer.Tagline ?? Offer.Description);
+    public string WalletPrice => AmountFor("eur");
+    public string CreditPrice => AmountFor("credits");
+    public string WalletLabel => ShopUiState.L("Portefeuille", "Wallet");
+    public string CreditsLabel => ShopUiState.L("Crédits Atlas", "Atlas credits");
+    private string AmountFor(string currency) => Offer.Prices.FirstOrDefault(p => p.Currency == currency) is { } price ? ShopUiState.FormatEuros(price.Amount) : "—";
     public bool HasPrice => Offer.Prices.Count != 0;
     public string Category => ShopUiState.L("Service de personnage", "Character service");
     public string Realm => "WRATH OF THE LICH KING";
@@ -102,6 +107,8 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     public string OfferDescription => _offer?.Description ?? "";
     public string OfferConditions => _offer is null ? "" : Text(_offer.Offer.Conditions);
     public string PriceLabel => _price?.Label ?? L("Tarif à venir", "Price to be announced");
+    public string SelectedCurrencyLabel => _price?.Price.Currency switch { "credits" => CreditsLabel, "eur" => WalletLabel, _ => "" };
+    public string SelectedCurrencyColor => _price?.Price.Currency == "credits" ? "#EDD18B" : "#A9DCFA";
     public string CharacterHint => !HasCharacters ? L("Aucun personnage sur ce compte.", "No characters on this account.")
         : _character?.Character.Online == true ? L("En ligne · le solde d’or sera vérifié en jeu.", "Online · your gold balance will be checked in game.")
         : _character?.Character.GoldCopper is uint gold ? L("Or sauvegardé : ", "Saved gold: ") + FormatGoldNumber(gold)
@@ -131,13 +138,20 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     public ShopPriceRow? SelectedPrice
     {
         get => _price;
-        set { if (Equals(value, _price)) return; _price = value is not null && Prices.Contains(value) ? value : null; Changed(); }
+        set
+        {
+            // Replacing a ComboBox ItemsSource can report a transient null or an
+            // old row. It must not clear the new offer's valid currency choice.
+            // Clearing the catalog/session resets _price directly.
+            if (value is null || !Prices.Contains(value) || ReferenceEquals(value, _price)) return;
+            _price = value; Changed();
+        }
     }
 
     internal void OpenService(ShopOfferRow row)
     {
         if (_disposed || !Offers.Contains(row)) return;
-        SelectedOffer = row; IsWalletOpen = false; IsConversionOpen = false; IsServiceOpen = true; Changed();
+        SelectedOffer = row; IsHistoryOpen = false; IsWalletOpen = false; IsConversionOpen = false; IsServiceOpen = true; Changed();
     }
     internal void CloseService() { IsServiceOpen = false; Changed(); }
 
@@ -183,6 +197,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     private void Apply(ShopSnapshot snapshot, string? offerId, uint? characterId, string? currency)
     {
         _snapshot = snapshot;
+        RefreshHistoryRows();
         Offers = snapshot.Offers.Select(o => new ShopOfferRow(o)).ToArray();
         Characters = snapshot.Characters.Select(c => new ShopCharacterRow(c)).ToArray();
         _offer = Offers.FirstOrDefault(o => o.Offer.Id == offerId) ?? Offers.FirstOrDefault();
@@ -196,7 +211,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
 
     internal void RefreshLocale()
     {
-        foreach (ShopLocalizedRow row in Offers.Cast<ShopLocalizedRow>().Concat(Characters).Concat(Prices).Concat(PaymentMethods)) row.RefreshLocale();
+        foreach (ShopLocalizedRow row in Offers.Cast<ShopLocalizedRow>().Concat(Characters).Concat(Prices).Concat(PaymentMethods).Concat(HistoryRows).Concat(HistoryKindFilters).Concat(HistoryWalletFilters)) row.RefreshLocale();
         Changed();
     }
 
@@ -206,15 +221,15 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
         CancellationTokenSource? pending = _pending; _pending = null;
         pending?.Cancel();
         if (_previewSnapshot is not null) _read = null;
-        Clear(); IsWalletOpen = false; _walletAmount = ""; _paymentMethod = null; _previewSnapshot = null; _conversionCharacterId = null; _conversionGold = ""; IsConversionOpen = false; IsLoading = false; _status = "unavailable"; Changed();
+        Clear(); ResetHistory(); IsWalletOpen = false; _walletAmount = ""; _paymentMethod = null; _previewSnapshot = null; _conversionCharacterId = null; _conversionGold = ""; IsConversionOpen = false; IsLoading = false; _status = "unavailable"; Changed();
     }
-    private void Clear() { IsServiceOpen = false; _snapshot = null; _lastConversion = null; Offers = []; Characters = []; Prices = []; _offer = null; _character = null; _conversionCharacter = null; _price = null; }
+    private void Clear() { IsServiceOpen = false; _snapshot = null; _lastConversion = null; Offers = []; Characters = []; Prices = []; HistoryRows = []; _offer = null; _character = null; _conversionCharacter = null; _price = null; }
     private void Changed() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));
     public void Dispose() { if (_disposed) return; _disposed = true; ResetSession(); _read = null; }
     internal static string Text(ShopText text) => LauncherLocalization.IsEnglish ? text.En : text.Fr;
     internal static string L(string fr, string en) => LauncherLocalization.IsEnglish ? en : fr;
     internal static CultureInfo Culture => CultureInfo.GetCultureInfo(LauncherLocalization.CurrentLocale);
     internal static string FormatPrice(ShopPrice price) => (price.Currency == "credits"
-        ? L("Crédits Atlas", "Atlas credits") : L("Portefeuille en euros", "Euro wallet")) + " · " + FormatEuros(price.Amount);
+        ? L("Crédits Atlas", "Atlas credits") : L("Portefeuille", "Wallet")) + " · " + FormatEuros(price.Amount);
     internal static string FormatEuros(long euroCents) => (euroCents / 100m).ToString("N2", Culture) + " €";
 }

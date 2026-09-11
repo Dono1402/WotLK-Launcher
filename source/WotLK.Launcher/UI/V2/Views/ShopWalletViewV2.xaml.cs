@@ -8,6 +8,7 @@ namespace WotLK.Launcher.UI.V2.Views;
 public partial class ShopWalletViewV2 : UserControl
 {
     private ShopUiState? State => DataContext as ShopUiState;
+    internal event EventHandler? HistoryRequested;
     public ShopWalletViewV2()
     {
         InitializeComponent();
@@ -15,6 +16,7 @@ public partial class ShopWalletViewV2 : UserControl
         Loaded += (_, _) => ApplyLayout();
     }
     private void Back_Click(object sender, RoutedEventArgs e) => State?.CloseWallet();
+    private void History_Click(object sender, RoutedEventArgs e) => HistoryRequested?.Invoke(this, EventArgs.Empty);
     private void Preset_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: string value } && long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out long cents))

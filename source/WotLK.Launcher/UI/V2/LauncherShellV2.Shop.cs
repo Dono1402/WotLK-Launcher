@@ -19,6 +19,7 @@ public partial class LauncherShellV2
     {
         WalletHeader.DataContext = ShopView.State;
         ShopView.ConversionRequested += OpenShopConversion;
+        ShopView.HistoryRequested += OpenShopHistory;
         WalletHeader.CreditsRequested += OpenShopConversion;
         WalletHeader.WalletRequested += OpenShopWallet;
         ShopView.State.CreditGranted += ShopCreditGranted;
@@ -27,6 +28,7 @@ public partial class LauncherShellV2
     private void DisposeShopPresentation()
     {
         ShopView.ConversionRequested -= OpenShopConversion;
+        ShopView.HistoryRequested -= OpenShopHistory;
         WalletHeader.CreditsRequested -= OpenShopConversion;
         WalletHeader.WalletRequested -= OpenShopWallet;
         ShopView.State.CreditGranted -= ShopCreditGranted;
@@ -46,6 +48,11 @@ public partial class LauncherShellV2
     {
         if (!ShellState.IsNavigationEnabled || IsAuthenticationRequired || !_overlayCoordinator.CanNavigate) return;
         NavigateTo(LauncherShellPage.Shop); ShopView.State.OpenWallet();
+    }
+    private void OpenShopHistory(object? sender, EventArgs e)
+    {
+        if (!ShellState.IsNavigationEnabled || IsAuthenticationRequired || !_overlayCoordinator.CanNavigate) return;
+        NavigateTo(LauncherShellPage.Shop); ShopView.State.OpenHistory();
     }
     private async Task RefreshShopHeaderAsync()
     {
@@ -87,7 +94,7 @@ public partial class LauncherShellV2
     private async void ShopNavigationButton_Click(object sender, RoutedEventArgs e)
     {
         if (!ShellState.IsNavigationEnabled || !_overlayCoordinator.CanNavigate || IsAuthenticationRequired) return;
-        ShopView.State.CloseConversion(); ShopView.State.CloseService(); ShopView.State.CloseWallet();
+        ShopView.State.CloseConversion(); ShopView.State.CloseService(); ShopView.State.CloseWallet(); ShopView.State.CloseHistory();
         NavigateTo(LauncherShellPage.Shop);
         await ShopView.State.RefreshAsync();
     }

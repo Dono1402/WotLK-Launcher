@@ -96,7 +96,7 @@ internal sealed partial class ShopUiState
         if (_disposed) return;
         if (_conversionCharacter is null && _conversionCharacterId is null)
             SelectedConversionCharacter = SelectedCharacter ?? Characters.FirstOrDefault(c => !c.Character.Online && c.Character.GoldCopper is > 0) ?? Characters.FirstOrDefault();
-        IsWalletOpen = false; IsServiceOpen = false; IsConversionOpen = true; Changed();
+        IsHistoryOpen = false; IsWalletOpen = false; IsServiceOpen = false; IsConversionOpen = true; Changed();
     }
     internal void CloseConversion() { IsConversionOpen = false; Changed(); }
     internal void SetConversionPercent(int percent)
@@ -122,10 +122,15 @@ internal sealed partial class ShopUiState
         ShopSnapshot result = _snapshot with
         {
             CreditBalanceEuroCents = checked(before + quote.CreditEuroCents),
-            Characters = _snapshot.Characters.Select(c => c.Guid == characterId ? c with { GoldCopper = checked(c.GoldCopper!.Value - quote.DebitedCopper) } : c).ToArray()
+            Characters = _snapshot.Characters.Select(c => c.Guid == characterId ? c with { GoldCopper = checked(c.GoldCopper!.Value - quote.DebitedCopper) } : c).ToArray(),
+            History = new[] { new ShopTransaction("preview-conversion-" + Guid.NewGuid().ToString("N"), DateTimeOffset.UtcNow,
+                "conversion", "credits", quote.CreditEuroCents, "completed", new("Conversion d’or", "Gold conversion"),
+                _conversionCharacter.Character.Name, checked(before + quote.CreditEuroCents), quote.DebitedCopper) }
+                .Concat(_snapshot.History ?? []).OrderByDescending(t => t.OccurredAtUtc).Take(ShopSnapshot.MaximumHistoryEntries).ToArray()
         };
         result.Validate();
         _previewSnapshot = _snapshot = result;
+        RefreshHistoryRows();
         // Preserve bound row identities: replacing ItemsSource during this notification
         // would let WPF clear the beneficiary, price and offer through two-way bindings.
         _conversionCharacter.Update(result.Characters.Single(c => c.Guid == characterId));

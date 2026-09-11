@@ -65,7 +65,7 @@ internal static class ShopWpfTests
                     ComboBox character = Get<ComboBox>(shop, "CharacterPicker");
                     ComboBox currency = Get<ComboBox>(shop, "CurrencyPicker");
                     Check(character.SelectedIndex == -1, "No beneficiary is chosen implicitly.");
-                    character.SelectedIndex = 0; currency.SelectedIndex = 1; await Pump();
+                    character.SelectedIndex = 0; currency.SelectedIndex = 0; await Pump();
                     Check(shop.State.SelectedCharacter?.Character.Guid == 101 && shop.State.SelectedPrice?.Price.Currency == "eur", "WPF pickers update the character and wallet.");
                     WalletBalanceV2 wallet = shell.WalletControl;
                     Check(Get<TextBlock>(wallet, "WalletAmountText").Text == "2,65 €", "Atlas credits appear in the shell header.");
@@ -74,7 +74,7 @@ internal static class ShopWpfTests
                         "Both independent wallets are visible simultaneously.");
                     Check(Get<TextBlock>(shop, "SummaryText").Text.Contains("Asteria"), "Summary reflects the selected beneficiary.");
                     Get<Button>(shop, "RefreshButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
-                    Check(character.SelectedIndex == 0 && currency.SelectedIndex == 1, "Bindings preserve selection after refresh.");
+                    Check(character.SelectedIndex == 0 && currency.SelectedIndex == 0, "Bindings preserve selection after refresh.");
                     LauncherLocalization.SetLocale(LauncherLocalization.FrenchLocale);
                     shell.Width = 1586; shell.Height = 992; currency.SelectedIndex = 0; await Pump();
                     Get<ScrollViewer>(shop, "PageScroll").ScrollToTop(); await Pump();
@@ -85,9 +85,15 @@ internal static class ShopWpfTests
                     for (int service = 1; service < 4; service++)
                     {
                         ServiceButton(shop, service).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
-                        Check(shop.State.IsServiceOpen && shop.State.Prices.Count == 0 && !currency.IsEnabled
-                            && shop.State.PriceLabel == "Tarif à venir" && !Get<Button>(shop, "PurchaseButton").IsEnabled,
-                            "Each upcoming service opens without inventing a price or enabling payment.");
+                        Check(shop.State.IsServiceOpen && shop.State.Prices.Count == 2 && currency.IsEnabled
+                            && !Get<Button>(shop, "PurchaseButton").IsEnabled, "Each service exposes both approved prices while checkout stays closed.");
+                        foreach (ShopPriceRow price in shop.State.Prices)
+                        {
+                            currency.SelectedItem = price; await Pump();
+                            var expected = ShopRuntimeTests.ApprovedPrices.Single(p => p.Id == shop.State.SelectedOffer!.Offer.Id);
+                            Check(shop.State.SelectedAmount == ShopUiState.FormatEuros(price.Price.Currency == "eur" ? expected.Wallet : expected.Credits)
+                                && Texts(shop).Any(t => t.Text == shop.State.SelectedCurrencyLabel), "Service recap identifies the selected currency and exact approved amount.");
+                        }
                         Capture(shell, Path.Combine(captureDirectory, $"shop-service-{shop.State.SelectedOffer!.Offer.Id}.png"));
                         Get<Button>(shop, "ServiceBackButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
                         Check(!shop.State.IsServiceOpen && Get<ScrollViewer>(shop, "PageScroll").IsVisible
@@ -99,11 +105,11 @@ internal static class ShopWpfTests
                     HwndSource serviceHwnd = (HwndSource)PresentationSource.FromVisual(shell);
                     shell.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, serviceHwnd, Environment.TickCount, Key.Escape) { RoutedEvent = Keyboard.PreviewKeyDownEvent }); await Pump();
                     Check(!shop.State.IsServiceOpen, "Escape leaves the service page.");
-                    currency.SelectedIndex = 1; await Pump();
+                    currency.SelectedIndex = 0; await Pump();
                     foreach (string selectedLocale in new[] { LauncherLocalization.FrenchLocale, LauncherLocalization.EnglishLocale })
                     {
                         LauncherLocalization.SetLocale(selectedLocale); await Pump();
-                        Check(character.SelectedIndex == 0 && currency.SelectedIndex == 1, "Language switch preserves WPF selections.");
+                        Check(character.SelectedIndex == 0 && currency.SelectedIndex == 0, "Language switch preserves WPF selections.");
                         Check(Texts(character).Any(t => t.Text == shop.State.SelectedCharacter!.Label), "The rendered character label updates after a language change.");
                         Check(Get<Button>(shell, "ShopNavigationButton").Content.ToString() == (LauncherLocalization.IsEnglish ? "Shop" : "Boutique"), "Shop navigation is localized.");
                         foreach ((int width, int height) in new[] { (1672, 941), (1440, 860), (1280, 760), (1080, 680) })
@@ -133,7 +139,7 @@ internal static class ShopWpfTests
                                 Rect bounds = new(card.TranslatePoint(new Point(), shop), card.RenderSize);
                                 Check(Math.Abs(bounds.Top - first.Y) < 1 && bounds.Right <= shop.ActualWidth && bounds.Bottom <= shop.ActualHeight,
                                     "All four compact service cards fit on one row in the first viewport.");
-                                Check(card.ActualWidth is >= 230 and <= 350 && card.ActualHeight <= 370,
+                                Check(card.ActualWidth is >= 230 and <= 350 && card.ActualHeight <= 400,
                                     "Compact cards retain readable widths without the previous oversized frames.");
                             }
                             Check(Math.Abs(shop.CardImageHeight / (firstCard.ActualWidth - 2) - 9d / 16) < .001, "Smaller artwork preserves the landscape ratio.");
@@ -146,17 +152,28 @@ internal static class ShopWpfTests
                             Check(rateCoin.IsVisible && rateCoin.Source is DrawingImage && rateCoin.ActualWidth >= 14
                                 && rateCoin.TranslatePoint(new Point(), shop).X > rateNumber.TranslatePoint(new Point(rateNumber.ActualWidth, 0), shop).X,
                                 "A visible gold coin immediately follows the conversion rate number.");
-                            Check(Texts(firstCard).Any(t => t.Text == shop.State.Offers[0].DisplayPrice), "Rendered catalog price follows the active locale.");
+                            foreach (int index in Enumerable.Range(0, 4))
+                            {
+                                ShopOfferRow offer = shop.State.Offers[index];
+                                List<TextBlock> texts = Texts(ServiceButton(shop, index)).ToList();
+                                Check(texts.Any(t => t.Text == offer.WalletPrice) && texts.Any(t => t.Text == offer.CreditPrice)
+                                    && texts.Any(t => t.Text == offer.WalletLabel) && texts.Any(t => t.Text == offer.CreditsLabel)
+                                    && texts.Any(t => t.Text == offer.Tagline), "Each card renders its sales description and both separately named wallet prices.");
+                            }
+                            Check(Get<TextBlock>(shop, "ShortcutCreditsLabel").IsVisible
+                                && Get<TextBlock>(shop, "ShortcutCreditsLabel").Text == shop.State.CreditsLabel, "The converter result visibly names Atlas credits.");
                             ServiceButton(shop, 3).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
-                            Check(shop.State.PriceLabel == (LauncherLocalization.IsEnglish ? "Price to be announced" : "Tarif à venir"), "Future service pricing is localized.");
+                            Check(shop.State.PriceLabel == (LauncherLocalization.IsEnglish ? "Wallet · 20.00 €" : "Portefeuille · 20,00 €"), $"Race-change wallet pricing is localized and explicitly named: {shop.State.PriceLabel}, index {currency.SelectedIndex}.");
+                            Check(currency.SelectedItem is ShopPriceRow selected && selected.Price.Currency == shop.State.SelectedPrice?.Price.Currency,
+                                "The visible currency picker and recap stay on the same valid price after switching services.");
                             Check(Get<ScrollViewer>(shop, "ServiceScroll").ScrollableWidth == 0, "Service page has no horizontal overflow.");
                             Capture(shell, Path.Combine(captureDirectory, $"shop-service-{selectedLocale}-{width}.png"));
                             Get<Button>(shop, "ServiceBackButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
-                            shop.State.SelectedOffer = shop.State.Offers[0]; currency.SelectedIndex = 1; await Pump();
+                            shop.State.SelectedOffer = shop.State.Offers[0]; currency.SelectedIndex = 0; await Pump();
                             Capture(shell, Path.Combine(captureDirectory, $"shop-{selectedLocale}-{width}.png"));
                         }
                     }
-                    currency.SelectedIndex = 1; await Pump();
+                    currency.SelectedIndex = 0; await Pump();
                     Check(shop.State.PaymentHint.Contains("euro balance") && shop.State.SelectedAmount == "5.00 €", "Payment uses the independent euro wallet.");
                     Get<ScrollViewer>(shop, "PageScroll").ScrollToBottom(); await Pump();
                     Capture(shell, Path.Combine(captureDirectory, "shop-en-bottom-1080.png"));
@@ -248,7 +265,7 @@ internal static class ShopWpfTests
                         && shop.State.CreditBalance == "4,77 €" && shop.State.EuroBalance == "10,00 €",
                         "Success stays in conversion with a receipt and updates only Atlas credits.");
                     Check(!Get<Button>(conversion, "ConvertButton").IsEnabled && amount.Text == "", "Success requires a fresh amount before another conversion.");
-                    Check(shop.State.HasSelection && character.SelectedIndex == 0 && currency.SelectedIndex == 1,
+                    Check(shop.State.HasSelection && character.SelectedIndex == 0 && currency.SelectedIndex == 0,
                         "Crediting the wallet preserves product, beneficiary and payment selections.");
                     Check(Get<TextBlock>(wallet, "WalletAmountText").Text == "4,77 €" && !Get<TextBlock>(wallet, "AnimatedAmountText").IsVisible
                         && Get<Canvas>(conversion, "TransferLayer").Children.Count == 0, "Animations release their visuals and end at the credited amount.");
@@ -297,9 +314,10 @@ internal static class ShopWpfTests
                     Check(Get<TextBlock>(conversion, "ConversionCreditText").Text == "0,10 €", "The reported ten-gold case now displays ten cents in French.");
                     Capture(shell, Path.Combine(captureDirectory, "shop-rate-10-gold.png"));
                     await VerifyWalletNavigationAsync(shell, shop, captureDirectory);
+                    await VerifyHistoryNavigationAsync(shell, shop, captureDirectory);
                     await VerifyHeaderSessionAsync();
                     Check(errors.Messages.Count == 0, "No WPF binding errors: " + string.Join("\n", errors.Messages));
-                    Console.WriteLine("Shop WPF PASS: compact conversion shortcut above cards, clickable header wallets, funding method drafts and session reset, four adaptive service cards, localized upcoming prices, detail/back/Escape and scroll restoration, two header wallets, FR/EN at four adaptive widths, integrated horizontal conversion, freely accessible navigation, return/Escape, numeric typing/paste, per-character max and overdraw, cancellable internal coin transfer, subtle header counter, retained success receipt, refresh and session changes; offscreen inactive fixtures only.");
+                    Console.WriteLine("Shop WPF PASS: compact conversion shortcut above cards, clickable header wallets, funding method drafts and session reset, four adaptive service cards, distinct approved wallet prices, sales descriptions, transaction history and filters, detail/back/Escape and scroll restoration, two header wallets, FR/EN at four adaptive widths, integrated horizontal conversion, freely accessible navigation, return/Escape, numeric typing/paste, per-character max and overdraw, cancellable internal coin transfer, subtle header counter, retained success receipt, refresh and session changes; offscreen inactive fixtures only.");
                     result = 0;
                 }
                 catch (Exception error) { Console.Error.WriteLine(error); result = 1; }
@@ -313,7 +331,70 @@ internal static class ShopWpfTests
             }
         }) { IsBackground = true, Name = "AtlasShopOffscreenFixture" };
         thread.SetApartmentState(ApartmentState.STA); thread.Start();
-        return await completion.Task.WaitAsync(TimeSpan.FromMinutes(2));
+        return await completion.Task.WaitAsync(TimeSpan.FromMinutes(3));
+    }
+
+    private static async Task VerifyHistoryNavigationAsync(LauncherShellV2 shell, ShopViewV2 shop, string captureDirectory)
+    {
+        shop.State.ConfigurePreview(ShopPreviewData.Create()); await shop.State.RefreshAsync(); await Pump();
+        ShopHistoryViewV2 page = shop.HistoryPage;
+        ListBox list = Get<ListBox>(page, "HistoryList");
+        ComboBox kinds = Get<ComboBox>(page, "HistoryKindPicker"), wallets = Get<ComboBox>(page, "HistoryWalletPicker");
+        foreach (string locale in new[] { LauncherLocalization.FrenchLocale, LauncherLocalization.EnglishLocale })
+        {
+            LauncherLocalization.SetLocale(locale); await Pump();
+            foreach ((int width, int height) in new[] { (1586, 992), (1440, 860), (1280, 760), (1080, 680) })
+            {
+                shell.Width = width; shell.Height = height; await Pump();
+                Get<Button>(shop, "ShopHistoryButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                kinds.SelectedIndex = 0; wallets.SelectedIndex = 0; await Pump();
+                Check(page.IsVisible && shop.State.IsHistoryOpen && !shop.State.IsWalletOpen && !shop.State.IsServiceOpen && !shop.State.IsConversionOpen
+                    && list.Items.Count == 3, "The catalog history link opens all preview transactions as an exclusive page.");
+                Check(Descendants(list).OfType<ScrollViewer>().All(v => v.ScrollableWidth == 0), "History remains readable without horizontal scrolling.");
+                Check(Texts(list).Any(t => t.Text == (LauncherLocalization.IsEnglish ? "Wallet" : "Portefeuille"))
+                    && Texts(list).Any(t => t.Text == (LauncherLocalization.IsEnglish ? "Atlas credits" : "Crédits Atlas")), "Rendered history explicitly identifies both currencies.");
+                Capture(shell, Path.Combine(captureDirectory, $"shop-history-{locale}-{width}.png"));
+                wallets.SelectedIndex = 1; await Pump();
+                Check(list.Items.Count == 2 && shop.State.FilteredHistory.All(r => r.Transaction.Currency == "eur"), "Wallet filter shows only euro-wallet operations.");
+                kinds.SelectedIndex = 3; await Pump();
+                Check(list.Items.Count == 1 && Texts(list).Any(t => t.Text == (LauncherLocalization.IsEnglish ? "−5.00 €" : "−5,00 €")), "Purchase filter retains the actual debit sign and amount.");
+                kinds.SelectedIndex = 2; await Pump();
+                Check(list.Items.Count == 0 && Get<Border>(page, "HistoryEmptyState").IsVisible && shop.State.HistoryAvailable, "A filter with no matches has its own empty state.");
+                kinds.SelectedIndex = 0; wallets.SelectedIndex = 0;
+                Get<Button>(page, "HistoryBackButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                Check(!shop.State.IsHistoryOpen && Get<ScrollViewer>(shop, "PageScroll").IsVisible, "History back restores the catalog.");
+                Get<Button>(shell.WalletControl, "EuroWalletButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                Get<TextBox>(shop.WalletPage, "WalletAmountInput").Text = "12,50";
+                Get<Button>(shop.WalletPage, "WalletHistoryButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                Check(shop.State.IsHistoryOpen && page.IsVisible && !shop.WalletPage.IsVisible, "The wallet also opens history.");
+                HwndSource hwnd = (HwndSource)PresentationSource.FromVisual(shell);
+                shell.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, hwnd, Environment.TickCount, Key.Escape) { RoutedEvent = Keyboard.PreviewKeyDownEvent }); await Pump();
+                Check(shop.State.IsWalletOpen && !shop.State.IsHistoryOpen && shop.State.WalletTopUpCents == 1250, "Escape returns to the wallet and preserves the draft amount.");
+                Get<Button>(shop.WalletPage, "WalletBackButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+            }
+        }
+        LauncherLocalization.SetLocale(LauncherLocalization.FrenchLocale);
+        Get<Button>(shell.WalletControl, "AtlasWalletButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+        Get<TextBox>(shop.ConversionPage, "ConversionAmount").Text = "10"; await Pump();
+        Get<Button>(shop.ConversionPage, "ConvertButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Task.Delay(1000); await Pump();
+        Check(shop.State.HistoryRows.Count == 4 && shop.State.HistoryRows[0].Transaction.AmountCents == 10 && shop.State.CreditBalance == "2,75 €",
+            "The actual conversion control records one completed transaction after the transfer.");
+        Get<Button>(shell, "ShopNavigationButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+        Get<Button>(shop, "ShopHistoryButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+        Check(list.Items.Count == 4 && Texts(list).Any(t => t.Text == "+0,10 €"), "The new conversion remains visible after catalog refresh.");
+        Capture(shell, Path.Combine(captureDirectory, "shop-history-after-conversion-1080.png"));
+        Get<Button>(shell, "AddonsNavigationButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+        Check(!shop.State.IsHistoryOpen, "Leaving Shop closes history.");
+        Get<Button>(shell, "ShopNavigationButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+        shop.State.Configure(_ => Task.FromResult(ShopRuntimeTests.Snapshot)); await shop.State.RefreshAsync();
+        Get<Button>(shop, "ShopHistoryButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+        Check(!shop.State.HistoryAvailable && list.Items.Count == 0 && Get<TextBlock>(page, "HistoryEmptyTitle").Text.Contains("bientôt"), "Unavailable journal is shown honestly instead of fabricated records.");
+        Capture(shell, Path.Combine(captureDirectory, "shop-history-unavailable-1080.png"));
+        shop.State.Configure(_ => Task.FromResult(ShopRuntimeTests.Snapshot with { History = [] })); await shop.State.RefreshAsync(); await Pump();
+        Check(shop.State.HistoryAvailable && Get<TextBlock>(page, "HistoryEmptyTitle").Text.Contains("Aucune opération"), "An available empty history is a different state.");
+        Capture(shell, Path.Combine(captureDirectory, "shop-history-empty-1080.png"));
+        shop.State.ResetSession(); await Pump();
+        Check(!shop.State.IsHistoryOpen && list.Items.Count == 0 && kinds.SelectedIndex == 0 && wallets.SelectedIndex == 0, "Sign-out clears rendered history and both filters.");
     }
 
     private static async Task VerifyWalletNavigationAsync(LauncherShellV2 shell, ShopViewV2 shop, string captureDirectory)
@@ -404,6 +485,9 @@ internal static class ShopWpfTests
             fixture.AttachShop(_ => ++reads == 2 ? late.Task : Task.FromResult(ShopRuntimeTests.Snapshot with { CreditBalanceEuroCents = reads * 100, EuroBalanceCents = 800 }));
             Get<Button>(fixture.WalletControl, "AtlasWalletButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Get<Button>(fixture.WalletControl, "EuroWalletButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Get<Button>(fixture.ShopPage, "ShopHistoryButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Check(!fixture.ShopPage.State.IsHistoryOpen && fixture.ShopPage.State.HistoryRows.Count == 0,
+                "Signed-out history access cannot reveal transactions or open the journal.");
             Check(reads == 0 && !fixture.ShopPage.State.IsWalletOpen && !fixture.ShopPage.State.IsConversionOpen, "Signed-out wallet shortcuts cannot read balances or open funding pages.");
             AuthSessionSnapshot signedIn = AuthSessionSnapshot.Initial with { State = LauncherSessionState.Authenticated, Username = "Fixture" };
             AuthSessionSnapshot signedOut = signedIn with { State = LauncherSessionState.SignedOut };

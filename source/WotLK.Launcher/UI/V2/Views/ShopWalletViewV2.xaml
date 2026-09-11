@@ -35,6 +35,9 @@
             <Button x:Name="WalletBackButton" Style="{StaticResource ShopAction}" Height="30" Padding="0" BorderThickness="0" Background="Transparent" HorizontalAlignment="Left" Margin="0,0,0,18" Click="Back_Click" AutomationProperties.Name="{Binding BackToShopLabel}">
                 <StackPanel Orientation="Horizontal"><Path Data="{StaticResource AtlasV2.Icon.ArrowRight}" Style="{StaticResource ShopIcon}" Width="17" Height="17"><Path.LayoutTransform><ScaleTransform ScaleX="-1"/></Path.LayoutTransform></Path><TextBlock Text="{Binding BackToShopLabel}" Margin="10,0,0,0" VerticalAlignment="Center"/></StackPanel>
             </Button>
+            <Button x:Name="WalletHistoryButton" Style="{StaticResource ShopAction}" Height="30" Padding="10,0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Right" Margin="0,0,0,18" Click="History_Click" AutomationProperties.Name="{Binding HistoryLabel}">
+                <StackPanel Orientation="Horizontal"><Path Data="{StaticResource ShopIcon.Clock}" Style="{StaticResource ShopIcon}" Width="16" Height="16"/><TextBlock Text="{Binding HistoryLabel}" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
+            </Button>
             <StackPanel Grid.Row="1" Margin="0,0,0,26">
                 <TextBlock x:Name="WalletTitle" Text="{Binding WalletHeading}" Style="{StaticResource ShopHeading}" FontSize="40" LineHeight="50" Foreground="{StaticResource AtlasV2.Brush.TitlePearl}"/>
                 <TextBlock Text="{Binding WalletSubtitle}" Style="{StaticResource ShopBody}" Margin="0,6,0,0"/>

@@ -71,7 +71,7 @@ internal sealed partial class ShopUiState
     internal void OpenWallet()
     {
         if (_disposed) return;
-        IsConversionOpen = false; IsServiceOpen = false; IsWalletOpen = true; Changed();
+        IsHistoryOpen = false; IsConversionOpen = false; IsServiceOpen = false; IsWalletOpen = true; Changed();
     }
     internal void CloseWallet() { IsWalletOpen = false; Changed(); }
     internal void SetWalletAmount(long cents) => WalletAmount = (cents / 100m).ToString("0.##", Culture);

@@ -72,7 +72,8 @@ public sealed partial class LauncherDatabase
             if (existing.Amount != input.AmountCents) throw new ShopFundingException("shop-idempotency-conflict");
             return PublicTopUp(existing, options);
         }
-        if (wallet.Euro > ShopSnapshot.MaximumBalanceCents - input.AmountCents)
+        long refundable = options.PurchaseStorageAvailable ? await ShopEuroRefundReserve(connection, transaction, accountId, token) : 0;
+        if (wallet.Euro > ShopSnapshot.MaximumBalanceCents - input.AmountCents - refundable)
             throw new ShopFundingException("shop-wallet-limit");
         await using (MySqlCommand command = FundingCommand(connection, transaction, """
             SELECT COUNT(*) FROM atlas_shop_top_up WHERE account_id=@account AND status='pending';
@@ -193,6 +194,9 @@ public sealed partial class LauncherDatabase
                 }
                 if (wallet.Euro is < 0 or > ShopSnapshot.MaximumBalanceCents || wallet.Held < 0 || wallet.Held > wallet.Euro
                     || wallet.Debt is < 0 or > ShopSnapshot.MaximumBalanceCents)
+                    throw new ShopFundingException("shop-wallet-limit");
+                if (input.Action == "approve" && options.PurchaseStorageAvailable
+                    && wallet.Euro > ShopSnapshot.MaximumBalanceCents - await ShopEuroRefundReserve(connection, transaction, row.AccountId, token))
                     throw new ShopFundingException("shop-wallet-limit");
                 await FundingExecute(connection, transaction, """
                     UPDATE atlas_shop_wallet SET euro_cents=@euro,held_cents=@held,debt_cents=@debt,updated_at=UTC_TIMESTAMP(6) WHERE account_id=@account;

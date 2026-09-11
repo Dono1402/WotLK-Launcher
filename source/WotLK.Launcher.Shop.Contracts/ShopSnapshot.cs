@@ -4,14 +4,14 @@ public sealed record ShopText(string Fr, string En);
 public sealed record ShopPrice(string Currency, long Amount);
 public sealed record ShopOffer(string Id, string Category, ShopText Name, ShopText Description,
     ShopText Conditions, IReadOnlyList<ShopPrice> Prices, ShopText? Tagline = null, ShopText? Preserved = null);
-public sealed record ShopCharacter(uint Guid, string Name, byte Level, bool Online, uint? GoldCopper);
+public sealed record ShopCharacter(uint Guid, string Name, byte Level, bool Online, uint? GoldCopper, bool? RenamePending = null);
 
 // Balances are nullable: an unavailable wallet is never represented as an empty wallet.
-// Checkout is deliberately closed until reservation, fulfillment and payment handling exist.
+// Checkout is advertised per service only when its realm delivery worker is healthy.
 public sealed record ShopSnapshot(int SchemaVersion, string CatalogRevision, DateTimeOffset ObservedAtUtc,
     bool CheckoutAvailable, long? CreditBalanceEuroCents, IReadOnlyList<ShopOffer> Offers,
     IReadOnlyList<ShopCharacter> Characters, ShopGoldConversionRate GoldConversion, long? EuroBalanceCents = null,
-    IReadOnlyList<ShopTransaction>? History = null, ShopManualFunding? ManualFunding = null)
+    IReadOnlyList<ShopTransaction>? History = null, ShopManualFunding? ManualFunding = null, ShopPurchases? Purchases = null)
 {
     public const int CurrentSchemaVersion = 2;
     public const long MaximumBalanceCents = 1_000_000_000;
@@ -21,6 +21,7 @@ public sealed record ShopSnapshot(int SchemaVersion, string CatalogRevision, Dat
     public void Validate()
     {
         ManualFunding?.Validate();
+        Purchases?.Validate();
         if (SchemaVersion != CurrentSchemaVersion || string.IsNullOrWhiteSpace(CatalogRevision) || CatalogRevision.Length > 80
             || CreditBalanceEuroCents is < 0 or > MaximumBalanceCents || EuroBalanceCents is < 0 or > MaximumBalanceCents
             || GoldConversion is null || GoldConversion.CopperPerEuroCent == 0

@@ -82,11 +82,12 @@ public partial class LauncherShellV2
         WalletHeader.AnimateCredit(change);
     }
 
-    internal void AttachShop(Func<CancellationToken, Task<ShopSnapshot>> read, ShopFundingActions? funding = null)
+    internal void AttachShop(Func<CancellationToken, Task<ShopSnapshot>> read, ShopFundingActions? funding = null, ShopPurchaseActions? purchases = null)
     {
         if (IsPreviewMode) throw new InvalidOperationException("A preview cannot use the real shop.");
         ShopView.State.Configure(read);
         if(funding is not null)ShopView.State.ConfigureFunding(funding);
+        if(purchases is not null)ShopView.State.ConfigurePurchases(purchases);
         _ = RefreshShopHeaderAsync();
     }
 

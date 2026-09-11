@@ -10,6 +10,8 @@ internal static class ShopEndpoints
     {
         ShopManualFundingOptions fundingOptions = app.Services.GetService<ShopManualFundingOptions>() ?? new();
         app.MapManualFundingEndpoints(fundingOptions);
+        ShopPurchaseOptions purchaseOptions = app.Services.GetService<ShopPurchaseOptions>() ?? new();
+        app.MapShopPurchaseEndpoints(purchaseOptions);
         app.MapGet("/api/v1/shop", async (HttpContext context, LauncherDatabase database,
             ShopCatalog catalog, ArmoryReadLimiter limiter, CancellationToken cancellationToken) =>
         {
@@ -32,6 +34,8 @@ internal static class ShopEndpoints
                     snapshot = snapshot with { EuroBalanceCents = funding.AvailableCents, CreditBalanceEuroCents = funding.CreditCents,
                         History = funding.History, ManualFunding = funding.Funding };
                 }
+                if (purchaseOptions.CanReadStorage)
+                    snapshot = await database.AddShopPurchasesAsync(account.AccountId, snapshot, purchaseOptions, cancellationToken);
                 snapshot.Validate();
                 return Results.Json(snapshot);
             }
@@ -40,6 +44,6 @@ internal static class ShopEndpoints
                 return Results.Json(new { error = "shop-unavailable" }, statusCode: StatusCodes.Status503ServiceUnavailable);
             }
         });
-        // Character purchases, gold conversion and automatic payment callbacks remain closed.
+        // Only the explicitly enabled rename service is purchasable.
     }
 }

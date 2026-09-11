@@ -9,8 +9,10 @@ recharge, avec conservation du bénéficiaire et comparaison directe des deux so
 Le mode de prévisualisation peut simuler un débit d'or et un crédit Atlas en mémoire.
 Le jalon [recharges manuelles](BOUTIQUE-ATLAS-RECHARGES-MANUELLES.md) ajoute maintenant
 un portefeuille et un journal persistants, des demandes PayPal et leur validation
-administrateur, désactivés par défaut. Les paiements automatiques, le débit d'or
-d'un véritable personnage et la livraison des services restent à intégrer.
+administrateur, désactivés par défaut. Le jalon [achat de renommage](BOUTIQUE-ATLAS-RENOMMAGE.md)
+ajoute le débit persistant, le suivi, l'annulation et le module de livraison
+du changement de nom, également désactivés par défaut. Les paiements automatiques,
+le débit d'or d'un véritable personnage et les trois autres services restent à intégrer.
 Aucun service de production ni client installé n'a été modifié.
 
 ## Fonctionnement présent
@@ -232,8 +234,10 @@ Cela motive une vérification du proxy retenu avant activation ; ce contrôle
 ne prouve pas l'absence dans tout autre fichier ou dans le binaire actif.
 Aucun parcours de changement de race/faction avec le client réel n'a été testé.
 
-Les quatre services restent fermés à l'achat. Les tarifs sont configurés ;
-les règles métier et la livraison durable restent à terminer avant activation.
+Les quatre services restent désactivés par défaut. Le parcours d'achat et la
+livraison du renommage sont désormais implémentés et documentés dans
+[le jalon renommage](BOUTIQUE-ATLAS-RENOMMAGE.md). Les trois autres services
+attendent leurs règles métier et leur livraison durable.
 
 ## Montants et conversion
 
@@ -291,7 +295,8 @@ AtlasShop:Rename:CreditEuroCents = 700
 ```
 
 Les tarifs non positifs et les montants hors limites empêchent l'initialisation
-du catalogue. Il n'existe aucun endpoint d'achat ou de conversion dans ce jalon.
+du catalogue. Les endpoints d'achat et d'annulation du renommage sont décrits
+dans le jalon dédié ; la conversion réelle n'a pas encore d'endpoint.
 Le DTO partagé est dans `WotLK.Launcher.Shop.Contracts`, **schéma 2**. Les devises
 de prix sont `credits` et `eur` ; `gold` n'est plus accepté. Les deux champs
 `CreditBalanceEuroCents` et `EuroBalanceCents` sont indépendants et facultatifs.
@@ -374,10 +379,11 @@ Aucun serveur de production n'a été modifié.
 
 ## Suite avant activation
 
-1. Relier les achats et conversions aux portefeuilles et au journal désormais
-   persistants, avec commandes durables et identifiants idempotents.
-2. Module du core pour contrôler l'or, livrer les services de personnage et enregistrer un
-   résultat durable. Tester les connexions concurrentes et les interruptions
+1. Valider le module de renommage sur un royaume de test jusqu'au choix effectif
+   du nouveau nom dans le client. Relier ensuite les autres achats et la conversion
+   au même portefeuille, avec leurs commandes durables et identifiants idempotents.
+2. Étendre le module du core pour contrôler l'or et livrer les autres services.
+   Tester les connexions concurrentes et les interruptions
    entre débit, sauvegarde et confirmation ; aucune écriture directe de l'or
    d'un personnage connecté depuis l'API.
 3. Configurer et autoriser l'activation des recharges manuelles, ou intégrer un

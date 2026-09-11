@@ -86,7 +86,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     public IReadOnlyList<ShopCharacterRow> Characters { get; private set; } = [];
     public IReadOnlyList<ShopPriceRow> Prices { get; private set; } = [];
     public bool IsLoading { get; private set; }
-    public bool CanRefresh => !IsLoading && !IsFundingBusy && _read is not null && !_disposed;
+    public bool CanRefresh => !IsLoading && !IsFundingBusy && !IsPurchasing && !IsPurchaseReading && _read is not null && !_disposed;
     public bool HasOffers => Offers.Count != 0;
     public bool HasCharacters => Characters.Count != 0;
     public bool IsServiceOpen { get; private set; }
@@ -97,7 +97,6 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     public bool ShowStatus => _status != "ready";
     public bool ShowRetry => !IsLoading && _status is "error" or "unavailable" or "rate-limited";
     public string RetryLabel => L("Réessayer", "Try again");
-    public bool CanPurchase => false;
     public string Title => L("Boutique", "Shop");
     public string Subtitle => L("Services et personnalisations pour enrichir votre aventure.", "Services and customization to enrich your adventure.");
     public string CategoryLabel => L("Services de personnage", "Character services");
@@ -124,14 +123,13 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     public string SelectedCurrencyLabel => _price?.Price.Currency switch { "credits" => CreditsLabel, "eur" => WalletLabel, _ => "" };
     public string SelectedCurrencyColor => _price?.Price.Currency == "credits" ? "#EDD18B" : "#A9DCFA";
     public string Summary => _offer is null ? "" : $"{OfferName}\n{_character?.Character.Name ?? L("Personnage à choisir", "Choose a character")} · {PriceLabel}";
-    public string PurchaseHint => L("Les achats ouvriront une fois le service disponible sur le royaume.", "Purchases will open once the service is available on the realm.");
 
     public ShopOfferRow? SelectedOffer
     {
         get => _offer;
         set
         {
-            if (ReferenceEquals(value, _offer)) return;
+            if (!CanEditPurchase || ReferenceEquals(value, _offer)) return;
             _offer = value is not null && Offers.Contains(value) ? value : null;
             Prices = _offer?.Offer.Prices.Select(CreatePriceRow).ToArray() ?? [];
             _price = Prices.FirstOrDefault(); Changed();
@@ -140,7 +138,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     public ShopCharacterRow? SelectedCharacter
     {
         get => _character;
-        set { if (ReferenceEquals(value, _character)) return; _character = value is not null && Characters.Contains(value) ? value : null; Changed(); }
+        set { if (!CanEditPurchase || ReferenceEquals(value, _character)) return; _character = value is not null && Characters.Contains(value) ? value : null; _purchaseNotice = null; Changed(); }
     }
     public ShopPriceRow? SelectedPrice
     {
@@ -150,21 +148,21 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
             // Replacing a ComboBox ItemsSource can report a transient null or an
             // old row. It must not clear the new offer's valid currency choice.
             // Clearing the catalog/session resets _price directly.
-            if (value is null || !Prices.Contains(value) || ReferenceEquals(value, _price)) return;
+            if (!CanEditPurchase || value is null || !Prices.Contains(value) || ReferenceEquals(value, _price)) return;
             _price = value; Changed();
         }
     }
 
     internal void OpenService(ShopOfferRow row)
     {
-        if (_disposed || !Offers.Contains(row)) return;
+        if (_disposed || !CanEditPurchase || !Offers.Contains(row)) return;
         CloseAdminFunding();
         ClearFundingReturn();
         SelectedOffer = row; IsHistoryOpen = false; IsWalletOpen = false; IsConversionOpen = false; IsServiceOpen = true; Changed();
     }
     internal void CloseService() { IsServiceOpen = false; ClearFundingReturn(); Changed(); }
 
-    internal void Configure(Func<CancellationToken, Task<ShopSnapshot>> read) { ResetManualFunding(); _fundingActions=null; _previewSnapshot = null; _read = read; Changed(); }
+    internal void Configure(Func<CancellationToken, Task<ShopSnapshot>> read) { ResetPurchases(); _purchaseActions=null; ResetManualFunding(); _fundingActions=null; _previewSnapshot = null; _read = read; Changed(); }
 
     internal async Task RefreshAsync()
     {
@@ -208,14 +206,27 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
 
     private void Apply(ShopSnapshot snapshot, string? offerId, uint? characterId, string? currency)
     {
+        bool sameCatalog = _snapshot?.CatalogRevision == snapshot.CatalogRevision;
+        IReadOnlyList<ShopCharacterRow> oldCharacters = Characters;
+        IReadOnlyList<ShopPriceRow> oldPrices = Prices;
         _snapshot = snapshot;
+        if (_purchaseAttempt is { } attempt && snapshot.Purchases?.Orders.Any(o => o.IdempotencyKey == attempt.IdempotencyKey) == true) _purchaseAttempt = null;
         RefreshTopUpRows();
         if (IsShopAdminOpen && !CanAdministerFunding) CloseAdminFunding(returnToWallet:true);
         RefreshHistoryRows();
-        Offers = snapshot.Offers.Select(o => new ShopOfferRow(o)).ToArray();
-        Characters = snapshot.Characters.Select(c => new ShopCharacterRow(c)).ToArray();
+        if (!sameCatalog) Offers = snapshot.Offers.Select(o => new ShopOfferRow(o)).ToArray();
+        Characters = snapshot.Characters.Select(c =>
+        {
+            ShopCharacterRow? row = oldCharacters.FirstOrDefault(old => old.Character.Guid == c.Guid);
+            if (row is null) return new ShopCharacterRow(c);
+            row.Update(c); return row;
+        }).ToArray();
         _offer = Offers.FirstOrDefault(o => o.Offer.Id == offerId) ?? Offers.FirstOrDefault();
-        Prices = _offer?.Offer.Prices.Select(CreatePriceRow).ToArray() ?? [];
+        Prices = _offer?.Offer.Prices.Select(price =>
+        {
+            ShopPriceRow row = oldPrices.FirstOrDefault(old => old.Price == price) ?? CreatePriceRow(price);
+            row.UpdateBalance(BalanceFor(price.Currency)); return row;
+        }).ToArray() ?? [];
         // Never silently assign a different beneficiary after a character disappears.
         _character = Characters.FirstOrDefault(c => c.Character.Guid == characterId);
         _price = Prices.FirstOrDefault(p => p.Price.Currency == currency) ?? Prices.FirstOrDefault();
@@ -231,6 +242,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
 
     internal void ResetSession()
     {
+        ResetPurchases();
         ResetManualFunding();
         ++_generation;
         CancellationTokenSource? pending = _pending; _pending = null;

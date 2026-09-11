@@ -17,6 +17,8 @@ internal sealed class LauncherShopApiClient(HttpClient client, Uri apiBaseUri)
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { MaxDepth = 16 };
 
     internal Task<ShopSnapshot> ReadAsync(CancellationToken cancellationToken) => SendAsync<ShopSnapshot>(HttpMethod.Get, "shop", null, cancellationToken);
+    internal Task<ShopOrder> CreateOrderAsync(ShopCreateOrder input, CancellationToken token) => SendAsync<ShopOrder>(HttpMethod.Post,"shop/orders",input,token);
+    internal Task<ShopOrder> CancelOrderAsync(string id, CancellationToken token) => SendAsync<ShopOrder>(HttpMethod.Post,"shop/orders/"+RequestId(id)+"/cancel",null,token);
     internal Task<ShopTopUp> CreateTopUpAsync(ShopCreateTopUp input, CancellationToken token) => SendAsync<ShopTopUp>(HttpMethod.Post,"shop/top-ups",input,token);
     internal Task<ShopTopUp> CancelTopUpAsync(string id, CancellationToken token) => SendAsync<ShopTopUp>(HttpMethod.Post,"shop/top-ups/"+RequestId(id)+"/cancel",null,token);
     internal Task<ShopAdminTopUpPage> ListTopUpsAsync(string? status,long? before,CancellationToken token)
@@ -66,6 +68,7 @@ internal sealed class LauncherShopApiClient(HttpClient client, Uri apiBaseUri)
         switch (result)
         {
             case ShopSnapshot snapshot: snapshot.Validate(); break;
+            case ShopOrder order: order.Validate(); break;
             case ShopTopUp topUp: topUp.Validate(); break;
             case ShopAdminTopUp admin: admin.Validate(); break;
             case ShopAdminTopUpPage page: page.Validate(); break;

@@ -256,6 +256,8 @@ internal sealed class LauncherSchemaMigrator
             await _validator.ValidatePresenceAsync(connection, cancellationToken);
         if (version >= 11)
             await _validator.ValidateShopFundingAsync(connection, cancellationToken);
+        if (version >= 12)
+            await _validator.ValidateShopOrdersAsync(connection, cancellationToken);
     }
 
     private static async Task ExecuteMigrationAsync(

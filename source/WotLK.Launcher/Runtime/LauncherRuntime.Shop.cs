@@ -5,6 +5,8 @@ namespace WotLK.Launcher.Runtime;
 internal sealed partial class LauncherRuntime
 {
     internal Task<ShopSnapshot> GetShopAsync(CancellationToken token) => CallShopAsync(_shopApi.ReadAsync,token);
+    internal Task<ShopOrder> CreateShopOrderAsync(ShopCreateOrder input,CancellationToken token) => CallShopAsync(ct=>_shopApi.CreateOrderAsync(input,ct),token);
+    internal Task<ShopOrder> CancelShopOrderAsync(string id,CancellationToken token) => CallShopAsync(ct=>_shopApi.CancelOrderAsync(id,ct),token);
     internal Task<ShopTopUp> CreateShopTopUpAsync(ShopCreateTopUp input,CancellationToken token) => CallShopAsync(ct=>_shopApi.CreateTopUpAsync(input,ct),token);
     internal Task<ShopTopUp> CancelShopTopUpAsync(string id,CancellationToken token) => CallShopAsync(ct=>_shopApi.CancelTopUpAsync(id,ct),token);
     internal Task<ShopAdminTopUpPage> ListShopTopUpsAsync(string? status,long? before,CancellationToken token) => CallShopAsync(ct=>_shopApi.ListTopUpsAsync(status,before,ct),token);

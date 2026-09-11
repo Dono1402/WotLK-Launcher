@@ -98,7 +98,7 @@ internal static class ShopManualFundingEndpoints
     {
         if (!ShopFundingValidation.IsId(id)) throw new ShopFundingException("shop-invalid-request-id", 400);
     }
-    private static async Task<T> ReadInput<T>(HttpContext context, CancellationToken token)
+    internal static async Task<T> ReadInput<T>(HttpContext context, CancellationToken token)
     {
         const int limit = 8192;
         if (!context.Request.HasJsonContentType()) throw new ShopFundingException("shop-json-required", 415);

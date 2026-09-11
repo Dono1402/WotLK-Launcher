@@ -18,7 +18,7 @@ using WotLK.Launcher.Shop.Contracts;
 
 internal static partial class ShopWpfTests
 {
-    internal static async Task<int> RunAsync(string captureDirectory, bool fundingOnly = false)
+    internal static async Task<int> RunAsync(string captureDirectory, bool fundingOnly = false, bool renameOnly = false)
     {
         TaskCompletionSource<int> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         Thread thread = new(() =>
@@ -55,6 +55,13 @@ internal static partial class ShopWpfTests
                     ShopViewV2 shop = shell.ShopPage;
                     shell.PrepareShopPreview(manualFunding:fundingOnly);
                     shell.Show(); await Pump();
+                    if(renameOnly)
+                    {
+                        await VerifyPurchasesAsync(shell,shop,captureDirectory);
+                        Check(errors.Messages.Count==0,"No purchase binding errors: "+string.Join("\n",errors.Messages));
+                        Console.WriteLine("Rename WPF PASS: native double click, recipient/currency guards, wallet/credits debit, cancellation, delivered receipt, FR/EN and logout; inactive offscreen fixture only.");
+                        result=0; return;
+                    }
                     if(fundingOnly)
                     {
                         await VerifyManualFundingAsync(shell,shop,captureDirectory);

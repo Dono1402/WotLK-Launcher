@@ -15,8 +15,8 @@ internal sealed partial class ShopUiState
     public string OfferPreserved => _offer?.Offer.Preserved is { } text ? Text(text)
         : L("Les éléments conservés seront précisés avant l’ouverture du service.", "Retained elements will be detailed before the service opens.");
     public string ServicePreparationLabel => L("Préparer mon service", "Prepare my service");
-    public string PurchaseActionLabel => L("Confirmer l’achat", "Confirm purchase");
-    public string ServiceAvailabilityLabel => L("Service bientôt disponible", "Service available soon");
+    public string PurchaseActionLabel => IsPurchasing ? L("Enregistrement…", "Saving…") : _purchaseAttempt is not null ? L("Reprendre la commande", "Resume order") : L("Confirmer l’achat", "Confirm purchase");
+    public string ServiceAvailabilityLabel => RenameAvailable ? L("Service disponible", "Service available") : L("Service bientôt disponible", "Service available soon");
     public string ServiceCurrencyLabel => L("Choisir une monnaie", "Choose a currency");
     public string ServiceReturnLabel => L("Retour au service", "Back to service");
     public string WalletHelpLabel => L("Deux soldes indépendants", "Two separate balances");
@@ -26,9 +26,10 @@ internal sealed partial class ShopUiState
 
     private bool HasBoostLevelConflict => _offer?.Offer.Id == "character-level-70" && _character?.Character.Level >= 70;
     public string EligibilityTitle => _character is null ? L("Personnage à choisir", "Choose a character")
+        : _offer?.Offer.Id == "character-rename" && _character.Character.RenamePending == true ? L("Renommage déjà en attente", "Name change already pending")
         : HasBoostLevelConflict ? L("Niveau 70 déjà atteint", "Already level 70 or above")
         : _character.Character.Online ? L("Personnage en ligne", "Character is online")
-        : L("Éligibilité à confirmer", "Eligibility to be confirmed");
+        : RenameAvailable && _character.Character.RenamePending == false ? L("Personnage disponible", "Character available") : L("Éligibilité à confirmer", "Eligibility to be confirmed");
     public string EligibilityDescription => !HasCharacters ? L("Aucun personnage sur ce compte.", "No characters on this account.")
         : _character is null ? L("Sélectionnez le personnage qui recevra ce service.", "Select the character that will receive this service.")
         : HasBoostLevelConflict ? L($"Ce personnage est déjà de niveau {_character.Character.Level}. Ce sésame vise le niveau 70.",
@@ -36,13 +37,16 @@ internal sealed partial class ShopUiState
         : _character.Character.Online && _offer?.Offer.Id is "character-rename" or "character-race-change" or "character-faction-change"
             ? L("Déconnectez ce personnage avant d’utiliser le service. Les autres conditions restent à vérifier.",
                 "Log out of this character before using the service. Other conditions still need to be checked.")
+        : RenameAvailable ? _character.Character.RenamePending == true
+            ? L("Terminez le changement de nom en jeu avant d’en acheter un autre.", "Complete the name change in game before buying another.")
+            : L("Le serveur vérifiera à nouveau le personnage et le solde lors de l’achat.", "The server will check the character and balance again at purchase.")
         : _offer?.Offer.Id == "character-rename" ? L("Les règles de nommage et l’absence de renommage en attente devront être vérifiées avant l’achat.",
             "Naming rules and any pending name change must be checked before purchase.")
         : L("Les restrictions de ce service seront précisées avant l’ouverture.", "Service restrictions will be detailed before launch.");
     public string EligibilityColor => HasBoostLevelConflict ? "#F1A2A2" : _character?.Character.Online == true ? "#ECD096" : "#A9C7DA";
 
     public bool HasServiceFundingAction => _price?.MissingCents > 0;
-    public bool CanPrepareServiceFunding => !_disposed && !IsLoading && IsServiceOpen && HasServiceFundingAction
+    public bool CanPrepareServiceFunding => !_disposed && !IsLoading && CanEditPurchase && IsServiceOpen && HasServiceFundingAction
         && _character is not null && !HasBoostLevelConflict && _snapshot is not null;
     public string ServiceFundingAction => _price?.Price.Currency == "eur"
         ? L($"Ajouter les {FormatEuros(_price.MissingCents ?? 0)} manquants", $"Add the missing {FormatEuros(_price.MissingCents ?? 0)}")

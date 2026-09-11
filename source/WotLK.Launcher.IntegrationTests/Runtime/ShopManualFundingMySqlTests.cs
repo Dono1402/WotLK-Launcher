@@ -16,10 +16,10 @@ using WotLK.Launcher.Shop.Contracts;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.UI.V2.Presentation;
 
-internal static class ShopManualFundingMySqlTests
+internal static partial class ShopManualFundingMySqlTests
 {
     private static int _checks;
-    internal static async Task<int> RunAsync()
+    internal static async Task<int> RunAsync(bool rename = false)
     {
         MySqlConnectionStringBuilder settings = new(Environment.GetEnvironmentVariable("ATLAS_SHOP_TEST_DB")
             ?? throw new InvalidOperationException("Disposable ATLAS_SHOP_TEST_DB required."));
@@ -50,7 +50,7 @@ internal static class ShopManualFundingMySqlTests
             await Sql(connection, fundingMigration.Sql[..(fundingMigration.Sql.IndexOf(';') + 1)]);
             server.MaximumSchemaVersion = 11;
             await new LauncherSchemaMigrator(server).MigrateAsync();
-            Check((await new LauncherSchemaMigrator(server).MigrateAsync()).All(m => m.State == LauncherSchemaMigrationState.AlreadyApplied),
+            Check((await new LauncherSchemaMigrator(server).MigrateAsync()).Where(m => m.Version <= 11).All(m => m.State == LauncherSchemaMigrationState.AlreadyApplied),
                 "Migration 0011 resumes partial DDL and is repeatable without data changes.");
             await Sql(connection, $"""
                 INSERT INTO atlas_launcher_profile(account_id,display_username,email_normalized) VALUES
@@ -74,6 +74,7 @@ internal static class ShopManualFundingMySqlTests
             builder.Logging.ClearProviders(); builder.WebHost.UseUrls("http://127.0.0.1:0");
             builder.Services.AddSingleton(new LauncherDatabase(server, new TokenService(), new LauncherSchemaMigrator(server)));
             builder.Services.AddSingleton<ArmoryReadLimiter>(); builder.Services.AddSingleton(new ShopCatalog()); builder.Services.AddSingleton(funding);
+            ShopPurchaseOptions purchases = new(); builder.Services.AddSingleton(purchases);
             await using WebApplication app = builder.Build(); app.MapShopEndpoints(); await app.StartAsync();
             try
             {
@@ -240,6 +241,7 @@ internal static class ShopManualFundingMySqlTests
                 await Sql(connection,"UPDATE atlas_launcher_session SET revoked_at=UTC_TIMESTAMP() WHERE account_id=4;");
                 await Expect("POST", $"/api/v1/shop/admin/top-ups/{quota.Id}/decision", "admin",Approve(2,"PAYPAL00000000006",2000),HttpStatusCode.Unauthorized);
                 Console.WriteLine($"Manual shop funding MySQL/API PASS: {_checks} checks; schema 0011 recovery, authorization, limits, concurrent creation/approval, rollback, holds, refunds, debt, audit and persistence. No PayPal network or game mutations.");
+                if (rename) await RunRenameStageAsync(server, connection, app, http, purchases);
                 return 0;
 
                 async Task<long> Amount(string sql) => Convert.ToInt64(await Scalar(connection,sql),CultureInfo.InvariantCulture);

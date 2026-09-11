@@ -1,0 +1,3 @@
+# Requires launcher auth schema 0012 and both databases on one MySQL instance.
+# Keep disabled until module/core integration has been verified on a test realm.
+AtlasShop.Enable = 0

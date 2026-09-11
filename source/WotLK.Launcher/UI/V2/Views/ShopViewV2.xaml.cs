@@ -15,6 +15,7 @@ public partial class ShopViewV2 : UserControl, IDisposable
     internal event EventHandler? ConversionRequested;
     internal event EventHandler? HistoryRequested;
     internal event EventHandler? AdminRequested;
+    private readonly System.Windows.Threading.DispatcherTimer _orderPoll = new() { Interval = TimeSpan.FromSeconds(5) };
     public static readonly DependencyProperty LayoutModeProperty = DependencyProperty.Register(
         nameof(LayoutMode), typeof(AdaptiveLayoutMode), typeof(ShopViewV2),
         new PropertyMetadata(AdaptiveLayoutMode.Wide, (target, _) => ((ShopViewV2)target).ApplyLayout()));
@@ -29,14 +30,20 @@ public partial class ShopViewV2 : UserControl, IDisposable
         PageScroll.ScrollChanged += (_, e) => { if (e.ViewportWidthChange != 0) ApplyLayout(); };
         Loaded += ViewLoaded;
         Unloaded += ViewUnloaded;
+        _orderPoll.Tick += PollOrders;
     }
     private void ViewLoaded(object sender, RoutedEventArgs e)
     {
         LauncherLocalization.LocaleChanged -= LocaleChanged;
         LauncherLocalization.LocaleChanged += LocaleChanged;
         State.RefreshLocale(); ApplyLayout();
+        _orderPoll.Start();
     }
-    private void ViewUnloaded(object sender, RoutedEventArgs e) => LauncherLocalization.LocaleChanged -= LocaleChanged;
+    private void ViewUnloaded(object sender, RoutedEventArgs e) { LauncherLocalization.LocaleChanged -= LocaleChanged; _orderPoll.Stop(); }
+    private async void PollOrders(object? sender, EventArgs e)
+    {
+        if (IsVisible && State.NeedsPurchaseRefresh) await State.RefreshPurchaseAsync();
+    }
     private void LocaleChanged(object? sender, EventArgs e)
     {
         if (Dispatcher.CheckAccess()) State.RefreshLocale();
@@ -64,6 +71,9 @@ public partial class ShopViewV2 : UserControl, IDisposable
             item.MoveFocus(new System.Windows.Input.TraversalRequest(System.Windows.Input.FocusNavigationDirection.First));
     }
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await State.RefreshAsync();
+    private async void Purchase_Click(object sender, RoutedEventArgs e) => await State.PurchaseAsync();
+    private async void CancelPurchase_Click(object sender, RoutedEventArgs e) => await State.CancelPurchaseAsync();
+    private async void RefreshPurchase_Click(object sender, RoutedEventArgs e) => await State.RefreshPurchaseAsync();
     private void Funding_Click(object sender, RoutedEventArgs e) => State.PrepareServiceFunding();
     private void History_Click(object sender, RoutedEventArgs e) => HistoryRequested?.Invoke(this, EventArgs.Empty);
     private void HistoryRequestedFromWallet(object? sender, EventArgs e) => HistoryRequested?.Invoke(this, EventArgs.Empty);
@@ -73,7 +83,7 @@ public partial class ShopViewV2 : UserControl, IDisposable
         ConversionRequested?.Invoke(this, EventArgs.Empty);
     }
     internal void ResetSession() => State.ResetSession();
-    public void Dispose() { LauncherLocalization.LocaleChanged -= LocaleChanged; WalletView.HistoryRequested -= HistoryRequestedFromWallet; WalletView.AdminRequested -= AdminRequestedFromWallet; State.Dispose(); }
+    public void Dispose() { _orderPoll.Stop(); _orderPoll.Tick -= PollOrders; LauncherLocalization.LocaleChanged -= LocaleChanged; WalletView.HistoryRequested -= HistoryRequestedFromWallet; WalletView.AdminRequested -= AdminRequestedFromWallet; State.Dispose(); }
     private void ApplyLayout()
     {
         if (!IsInitialized) return;

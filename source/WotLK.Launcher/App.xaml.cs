@@ -590,7 +590,7 @@ public partial class App : Application
             window.Dispatcher);
         window.AttachAccount(accountCommands);
         window.AttachShop(runtime.GetShopAsync, new(runtime.CreateShopTopUpAsync, runtime.CancelShopTopUpAsync,
-            runtime.ListShopTopUpsAsync, runtime.ReadShopTopUpAsync, runtime.DecideShopTopUpAsync));
+            runtime.ListShopTopUpsAsync, runtime.ReadShopTopUpAsync, runtime.DecideShopTopUpAsync), new(runtime.CreateShopOrderAsync, runtime.CancelShopOrderAsync));
         window.AttachArmory(runtime.GetArmoryAccountAsync, runtime.GetArmoryDataAsync,
             () => runtime.Settings.InstallPath, runtime.GetFriendArmoryDataAsync, runtime.AvatarImages);
         AuthStateAdapter authStateAdapter = new(

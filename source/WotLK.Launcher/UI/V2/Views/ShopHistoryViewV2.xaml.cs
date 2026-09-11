@@ -15,6 +15,8 @@ public partial class ShopHistoryViewV2 : UserControl
     }
     private void Back_Click(object sender, RoutedEventArgs e) => State?.CloseHistory(returnToOrigin: true);
     private async void Refresh_Click(object sender, RoutedEventArgs e) { if (State is { } state) await state.RefreshAsync(); }
+    private async void CancelOrder_Click(object sender, RoutedEventArgs e)
+    { if (State is { } state && sender is Button { DataContext: ShopOrderRow order }) await state.CancelListedPurchaseAsync(order.Id); }
     private void ApplyLayout()
     {
         bool compact = ActualWidth < 1250;

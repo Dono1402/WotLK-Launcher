@@ -14,6 +14,7 @@ internal sealed class ShopManualFundingOptions
     public long DailyMaximumCents { get; set; } = 10_000;
     // Set only after the configured schema has been migrated and verified.
     internal bool StorageAvailable { get; set; }
+    internal bool PurchaseStorageAvailable { get; set; }
     internal bool CanReadStorage => Enabled || StorageAvailable;
 
     internal void Validate(uint? maximumSchemaVersion)

@@ -29,6 +29,23 @@
         <StackPanel Grid.Row="1" Margin="0,0,0,24">
             <TextBlock x:Name="HistoryTitle" Text="{Binding HistoryHeading}" Style="{StaticResource AtlasV2.Text.Hero}" FontSize="40" Foreground="{StaticResource AtlasV2.Brush.TitleIce}"/>
             <TextBlock Text="{Binding HistorySubtitle}" Style="{StaticResource ShopBody}" Margin="0,6,0,0"/>
+            <Expander x:Name="PurchaseOrdersExpander" Header="{Binding PurchaseOrdersHeading}" Foreground="#A9DCFA" Margin="0,12,0,0"
+                      Visibility="{Binding HasPurchaseOrders, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                <ListBox x:Name="PurchaseOrdersList" ItemsSource="{Binding PurchaseOrderRows}" IsEnabled="{Binding CanManagePurchaseOrders}"
+                         MaxHeight="180" Margin="0,10,0,0" Background="Transparent" BorderThickness="0" Padding="0" ItemContainerStyle="{StaticResource HistoryEntry}"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                    <ListBox.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/></ListBox.Resources>
+                    <ListBox.ItemTemplate><DataTemplate>
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,14,0"><TextBlock Text="{Binding Summary}" Style="{StaticResource ShopBody}"/>
+                                <TextBlock Text="{Binding Detail}" Style="{StaticResource ShopCaption}" FontSize="12" Margin="0,4,0,0"/></StackPanel>
+                            <Button Grid.Column="1" Content="{Binding CancelLabel}" Style="{StaticResource ShopAction}" Height="34" Padding="12,0"
+                                    Click="CancelOrder_Click" Visibility="{Binding CanCancel, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+                        </Grid>
+                    </DataTemplate></ListBox.ItemTemplate>
+                </ListBox>
+            </Expander>
         </StackPanel>
         <Grid Grid.Row="2" Margin="0,0,0,18">
             <Grid.ColumnDefinitions><ColumnDefinition Width="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="200"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -74,7 +91,7 @@
                     </Grid>
                 </DataTemplate></ListBox.ItemTemplate>
             </ListBox>
-            <Border x:Name="HistoryEmptyState" Style="{StaticResource ShopPanel}" Padding="32" VerticalAlignment="Top" Visibility="{Binding ShowHistoryEmpty, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+            <Border x:Name="HistoryEmptyState" Style="{StaticResource ShopPanel}" Padding="24,16" VerticalAlignment="Top" Visibility="{Binding ShowHistoryEmpty, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                 <StackPanel><Path Data="{StaticResource ShopIcon.Clock}" Style="{StaticResource ShopIcon}" Width="28" Height="28" HorizontalAlignment="Left" Margin="0,0,0,14"/>
                     <TextBlock x:Name="HistoryEmptyTitle" Text="{Binding HistoryEmptyHeading}" Style="{StaticResource ShopHeading}" FontSize="22"/>
                     <TextBlock Text="{Binding HistoryEmptyDescription}" Style="{StaticResource ShopBody}" Margin="0,8,0,0"/>

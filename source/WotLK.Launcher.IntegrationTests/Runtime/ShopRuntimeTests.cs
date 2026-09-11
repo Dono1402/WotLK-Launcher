@@ -182,6 +182,7 @@ internal static class ShopRuntimeTests
             await VerifyHistoryAsync(snapshot);
             _checks += await ShopFundingTests.VerifyAsync();
             _checks += await ShopManualFundingRuntimeTests.VerifyAsync();
+            _checks += await ShopPurchaseRuntimeTests.VerifyAsync();
             Console.WriteLine($"Shop runtime PASS: {_checks} assertions; two wallets, character gold limits, numeric precision, preview credit/debit conservation, production gate, response bounds and account isolation. Fake HTTP only.");
             return 0;
         }

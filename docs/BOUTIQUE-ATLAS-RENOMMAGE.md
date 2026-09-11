@@ -7,6 +7,11 @@ L'API débite le solde choisi et crée une commande persistante. Le nouveau modu
 personnage. Le joueur choisit le nom dans le client du jeu ; les règles de nommage
 restent celles du cœur.
 
+La validation a ensuite été étendue à un vrai World Linux isolé, à l'API et aux
+commandes natives de création/renommage/suppression. Voir
+[le banc de test du royaume](BOUTIQUE-ATLAS-TEST-ROYAUME.md) pour le périmètre,
+les preuves et la limite restante du client graphique 3.4.3/Hermes.
+
 Les autres services, la conversion d'or réelle et les paiements automatiques
 restent fermés. Aucun serveur de production, compte réel, installation du joueur
 ou dépôt du cœur n'a été modifié pour ce jalon.
@@ -72,10 +77,11 @@ comptabilisé ne signifie pas que la livraison est déjà terminée.
 
 ## Préparer un royaume de test
 
-Cette procédure décrit une activation future et n'a pas été exécutée sur le
-royaume de production. Le module doit être installé dans `modules/mod-atlas-shop`
+Cette procédure n'a pas été exécutée sur le royaume de production. Pour une
+construction complète habituelle, le module doit être installé dans `modules/mod-atlas-shop`
 de la version du cœur concernée, puis le `worldserver` doit être reconstruit.
-Les sources locales du cœur ont uniquement servi à la compilation de contrôle.
+Les sources Windows ont servi à la compilation de contrôle. Le banc Linux
+séparé a ensuite lié et lancé un exécutable de test à partir de la recette Atlas.
 
 Prérequis :
 
@@ -108,11 +114,12 @@ expire après 30 secondes. Le module vérifie InnoDB et les droits d'écriture
 avant de l'émettre. Les commandes antérieures et leur annulation restent
 accessibles lorsque les nouveaux achats sont suspendus.
 
-Avant une ouverture réelle, valider sur le royaume de test la reconstruction et
-le chargement du module, l'achat avec chaque monnaie, la déconnexion complète,
-une reconnexion pendant la livraison, le choix du nouveau nom dans le client,
-la conservation des autres services et la reprise après redémarrage. Une
-compilation d'objets et les tests SQL ne remplacent pas ce passage en jeu.
+Avant une ouverture réelle, compléter les contrôles du banc Linux par le
+parcours graphique du client 3.4.3 via Hermes et la déconnexion d'un personnage
+effectivement entré dans le monde. La conservation des autres bits de service
+est testée ; les autres services de la boutique ne sont pas ouverts pour autant.
+Une compilation d'objets, les tests SQL et un client protocolaire ne remplacent
+pas cette dernière validation de l'expérience du joueur.
 
 ## Vérifications reproductibles
 
@@ -136,8 +143,9 @@ La suite MySQL réutilise d'abord les 186 contrôles du financement manuel, puis
 teste l'achat réel via HTTP et le client du launcher, le SQL exact de livraison,
 les requêtes simultanées, les erreurs injectées, les fonds gelés, les dettes,
 l'annulation, les reprises et la non-réactivation après consommation simulée.
-Le signal du module et la consommation native sont simulés dans cette base
-isolée. Aucun nom n'a été changé dans un client de jeu réel pendant ces tests.
+Le signal du module et la consommation native sont simulés dans cette suite SQL
+locale. Le banc Linux décrit séparément utilise leur véritable implémentation.
+Aucun client graphique du joueur n'a été ouvert pendant ces vérifications.
 
 Résultats vérifiés pour ce jalon : compilation .NET sans avertissement ni erreur,
 364 assertions runtime, 186 contrôles MySQL du financement puis 67 contrôles du

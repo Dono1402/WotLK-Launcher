@@ -43,7 +43,6 @@ internal sealed partial class ShopUiState
     public string WalletPaymentLabel => L("Moyen de paiement", "Payment method");
     public string WalletContinueLabel => L("Continuer vers le paiement", "Continue to payment");
     public string WalletAvailability => L("La recharge du portefeuille sera bientôt disponible.", "Wallet top-ups will be available soon.");
-    public string WalletSeparateHint => L("Les recharges alimentent votre portefeuille, indépendamment des Crédits Atlas obtenus avec votre or.", "Top-ups fund your wallet, separately from Atlas credits earned with your gold.");
     public string ConversionShortcutLabel => L("Convertir mon or", "Convert my gold");
     public IReadOnlyList<ShopPaymentMethodRow> PaymentMethods { get; } = [new("card"), new("paypal"), new("bancontact")];
     public ShopPaymentMethodRow? SelectedPaymentMethod
@@ -68,12 +67,18 @@ internal sealed partial class ShopUiState
     // Choosing a provider and amount is a draft. No browser return or local action
     // can grant euros; payment creation and verified server fulfillment are pending.
     public bool CanBeginWalletPayment => false;
-    internal void OpenWallet()
+    internal void OpenWallet(bool preserveServiceReturn = false)
     {
         if (_disposed) return;
+        if (!preserveServiceReturn) ClearFundingReturn();
         IsHistoryOpen = false; IsConversionOpen = false; IsServiceOpen = false; IsWalletOpen = true; Changed();
     }
-    internal void CloseWallet() { IsWalletOpen = false; Changed(); }
+    internal void CloseWallet(bool returnToService = false)
+    {
+        bool wasOpen = IsWalletOpen; IsWalletOpen = false;
+        if (wasOpen && returnToService) ReturnToService(); else ClearFundingReturn();
+        Changed();
+    }
     internal void SetWalletAmount(long cents) => WalletAmount = (cents / 100m).ToString("0.##", Culture);
     internal static bool TryParseWalletAmount(string text, out long cents)
     {

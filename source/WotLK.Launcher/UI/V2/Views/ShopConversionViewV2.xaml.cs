@@ -36,7 +36,7 @@ public partial class ShopConversionViewV2 : UserControl
         DataContextChanged += (_, _) => CancelTransfer();
     }
     internal void FocusFirstControl() { if (IsVisible) ConversionCharacterPicker.Focus(); }
-    private void Close_Click(object sender, RoutedEventArgs e) { CancelTransfer(); State?.CloseConversion(); }
+    private void Close_Click(object sender, RoutedEventArgs e) { CancelTransfer(); State?.CloseConversion(returnToService: true); }
     private async void Convert_Click(object sender, RoutedEventArgs e)
     {
         if (State is not { CanConvert: true } state || _transfer is not null) return;

@@ -90,6 +90,8 @@ internal static class ShopApiMySqlTests
                             "The HTTP API returns the exact approved amounts for each currency and service.");
                     }
                     Check(snapshot.History is null, "The API does not fabricate a journal before transaction persistence exists.");
+                    Check(snapshot.Offers.All(o => o.Preserved is { Fr.Length: > 0, En.Length: > 0 }),
+                        "The authenticated catalog supplies the same factual service preservation details in both languages.");
                 }
                 using (HttpResponseMessage response = await Read("/api/v1/shop","two"))
                     Check((await response.Content.ReadFromJsonAsync<ShopSnapshot>())!.Characters.Single().Guid==201, "A second account receives a distinct roster.");

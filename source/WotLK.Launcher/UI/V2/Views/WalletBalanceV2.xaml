@@ -49,10 +49,10 @@
                 </Style.Triggers></Style></Button.Style>
             <Grid x:Name="EuroCell" ToolTip="{Binding EuroBalance}">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition/></Grid.ColumnDefinitions>
-                <TextBlock Text="€" FontSize="20" Foreground="#A7C7DE" VerticalAlignment="Center"/>
+                <Path Data="M3,6 H21 V21 H3 Z M3,6 V3 H18 V6 M16,11 H23 V17 H16 Z M19,14 H20" Stroke="#A9DCFA" StrokeThickness="1.3" Stretch="Uniform" Width="15" Height="16" VerticalAlignment="Center" HorizontalAlignment="Left"/>
                 <StackPanel x:Name="EuroDetails" Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center">
                     <TextBlock x:Name="EuroKindText" Text="{Binding WalletLabel}" FontSize="11" Foreground="#BFCBD5"/>
-                    <TextBlock x:Name="EuroAmountText" Text="{Binding EuroBalance}" FontSize="15" FontWeight="SemiBold" Foreground="#DAE7F2" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="EuroAmountText" Text="{Binding EuroBalance}" FontSize="15" FontWeight="SemiBold" Foreground="#A9DCFA" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
             </Grid>
             </Button>

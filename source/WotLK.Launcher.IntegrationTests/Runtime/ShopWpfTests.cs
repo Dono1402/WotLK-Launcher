@@ -16,7 +16,7 @@ using WotLK.Launcher.UI.V2.Preview;
 using WotLK.Launcher.Runtime;
 using WotLK.Launcher.Shop.Contracts;
 
-internal static class ShopWpfTests
+internal static partial class ShopWpfTests
 {
     internal static async Task<int> RunAsync(string captureDirectory)
     {
@@ -63,7 +63,7 @@ internal static class ShopWpfTests
                     ServiceButton(shop, 0).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
                     Check(shop.State.IsServiceOpen && Get<ScrollViewer>(shop, "ServiceScroll").IsVisible && !Get<ScrollViewer>(shop, "PageScroll").IsVisible, "Clicking a card opens its service page.");
                     ComboBox character = Get<ComboBox>(shop, "CharacterPicker");
-                    ComboBox currency = Get<ComboBox>(shop, "CurrencyPicker");
+                    ListBox currency = Get<ListBox>(shop, "CurrencyChoices");
                     Check(character.SelectedIndex == -1, "No beneficiary is chosen implicitly.");
                     character.SelectedIndex = 0; currency.SelectedIndex = 0; await Pump();
                     Check(shop.State.SelectedCharacter?.Character.Guid == 101 && shop.State.SelectedPrice?.Price.Currency == "eur", "WPF pickers update the character and wallet.");
@@ -73,7 +73,7 @@ internal static class ShopWpfTests
                         && Get<TextBlock>(wallet, "EuroAmountText").IsVisible && Get<TextBlock>(wallet, "WalletAmountText").IsVisible,
                         "Both independent wallets are visible simultaneously.");
                     Check(Get<TextBlock>(shop, "SummaryText").Text.Contains("Asteria"), "Summary reflects the selected beneficiary.");
-                    Get<Button>(shop, "RefreshButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                    Get<Button>(shell, "ShopNavigationButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
                     Check(character.SelectedIndex == 0 && currency.SelectedIndex == 0, "Bindings preserve selection after refresh.");
                     LauncherLocalization.SetLocale(LauncherLocalization.FrenchLocale);
                     shell.Width = 1586; shell.Height = 992; currency.SelectedIndex = 0; await Pump();
@@ -174,7 +174,7 @@ internal static class ShopWpfTests
                         }
                     }
                     currency.SelectedIndex = 0; await Pump();
-                    Check(shop.State.PaymentHint.Contains("euro balance") && shop.State.SelectedAmount == "5.00 €", "Payment uses the independent euro wallet.");
+                    Check(shop.State.SelectedCurrencyLabel == "Wallet" && shop.State.SelectedAmount == "5.00 €", "Payment uses the independent euro wallet.");
                     Get<ScrollViewer>(shop, "PageScroll").ScrollToBottom(); await Pump();
                     Capture(shell, Path.Combine(captureDirectory, "shop-en-bottom-1080.png"));
                     ShopConversionViewV2 conversion = shell.ConversionPage;
@@ -275,7 +275,7 @@ internal static class ShopWpfTests
                     Check(Get<Button>(conversion, "ConvertButton").IsEnabled && !shop.State.HasConversionReceipt
                         && Get<TextBlock>(conversion, "ConversionCreditText").Text == "1,00 €", "Another amount starts a fresh quote without leaving the converter.");
                     Get<Button>(conversion, "CloseConversionButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
-                    Get<Button>(shop, "RefreshButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+                    Get<Button>(shell, "ShopNavigationButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
                     Get<Button>(shop, "MoreConversionButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
                     Check(Get<TextBlock>(conversion, "MaximumGoldText").Text == "211", "Refresh and reopen retain the remaining gold.");
                     Get<Button>(conversion, "CloseConversionButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
@@ -315,9 +315,10 @@ internal static class ShopWpfTests
                     Capture(shell, Path.Combine(captureDirectory, "shop-rate-10-gold.png"));
                     await VerifyWalletNavigationAsync(shell, shop, captureDirectory);
                     await VerifyHistoryNavigationAsync(shell, shop, captureDirectory);
+                    await VerifyErgonomicsAsync(shell, shop, captureDirectory);
                     await VerifyHeaderSessionAsync();
                     Check(errors.Messages.Count == 0, "No WPF binding errors: " + string.Join("\n", errors.Messages));
-                    Console.WriteLine("Shop WPF PASS: compact conversion shortcut above cards, clickable header wallets, funding method drafts and session reset, four adaptive service cards, distinct approved wallet prices, sales descriptions, transaction history and filters, detail/back/Escape and scroll restoration, two header wallets, FR/EN at four adaptive widths, integrated horizontal conversion, freely accessible navigation, return/Escape, numeric typing/paste, per-character max and overdraw, cancellable internal coin transfer, subtle header counter, retained success receipt, refresh and session changes; offscreen inactive fixtures only.");
+                    Console.WriteLine("Shop WPF PASS: four adaptive service cards, two selectable currency blocks with balances and deficits, accessible help, factual service details and known eligibility, fixed purchase summary, exact deficit funding and return to the original service/recipient/currency, explicit conversion debit and credit, consistent wallet colors, automatic refresh and error retry, transaction history and filters, FR/EN at four widths, numeric typing/paste, per-character max and overdraw, cancellable coin transfer, retained receipt, session isolation and no binding errors; offscreen inactive fixtures only.");
                     result = 0;
                 }
                 catch (Exception error) { Console.Error.WriteLine(error); result = 1; }
@@ -486,6 +487,7 @@ internal static class ShopWpfTests
             Get<Button>(fixture.WalletControl, "AtlasWalletButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Get<Button>(fixture.WalletControl, "EuroWalletButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Get<Button>(fixture.ShopPage, "ShopHistoryButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Get<Button>(fixture.ShopPage, "ServiceFundingButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Check(!fixture.ShopPage.State.IsHistoryOpen && fixture.ShopPage.State.HistoryRows.Count == 0,
                 "Signed-out history access cannot reveal transactions or open the journal.");
             Check(reads == 0 && !fixture.ShopPage.State.IsWalletOpen && !fixture.ShopPage.State.IsConversionOpen, "Signed-out wallet shortcuts cannot read balances or open funding pages.");
@@ -504,6 +506,14 @@ internal static class ShopWpfTests
             late.SetResult(ShopRuntimeTests.Snapshot with { CreditBalanceEuroCents = 999 }); await Pump(); await Pump();
             Check(reads == 3 && fixture.ShopPage.State.CreditBalance == "3,00 €" && !fixture.ShopPage.State.IsConversionPreview,
                 "Account change during an outstanding header read discards the old balance and loads the new account.");
+            // This fixture has no AuthCommands runtime to close the login overlay on success.
+            fixture.AuthState.IsOpen = false; await Pump();
+            Get<Button>(fixture, "AddonsNavigationButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Get<Button>(fixture.WalletControl, "EuroWalletButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+            Check(reads == 4 && fixture.ShopPage.State.IsWalletOpen, "Entering Wallet from another page automatically refreshes the live account snapshot.");
+            Get<Button>(fixture, "AddonsNavigationButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Get<Button>(fixture.WalletControl, "AtlasWalletButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Pump();
+            Check(reads == 5 && fixture.ShopPage.State.IsConversionOpen, "Entering conversion from another page also refreshes the live account snapshot.");
         }
         finally { fixture.Close(); }
     }

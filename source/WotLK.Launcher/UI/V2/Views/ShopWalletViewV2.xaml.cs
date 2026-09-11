@@ -15,7 +15,7 @@ public partial class ShopWalletViewV2 : UserControl
         SizeChanged += (_, _) => ApplyLayout();
         Loaded += (_, _) => ApplyLayout();
     }
-    private void Back_Click(object sender, RoutedEventArgs e) => State?.CloseWallet();
+    private void Back_Click(object sender, RoutedEventArgs e) => State?.CloseWallet(returnToService: true);
     private void History_Click(object sender, RoutedEventArgs e) => HistoryRequested?.Invoke(this, EventArgs.Empty);
     private void Preset_Click(object sender, RoutedEventArgs e)
     {

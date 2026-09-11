@@ -154,11 +154,11 @@ internal static class ShopRuntimeTests
             state.SelectedCharacter = state.Characters[0];
             state.SelectedPrice = state.Prices.Single(p => p.Price.Currency == "eur");
             Check(state.Summary.Contains("Asteria") && state.Summary.Contains("5,00 €"), "Summary uses selected character and wallet price.");
-            Check(state.CharacterHint.EndsWith("423"), "Offline gold is displayed as whole gold coins.");
+            Check(state.EligibilityTitle == "Éligibilité à confirmer" && !state.EligibilityDescription.Contains("423"), "Service eligibility does not imply authorization or expose unrelated character gold.");
             await state.RefreshAsync();
             Check(state.SelectedCharacter?.Character.Guid == 101 && state.SelectedPrice?.Price.Currency == "eur", "Refresh preserves existing beneficiary and currency.");
             state.SelectedCharacter = state.Characters[1];
-            Check(state.CharacterHint.Contains("En ligne") && !state.CharacterHint.Contains("4 235"), "Online character never reuses offline gold.");
+            Check(state.EligibilityTitle == "Personnage en ligne" && state.EligibilityDescription.Contains("Déconnectez"), "Online service characters receive a relevant reason instead of an unrelated gold hint.");
             LauncherLocalization.SetLocale(LauncherLocalization.EnglishLocale); state.RefreshLocale();
             Check(state.OfferName == "Name change" && state.SelectedCharacter?.Character.Guid == 202 && state.PriceLabel == "Wallet · 5.00 €", "Language change preserves selection and translates the wallet.");
             Check(!state.CanPurchase, "Browsing milestone never initiates a purchase.");
@@ -180,6 +180,7 @@ internal static class ShopRuntimeTests
             state.ResetSession(); Check(!state.HasOffers && !state.HasCharacters && state.CreditBalance == "—", "Logout removes every account value.");
             await VerifyConversionAsync(snapshot);
             await VerifyHistoryAsync(snapshot);
+            _checks += await ShopFundingTests.VerifyAsync();
             Console.WriteLine($"Shop runtime PASS: {_checks} assertions; two wallets, character gold limits, numeric precision, preview credit/debit conservation, production gate, response bounds and account isolation. Fake HTTP only.");
             return 0;
         }

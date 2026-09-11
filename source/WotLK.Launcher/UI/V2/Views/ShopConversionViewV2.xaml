@@ -28,8 +28,9 @@
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <ScrollViewer.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/></ScrollViewer.Resources>
                 <StackPanel>
-                    <Button x:Name="CloseConversionButton" Style="{StaticResource ShopAction}" Height="30" Padding="0" BorderThickness="0" Background="Transparent" HorizontalAlignment="Left" Margin="0,0,0,18" Click="Close_Click" AutomationProperties.Name="{Binding BackToShopLabel}"><StackPanel Orientation="Horizontal"><Path Data="{StaticResource AtlasV2.Icon.ArrowRight}" Style="{StaticResource ShopIcon}" Width="17" Height="17"><Path.LayoutTransform><ScaleTransform ScaleX="-1"/></Path.LayoutTransform></Path><TextBlock Text="{Binding BackToShopLabel}" Margin="10,0,0,0" VerticalAlignment="Center"/></StackPanel></Button>
+                    <Button x:Name="CloseConversionButton" Style="{StaticResource ShopAction}" Height="30" Padding="0" BorderThickness="0" Background="Transparent" HorizontalAlignment="Left" Margin="0,0,0,18" Click="Close_Click" AutomationProperties.Name="{Binding FundingBackLabel}"><StackPanel Orientation="Horizontal"><Path Data="{StaticResource AtlasV2.Icon.ArrowRight}" Style="{StaticResource ShopIcon}" Width="17" Height="17"><Path.LayoutTransform><ScaleTransform ScaleX="-1"/></Path.LayoutTransform></Path><TextBlock Text="{Binding FundingBackLabel}" Margin="10,0,0,0" VerticalAlignment="Center"/></StackPanel></Button>
                     <StackPanel><TextBlock x:Name="ConversionTitle" Text="{Binding ConversionHeading}" Style="{StaticResource ShopHeading}" FontSize="40" LineHeight="50" Foreground="{StaticResource AtlasV2.Brush.TitlePearl}"/><TextBlock Text="{Binding ConversionSubtitle}" Style="{StaticResource ShopBody}" FontSize="15" Margin="0,7,0,0"/></StackPanel>
+                    <TextBlock x:Name="ConversionFundingContext" Text="{Binding FundingContextText}" Style="{StaticResource ShopCaption}" Foreground="{StaticResource ShopCreditsAmount}" FontSize="13" Margin="0,8,0,0" Visibility="{Binding HasFundingReturn, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
                     <Grid x:Name="ConversionToolbar" Margin="0,19,0,20"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                     <Border Grid.Column="1" Background="{StaticResource AtlasV2.Brush.GlassSurface}" BorderBrush="#3B596C" BorderThickness="1" Padding="12,6" CornerRadius="6" HorizontalAlignment="Left" VerticalAlignment="Center"><StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource ShopGoldCoin}" Width="18" Height="18" Margin="0,0,7,0"/><TextBlock x:Name="ConversionRateText" Text="{Binding ConversionRate}" Style="{StaticResource Amount}" FontSize="13"/><TextBlock Text="{Binding CreditsLabel}" Style="{StaticResource ShopCaption}" Margin="9,0,0,0" VerticalAlignment="Center"/>
@@ -37,6 +38,7 @@
                     <StackPanel Orientation="Horizontal"><TextBlock Text="{Binding ConversionSourceLabel}" Style="{StaticResource ShopCaption}" Margin="0,0,12,0" VerticalAlignment="Center"/>
                         <ComboBox x:Name="ConversionCharacterPicker" Width="235" Style="{StaticResource ShopField}" ItemsSource="{Binding Characters}" SelectedItem="{Binding SelectedConversionCharacter, Mode=TwoWay}" ItemTemplate="{StaticResource ConversionCharacter}" IsEnabled="{Binding HasCharacters}" AutomationProperties.Name="{Binding ConversionSourceLabel}"/>
                     </StackPanel></Grid>
+                    <TextBlock x:Name="ConversionFundingHint" Text="{Binding FundingConversionHint}" Style="{StaticResource ShopCaption}" FontSize="13" Margin="0,0,0,12" Visibility="{Binding ShowFundingConversionHint, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
                     <Grid x:Name="ConversionFlow"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="1.12*"/><ColumnDefinition Width="40"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <Border x:Name="GoldSourceCard" Style="{StaticResource ShopPanel}" Padding="26"><StackPanel>
                             <TextBlock Text="{Binding AvailableGoldLabel}" Style="{StaticResource ShopEyebrow}" Foreground="#E9CB7E" Height="28" VerticalAlignment="Center"/>
@@ -57,7 +59,7 @@
                                 <TextBox x:Name="ConversionAmount" Text="{Binding ConversionGold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource AtlasV2.TextBox.Field}" FontSize="32" FontWeight="SemiBold" TextAlignment="Center" VerticalContentAlignment="Center" MaxLength="6" IsEnabled="{Binding CanPreviewConversion}" PreviewTextInput="Amount_PreviewTextInput" DataObject.Pasting="Amount_Pasting" InputMethod.IsInputMethodEnabled="False" AutomationProperties.Name="{Binding GoldAmountLabel}"/>
                             </Border>
                             <Slider x:Name="AmountSlider" Style="{StaticResource ConversionSlider}" Minimum="0" Maximum="100" Value="{Binding ConversionPercent, Mode=OneWay}" TickFrequency="1" IsSnapToTickEnabled="True" IsEnabled="{Binding HasConvertibleGold}" Margin="0,13,0,10" ValueChanged="Slider_Changed" AutomationProperties.Name="{Binding GoldAmountLabel}"/>
-                            <UniformGrid Columns="4"><Button Content="25 %" Tag="25" Style="{StaticResource Preset}" Click="Preset_Click" IsEnabled="{Binding HasConvertibleGold}"/><Button Content="50 %" Tag="50" Style="{StaticResource Preset}" Click="Preset_Click" IsEnabled="{Binding HasConvertibleGold}"/><Button Content="75 %" Tag="75" Style="{StaticResource Preset}" Click="Preset_Click" IsEnabled="{Binding HasConvertibleGold}"/><Button Content="100 %" Tag="100" Style="{StaticResource Preset}" Margin="0" Click="Preset_Click" IsEnabled="{Binding HasConvertibleGold}"/></UniformGrid>
+                            <UniformGrid Columns="3"><Button Content="25 %" Tag="25" Style="{StaticResource Preset}" Click="Preset_Click" IsEnabled="{Binding HasConvertibleGold}"/><Button Content="50 %" Tag="50" Style="{StaticResource Preset}" Click="Preset_Click" IsEnabled="{Binding HasConvertibleGold}"/><Button Content="75 %" Tag="75" Style="{StaticResource Preset}" Margin="0" Click="Preset_Click" IsEnabled="{Binding HasConvertibleGold}"/></UniformGrid>
                         </StackPanel></Border>
                         <Path Grid.Column="3" Data="{StaticResource AtlasV2.Icon.ArrowRight}" Style="{StaticResource ShopIcon}" Width="26" Height="26" Stroke="#FFCC61" VerticalAlignment="Top" Margin="0,103,0,0"/>
                         <Border x:Name="CreditResultCard" Grid.Column="4" Style="{StaticResource ShopPanel}" BorderBrush="#8C7851" Padding="26"><StackPanel>
@@ -66,7 +68,7 @@
                             <Grid><TextBlock Text="{Binding CurrentBalanceLabel}" Style="{StaticResource ShopCaption}"/><TextBlock Text="{Binding ConversionBalanceBefore}" Style="{StaticResource Amount}" HorizontalAlignment="Right"/></Grid>
                             <Border Height="1" Background="#476073" Margin="0,12,0,12"/>
                             <Grid><TextBlock Text="{Binding NewBalanceLabel}" Style="{StaticResource ShopBody}" FontSize="13"/><TextBlock Text="{Binding ConversionBalanceAfter}" Style="{StaticResource Amount}" HorizontalAlignment="Right"/></Grid>
-                            <TextBlock Text="{Binding SeparateWalletHint}" Style="{StaticResource ShopCaption}" FontSize="13" Margin="0,17,0,0"/>
+                            <Expander x:Name="ConversionWalletHelp" Style="{StaticResource ShopWalletHelp}" Margin="0,12,0,0"/>
                         </StackPanel></Border>
                         <Canvas x:Name="TransferLayer" Grid.ColumnSpan="5" Panel.ZIndex="10" IsHitTestVisible="False" ClipToBounds="True"/>
                     </Grid>
@@ -74,9 +76,12 @@
                 </StackPanel>
             </ScrollViewer>
                     <Grid Grid.Row="1" Margin="0,9,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding ConversionModeHint}" Style="{StaticResource ShopCaption}" Width="300" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,14,0">
+                            <TextBlock x:Name="ConversionReceiveText" Text="{Binding ConversionReceiveText}" Style="{StaticResource ShopCaption}" Foreground="{StaticResource ShopCreditsAmount}" FontSize="13"/>
+                            <TextBlock Text="{Binding ConversionModeHint}" Style="{StaticResource ShopCaption}" FontSize="12" Margin="0,3,0,0"/>
+                        </StackPanel>
                         <Button x:Name="CancelConversionButton" Grid.Column="1" Content="{Binding CancelLabel}" Style="{StaticResource ShopAction}" Margin="15,0,10,0" Click="Close_Click"/>
-                        <Button x:Name="ConvertButton" Grid.Column="2" Content="{Binding ConvertAction}" Style="{StaticResource ShopAction}" Width="145" FontWeight="SemiBold" Background="#B78B6825" BorderBrush="#E2BF65" Foreground="#FFF0C8" IsEnabled="{Binding CanConvert}" Click="Convert_Click"/>
+                        <Button x:Name="ConvertButton" Grid.Column="2" Content="{Binding ConvertAction}" Style="{StaticResource ShopAction}" MinWidth="180" Padding="20,0" FontWeight="SemiBold" Background="#B78B6825" BorderBrush="#E2BF65" Foreground="#FFF0C8" IsEnabled="{Binding CanConvert}" Click="Convert_Click"/>
                     </Grid>
             </Grid>
         </Border>

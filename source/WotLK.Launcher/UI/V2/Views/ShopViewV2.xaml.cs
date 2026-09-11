@@ -61,6 +61,7 @@ public partial class ShopViewV2 : UserControl, IDisposable
             item.MoveFocus(new System.Windows.Input.TraversalRequest(System.Windows.Input.FocusNavigationDirection.First));
     }
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await State.RefreshAsync();
+    private void Funding_Click(object sender, RoutedEventArgs e) => State.PrepareServiceFunding();
     private void History_Click(object sender, RoutedEventArgs e) => HistoryRequested?.Invoke(this, EventArgs.Empty);
     private void HistoryRequestedFromWallet(object? sender, EventArgs e) => HistoryRequested?.Invoke(this, EventArgs.Empty);
     private void Credits_Click(object sender, RoutedEventArgs e)
@@ -77,9 +78,10 @@ public partial class ShopViewV2 : UserControl, IDisposable
         double top = LayoutMode switch { AdaptiveLayoutMode.Wide => 6, AdaptiveLayoutMode.Compact => 10, _ => 12 };
         ContentFrame.Margin = new Thickness(inset, top, inset, 24);
         ServiceFrame.Margin = new Thickness(compact ? 24 : 60, 18, compact ? 24 : 60, 30);
+        ServiceFooter.Margin = new Thickness(compact ? 24 : 60, 8, compact ? 24 : 60, 18);
         PageTitle.FontSize = LayoutMode switch { AdaptiveLayoutMode.Wide => 48, AdaptiveLayoutMode.Compact => 42, _ => 38 };
         PageDescription.FontSize = LayoutMode == AdaptiveLayoutMode.Wide ? 14 : 13;
-        DetailColumn.Width = new GridLength(compact ? 340 : 400);
+        DetailColumn.Width = new GridLength(compact ? 380 : 440);
         // Account for the actual viewport, including its vertical scrollbar.
         double viewport = PageScroll.ViewportWidth > 0 ? PageScroll.ViewportWidth : ActualWidth - SystemParameters.VerticalScrollBarWidth;
         double available = Math.Min(ContentFrame.MaxWidth, Math.Max(600, viewport - inset * 2));

@@ -39,15 +39,19 @@ public partial class LauncherShellV2
     {
         if (!ShopView.State.HasOffers) { WalletHeader.StopAnimation(); }
     }
-    private void OpenShopConversion(object? sender, EventArgs e)
+    private async void OpenShopConversion(object? sender, EventArgs e)
     {
         if (!ShellState.IsNavigationEnabled || IsAuthenticationRequired || !_overlayCoordinator.CanNavigate) return;
+        bool enteringShop = CurrentPage != LauncherShellPage.Shop;
         NavigateTo(LauncherShellPage.Shop); ShopView.State.OpenConversion();
+        if (enteringShop && !IsPreviewMode) await ShopView.State.RefreshAsync();
     }
-    private void OpenShopWallet(object? sender, EventArgs e)
+    private async void OpenShopWallet(object? sender, EventArgs e)
     {
         if (!ShellState.IsNavigationEnabled || IsAuthenticationRequired || !_overlayCoordinator.CanNavigate) return;
+        bool enteringShop = CurrentPage != LauncherShellPage.Shop;
         NavigateTo(LauncherShellPage.Shop); ShopView.State.OpenWallet();
+        if (enteringShop && !IsPreviewMode) await ShopView.State.RefreshAsync();
     }
     private void OpenShopHistory(object? sender, EventArgs e)
     {

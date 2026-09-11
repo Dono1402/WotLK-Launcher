@@ -9,6 +9,25 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="../Resources/AtlasV2.Shop.xaml"/></ResourceDictionary.MergedDictionaries>
             <DataTemplate x:Key="ShopChoice"><TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis"/></DataTemplate>
+            <Style x:Key="ServiceCurrencyChoice" TargetType="ListBoxItem">
+                <Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="VerticalContentAlignment" Value="Stretch"/>
+                <Setter Property="Margin" Value="0,0,8,0"/><Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="FocusVisualStyle" Value="{StaticResource AtlasV2.FocusVisual.Button}"/>
+                <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleLabel}"/>
+                <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="ChoiceSurface" Background="#90030F18" BorderBrush="{StaticResource AtlasV2.Brush.GlassBorder}" BorderThickness="1" CornerRadius="10" Padding="12">
+                        <Grid><ContentPresenter/>
+                            <Border Width="13" Height="13" CornerRadius="7" BorderBrush="{Binding CurrencyColor}" BorderThickness="1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2,0,0">
+                                <Ellipse x:Name="SelectedDot" Fill="{Binding CurrencyColor}" Margin="3" Visibility="Collapsed"/>
+                            </Border>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True"><Setter TargetName="ChoiceSurface" Property="BorderBrush" Value="{Binding CurrencyColor}"/><Setter TargetName="ChoiceSurface" Property="Background" Value="{StaticResource AtlasV2.Brush.GlassRaised}"/><Setter TargetName="SelectedDot" Property="Visibility" Value="Visible"/></Trigger>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ChoiceSurface" Property="BorderBrush" Value="#91BBD2"/></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate></Setter.Value></Setter>
+            </Style>
             <Style x:Key="ServiceCardButton" TargetType="Button">
                 <Setter Property="Background" Value="{StaticResource AtlasV2.Brush.GlassSurface}"/><Setter Property="Foreground" Value="#F7FAFF"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AtlasV2.Brush.GlassBorder}"/><Setter Property="BorderThickness" Value="1"/>
@@ -41,13 +60,12 @@
                 <Grid x:Name="CatalogueHeader">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="20"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                     <StackPanel>
-                        <StackPanel Orientation="Horizontal"><Border Width="34" Height="2" Background="{StaticResource AtlasV2.Brush.Cyan}" Margin="0,0,20,0"/><TextBlock Text="ATLAS LAUNCHER" Style="{StaticResource AtlasV2.Text.Eyebrow}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Cyan}"/></StackPanel>
                         <TextBlock x:Name="PageTitle" Text="{Binding PageHeading}" Style="{StaticResource AtlasV2.Text.Hero}" FontSize="48" Foreground="{StaticResource AtlasV2.Brush.TitleIce}"/>
                         <TextBlock x:Name="PageDescription" Text="{Binding Subtitle}" Style="{StaticResource AtlasV2.Text.Body}" FontSize="14" Margin="0,0,0,20"/>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{Binding ServicesHeading}" Style="{StaticResource ShopHeading}" FontSize="20" VerticalAlignment="Center"/>
-                            <Button x:Name="ShopHistoryButton" Style="{StaticResource ShopAction}" Click="History_Click" Height="28" Padding="8,0" Margin="18,0,0,0" Background="Transparent" BorderThickness="0" AutomationProperties.Name="{Binding HistoryLabel}">
-                                <StackPanel Orientation="Horizontal"><Path Data="{StaticResource ShopIcon.Clock}" Style="{StaticResource ShopIcon}" Width="14" Height="14"/><TextBlock Text="{Binding HistoryLabel}" FontSize="12" Margin="7,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                            <Button x:Name="ShopHistoryButton" Style="{StaticResource ShopAction}" Click="History_Click" Height="34" Padding="12,0" Margin="18,0,0,0" Background="#6805111A" AutomationProperties.Name="{Binding HistoryLabel}">
+                                <StackPanel Orientation="Horizontal"><Path Data="{StaticResource ShopIcon.Clock}" Style="{StaticResource ShopIcon}" Width="16" Height="16"/><TextBlock Text="{Binding HistoryLabel}" FontSize="14" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
                             </Button>
                         </StackPanel>
                     </StackPanel>
@@ -68,11 +86,15 @@
                                 </Grid>
                             </Button>
                         </Border>
-                        <Button x:Name="RefreshButton" Style="{StaticResource ShopAction}" Width="32" Height="32" Padding="7" Margin="14,0,0,0" BorderThickness="0" Background="Transparent" VerticalAlignment="Center" IsEnabled="{Binding CanRefresh}" Click="Refresh_Click" ToolTip="{Binding RefreshLabel}" AutomationProperties.Name="{Binding RefreshLabel}"><Path Data="{StaticResource AtlasV2.Icon.Refresh}" Style="{StaticResource ShopIcon}" Width="16" Height="16"/></Button>
                     </StackPanel>
                 </Grid>
                 <ProgressBar Height="3" Margin="0,10,0,0" IsIndeterminate="True" Style="{StaticResource AtlasV2.Progress.Compact}" Visibility="{Binding IsLoading, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
-                <Border Background="#DA071925" CornerRadius="6" Padding="14" Margin="0,12,0,0" Visibility="{Binding ShowStatus, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"><TextBlock x:Name="StatusText" Text="{Binding Status}" Style="{StaticResource ShopBody}"/></Border>
+                <Border Background="#DA071925" CornerRadius="6" Padding="14" Margin="0,12,0,0" Visibility="{Binding ShowStatus, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <TextBlock x:Name="StatusText" Text="{Binding Status}" Style="{StaticResource ShopBody}" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                        <Button x:Name="RetryButton" Grid.Column="1" Content="{Binding RetryLabel}" Style="{StaticResource ShopAction}" Height="34" IsEnabled="{Binding CanRefresh}" Visibility="{Binding ShowRetry, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}" Click="Refresh_Click"/>
+                    </Grid>
+                </Border>
             </StackPanel>
             <ItemsControl x:Name="ProductList" Grid.Row="1" ItemsSource="{Binding Offers}" Margin="0,0,-18,0" AutomationProperties.Name="{Binding CategoryLabel}">
                 <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
@@ -82,18 +104,17 @@
                             <Border Height="{Binding CardImageHeight, RelativeSource={RelativeSource AncestorType=views:ShopViewV2}}" CornerRadius="13,13,0,0" RenderOptions.BitmapScalingMode="HighQuality"><Border.Background><ImageBrush ImageSource="{Binding Artwork}" Stretch="UniformToFill"/></Border.Background></Border>
                             <Border Grid.Row="1" Height="1" Background="{StaticResource AtlasV2.Brush.GlassHighlight}" VerticalAlignment="Top"/>
                             <Grid Grid.Row="1" Margin="16,12,16,14">
-                                <Grid.RowDefinitions><RowDefinition Height="16"/><RowDefinition Height="50"/><RowDefinition Height="40"/><RowDefinition Height="56"/></Grid.RowDefinitions>
-                                <StackPanel Orientation="Horizontal"><Image Source="/WotLK.Launcher;component/Assets/Shop/Logo_Atlas_transparent.png" Width="16" Height="16" Margin="0,0,7,0"/><TextBlock Text="{Binding Realm}" FontSize="10" FontWeight="SemiBold" Foreground="#9FBBD0" VerticalAlignment="Center"/></StackPanel>
-                                <TextBlock Grid.Row="1" Text="{Binding Name}" TextWrapping="Wrap" FontSize="20" FontWeight="Bold" LineHeight="23" Foreground="{StaticResource AtlasV2.Brush.TitlePearl}" Margin="0,3,0,0"/>
-                                <TextBlock Grid.Row="2" Text="{Binding Tagline}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" LineHeight="17" Foreground="#AACCE3" FontSize="12" Margin="0,2,0,0"/>
-                                <Border Grid.Row="3" BorderBrush="{StaticResource AtlasV2.Brush.GlassBorder}" BorderThickness="0,1,0,0" Padding="0,7,0,0" Margin="0,3,0,0">
+                                <Grid.RowDefinitions><RowDefinition Height="50"/><RowDefinition Height="56"/><RowDefinition Height="56"/></Grid.RowDefinitions>
+                                <TextBlock Text="{Binding Name}" TextWrapping="Wrap" FontSize="20" FontWeight="Bold" LineHeight="23" Foreground="{StaticResource AtlasV2.Brush.TitlePearl}" Margin="0,3,0,0"/>
+                                <TextBlock Grid.Row="1" Text="{Binding Tagline}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" LineHeight="18" Foreground="#B6D4E9" FontSize="13" Margin="0,2,0,0"/>
+                                <Border Grid.Row="2" BorderBrush="{StaticResource AtlasV2.Brush.GlassBorder}" BorderThickness="0,1,0,0" Padding="0,7,0,0" Margin="0,3,0,0">
                                     <Grid><Grid.RowDefinitions><RowDefinition/><RowDefinition/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition Width="21"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                         <Path Data="{StaticResource ShopIcon.Wallet}" Style="{StaticResource ShopIcon}" Width="14" Height="14" Stroke="#A9DCFA" HorizontalAlignment="Left"/>
                                         <TextBlock Grid.Column="1" Text="{Binding WalletLabel}" FontSize="11.5" Foreground="#A9C7DA" VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="2" Text="{Binding WalletPrice}" FontSize="16" FontWeight="SemiBold" Foreground="#B9E6FF" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding WalletPrice}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource ShopWalletAmount}" VerticalAlignment="Center" Margin="6,0,0,0"/>
                                         <Path Grid.Row="1" Data="{StaticResource ShopIcon.AtlasCredits}" Style="{StaticResource ShopIcon}" Width="14" Height="15" Stroke="#E3BE69" HorizontalAlignment="Left"/>
                                         <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding CreditsLabel}" FontSize="11.5" Foreground="#CBBE9D" VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding CreditPrice}" FontSize="16" FontWeight="SemiBold" Foreground="#EDD18B" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding CreditPrice}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource ShopCreditsAmount}" VerticalAlignment="Center" Margin="6,0,0,0"/>
                                     </Grid>
                                 </Border>
                             </Grid>
@@ -104,7 +125,9 @@
 
         </Grid>
     </ScrollViewer>
-    <ScrollViewer x:Name="ServiceScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Visibility="{Binding IsServiceOpen, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+    <Grid Visibility="{Binding IsServiceOpen, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+    <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <ScrollViewer x:Name="ServiceScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <ScrollViewer.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/></ScrollViewer.Resources>
         <Grid x:Name="ServiceFrame" Margin="60,18,60,30" MaxWidth="1500">
             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -112,44 +135,66 @@
             <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="28"/><ColumnDefinition x:Name="DetailColumn" Width="400"/></Grid.ColumnDefinitions>
                 <StackPanel>
                     <TextBlock Text="{Binding OfferName}" Style="{StaticResource ShopHeading}" FontSize="36" Margin="0,0,0,20"/>
-                    <Image Source="{Binding OfferArtwork}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" MaxHeight="390" HorizontalAlignment="Left"/>
-                    <TextBlock Text="{Binding OfferDescription}" Style="{StaticResource ShopBody}" FontSize="18" LineHeight="28" Margin="0,24,0,24"/>
-                    <TextBlock Text="{Binding ConditionsLabel}" Style="{StaticResource ShopHeading}" FontSize="22" Margin="0,0,0,12"/>
+                    <Image Source="{Binding OfferArtwork}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" MaxHeight="300" HorizontalAlignment="Left"/>
+                    <TextBlock Text="{Binding IncludedLabel}" Style="{StaticResource ShopHeading}" FontSize="19" Margin="0,20,0,6"/>
+                    <TextBlock Text="{Binding OfferDescription}" Style="{StaticResource ShopBody}" FontSize="15" LineHeight="23"/>
+                    <TextBlock Text="{Binding PreservedLabel}" Style="{StaticResource ShopHeading}" FontSize="19" Margin="0,16,0,6"/>
+                    <TextBlock Text="{Binding OfferPreserved}" Style="{StaticResource ShopBody}" FontSize="15" LineHeight="23"/>
+                    <TextBlock Text="{Binding ConditionsLabel}" Style="{StaticResource ShopHeading}" FontSize="19" Margin="0,16,0,6"/>
                     <TextBlock Text="{Binding OfferConditions}" Style="{StaticResource ShopBody}" FontSize="15" LineHeight="24"/>
                 </StackPanel>
                 <Border x:Name="DetailsPanel" Grid.Column="2" Style="{StaticResource ShopPanel}" Padding="22,17,22,15" VerticalAlignment="Top" >
                     <StackPanel>
-                        <Grid Margin="-8,0,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="48"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Ellipse Fill="#65134160" Width="48" Height="48"/><Path Data="{StaticResource AtlasV2.Icon.User}" Style="{StaticResource ShopIcon}" Width="28" Height="32" Stroke="#87D9FF"/>
-                            <StackPanel Grid.Column="1" Margin="13,0,0,0"><TextBlock Text="{Binding SelectionHeading}" Style="{StaticResource ShopEyebrow}" LineHeight="18"/><TextBlock Text="{Binding OfferName}" Style="{StaticResource ShopHeading}" FontSize="21" LineHeight="26" Margin="0,4,0,0"/></StackPanel>
-                        </Grid>
+                        <TextBlock Text="{Binding ServicePreparationLabel}" Style="{StaticResource ShopHeading}" FontSize="22"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,7,0,0"><Path Data="{StaticResource ShopIcon.Clock}" Style="{StaticResource ShopIcon}" Width="13" Height="13"/><TextBlock Text="{Binding ServiceAvailabilityLabel}" FontSize="12" Foreground="#A6C8E2" Margin="7,0,0,0"/></StackPanel>
                         <TextBlock Text="{Binding BeneficiaryLabel}" Style="{StaticResource ShopBody}" Foreground="#E9F3FF" FontSize="14" Margin="0,13,0,7"/>
                         <ComboBox x:Name="CharacterPicker" ItemsSource="{Binding Characters}" SelectedItem="{Binding SelectedCharacter, Mode=TwoWay}" ItemTemplate="{StaticResource ShopChoice}" Style="{StaticResource ShopField}" IsEnabled="{Binding HasCharacters}" AutomationProperties.Name="{Binding BeneficiaryLabel}"/>
-                        <TextBlock Text="{Binding CharacterHint}" Style="{StaticResource ShopCaption}" Margin="0,8,0,0"/>
+                        <TextBlock x:Name="EligibilityTitleText" Text="{Binding EligibilityTitle}" Foreground="{Binding EligibilityColor}" FontSize="12" FontWeight="SemiBold" Margin="0,8,0,0"/>
+                        <TextBlock x:Name="EligibilityDescriptionText" Text="{Binding EligibilityDescription}" Style="{StaticResource ShopCaption}" FontSize="12" LineHeight="18" Margin="0,3,0,0"/>
                         <StackPanel Visibility="{Binding HasPrices, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
-                        <TextBlock Text="{Binding PaymentLabel}" Style="{StaticResource ShopBody}" Foreground="#E9F3FF" FontSize="14" Margin="0,14,0,6"/>
-                        <ComboBox x:Name="CurrencyPicker" ItemsSource="{Binding Prices}" SelectedItem="{Binding SelectedPrice, Mode=TwoWay}" ItemTemplate="{StaticResource ShopChoice}" Style="{StaticResource ShopField}" IsEnabled="{Binding HasPrices}" AutomationProperties.Name="{Binding PaymentLabel}"/>
-                        <TextBlock Text="{Binding PaymentHint}" Style="{StaticResource ShopCaption}" MinHeight="30" Margin="0,6,0,11"/>
+                        <TextBlock Text="{Binding ServiceCurrencyLabel}" Style="{StaticResource ShopBody}" Foreground="#E9F3FF" FontSize="14" Margin="0,16,0,8"/>
+                        <ListBox x:Name="CurrencyChoices" ItemsSource="{Binding Prices}" SelectedItem="{Binding SelectedPrice, Mode=TwoWay}" SelectionMode="Single" ItemContainerStyle="{StaticResource ServiceCurrencyChoice}"
+                                 Background="Transparent" BorderThickness="0" Padding="0" Margin="0,0,-8,0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" AutomationProperties.Name="{Binding ServiceCurrencyLabel}">
+                            <ListBox.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate></ListBox.ItemsPanel>
+                            <ListBox.ItemTemplate><DataTemplate><StackPanel MinHeight="117">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,18,0">
+                                    <Path Width="13" Height="14" Stroke="{Binding CurrencyColor}" StrokeThickness="1.2" Stretch="Uniform" Margin="0,0,6,0">
+                                        <Path.Style><Style TargetType="Path"><Setter Property="Data" Value="{StaticResource ShopIcon.Wallet}"/><Style.Triggers><DataTrigger Binding="{Binding IsCredits}" Value="True"><Setter Property="Data" Value="{StaticResource ShopIcon.AtlasCredits}"/></DataTrigger></Style.Triggers></Style></Path.Style>
+                                    </Path>
+                                    <TextBlock Text="{Binding CurrencyLabel}" FontSize="12" FontWeight="SemiBold" Foreground="{Binding CurrencyColor}"/>
+                                </StackPanel>
+                                <TextBlock Text="{Binding Amount}" FontSize="22" FontWeight="SemiBold" Foreground="{Binding CurrencyColor}" Margin="0,12,0,8" TextTrimming="CharacterEllipsis" ToolTip="{Binding Amount}"/>
+                                <TextBlock Text="{Binding AvailableLabel}" Style="{StaticResource ShopCaption}" FontSize="11.5" LineHeight="16"/>
+                                <TextBlock Text="{Binding BalanceStatus}" FontSize="11.5" Foreground="{Binding StatusColor}" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                            </StackPanel></DataTemplate></ListBox.ItemTemplate>
+                        </ListBox>
+                        <Button x:Name="ServiceFundingButton" Content="{Binding ServiceFundingAction}" Style="{StaticResource ShopAction}" Foreground="{Binding SelectedCurrencyColor}" Height="40" Margin="0,10,0,0" Click="Funding_Click" IsEnabled="{Binding CanPrepareServiceFunding}" Visibility="{Binding HasServiceFundingAction, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+                        <Expander x:Name="ServiceWalletHelp" Style="{StaticResource ShopWalletHelp}" Margin="0,8,0,12"/>
                         </StackPanel>
                         <TextBlock Text="{Binding PriceLabel}" FontSize="21" FontWeight="SemiBold" Foreground="#F1DFB9" Margin="0,22,0,20">
                             <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding HasPrices}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
                         </TextBlock>
-                        <Border CornerRadius="8" BorderThickness="1" BorderBrush="#294C64" Background="#6501101B" Padding="17,12,17,10" ToolTip="{Binding OfferConditions}" ToolTipService.ShowDuration="30000">
-                            <StackPanel><TextBlock Text="{Binding RecapHeading}" Style="{StaticResource ShopBody}" FontWeight="SemiBold" Margin="0,0,0,11"/>
-                                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="{Binding OfferName}" Style="{StaticResource ShopBody}" FontSize="14"/><TextBlock Grid.Column="1" Text="{Binding SelectedAmount}" Style="{StaticResource ShopBody}" FontSize="14" Margin="8,0,0,0"/></Grid>
-                                <TextBlock x:Name="SummaryText" Text="{Binding SummaryCharacter}" Style="{StaticResource ShopBody}" FontSize="14" Margin="0,2,0,0"/>
-                                <Border Height="1" Background="#284356" Margin="0,8,0,9"/>
-                                <Grid><TextBlock Text="{Binding TotalLabel}" Style="{StaticResource ShopBody}" Foreground="#EFF5FF"/><TextBlock Text="{Binding SelectedAmount}" FontSize="19" FontWeight="Bold" Foreground="{Binding SelectedCurrencyColor}" HorizontalAlignment="Right"/></Grid>
-                                <TextBlock Text="{Binding SelectedCurrencyLabel}" Foreground="{Binding SelectedCurrencyColor}" FontSize="12" HorizontalAlignment="Right" Margin="0,3,0,0"/>
-                            </StackPanel>
-                        </Border>
-                        <Button x:Name="PurchaseButton" Style="{StaticResource ShopAction}" IsEnabled="{Binding CanPurchase}" Margin="0,11,0,8" Background="#AA705E2D" BorderBrush="#B59A54" Foreground="#FFF0CE"><StackPanel Orientation="Horizontal"><Path Data="{StaticResource ShopIcon.Lock}" Style="{StaticResource ShopIcon}" Width="17" Height="19" Stroke="#EBD194"/><TextBlock Text="{Binding SoonLabel}" Margin="15,0,0,0" VerticalAlignment="Center"/></StackPanel></Button>
-                        <TextBlock Text="{Binding PurchaseHint}" Style="{StaticResource ShopCaption}"/>
                     </StackPanel>
                 </Border>
 
             </Grid>
         </Grid>
     </ScrollViewer>
+    <Border x:Name="ServiceFooter" Grid.Row="1" Style="{StaticResource ShopPanel}" MaxWidth="1500" Margin="60,8,60,18" Padding="18,12">
+        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center" Margin="0,0,18,0">
+                <TextBlock Text="{Binding OfferName}" Style="{StaticResource ShopBody}" FontSize="14" FontWeight="SemiBold"/>
+                <TextBlock x:Name="SummaryText" Text="{Binding SummaryCharacter}" Style="{StaticResource ShopCaption}" FontSize="12"/>
+                <TextBlock Text="{Binding ServicePriceChangeText}" Style="{StaticResource ShopCaption}" FontSize="12" Foreground="#ECD096" Visibility="{Binding ShowServicePriceChange, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,24,0">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><TextBlock Text="{Binding TotalLabel}" Style="{StaticResource ShopCaption}" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0"/><TextBlock Text="{Binding SelectedAmount}" FontSize="22" FontWeight="SemiBold" Foreground="{Binding SelectedCurrencyColor}"/></StackPanel>
+                <TextBlock Text="{Binding SelectedCurrencyLabel}" Foreground="{Binding SelectedCurrencyColor}" FontSize="12" HorizontalAlignment="Right" Margin="0,3,0,0"/>
+            </StackPanel>
+            <Button x:Name="PurchaseButton" Grid.Column="2" Style="{StaticResource ShopAction}" IsEnabled="{Binding CanPurchase}" Height="44" MinWidth="190" Background="#26354C60" BorderBrush="{Binding SelectedCurrencyColor}" Foreground="{Binding SelectedCurrencyColor}" VerticalAlignment="Center"><StackPanel Orientation="Horizontal"><Path Data="{StaticResource ShopIcon.Lock}" Style="{StaticResource ShopIcon}" Width="16" Height="18" Stroke="{Binding SelectedCurrencyColor}"/><TextBlock Text="{Binding PurchaseActionLabel}" Margin="10,0,0,0" VerticalAlignment="Center"/></StackPanel></Button>
+        </Grid>
+    </Border>
+    </Grid>
     <views:ShopConversionViewV2 x:Name="ConversionView"/>
     <views:ShopWalletViewV2 x:Name="WalletView"/>
     <views:ShopHistoryViewV2 x:Name="HistoryView"/>

@@ -73,15 +73,15 @@ pas être déclarée terminée si l'un des deux accès manque.
 
 ### Présentation demandée
 
-- Fenêtre de boutique dédiée, catégories à gauche et fiches produits illustrées.
+- Page Boutique intégrée au launcher, avec quatre cartes de services illustrées.
+  Les catégories ne sont pas nécessaires pour ce premier catalogue.
 - Détail d'une offre, aperçu quand il est pris en charge, prix et conditions.
 - Choix du personnage bénéficiaire et récapitulatif avant achat.
 - Présentation cohérente dans le launcher et le jeu, en français et en anglais.
 - Solde et historique issus du même compte Atlas. Les crédits et commandes
   ne doivent pas être stockés séparément dans le launcher ou l'addon.
 
-Les catégories Services, Montures et Mascottes servent à explorer la
-présentation ; elles ne constituent pas encore un catalogue commercial validé.
+Montures et Mascottes restent des pistes futures, sans catalogue commercial validé.
 
 ### Intégration au style actuel du launcher
 
@@ -143,6 +143,35 @@ ne constitue pas un service de vente livré. Le raccordement boutique et la
 compatibilité du parcours race/faction à travers Hermes restent à terminer et
 à valider. Les constats précis et leurs limites figurent dans
 [BOUTIQUE-ATLAS-IMPLEMENTATION.md](BOUTIQUE-ATLAS-IMPLEMENTATION.md#présence-des-services-dans-le-serveur).
+
+## Ergonomie approuvée et appliquée le 11 septembre
+
+- La fiche affiche deux blocs exclusifs **Portefeuille** et **Crédits Atlas**,
+  chacun avec son prix, le solde disponible et l'éventuel manque. Les soldes
+  inconnus sont explicitement indisponibles ; les deux monnaies ne se cumulent pas.
+- Le manque peut ouvrir une recharge préremplie ou le convertisseur, puis revenir
+  au même service, personnage et choix de monnaie. Le personnage donnant l'or
+  peut différer du bénéficiaire. La conversion proposée respecte son or disponible.
+- Les fiches détaillent le contenu, les éléments conservés et les conditions.
+  Le niveau et la connexion du personnage permettent d'expliquer les prérequis
+  connus ; le reste demeure à confirmer avant activation. Le sésame n'invente
+  aucun équipement ou avantage encore indéfini.
+- Un seul récapitulatif service/personnage/monnaie/total reste visible au bas
+  de la fiche pendant le défilement. Les achats réels restent fermés.
+- Tous les montants du portefeuille sont bleus, les Crédits Atlas dorés, avec
+  leurs noms et icônes. Historique et les descriptions compactes sont plus lisibles.
+- La conversion indique **Convertir 212 po** et **Vous recevrez 2,12 € de Crédits
+  Atlas**, puis conserve le reçu et le solde final après réussite simulée.
+- Les marques répétées sur les cartes et au-dessus du titre, l'or sauvegardé
+  dans la fiche d'achat, les répétitions du récapitulatif et le doublon 100 %/Max
+  sont retirés. Une aide dépliable remplace les explications répétées sur les monnaies.
+- L'ouverture de Boutique et les accès depuis les soldes d'une autre page
+  actualisent le catalogue. Un bouton **Réessayer** apparaît en cas d'erreur.
+  Les quatre illustrations, les cartes et l'espace libre sous le catalogue sont conservés.
+
+Le parcours est vérifiable en prévisualisation ; sa recharge demeure un brouillon
+et sa conversion ne modifie que les données fictives en mémoire. Les opérations
+réelles et l'actualisation après leur exécution dépendent du raccordement serveur.
 
 ## Constats dans le projet
 

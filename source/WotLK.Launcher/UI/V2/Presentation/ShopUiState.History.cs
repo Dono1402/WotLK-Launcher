@@ -89,6 +89,7 @@ internal sealed partial class ShopUiState
     internal void OpenHistory()
     {
         if (_disposed || IsHistoryOpen) return;
+        if (!IsWalletOpen) ClearFundingReturn();
         _historyReturnToWallet = IsWalletOpen;
         IsConversionOpen = false; IsServiceOpen = false; IsWalletOpen = false; IsHistoryOpen = true; Changed();
     }

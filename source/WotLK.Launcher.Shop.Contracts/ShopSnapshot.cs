@@ -3,7 +3,7 @@ namespace WotLK.Launcher.Shop.Contracts;
 public sealed record ShopText(string Fr, string En);
 public sealed record ShopPrice(string Currency, long Amount);
 public sealed record ShopOffer(string Id, string Category, ShopText Name, ShopText Description,
-    ShopText Conditions, IReadOnlyList<ShopPrice> Prices, ShopText? Tagline = null);
+    ShopText Conditions, IReadOnlyList<ShopPrice> Prices, ShopText? Tagline = null, ShopText? Preserved = null);
 public sealed record ShopCharacter(uint Guid, string Name, byte Level, bool Online, uint? GoldCopper);
 
 // Balances are nullable: an unavailable wallet is never represented as an empty wallet.
@@ -32,6 +32,7 @@ public sealed record ShopSnapshot(int SchemaVersion, string CatalogRevision, Dat
                 || offer.Category is not ("services" or "mounts" or "pets")
                 || !ValidText(offer.Name, 120) || !ValidText(offer.Description, 2000) || !ValidText(offer.Conditions, 2000)
                 || (offer.Tagline is not null && !ValidText(offer.Tagline, 160))
+                || (offer.Preserved is not null && !ValidText(offer.Preserved, 1000))
                 || offer.Prices is null || offer.Prices.Count > 3)
                 throw new InvalidDataException("Invalid shop offer.");
             HashSet<string> currencies = new(StringComparer.Ordinal);

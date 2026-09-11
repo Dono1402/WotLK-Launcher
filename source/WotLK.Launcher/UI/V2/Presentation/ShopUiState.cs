@@ -28,7 +28,6 @@ internal sealed class ShopOfferRow(ShopOffer offer) : ShopLocalizedRow
     private string AmountFor(string currency) => Offer.Prices.FirstOrDefault(p => p.Currency == currency) is { } price ? ShopUiState.FormatEuros(price.Amount) : "—";
     public bool HasPrice => Offer.Prices.Count != 0;
     public string Category => ShopUiState.L("Service de personnage", "Character service");
-    public string Realm => "WRATH OF THE LICH KING";
     public string Artwork => "/WotLK.Launcher;component/Assets/Shop/" + (Offer.Id switch
     {
         "character-rename" => "Service_name_change.png",
@@ -50,10 +49,23 @@ internal sealed class ShopCharacterRow(ShopCharacter character) : ShopLocalizedR
     }
     public string Label => $"{Character.Name} - {ShopUiState.L("Niv.", "Lv.")} {Character.Level}";
 }
-internal sealed class ShopPriceRow(ShopPrice price) : ShopLocalizedRow
+internal sealed class ShopPriceRow(ShopPrice price, long? balanceCents = null) : ShopLocalizedRow
 {
+    private long? _balanceCents = balanceCents;
     public ShopPrice Price { get; } = price;
     public string Label => ShopUiState.FormatPrice(Price);
+    public string Amount => ShopUiState.FormatEuros(Price.Amount);
+    public bool IsCredits => Price.Currency == "credits";
+    public string CurrencyLabel => IsCredits ? ShopUiState.L("Crédits Atlas", "Atlas credits") : ShopUiState.L("Portefeuille", "Wallet");
+    public string CurrencyColor => IsCredits ? "#EDD18B" : "#A9DCFA";
+    public string AvailableLabel => ShopUiState.L("Disponible : ", "Available: ") + (_balanceCents is long balance ? ShopUiState.FormatEuros(balance) : "—");
+    public long? MissingCents => _balanceCents is long balance ? Math.Max(0, Price.Amount - balance) : null;
+    public string BalanceStatus => MissingCents is null ? ShopUiState.L("Solde indisponible", "Balance unavailable")
+        : MissingCents == 0 ? ShopUiState.L("Solde suffisant", "Enough funds")
+        : ShopUiState.L("Il manque ", "Missing ") + ShopUiState.FormatEuros(MissingCents.Value);
+    public string StatusColor => MissingCents == 0 ? "#A0DFCE" : "#B8CCDB";
+    public string AccessibleLabel => CurrencyLabel + " · " + Amount + " · " + AvailableLabel + " · " + BalanceStatus;
+    internal void UpdateBalance(long? balance) { _balanceCents = balance; RefreshLocale(); }
 }
 
 internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
@@ -80,9 +92,11 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     public bool IsServiceOpen { get; private set; }
     public bool HasPrices => Prices.Count != 0;
     public string? OfferArtwork => _offer?.Artwork;
-    public string ConditionsLabel => L("À savoir", "Before you begin");
+    public string ConditionsLabel => L("Conditions d’utilisation", "Conditions of use");
     public bool HasSelection => _offer is not null;
     public bool ShowStatus => _status != "ready";
+    public bool ShowRetry => !IsLoading && _status is "error" or "unavailable" or "rate-limited";
+    public string RetryLabel => L("Réessayer", "Try again");
     public bool CanPurchase => false;
     public string Title => L("Boutique", "Shop");
     public string Subtitle => L("Services et personnalisations pour enrichir votre aventure.", "Services and customization to enrich your adventure.");
@@ -109,15 +123,8 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     public string PriceLabel => _price?.Label ?? L("Tarif à venir", "Price to be announced");
     public string SelectedCurrencyLabel => _price?.Price.Currency switch { "credits" => CreditsLabel, "eur" => WalletLabel, _ => "" };
     public string SelectedCurrencyColor => _price?.Price.Currency == "credits" ? "#EDD18B" : "#A9DCFA";
-    public string CharacterHint => !HasCharacters ? L("Aucun personnage sur ce compte.", "No characters on this account.")
-        : _character?.Character.Online == true ? L("En ligne · le solde d’or sera vérifié en jeu.", "Online · your gold balance will be checked in game.")
-        : _character?.Character.GoldCopper is uint gold ? L("Or sauvegardé : ", "Saved gold: ") + FormatGoldNumber(gold)
-        : L("Sélectionnez le personnage bénéficiaire.", "Select the character receiving this service.");
     public string Summary => _offer is null ? "" : $"{OfferName}\n{_character?.Character.Name ?? L("Personnage à choisir", "Choose a character")} · {PriceLabel}";
     public string PurchaseHint => L("Les achats ouvriront une fois le service disponible sur le royaume.", "Purchases will open once the service is available on the realm.");
-    public string PaymentHint => _price?.Price.Currency == "eur"
-        ? L("Utilisez le solde en euros de votre portefeuille.", "Use the euro balance in your wallet.")
-        : _price?.Price.Currency == "credits" ? L("Utilisez vos Crédits Atlas obtenus en convertissant de l’or.", "Use Atlas credits obtained by converting gold.") : "";
 
     public ShopOfferRow? SelectedOffer
     {
@@ -126,7 +133,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
         {
             if (ReferenceEquals(value, _offer)) return;
             _offer = value is not null && Offers.Contains(value) ? value : null;
-            Prices = _offer?.Offer.Prices.Select(p => new ShopPriceRow(p)).ToArray() ?? [];
+            Prices = _offer?.Offer.Prices.Select(CreatePriceRow).ToArray() ?? [];
             _price = Prices.FirstOrDefault(); Changed();
         }
     }
@@ -151,9 +158,10 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     internal void OpenService(ShopOfferRow row)
     {
         if (_disposed || !Offers.Contains(row)) return;
+        ClearFundingReturn();
         SelectedOffer = row; IsHistoryOpen = false; IsWalletOpen = false; IsConversionOpen = false; IsServiceOpen = true; Changed();
     }
-    internal void CloseService() { IsServiceOpen = false; Changed(); }
+    internal void CloseService() { IsServiceOpen = false; ClearFundingReturn(); Changed(); }
 
     internal void Configure(Func<CancellationToken, Task<ShopSnapshot>> read) { _previewSnapshot = null; _read = read; Changed(); }
 
@@ -174,10 +182,12 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
             snapshot.Validate();
             Apply(snapshot, offerId, characterId, currency);
         }
-        catch (OperationCanceledException) { if (generation == _generation) _status = "error"; }
+        catch (OperationCanceledException) { if (generation == _generation) { _status = "error"; ClearFundingReturn(); } }
         catch (Exception error) when (error is HttpRequestException or UnauthorizedAccessException or IOException or JsonException or LauncherAuthException)
         {
             if (generation == _generation)
+            {
+                ClearFundingReturn();
                 _status = error switch
                 {
                     UnauthorizedAccessException => "unauthorized",
@@ -186,6 +196,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
                     HttpRequestException { StatusCode: HttpStatusCode.TooManyRequests } => "rate-limited",
                     _ => "error"
                 };
+            }
         }
         finally
         {
@@ -201,7 +212,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
         Offers = snapshot.Offers.Select(o => new ShopOfferRow(o)).ToArray();
         Characters = snapshot.Characters.Select(c => new ShopCharacterRow(c)).ToArray();
         _offer = Offers.FirstOrDefault(o => o.Offer.Id == offerId) ?? Offers.FirstOrDefault();
-        Prices = _offer?.Offer.Prices.Select(p => new ShopPriceRow(p)).ToArray() ?? [];
+        Prices = _offer?.Offer.Prices.Select(CreatePriceRow).ToArray() ?? [];
         // Never silently assign a different beneficiary after a character disappears.
         _character = Characters.FirstOrDefault(c => c.Character.Guid == characterId);
         _price = Prices.FirstOrDefault(p => p.Price.Currency == currency) ?? Prices.FirstOrDefault();
@@ -221,9 +232,11 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
         CancellationTokenSource? pending = _pending; _pending = null;
         pending?.Cancel();
         if (_previewSnapshot is not null) _read = null;
-        Clear(); ResetHistory(); IsWalletOpen = false; _walletAmount = ""; _paymentMethod = null; _previewSnapshot = null; _conversionCharacterId = null; _conversionGold = ""; IsConversionOpen = false; IsLoading = false; _status = "unavailable"; Changed();
+        Clear(); ResetHistory(); ClearFundingReturn(); IsWalletOpen = false; _walletAmount = ""; _paymentMethod = null; _previewSnapshot = null; _conversionCharacterId = null; _conversionGold = ""; IsConversionOpen = false; IsLoading = false; _status = "unavailable"; Changed();
     }
     private void Clear() { IsServiceOpen = false; _snapshot = null; _lastConversion = null; Offers = []; Characters = []; Prices = []; HistoryRows = []; _offer = null; _character = null; _conversionCharacter = null; _price = null; }
+    private long? BalanceFor(string currency) => currency == "eur" ? _snapshot?.EuroBalanceCents : _snapshot?.CreditBalanceEuroCents;
+    private ShopPriceRow CreatePriceRow(ShopPrice price) => new(price, BalanceFor(price.Currency));
     private void Changed() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));
     public void Dispose() { if (_disposed) return; _disposed = true; ResetSession(); _read = null; }
     internal static string Text(ShopText text) => LauncherLocalization.IsEnglish ? text.En : text.Fr;

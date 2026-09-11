@@ -3,7 +3,9 @@
 État au 11 septembre 2026. Ce jalon fournit les écrans WPF, le catalogue
 authentifié, deux soldes cliquables, le convertisseur intégré, une page de préparation
 des recharges et un historique filtrable. Les quatre services ont des prix distincts
-selon la monnaie, confirmés le 11 septembre.
+selon la monnaie, confirmés le 11 septembre. Les améliorations ergonomiques
+approuvées le même jour relient désormais chaque fiche à la préparation de sa
+recharge, avec conservation du bénéficiaire et comparaison directe des deux soldes.
 Le mode de prévisualisation peut simuler un débit d'or et un crédit Atlas en mémoire.
 Il ne permet pas encore de payer, de débiter l'or d'un véritable personnage,
 de créditer un portefeuille persistant ou de renommer un personnage.
@@ -12,7 +14,7 @@ Aucun service de production ni client installé n'a été modifié.
 ## Fonctionnement présent
 
 - Onglet **Boutique** reprenant la référence de catalogue avec des cartes
-  compactes en grille, illustration panoramique en haut, identité du jeu, nom du
+  compactes en grille, illustration panoramique en haut, nom du
   service, description commerciale puis deux prix nommés. Quatre cartes compactes tiennent sur une rangée
   de 1080 à 1672 DIPs, sans défilement ; la grille peut revenir à trois/deux
   colonnes si son espace utile descend sous 1000/720 DIPs.
@@ -23,8 +25,10 @@ Aucun service de production ni client installé n'a été modifié.
   Chaque carte affiche les deux lignes, leurs libellés et icônes : bleu pour le
   portefeuille, doré pour les Crédits Atlas. La fiche reprend la monnaie choisie
   et son montant dans le récapitulatif ; le portefeuille est sélectionné par défaut.
-- Cliquer une carte ouvre une fiche dédiée : illustration, description,
-  conditions visibles, personnage bénéficiaire et récapitulatif. Le choix du
+- Cliquer une carte ouvre une fiche dédiée : illustration, contenu du service,
+  éléments conservés, conditions, personnage bénéficiaire et récapitulatif fixe.
+  Deux blocs sélectionnables affichent chacun la monnaie, le prix, le solde
+  disponible et la somme manquante éventuelle. Le choix du
   paiement n'apparaît que pour un service tarifé. Retour et Échap restaurent
   le catalogue et sa position de défilement. La navigation supérieure reste accessible.
 - Page et données en français/anglais ; conservation de la sélection lors du
@@ -51,7 +55,8 @@ Aucun service de production ni client installé n'a été modifié.
   et Escape restaurent le catalogue. Choix séparé du
   personnage source, maximum en pièces d'or entières propre à ce personnage,
   saisie entière sans argent/cuivre, bouton Max, curseur et raccourcis
-  25/50/75/100 %, crédit obtenu, or restant et nouveau solde Atlas. Les personnages connectés n'exposent pas
+  25/50/75 %, crédit obtenu, or restant et nouveau solde Atlas. Max reste l'unique
+  raccourci pour convertir la totalité disponible. Les personnages connectés n'exposent pas
   de solde d'or périmé et ne peuvent pas convertir.
 - Page **Créditer mon portefeuille** : montant libre en euros, raccourcis de
   saisie 5/10/20/50 €, choix carte bancaire / PayPal / Bancontact avec leurs logos
@@ -62,7 +67,8 @@ Aucun service de production ni client installé n'a été modifié.
   Le formulaire reste un brouillon : aucun paiement n'est créé et aucun solde
   n'est crédité. **Continuer vers le paiement** est désactivé avec la mention
   d'ouverture prochaine, jusqu'au raccordement des prestataires.
-  Retour/Échap ferme la page ; une déconnexion efface le montant et le moyen choisi.
+  Retour/Échap retrouve le service d'origine lorsqu'il existe, sinon le catalogue ;
+  une déconnexion efface le montant et le moyen choisi.
 - Page **Historique des opérations**, accessible depuis le catalogue et le
   portefeuille : filtres par type (recharge, conversion, achat, remboursement)
   et monnaie, date locale, personnage éventuel, montant signé, statut et solde
@@ -84,6 +90,59 @@ Aucun service de production ni client installé n'a été modifié.
   débit de requêtes excessif et boutique indisponible. Un ancien backend sans
   cette route n'entraîne pas l'affichage d'un catalogue d'exemple dans la session.
 
+## Parcours de financement et simplifications du 11 septembre
+
+Une fiche propose **Ajouter les 50,00 € manquants** si, par exemple, le sésame
+à 60 € est choisi avec un portefeuille de 10 €. La recharge s'ouvre à 50 € avec
+le nom du service et du bénéficiaire. **Retour au service** restaure exactement
+l'offre, le personnage et la monnaie ; consulter l'historique depuis cette
+recharge conserve aussi ce retour. Cette préparation reste un brouillon.
+
+**Obtenir les crédits manquants** ouvre le convertisseur avec la quantité d'or
+nécessaire, arrondie au nombre entier de pièces suffisant selon le taux, puis
+plafonnée à l'or disponible sur le personnage source. Celui-ci peut être différent
+du bénéficiaire ; le choix du bénéficiaire n'est jamais remplacé. Un personnage
+source déconnecté possédant de l'or est proposé si la source initiale ne peut
+pas convertir. Le manque restant est recalculé après chaque conversion simulée.
+Exemple : 7 € requis, 2,65 € disponibles et 900 po sur la source donnent une saisie
+de 435 po, puis 7 € de Crédits Atlas. Si la source ne possède que 423 po, la saisie
+est limitée à 423 et ne prétend pas couvrir l'intégralité du service.
+
+Le retour conserve des identifiants, sans garder d'anciennes lignes de données
+ni autoriser un achat. Une offre ou monnaie supprimée ramène au catalogue ; un
+personnage supprimé laisse le bénéficiaire à choisir ; un tarif modifié est
+signalé. Une sortie par la navigation générale, une déconnexion ou une erreur
+d'actualisation efface ce contexte. Un solde inconnu est affiché **indisponible**,
+sans être assimilé à zéro et sans proposer un montant de recharge inventé.
+
+Les fiches distinguent **Ce service comprend**, **Ce que vous conservez** et
+**Conditions d'utilisation**. Le contenu du sésame en équipement/compétences et
+les règles complémentaires de race/faction restent explicitement à définir.
+L'état d'éligibilité expose les faits disponibles : personnage à choisir,
+personnage connecté, ou niveau 70 déjà atteint pour le sésame. Ce dernier cas
+désactive la préparation du financement. Les restrictions non exposées par
+l'API ne sont pas présentées comme validées : **Éligibilité à confirmer**.
+
+Le récapitulatif service/personnage/monnaie/total et la confirmation désactivée
+restent fixes au bas de la fiche, y compris pendant le défilement à 1080×680.
+Le bouton de conversion indique le débit exact, par exemple **Convertir 212 po**,
+avec **Vous recevrez 2,12 € de Crédits Atlas**, puis conserve la confirmation reçue.
+Tous les montants du portefeuille sont bleus ; les Crédits Atlas sont dorés.
+Les noms et icônes accompagnent ces couleurs. Historique gagne un bouton plus
+lisible et les descriptions compactes passent à 13 DIPs.
+
+Le surtitre ATLAS LAUNCHER du catalogue, le logo et WRATH OF THE LICH KING répétés
+sur les cartes, l'or sauvegardé dans la fiche d'achat et le bouton 100 % ont été
+retirés. L'or reste visible dans le convertisseur. L'aide **Deux soldes indépendants**
+se déplie au clavier ou au clic dans les trois formulaires et remplace les longs
+paragraphes répétés. Le catalogue conserve ses quatre cartes et son espace libre.
+
+L'actualisation isolée a été remplacée par le chargement automatique à l'ouverture
+de Boutique, ou lors de l'entrée depuis une autre page par l'un des soldes de
+l'en-tête. Les conversions simulées actualisent immédiatement les soldes et le
+journal. **Réessayer** est visible après indisponibilité, erreur réseau ou limitation
+de requêtes. L'actualisation réelle après paiement reste à raccorder avec ce service.
+
 ## Présentation et ressources
 
 La grille du 11 septembre a été compactée après retour sur la taille des cadres.
@@ -94,7 +153,7 @@ sont visibles d’emblée, avec des cadres de 244 à 346 DIPs de large aux taill
 contrôlées, au lieu des grandes cartes de 3/2 colonnes précédentes.
 Le titre Boutique partage la taille adaptative 48/42/38, la graisse et le
 dégradé TitleIce d’Addons et Notes de version. Le mode vient directement du
-Shell, avec les mêmes marges et le même traitement du surtitre.
+Shell, avec les mêmes marges ; le surtitre de marque a été supprimé du catalogue.
 Les illustrations occupent une zone 16:9. Les cartes utilisent les surfaces
 vitrées bleu nuit, les bordures bleues et les coins arrondis de 14 DIPs du launcher,
 avec des titres nacrés et des tarifs bleus/dorés selon la monnaie. Les surfaces grises de la référence
@@ -125,8 +184,10 @@ Le serveur et l'aperçu utilisent le même catalogue `ShopServiceCatalog` et le
 même taux partagé de 100 po par euro. La révision du catalogue couvre les
 offres, leurs textes commerciaux et le taux. Le schéma 2 conserve la possibilité
 d'offres sans prix, mais les quatre offres actuelles ont chacune deux tarifs.
-Les champs facultatifs `Tagline` et `History` complètent ce même schéma :
-un ancien catalogue sans accroche utilise sa description en remplacement.
+Les champs facultatifs `Tagline`, `Preserved` et `History` complètent ce même schéma :
+un ancien catalogue sans accroche utilise sa description en remplacement ; sans
+`Preserved`, la fiche indique que les éléments conservés seront précisés avant
+l'ouverture. Ce texte bilingue est limité à 1 000 caractères par langue.
 
 ## Présence des services dans le serveur
 
@@ -265,23 +326,26 @@ backend n'est pas déployé, il peut afficher la boutique indisponible.
 
 SDK local : .NET 8.0.424. Compilation du launcher, du serveur et des tests
 d'intégration sans erreur ni avertissement. Les trois suites boutique suivantes
-ont été exécutées après les modifications de tarifs et d'historique.
+ont été exécutées après les améliorations ergonomiques.
 
 | Suite | Résultat et portée |
 | --- | --- |
-| `--shop` | 299 assertions : huit tarifs approuvés, accroches, distinction des monnaies et conservation du prix face aux sélections WPF transitoires ; validation du journal, filtres, navigation, une entrée par conversion réussie, absence de rejeu à l'actualisation et isolation des comptes ; contrôles de recharge, conversion, précision, soldes, erreurs HTTP et fermeture du mode réel conservés |
-| `--shop-wpf <dossier>` | 53 captures PNG ; catalogue, fiches, conversion, recharge et historique en FR/EN aux quatre tailles ; quatre cartes sur une rangée dès 1080×680, deux prix nommés, unité d'or et Crédits Atlas visibles ; sélection de monnaie, filtres, historique vide/indisponible, conversion animée enregistrée une seule fois ; retours/Échap, défilement, changement de session et accès refusé hors connexion ; contrôles existants de frappe/collage, Max et animation conservés ; aucune erreur de binding |
-| `--shop-mysql` | API HTTP réelle et MySQL 8.4.11 jetable sur loopback ; huit tarifs exacts, historique réel indisponible, authentification, appartenance Atlas, personnages autorisés, soldes, taux, absence de mutation, limites et erreurs ; deux bases de test supprimées et instance locale arrêtée |
+| `--shop` | 339 assertions : deux soldes indépendants, déficits exacts et financement plafonné, retour au bénéficiaire/monnaie d'origine, conversion partielle, tarif/offre/monnaie/personnage modifiés, erreur et réponse tardive après changement de compte, éligibilité connue et solde inconnu ; huit tarifs, journal, filtres, précision et fermeture des opérations réelles conservés |
+| `--shop-wpf <dossier>` | 82 captures PNG ; catalogue, fiches, conversion, recharge et historique en FR/EN aux quatre tailles ; blocs de monnaie sélectionnables et accessibles, prix/disponible/manque visibles, récapitulatif fixe, retours de financement natifs et Échap, recharge à 50 €, conversion à 435 po depuis une source distincte, aide dépliable, actualisation à l'entrée et Réessayer ; contrôles existants de saisie, Max, animation, historique et session conservés ; aucune erreur de binding |
+| `--shop-mysql` | API HTTP réelle et MySQL 8.4.11 jetable sur loopback ; huit tarifs exacts et détails bilingues des éléments conservés, historique réel indisponible, authentification, appartenance Atlas, personnages autorisés, soldes, taux, absence de mutation, limites et erreurs ; deux bases de test supprimées et instance locale arrêtée |
+| `--shell-navigation-wpf` | 898 assertions relancées après ce jalon : navigation et panneaux, raccourcis, focus, changements rapides, gardes modales, listes virtualisées et sélection conservée à 1440×860 et 1080×680 |
 
 Les jalons précédents ont également validé `--armory-session` (session, refus du
 refresh, 401, reconnexion au même compte ou à un autre, réponse tardive et
-annulation), `--shell-navigation-wpf` (898 assertions) et `--startup-routing`
-(prévisualisation boutique isolée et démarrage réel inchangé). Ces trois suites
-n'ont pas été relancées pour la retouche des prix et l'ajout de l'historique.
+annulation) et `--startup-routing` (prévisualisation boutique isolée et démarrage
+réel inchangé). Ces deux suites n'ont pas été relancées pour ce jalon ergonomique.
 
 Les fenêtres graphiques sont synthétiques, inactives et hors écran. Les captures
-du catalogue, des fiches et de l'historique ont été relues, y compris des vues
-compactes FR/EN. Aucun launcher utilisateur, jeu ou navigateur n'a été ouvert.
+du catalogue, des fiches et des parcours de financement ont été relues, y compris
+des vues compactes FR/EN et le solde final après conversion. Les captures qui
+couvrent exactement le manque de 4,35 € utilisent une source fictive à 900 po ;
+le lancement d'aperçu standard conserve son exemple à 423,5067 po, avec une
+saisie limitée à 423 po. Aucun launcher utilisateur, jeu ou navigateur n'a été ouvert.
 Aucun serveur de production n'a été modifié.
 
 ## Suite avant activation

@@ -105,8 +105,8 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     public string CreditsLabel => L("Crédits Atlas", "Atlas credits");
     public string CreditBalance => _snapshot?.CreditBalanceEuroCents is long balance ? FormatEuros(balance) : "—";
     public string WalletDescription => L("Un solde commun au launcher et au jeu.", "One balance shared by the launcher and the game.");
-    public string CreditsInformation => L("Transformez l’or de vos personnages en crédit Atlas. Votre solde est affiché en euros et pourra servir aux futurs achats de la boutique.",
-        "Turn your characters’ gold into Atlas credit. Your balance is displayed in euros and can be used for future shop purchases.");
+    public string CreditsInformation => L("Transformez l’or de vos personnages en Crédits Atlas. Votre solde est affiché en euros et pourra servir aux futurs achats de la boutique.",
+        "Turn your characters’ gold into Atlas credits. Your balance is displayed in euros and can be used for future shop purchases.");
     public string Status => _status switch
     {
         "loading" => L("Chargement de la boutique…", "Loading the shop…"),

@@ -127,6 +127,11 @@ Le récapitulatif service/personnage/monnaie/total et la confirmation désactiv�
 restent fixes au bas de la fiche, y compris pendant le défilement à 1080×680.
 Le bouton de conversion indique le débit exact, par exemple **Convertir 212 po**,
 avec **Vous recevrez 2,12 € de Crédits Atlas**, puis conserve la confirmation reçue.
+Le résultat porte **Crédits Atlas à recevoir** avant confirmation et **Crédits
+Atlas reçus** après réussite ; une nouvelle saisie retrouve le premier libellé.
+Les titres et explications utilisent le pluriel **Crédits Atlas**. La mention
+**Recharge bientôt disponible**, avec une icône d'horloge, apparaît immédiatement
+sous le titre de recharge, avant le formulaire ; son ancien doublon inférieur est retiré.
 Tous les montants du portefeuille sont bleus ; les Crédits Atlas sont dorés.
 Les noms et icônes accompagnent ces couleurs. Historique gagne un bouton plus
 lisible et les descriptions compactes passent à 13 DIPs.
@@ -159,6 +164,11 @@ vitrées bleu nuit, les bordures bleues et les coins arrondis de 14 DIPs du laun
 avec des titres nacrés et des tarifs bleus/dorés selon la monnaie. Les surfaces grises de la référence
 ont été remplacées. Les illustrations restent intactes, avec des angles supérieurs
 arrondis par le contrôle WPF.
+
+La fenêtre du launcher conserve son format fixe configuré (1597,6 × 996,8 DIPs,
+`ResizeMode="CanMinimize"`). Les tailles supplémentaires exercées par les tests
+sont des contrôles de robustesse. Les dernières finitions de libellés et de
+disponibilité ne modifient ni ce format, ni les illustrations, ni la composition des fiches.
 
 Le raccourci de conversion est aligné à droite de l'en-tête du catalogue, au-dessus
 de la grille. Le défilement reste disponible si le catalogue s’agrandit. Le catalogue,
@@ -334,6 +344,12 @@ ont été exécutées après les améliorations ergonomiques.
 | `--shop-wpf <dossier>` | 82 captures PNG ; catalogue, fiches, conversion, recharge et historique en FR/EN aux quatre tailles ; blocs de monnaie sélectionnables et accessibles, prix/disponible/manque visibles, récapitulatif fixe, retours de financement natifs et Échap, recharge à 50 €, conversion à 435 po depuis une source distincte, aide dépliable, actualisation à l'entrée et Réessayer ; contrôles existants de saisie, Max, animation, historique et session conservés ; aucune erreur de binding |
 | `--shop-mysql` | API HTTP réelle et MySQL 8.4.11 jetable sur loopback ; huit tarifs exacts et détails bilingues des éléments conservés, historique réel indisponible, authentification, appartenance Atlas, personnages autorisés, soldes, taux, absence de mutation, limites et erreurs ; deux bases de test supprimées et instance locale arrêtée |
 | `--shell-navigation-wpf` | 898 assertions relancées après ce jalon : navigation et panneaux, raccourcis, focus, changements rapides, gardes modales, listes virtualisées et sélection conservée à 1440×860 et 1080×680 |
+
+Après les deux dernières finitions (libellés de conversion et disponibilité
+de la recharge), `--shop` et `--shop-wpf` ont été relancés avec les mêmes résultats.
+Les captures de recharge et de conversion avant/après réussite ont été relues
+dans le grand format. Les contrôles API/MySQL et de navigation ci-dessus datent
+du jalon ergonomique précédent ; ces finitions ne changent ni ces contrats ni la navigation.
 
 Les jalons précédents ont également validé `--armory-session` (session, refus du
 refresh, 401, reconnexion au même compte ou à un autre, réponse tardive et

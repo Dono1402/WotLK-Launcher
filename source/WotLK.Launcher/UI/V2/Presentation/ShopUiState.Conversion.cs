@@ -29,7 +29,9 @@ internal sealed partial class ShopUiState
     public string AvailableGoldLabel => L("Or disponible", "Available gold");
     public string GoldAmountLabel => L("Montant à convertir", "Amount to convert");
     public string GoldRemainingLabel => L("Or restant", "Remaining gold");
-    public string CreditReceivedLabel => L("Crédits Atlas reçus", "Atlas credits received");
+    public string CreditReceivedLabel => HasConversionReceipt
+        ? L("Crédits Atlas reçus", "Atlas credits received")
+        : L("Crédits Atlas à recevoir", "Atlas credits to receive");
     public string CurrentBalanceLabel => HasConversionReceipt ? L("Solde précédent", "Previous balance") : L("Solde actuel", "Current balance");
     public string NewBalanceLabel => L("Nouveau solde", "New balance");
     public string CancelLabel => HasFundingReturn ? ServiceReturnLabel : HasConversionReceipt ? L("Terminé", "Done") : L("Annuler", "Cancel");

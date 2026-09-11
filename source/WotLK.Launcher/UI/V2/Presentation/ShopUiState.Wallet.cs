@@ -42,7 +42,7 @@ internal sealed partial class ShopUiState
     public string WalletAfterLabel => L("Solde après recharge", "Balance after top-up");
     public string WalletPaymentLabel => L("Moyen de paiement", "Payment method");
     public string WalletContinueLabel => L("Continuer vers le paiement", "Continue to payment");
-    public string WalletAvailability => L("La recharge du portefeuille sera bientôt disponible.", "Wallet top-ups will be available soon.");
+    public string WalletAvailability => L("Recharge bientôt disponible", "Wallet top-ups coming soon");
     public string ConversionShortcutLabel => L("Convertir mon or", "Convert my gold");
     public IReadOnlyList<ShopPaymentMethodRow> PaymentMethods { get; } = [new("card"), new("paypal"), new("bancontact")];
     public ShopPaymentMethodRow? SelectedPaymentMethod

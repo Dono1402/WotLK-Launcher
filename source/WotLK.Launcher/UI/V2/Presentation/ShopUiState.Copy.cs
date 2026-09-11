@@ -19,7 +19,7 @@ internal sealed partial class ShopUiState
     public string SummaryCharacter => L("Personnage : ", "Character: ") + (_character?.Character.Name ?? "—");
     public string TotalLabel => L("Total", "Total");
     public string ConvertGoldLabel => L("Convertir de l’or", "Convert gold");
-    public string ConversionHeading => L("Convertir mon or en crédit Atlas", "Convert my gold into Atlas credit");
+    public string ConversionHeading => L("Convertir mon or en Crédits Atlas", "Convert my gold into Atlas credits");
     public string MoreLabel => L("En savoir plus", "Learn more");
     public string RefreshLabel => L("Actualiser la boutique", "Refresh shop");
     public string Motto => L("L E  F R O I D\nN E  M E U R T\nJ A M A I S", "T H E  C O L D\nN E V E R\nD I E S");

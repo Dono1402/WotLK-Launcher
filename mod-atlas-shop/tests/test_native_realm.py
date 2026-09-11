@@ -330,10 +330,59 @@ def run(root, restart_world=None):
         game.complete_auth()
         wait_for(lambda: character(guid) == (guarded_name.capitalize(), original_flags))
         check(balances() == (9000, 9300), 'The reconnect race consumes exactly the purchased entitlement and charges once.')
+        # Exercise a real Player instance and the core's asynchronous logout/save,
+        # not only an account sitting at character selection.
+        game.characters()
+        in_world_order = http('shop/orders', order_input(guid))
+        game.send(0x03D, struct.pack('<Q', guid))
+        login = game.until(0x236)
+        wait_for(lambda: sql('SELECT online FROM shop_test_chars.characters WHERE guid=' + str(guid) + ';') == '1')
+        check(len(login) == 20 and struct.unpack_from('<I', login)[0] == 0,
+              'The character enters the actual world map and is recorded online.')
+        rejected_online = http('shop/orders', order_input(guid), expected=409)
+        check(rejected_online['error'] == 'shop-character-online' and balances() == (8500, 9300),
+              'A further purchase while the character is in world is rejected without a debit.')
+        time.sleep(3)
+        check(state(in_world_order) == 'pending' and character(guid)[1] & 1 == 0,
+              'A purchase made before player login stays pending while that character is in world.')
+        game.send(0x04B)
+        # Initial world updates may precede the logout completion. Drain them
+        # with a bounded deadline and answer the core time-sync challenge.
+        logout_started = time.monotonic()
+        logout_response = None
+        while time.monotonic() - logout_started < 40:
+            opcode, body = game.receive()
+            if opcode == 0x390:
+                game.send(0x391, body[:4] + struct.pack('<I', int(time.monotonic() * 1000) & 0xFFFFFFFF))
+            elif opcode == 0x04C:
+                logout_response = body
+            elif opcode == 0x04D:
+                break
+        else:
+            raise RuntimeError('Real character logout did not complete.')
+        check(logout_response is not None and int.from_bytes(logout_response[:4], 'little') == 0,
+              'The core accepts the real CMSG_LOGOUT_REQUEST and completes logout.')
+        wait_for(lambda: sql('SELECT online FROM shop_test_chars.characters WHERE guid=' + str(guid) + ';') == '0')
+        after_logout = character(guid)
+        time.sleep(2)
+        check(state(in_world_order) == 'pending' and after_logout[1] & 1 == 0,
+              'After player save, delivery still waits for the account session to disconnect.')
+        game.close()
+        wait_for(lambda: state(in_world_order) == 'delivered')
+        check(character(guid) == (after_logout[0], after_logout[1] | 1),
+              'Delivery after the actual logout/save grants rename without losing other flags.')
+        game = connect()
+        check(next(c for c in game.characters() if c['guid'] == guid)['flags'] & 0x4000 != 0,
+              'Reconnect exposes the purchased rename after a real in-world session.')
+        after_play_name = random_name('Jo')
+        check(game.rename(guid, after_play_name) == 0 and balances() == (8500, 9300),
+              'The post-play rename succeeds with exactly one debit.')
+        wait_for(lambda: character(guid) == (after_play_name.capitalize(), after_logout[1]))
         game.close()
         report = {'passed': True, 'checks': checks, 'checkCount': len(checks), 'accountId': account,
                   'authserverTested': False, 'hermesTested': False, 'graphicalClientTested': False,
-                  'realWorldHandlersTested': True, 'worldRestartsTested': restart_world is not None,
+                  'realWorldHandlersTested': True, 'playerLoginLogoutTested': True,
+                  'worldRestartsTested': restart_world is not None,
                   'completedAtUnix': int(time.time())}
         (root / 'native-test-result.json').write_text(json.dumps(report, indent=2) + '\n')
         print('PASS: ' + str(len(checks)) + ' API/native realm checks.', flush=True)

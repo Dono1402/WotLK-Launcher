@@ -43,6 +43,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', required=True)
     parser.add_argument('--hold', action='store_true', help='Keep the fixture available for bounded diagnostic tests.')
+    parser.add_argument('--with-hermes', action='store_true', help='Run the isolated Hermes/3.4.3 suite, or add Hermes to --hold.')
+    parser.add_argument('--hermes-package', choices=('hermes', 'hermes-disconnect'), default='hermes')
     args = parser.parse_args()
     root = Path(args.root).resolve(strict=True)
     if root.parent != Path('/opt/atlas-shop-tests') or not re.fullmatch(r'rename-[0-9A-Za-z-]+', root.name):
@@ -50,13 +52,21 @@ def main():
     if os.readlink('/proc/self/ns/net') == os.readlink('/proc/1/ns/net'):
         raise RuntimeError('PrivateNetwork=yes is mandatory for the test API/world.')
     os.umask(0o077)
-    (root / 'native-test-result.json').write_text(json.dumps({'passed': False, 'state': 'starting', 'startedAtUnix': int(time.time())}) + '\n')
+    if not args.hold:
+        result_name = 'hermes-test-result.json' if args.with_hermes else 'native-test-result.json'
+        (root / result_name).write_text(json.dumps({'passed': False, 'state': 'starting', 'startedAtUnix': int(time.time())}) + '\n')
     config = configparser.ConfigParser()
     config.read(root / 'mysql-client.cnf')
     password = config['client']['password']
     socket = str(root / 'socket/mysql.sock')
-    if not Path(socket).is_socket():
-        raise RuntimeError('The disposable MySQL Unix socket is unavailable.')
+    for _ in range(60):
+        if Path(socket).is_socket() and subprocess.run(
+                ['mysql', '--defaults-extra-file=' + str(root / 'mysql-client.cnf'), '-NBe', 'SELECT 1;'],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5).returncode == 0:
+            break
+        time.sleep(1)
+    else:
+        raise RuntimeError('The disposable MySQL Unix socket did not become ready.')
     databases = {'Login': 'shop_test_auth', 'Character': 'shop_test_chars',
                  'World': 'shop_test_world', 'Playerbots': 'shop_test_playerbots'}
     values = {key + 'DatabaseInfo': '"127.0.0.1;13308;root;' + password + ';' + database + '"'
@@ -145,6 +155,11 @@ def main():
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     try:
+        if args.with_hermes:
+            from hermes_realm_fixture import configure
+            auth_command, hermes_command = configure(root, BASE, values, password, args.hermes_package)
+            start('auth', auth_command, root)
+            start('hermes', hermes_command, root / args.hermes_package)
         api = start('api', [str(root / 'api-linux/WotLK.Launcher.Server')], root / 'api-linux')
         for _ in range(90):
             if api.poll() is not None:
@@ -163,11 +178,12 @@ def main():
             print('Fixture API healthy; world starting. Hold mode, maximum 45 minutes.', flush=True)
             deadline = time.monotonic() + 2700
             while time.monotonic() < deadline and not (root / 'stop-fixture').exists():
-                if api.poll() is not None or world.poll() is not None:
+                if any(child.poll() is not None for child in children):
                     raise RuntimeError('A fixture child exited; inspect private logs.')
                 time.sleep(1)
         else:
-            script = root / 'mod-atlas-shop/tests/test_native_realm.py'
+            script_name = 'test_hermes_realm.py' if args.with_hermes else 'test_native_realm.py'
+            script = root / 'mod-atlas-shop/tests' / script_name
             spec = importlib.util.spec_from_file_location('atlas_native_realm_test', script)
             test = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(test)
@@ -190,7 +206,10 @@ def main():
                     time.sleep(1)
                 raise RuntimeError('Test world restart timed out.')
 
-            test.run(root, restart_world=restart_world)
+            if args.with_hermes:
+                test.run(root)
+            else:
+                test.run(root, restart_world=restart_world)
     finally:
         for process in reversed(children):
             if process.poll() is None:

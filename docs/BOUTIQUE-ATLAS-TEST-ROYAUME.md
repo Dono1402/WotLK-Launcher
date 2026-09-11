@@ -3,7 +3,8 @@
 Le 11 septembre 2026, un `worldserver` Linux incluant `mod-atlas-shop` a été
 lié et démarré sur Atlas, avec une API du launcher et des bases de test séparées.
 Le client de test utilise le protocole natif 3.3.5 : création de personnages,
-sélection, renommage et suppression passent par les vrais gestionnaires du cœur.
+sélection, entrée en jeu, déconnexion, renommage et suppression passent par les
+vrais gestionnaires du cœur.
 Les reçus de livraison et la consommation du renommage ne sont plus simulés.
 
 Cette validation complète les tests SQL et WPF décrits dans
@@ -12,19 +13,30 @@ mise en production ni une validation graphique du client 3.4.3 via Hermes.
 
 ## Résultat vérifié
 
-**28 contrôles API/World réussis**, avec deux véritables redémarrages du World
-de test. Le dernier passage complet s'est terminé le 11 septembre à 19:52:31 UTC.
+**36 contrôles API/World réussis**, avec deux véritables redémarrages du World
+de test. Le passage étendu s'est terminé le 11 septembre à 20:22:42 UTC
+(le premier jalon de 28 contrôles datait de 19:52:31 UTC).
 L'API publiée pour Linux a été compilée sans avertissement ni erreur.
 Le binaire de test contient les neuf inscriptions de modules attendues ; son
 SHA-256 est `cdb7215c202a47bbce6219c0bcb12f875a1da9e192f9afef06b34df89c42ed8d`.
 
-Le dernier scénario bloque réellement une ligne de personnage dans MySQL,
+Le scénario de concurrence bloque réellement une ligne de personnage dans MySQL,
 observe la transaction de livraison en attente, puis reconnecte un client qui
 envoie son renommage avant la fin de l'initialisation de session. Sur ce cœur,
 la commande reste différée : reçu, nom et indicateurs restent inchangés avant
 déblocage ; la livraison est ensuite validée et le renommage natif réussit.
 Ce scénario vérifie l'ordre effectif des opérations. Il ne prétend pas avoir
 observé un refus explicite de chacun des opcodes protégés par le module.
+
+Les huit contrôles supplémentaires font entrer le personnage dans la carte
+réelle, vérifient le refus HTTP 409 d'un achat pendant qu'il est en jeu et suivent
+une commande passée juste avant son entrée. La déconnexion normale, avec son
+délai de 20 secondes, provoque une vraie sauvegarde. La livraison attend encore
+la fermeture de la session du compte, puis le renommage réussit après reconnexion
+avec un seul débit et conservation des autres indicateurs.
+
+Le [banc Hermes sans interface](BOUTIQUE-ATLAS-HERMES.md) complète séparément
+ces vérifications avec le SSO réel du launcher et les paquets 3.4.3.
 
 Les processus API/World de test et le conteneur MySQL jetable ont été arrêtés.
 Les PID du World public, de l'authserver et de Hermes sont restés identiques,
@@ -139,15 +151,15 @@ il ne produit pas un résultat de validation réussi.
 
 ## Limites avant mise en service
 
-La clé de session native est provisionnée dans le compte jetable : le parcours
-SRP de l'authserver, la traduction Hermes et le client graphique 3.4.3 ne sont
-pas couverts. Aucun launcher installé ni client du joueur n'a été ouvert.
-L'entrée effective dans le monde, une sauvegarde de déconnexion d'un joueur
-en jeu et les interactions de jeu avec les autres modules restent à vérifier.
+La clé de session native est provisionnée dans le compte jetable : ces 36
+contrôles ne couvrent pas le SRP de l'authserver ni Hermes. Ce dernier dispose
+désormais de sa [campagne protocolaire distincte](BOUTIQUE-ATLAS-HERMES.md).
+Aucun launcher installé ni client du joueur n'a été ouvert. L'entrée effective
+dans le monde et la sauvegarde à la déconnexion sont vérifiées ; les interactions
+de jeu générales avec les autres modules restent hors de ce périmètre.
 Les avertissements liés au staging World et aux modules désactivés ne valent
 pas une validation générale du contenu du royaume.
 
-Avant activation publique, il reste un passage avec le client 3.4.3 via Hermes
-sur un environnement de test accessible de façon contrôlée, puis la préparation
-et l'autorisation de la mise en service. Les deux activations boutique restent
-désactivées par défaut dans les fichiers distribués.
+Les contrôles réseau ne valident pas le rendu du client graphique. La préparation
+et l'autorisation de la mise en service restent distinctes. Les deux activations
+boutique restent désactivées par défaut dans les fichiers distribués.

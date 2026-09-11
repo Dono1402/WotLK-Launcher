@@ -7,10 +7,11 @@ L'API débite le solde choisi et crée une commande persistante. Le nouveau modu
 personnage. Le joueur choisit le nom dans le client du jeu ; les règles de nommage
 restent celles du cœur.
 
-La validation a ensuite été étendue à un vrai World Linux isolé, à l'API et aux
-commandes natives de création/renommage/suppression. Voir
-[le banc de test du royaume](BOUTIQUE-ATLAS-TEST-ROYAUME.md) pour le périmètre,
-les preuves et la limite restante du client graphique 3.4.3/Hermes.
+La validation a ensuite été étendue à un vrai World Linux isolé, à l'API, aux
+commandes natives et à l'entrée/déconnexion réelle d'un personnage. Voir
+[les 36 contrôles natifs](BOUTIQUE-ATLAS-TEST-ROYAUME.md) et
+[la validation SSO/3.4.3 via Hermes](BOUTIQUE-ATLAS-HERMES.md). Ces tests
+fonctionnent sans interface graphique et sans lancer le jeu.
 
 Les autres services, la conversion d'or réelle et les paiements automatiques
 restent fermés. Aucun serveur de production, compte réel, installation du joueur
@@ -114,12 +115,14 @@ expire après 30 secondes. Le module vérifie InnoDB et les droits d'écriture
 avant de l'émettre. Les commandes antérieures et leur annulation restent
 accessibles lorsque les nouveaux achats sont suspendus.
 
-Avant une ouverture réelle, compléter les contrôles du banc Linux par le
-parcours graphique du client 3.4.3 via Hermes et la déconnexion d'un personnage
-effectivement entré dans le monde. La conservation des autres bits de service
-est testée ; les autres services de la boutique ne sont pas ouverts pour autant.
-Une compilation d'objets, les tests SQL et un client protocolaire ne remplacent
-pas cette dernière validation de l'expérience du joueur.
+L'entrée en jeu, la sauvegarde de déconnexion et les échanges 3.4.3 via Hermes
+sont désormais testés sur le banc Linux. La campagne Hermes a aussi identifié
+une connexion héritée non libérée après coupure réseau ; son correctif est
+fourni et vérifié uniquement en test, voir le dossier correspondant. Le rendu
+graphique de l'expérience du joueur reste hors de cette campagne. La conservation
+des autres bits de service est testée ; les autres services de la boutique ne
+sont pas ouverts pour autant. Toute activation publique nécessite une décision
+et une préparation de déploiement distinctes.
 
 ## Vérifications reproductibles
 

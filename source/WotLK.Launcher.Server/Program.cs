@@ -93,6 +93,10 @@ builder.Services.AddSingleton<ArmoryReadLimiter>();
 builder.Services.AddSingleton(new ShopCatalog(
     builder.Configuration.GetValue<long?>("AtlasShop:Rename:EuroCents") ?? 500,
     builder.Configuration.GetValue<long?>("AtlasShop:Rename:CreditEuroCents") ?? 700));
+ShopManualFundingOptions manualFunding = new();
+builder.Configuration.GetSection("AtlasShop:ManualPayPal").Bind(manualFunding);
+manualFunding.Validate(options.MaximumSchemaVersion);
+builder.Services.AddSingleton(manualFunding);
 builder.Services.AddSingleton<ChatRequestLimiter>();
 builder.Services.AddSingleton<ChatAttachmentStorage>();
 builder.Services.AddSingleton<ChatLinkPreviewService>();
@@ -119,6 +123,7 @@ app.UseRateLimiter();
 
 LauncherDatabase database = app.Services.GetRequiredService<LauncherDatabase>();
 await database.InitializeAsync();
+manualFunding.StorageAvailable = options.MaximumSchemaVersion is null or >= 11;
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapAtlasAvatarEndpoints();

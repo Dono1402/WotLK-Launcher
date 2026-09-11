@@ -6,6 +6,9 @@ namespace WotLK.Launcher.UI.V2.Presentation;
 
 internal sealed class ShopPaymentMethodRow(string id) : ShopLocalizedRow
 {
+    private bool _manualFunding;
+    public bool IsSelectable => !_manualFunding || Id == "paypal";
+    internal void SetManualFunding(bool available) { _manualFunding=available; RefreshLocale(); }
     public string Id { get; } = id;
     public string Name => Id switch
     {
@@ -16,7 +19,7 @@ internal sealed class ShopPaymentMethodRow(string id) : ShopLocalizedRow
     public string Description => Id switch
     {
         "card" => ShopUiState.L("Carte de débit ou de crédit", "Debit or credit card"),
-        "paypal" => ShopUiState.L("Avec votre compte PayPal", "With your PayPal account"),
+        "paypal" => _manualFunding ? ShopUiState.L("Biens et services · validation manuelle", "Goods and services · manual approval") : ShopUiState.L("Avec votre compte PayPal", "With your PayPal account"),
         _ => ShopUiState.L("Avec votre banque", "With your bank")
     };
     public string Logo => "/WotLK.Launcher;component/Assets/Shop/Payment_" + (Id switch
@@ -41,14 +44,17 @@ internal sealed partial class ShopUiState
     public string WalletCurrentBalanceLabel => L("Solde du portefeuille", "Wallet balance");
     public string WalletAfterLabel => L("Solde après recharge", "Balance after top-up");
     public string WalletPaymentLabel => L("Moyen de paiement", "Payment method");
-    public string WalletContinueLabel => L("Continuer vers le paiement", "Continue to payment");
-    public string WalletAvailability => L("Recharge bientôt disponible", "Wallet top-ups coming soon");
+    public string WalletContinueLabel => IsFundingBusy ? L("Création de la demande…", "Creating request…")
+        : HasPendingTopUp ? L("En attente de validation", "Awaiting approval")
+        : ManualFundingAvailable ? L("Créer une demande de recharge", "Create a top-up request") : L("Continuer vers le paiement", "Continue to payment");
+    public string WalletAvailability => IsFundingPreview ? L("Démonstration · aucun paiement réel", "Demo · no real payment")
+        : ManualFundingAvailable ? L("PayPal · validation manuelle", "PayPal · manual approval") : L("Recharge bientôt disponible", "Wallet top-ups coming soon");
     public string ConversionShortcutLabel => L("Convertir mon or", "Convert my gold");
     public IReadOnlyList<ShopPaymentMethodRow> PaymentMethods { get; } = [new("card"), new("paypal"), new("bancontact")];
     public ShopPaymentMethodRow? SelectedPaymentMethod
     {
         get => _paymentMethod;
-        set { if (ReferenceEquals(value, _paymentMethod)) return; _paymentMethod = value is not null && PaymentMethods.Contains(value) ? value : null; Changed(); }
+        set { if (IsFundingBusy || HasPendingTopUp || ReferenceEquals(value, _paymentMethod)) return; _paymentMethod = value is not null && value.IsSelectable && PaymentMethods.Contains(value) ? value : null; Changed(); }
     }
     public string WalletAmount
     {
@@ -57,19 +63,24 @@ internal sealed partial class ShopUiState
     }
     public long? WalletTopUpCents => TryParseWalletAmount(_walletAmount, out long cents) ? cents : null;
     public bool HasValidWalletAmount => WalletTopUpCents is > 0 and <= ShopSnapshot.MaximumBalanceCents
+        && (!ManualFundingAvailable || (WalletTopUpCents >= _snapshot!.ManualFunding!.MinimumCents && WalletTopUpCents <= _snapshot.ManualFunding.MaximumCents))
         && (_snapshot?.EuroBalanceCents is not long balance || balance <= ShopSnapshot.MaximumBalanceCents - WalletTopUpCents.Value);
     public string WalletAmountDisplay => HasValidWalletAmount ? FormatEuros(WalletTopUpCents!.Value) : "—";
-    public string WalletBalanceAfter => HasValidWalletAmount && _snapshot?.EuroBalanceCents is long balance ? FormatEuros(balance + WalletTopUpCents!.Value) : "—";
+    public string WalletBalanceAfter => HasValidWalletAmount && _snapshot?.EuroBalanceCents is long balance
+        ? FormatEuros(balance + Math.Max(0, WalletTopUpCents!.Value - (_snapshot.ManualFunding?.DebtCents ?? 0))) : "—";
     public string WalletPaymentName => _paymentMethod?.Name ?? L("À choisir", "Choose a method");
-    public string WalletAmountHint => _walletAmount.Length == 0 ? L("Saisissez le montant de votre recharge en euros.", "Enter your top-up amount in euros.")
+    public string WalletAmountHint => HasPendingTopUp ? TopUpPendingHint
+        : ManualFundingAvailable ? TopUpLimits
+        : _walletAmount.Length == 0 ? L("Saisissez le montant de votre recharge en euros.", "Enter your top-up amount in euros.")
         : !HasValidWalletAmount ? L("Saisissez un montant positif avec deux décimales maximum, dans la limite du portefeuille.", "Enter a positive amount with up to two decimal places, within the wallet limit.")
         : L("Ce montant sera ajouté à votre portefeuille après confirmation du paiement.", "This amount will be added to your wallet after payment confirmation.");
-    // Choosing a provider and amount is a draft. No browser return or local action
-    // can grant euros; payment creation and verified server fulfillment are pending.
-    public bool CanBeginWalletPayment => false;
+    // This only creates a pending server request. A browser return never grants money.
+    public bool CanBeginWalletPayment => ManualFundingAvailable && HasValidWalletAmount && !HasPendingTopUp && !IsLoading && !IsFundingBusy
+        && _paymentMethod?.Id == "paypal" && !_disposed;
     internal void OpenWallet(bool preserveServiceReturn = false)
     {
         if (_disposed) return;
+        CloseAdminFunding();
         if (!preserveServiceReturn) ClearFundingReturn();
         IsHistoryOpen = false; IsConversionOpen = false; IsServiceOpen = false; IsWalletOpen = true; Changed();
     }

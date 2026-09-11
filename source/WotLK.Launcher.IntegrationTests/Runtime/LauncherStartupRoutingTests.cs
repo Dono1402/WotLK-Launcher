@@ -78,6 +78,7 @@ internal static class LauncherStartupRoutingTests
             ("--preview-account=profile", LauncherStartupMode.UiV2AccountPreview),
             ("--preview-addons=default", LauncherStartupMode.UiV2AddonsPreview),
             ("--preview-shop", LauncherStartupMode.UiV2ShopPreview),
+            ("--preview-shop-funding", LauncherStartupMode.UiV2ShopFundingPreview),
             ("--preview-activity=idle", LauncherStartupMode.UiV2ActivityPreview)
         ];
         foreach ((string argument, LauncherStartupMode expectedMode) in previews)
@@ -107,6 +108,9 @@ internal static class LauncherStartupRoutingTests
         AssertExclusiveDispatch(["--ui-v2"], legacyWindows: 0, runtimeV2Windows: 1, previewWindows: 0);
         AssertExclusiveDispatch(["--legacy"], legacyWindows: 1, runtimeV2Windows: 0, previewWindows: 0);
         AssertExclusiveDispatch(["--ui-v2", "--preview-shop"], legacyWindows: 0, runtimeV2Windows: 0, previewWindows: 1);
+        AssertExclusiveDispatch(["--ui-v2", "--preview-shop-funding"], legacyWindows: 0, runtimeV2Windows: 0, previewWindows: 1);
+        Equal(LauncherStartupMode.InvalidArguments, App.ResolveStartupMode(["--preview-shop-funding"]), "Funding preview cannot start a real runtime.");
+        Equal(LauncherStartupMode.InvalidArguments, App.ResolveStartupMode(["--ui-v2","--preview-shop","--preview-shop-funding"]), "Shop previews are mutually exclusive.");
         Equal(LauncherStartupMode.InvalidArguments, App.ResolveStartupMode(["--preview-shop"]), "Shop preview cannot enter the real runtime without its explicit preview mode.");
         Equal(LauncherStartupMode.InvalidArguments, App.ResolveStartupMode(["--ui-v2", "--preview-shop", "--preview-account=profile"]), "Shop preview cannot be combined with another dedicated preview.");
         AssertExclusiveDispatch(

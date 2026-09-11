@@ -7,8 +7,10 @@ selon la monnaie, confirmés le 11 septembre. Les améliorations ergonomiques
 approuvées le même jour relient désormais chaque fiche à la préparation de sa
 recharge, avec conservation du bénéficiaire et comparaison directe des deux soldes.
 Le mode de prévisualisation peut simuler un débit d'or et un crédit Atlas en mémoire.
-Il ne permet pas encore de payer, de débiter l'or d'un véritable personnage,
-de créditer un portefeuille persistant ou de renommer un personnage.
+Le jalon [recharges manuelles](BOUTIQUE-ATLAS-RECHARGES-MANUELLES.md) ajoute maintenant
+un portefeuille et un journal persistants, des demandes PayPal et leur validation
+administrateur, désactivés par défaut. Les paiements automatiques, le débit d'or
+d'un véritable personnage et la livraison des services restent à intégrer.
 Aucun service de production ni client installé n'a été modifié.
 
 ## Fonctionnement présent
@@ -40,8 +42,8 @@ Aucun service de production ni client installé n'a été modifié.
   Cliquer **Crédits Atlas** ouvre la conversion ; cliquer **Portefeuille** ouvre
   la page de recharge, depuis tous les onglets. Les contrôles d'authentification
   et de navigation restent appliqués. Leur groupe passe sur deux lignes en largeur compacte. Les deux sont exprimés
-  en centimes entiers. Le serveur renvoie actuellement `null` pour chacun,
-  affiché `—`, puisque leur persistance n'est pas encore implémentée.
+  en centimes entiers. Avec le schéma 0011 disponible, le serveur lit les
+  portefeuilles persistants ; sinon les soldes restent `null`, affichés `—`.
 - Raccourci **Convertir mon or** placé à droite au-dessus des services,
   dans la zone demandée, avec l'illustration de pièces fournie. Ses dimensions
   restent de 260/280 × 72 DIPs et il est accessible sans défiler. Une pièce
@@ -64,9 +66,11 @@ Aucun service de production ni client installé n'a été modifié.
   et récapitulatif du montant et du solde envisagé. Ces raccourcis ne définissent
   ni packs commerciaux, ni minimum de recharge. La saisie conserve exactement
   les centimes et refuse les montants invalides ou dépassant le plafond.
-  Le formulaire reste un brouillon : aucun paiement n'est créé et aucun solde
-  n'est crédité. **Continuer vers le paiement** est désactivé avec la mention
-  d'ouverture prochaine, jusqu'au raccordement des prestataires.
+  Sans activation serveur, le formulaire reste un brouillon. Lorsque les
+  recharges manuelles sont configurées, PayPal permet de créer une demande
+  persistante sans crédit immédiat ; les limites serveur sont affichées.
+  Carte et Bancontact restent fermés. Le joueur dispose de la référence,
+  du lien PayPal.Me, de l'annulation et de l'actualisation du statut.
   Retour/Échap retrouve le service d'origine lorsqu'il existe, sinon le catalogue ;
   une déconnexion efface le montant et le moyen choisi.
 - Page **Historique des opérations**, accessible depuis le catalogue et le
@@ -75,8 +79,8 @@ Aucun service de production ni client installé n'a été modifié.
   après opération lorsqu'il est connu. Retour/Échap retrouve la page d'origine.
   La liste affiche au maximum les 100 opérations les plus récentes. L'aperçu
   fournit trois exemples fictifs et ajoute les conversions réussies en mémoire.
-  L'API réelle renvoie un historique indisponible tant que le journal persistant
-  n'est pas raccordé ; elle n'invente aucune transaction.
+  Avec le schéma 0011, l'API fournit les recharges validées et reprises de
+  paiement du compte. Sans ce schéma, l'historique demeure indisponible.
 - Pendant la conversion de prévisualisation, des pièces se déplacent à
   l'intérieur du convertisseur. Le nombre de Crédits Atlas dans l'en-tête évolue
   ensuite discrètement sur place, sans pastille traversant l'écran.
@@ -146,7 +150,8 @@ L'actualisation isolée a été remplacée par le chargement automatique à l'ou
 de Boutique, ou lors de l'entrée depuis une autre page par l'un des soldes de
 l'en-tête. Les conversions simulées actualisent immédiatement les soldes et le
 journal. **Réessayer** est visible après indisponibilité, erreur réseau ou limitation
-de requêtes. L'actualisation réelle après paiement reste à raccorder avec ce service.
+de requêtes. Les recharges manuelles disposent maintenant d'une actualisation
+du statut ; les notifications automatiques du prestataire restent à intégrer.
 
 ## Présentation et ressources
 
@@ -302,11 +307,14 @@ opération n'est enregistrée. Les entrées ont un identifiant unique, une date 
 un type, une monnaie, un montant signé en centimes, un statut et une description
 FR/EN. Personnage, solde après opération et or converti sont facultatifs selon
 le type. Les doublons, listes de plus de 100 lignes, montants hors limites et
-combinaisons incohérentes sont refusés. Les achats sont négatifs, les autres
-types positifs ; seul un statut terminé peut exposer un solde après opération.
+combinaisons incohérentes sont refusés. Les achats et reprises de paiement
+(`payment-reversal`) sont négatifs, les autres types positifs ; seul un statut
+terminé peut exposer un solde après opération.
 Lire ce journal ne modifie jamais les soldes. Les changements de compte,
 erreurs d'authentification et réponses tardives ne peuvent conserver les lignes
-de la session précédente. Aucun stockage financier persistant n'est ajouté ici.
+de la session précédente. La persistance, les routes de recharge et les
+contrôles d'administration sont détaillés dans le jalon
+[recharges manuelles](BOUTIQUE-ATLAS-RECHARGES-MANUELLES.md).
 
 ## Essai local isolé
 
@@ -366,18 +374,21 @@ Aucun serveur de production n'a été modifié.
 
 ## Suite avant activation
 
-1. Deux portefeuilles persistants en centimes, journal des mouvements, commandes et
-   identifiants idempotents pour achats, conversions et notifications répétées.
+1. Relier les achats et conversions aux portefeuilles et au journal désormais
+   persistants, avec commandes durables et identifiants idempotents.
 2. Module du core pour contrôler l'or, livrer les services de personnage et enregistrer un
    résultat durable. Tester les connexions concurrentes et les interruptions
    entre débit, sauvegarde et confirmation ; aucune écriture directe de l'or
    d'un personnage connecté depuis l'API.
-3. Recharge du portefeuille en euros via Stripe/PayPal/Bancontact, validation serveur des événements,
-   reprise après interruption et traitement des remboursements.
+3. Configurer et autoriser l'activation des recharges manuelles, ou intégrer un
+   prestataire automatique compatible avec le compte choisi. La reprise et
+   la gestion des remboursements devront aussi couvrir les notifications externes.
 4. Boutique et conversion accessibles en jeu, reliées aux mêmes données et aux
    mêmes opérations, avec test sur le client 3.4.3 et Hermes retenus.
 5. Validation de bout en bout, puis préparation du déploiement et des migrations
    avec sauvegardes, effets sur les services et accord de publication.
 
-Les migrations d'authentification 0009/0010 en attente restent hors de ce jalon.
-Le plafond de migration et la version publique du launcher n'ont pas changé.
+La migration 0011 du portefeuille est ajoutée ; les migrations d'authentification
+0009/0010 ne sont pas modifiées. Le plafond de production et la version publique
+du launcher n'ont pas changé. Leur application future exige une préparation
+explicite de l'ensemble des migrations encore en attente.

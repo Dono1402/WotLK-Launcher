@@ -1432,9 +1432,10 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (CurrentPage == LauncherShellPage.Shop && (ShopView.State.IsConversionOpen || ShopView.State.IsServiceOpen || ShopView.State.IsWalletOpen || ShopView.State.IsHistoryOpen) && _overlayCoordinator.Current == ShellOverlayKind.None && e.Key == Key.Escape)
+        if (CurrentPage == LauncherShellPage.Shop && (ShopView.State.IsConversionOpen || ShopView.State.IsServiceOpen || ShopView.State.IsWalletOpen || ShopView.State.IsHistoryOpen || ShopView.State.IsShopAdminOpen) && _overlayCoordinator.Current == ShellOverlayKind.None && e.Key == Key.Escape)
         {
-            if (ShopView.State.IsHistoryOpen) ShopView.State.CloseHistory(returnToOrigin: true);
+            if (ShopView.State.IsShopAdminOpen) ShopView.State.CloseAdminFunding(returnToWallet:true);
+            else if (ShopView.State.IsHistoryOpen) ShopView.State.CloseHistory(returnToOrigin: true);
             else if (ShopView.State.IsWalletOpen) ShopView.State.CloseWallet(returnToService: true);
             else if (ShopView.State.IsServiceOpen) ShopView.CloseService();
             else ShopView.State.CloseConversion(returnToService: true);
@@ -1751,7 +1752,7 @@ public partial class LauncherShellV2 : Window
 
         if (page != LauncherShellPage.Shop)
         {
-            ShopView.State.CloseConversion(); ShopView.State.CloseService(); ShopView.State.CloseWallet(); ShopView.State.CloseHistory();
+            ShopView.State.CloseConversion(); ShopView.State.CloseService(); ShopView.State.CloseWallet(); ShopView.State.CloseHistory(); ShopView.State.CloseAdminFunding();
         }
 
         if (CurrentPage == LauncherShellPage.Account && page != LauncherShellPage.Account)

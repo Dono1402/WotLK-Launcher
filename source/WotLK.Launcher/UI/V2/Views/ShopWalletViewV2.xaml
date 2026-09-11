@@ -10,6 +10,7 @@
             <Setter Property="Height" Value="32"/><Setter Property="MinWidth" Value="62"/><Setter Property="Margin" Value="0,0,10,0"/>
         </Style>
         <Style x:Key="WalletMethod" TargetType="ListBoxItem">
+            <Setter Property="IsEnabled" Value="{Binding IsSelectable}"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="VerticalContentAlignment" Value="Stretch"/>
             <Setter Property="Margin" Value="0,0,12,0"/><Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FocusVisualStyle" Value="{StaticResource AtlasV2.FocusVisual.Button}"/>
@@ -22,6 +23,7 @@
                     </Grid>
                 </Border>
                 <ControlTemplate.Triggers>
+                    <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Surface" Property="Opacity" Value="0.4"/></Trigger>
                     <Trigger Property="IsSelected" Value="True"><Setter TargetName="Surface" Property="BorderBrush" Value="{StaticResource ShopIce}"/><Setter TargetName="Surface" Property="Background" Value="{StaticResource AtlasV2.Brush.GlassRaised}"/><Setter TargetName="SelectedDot" Property="Visibility" Value="Visible"/></Trigger>
                     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="BorderBrush" Value="#83BEDD"/></Trigger>
                 </ControlTemplate.Triggers>
@@ -35,9 +37,13 @@
             <Button x:Name="WalletBackButton" Style="{StaticResource ShopAction}" Height="30" Padding="0" BorderThickness="0" Background="Transparent" HorizontalAlignment="Left" Margin="0,0,0,18" Click="Back_Click" AutomationProperties.Name="{Binding FundingBackLabel}">
                 <StackPanel Orientation="Horizontal"><Path Data="{StaticResource AtlasV2.Icon.ArrowRight}" Style="{StaticResource ShopIcon}" Width="17" Height="17"><Path.LayoutTransform><ScaleTransform ScaleX="-1"/></Path.LayoutTransform></Path><TextBlock Text="{Binding FundingBackLabel}" Margin="10,0,0,0" VerticalAlignment="Center"/></StackPanel>
             </Button>
-            <Button x:Name="WalletHistoryButton" Style="{StaticResource ShopAction}" Height="34" Padding="12,0" Background="#6805111A" HorizontalAlignment="Right" Margin="0,0,0,18" Click="History_Click" AutomationProperties.Name="{Binding HistoryLabel}">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,18">
+            <Button x:Name="WalletAdminButton" Style="{StaticResource ShopAction}" Height="34" Padding="12,0" Margin="0,0,10,0" Content="{Binding AdminFundingLabel}" Click="Admin_Click"
+                    Visibility="{Binding CanAdministerFunding, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+            <Button x:Name="WalletHistoryButton" Style="{StaticResource ShopAction}" Height="34" Padding="12,0" Background="#6805111A" Click="History_Click" AutomationProperties.Name="{Binding HistoryLabel}">
                 <StackPanel Orientation="Horizontal"><Path Data="{StaticResource ShopIcon.Clock}" Style="{StaticResource ShopIcon}" Width="16" Height="16"/><TextBlock Text="{Binding HistoryLabel}" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
             </Button>
+            </StackPanel>
             <StackPanel Grid.Row="1" Margin="0,0,0,26">
                 <TextBlock x:Name="WalletTitle" Text="{Binding WalletHeading}" Style="{StaticResource ShopHeading}" FontSize="40" LineHeight="50" Foreground="{StaticResource AtlasV2.Brush.TitlePearl}"/>
                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
@@ -46,11 +52,52 @@
                 </StackPanel>
                 <TextBlock Text="{Binding WalletSubtitle}" Style="{StaticResource ShopBody}" Margin="0,6,0,0"/>
                 <TextBlock x:Name="WalletFundingContext" Text="{Binding FundingContextText}" Style="{StaticResource ShopCaption}" Foreground="{StaticResource ShopWalletAmount}" FontSize="13" Margin="0,8,0,0" Visibility="{Binding HasFundingReturn, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+                <TextBlock x:Name="WalletFundingNotice" Text="{Binding FundingNotice}" Style="{StaticResource ShopBody}" Foreground="#ECD096" Margin="0,10,0,0" Visibility="{Binding HasFundingNotice, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
             </StackPanel>
             <Grid Grid.Row="2">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/><ColumnDefinition x:Name="WalletSummaryColumn" Width="360"/></Grid.ColumnDefinitions>
                 <StackPanel>
-                    <Border Style="{StaticResource ShopPanel}" Padding="22,18">
+                    <Border x:Name="TopUpRequestsPanel" Style="{StaticResource ShopPanel}" Padding="22,18" Margin="0,0,0,18"
+                            Visibility="{Binding HasTopUpRequests, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,10">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource ShopAction}" Height="32" Padding="10,0" Content="{Binding FundingRefreshLabel}" IsEnabled="{Binding CanRefresh}" Click="Refresh_Click"/>
+                                <TextBlock Text="{Binding TopUpListLabel}" Style="{StaticResource ShopHeading}" FontSize="21" VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <TextBlock Text="{Binding ManualFundingInstructions}" Style="{StaticResource ShopBody}" FontSize="13" Margin="0,0,0,12" Visibility="{Binding HasPendingTopUp, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+                            <TextBlock Text="{Binding TopUpPendingHint}" Style="{StaticResource ShopCaption}" FontSize="12" Margin="0,0,0,12" Visibility="{Binding HasPendingTopUp, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
+                            <ScrollViewer MaxHeight="270" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl x:Name="TopUpRequestsList" ItemsSource="{Binding TopUpRequests}">
+                                <ItemsControl.ItemTemplate><DataTemplate>
+                                    <Border BorderBrush="#3C6076" BorderThickness="0,1,0,0" Padding="0,12" Margin="0,0,12,0">
+                                        <StackPanel>
+                                            <DockPanel><TextBlock DockPanel.Dock="Right" Text="{Binding Amount}" Foreground="{StaticResource ShopWalletAmount}" FontSize="22" FontWeight="SemiBold"/>
+                                                <TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center"/></DockPanel>
+                                            <TextBlock Text="{Binding Reference}" Foreground="#D8E9F4" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,4"/>
+                                            <TextBlock Text="{Binding Created}" Style="{StaticResource ShopCaption}" FontSize="12"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0" Visibility="{Binding IsPending, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                                                <Button Style="{StaticResource ShopAction}" Height="32" Padding="10,0" Margin="0,0,8,0" Click="CopyReference_Click"
+                                                        Content="{Binding DataContext.CopyReferenceLabel, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                                <Button x:Name="TopUpPayPalButton" Height="32" Padding="10,0" Margin="0,0,8,0" Click="PayPal_Click"
+                                                        Content="{Binding DataContext.OpenPayPalLabel, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                                    <Button.Style><Style TargetType="Button" BasedOn="{StaticResource ShopAction}">
+                                                        <Setter Property="IsEnabled" Value="{Binding DataContext.CanRefresh, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                                        <Style.Triggers><DataTrigger Binding="{Binding DataContext.IsFundingPreview, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger></Style.Triggers>
+                                                    </Style></Button.Style>
+                                                </Button>
+                                                <Button Style="{StaticResource ShopAction}" Height="32" Padding="10,0" Click="CancelTopUp_Click" IsEnabled="{Binding DataContext.CanRefresh, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        Content="{Binding DataContext.CancelTopUpLabel, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate></ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </Border>
+                    <StackPanel>
+                    <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers><DataTrigger Binding="{Binding HasPendingTopUp}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+                    <Border Style="{StaticResource ShopPanel}" Padding="22,18" IsEnabled="{Binding CanEditWalletDraft}">
                         <StackPanel>
                             <TextBlock Text="{Binding WalletAmountLabel}" Style="{StaticResource ShopEyebrow}" Margin="0,0,0,10"/>
                             <Border CornerRadius="8" Background="#BB03121D" BorderBrush="#55789B" BorderThickness="1" Padding="12,0">
@@ -88,6 +135,7 @@
                             </StackPanel>
                         </DataTemplate></ListBox.ItemTemplate>
                     </ListBox>
+                    </StackPanel>
                     <Expander x:Name="WalletHelp" Style="{StaticResource ShopWalletHelp}" Margin="0,12,0,0"/>
                 </StackPanel>
                 <Border x:Name="WalletSummary" Grid.Column="2" Style="{StaticResource ShopPanel}" Padding="24" VerticalAlignment="Top">
@@ -95,6 +143,11 @@
                         <TextBlock Text="{Binding WalletLabel}" Style="{StaticResource ShopEyebrow}"/>
                         <TextBlock Text="{Binding WalletCurrentBalanceLabel}" Style="{StaticResource ShopCaption}" Margin="0,17,0,4"/>
                         <TextBlock x:Name="WalletCurrentAmount" Text="{Binding EuroBalance}" Foreground="{StaticResource ShopWalletAmount}" FontSize="30" FontWeight="SemiBold"/>
+                        <StackPanel Margin="0,12,0,0" Visibility="{Binding HasHeldFunds, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                            <TextBlock Text="{Binding HeldFundsLabel}" Style="{StaticResource ShopCaption}"/>
+                            <TextBlock Text="{Binding HeldFunds}" Foreground="#ECD096" FontSize="20" FontWeight="SemiBold" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <TextBlock Text="{Binding FundingDebtNotice}" Style="{StaticResource ShopBody}" Foreground="#ECD096" FontSize="12" Margin="0,12,0,0" Visibility="{Binding HasFundingDebt, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
                         <Border Height="1" Background="{StaticResource AtlasV2.Brush.GlassBorder}" Margin="0,20,0,17"/>
                         <TextBlock Text="{Binding WalletAmountLabel}" Style="{StaticResource ShopCaption}"/>
                         <TextBlock x:Name="WalletDraftAmount" Text="{Binding WalletAmountDisplay}" Foreground="{StaticResource ShopWalletAmount}" FontSize="24" FontWeight="SemiBold" Margin="0,5,0,14"/>
@@ -104,7 +157,7 @@
                             <TextBlock Text="{Binding WalletAfterLabel}" Style="{StaticResource ShopCaption}"/>
                             <TextBlock x:Name="WalletAfterAmount" Grid.Column="1" Text="{Binding WalletBalanceAfter}" Style="{StaticResource ShopBody}" FontWeight="SemiBold" Foreground="{StaticResource ShopWalletAmount}" Margin="10,0,0,0"/>
                         </Grid>
-                        <Button x:Name="WalletPayButton" Margin="0,18,0,0" Style="{StaticResource ShopAction}" IsEnabled="{Binding CanBeginWalletPayment}" Content="{Binding WalletContinueLabel}" Background="#264C7294" BorderBrush="#5285A7"/>
+                        <Button x:Name="WalletPayButton" Margin="0,18,0,0" Style="{StaticResource ShopAction}" IsEnabled="{Binding CanBeginWalletPayment}" Content="{Binding WalletContinueLabel}" Background="#264C7294" BorderBrush="#5285A7" Click="CreateTopUp_Click"/>
                     </StackPanel>
                 </Border>
             </Grid>

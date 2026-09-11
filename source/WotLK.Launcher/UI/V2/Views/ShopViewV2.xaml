@@ -52,6 +52,7 @@
             <DataTrigger Binding="{Binding IsServiceOpen}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
             <DataTrigger Binding="{Binding IsWalletOpen}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
             <DataTrigger Binding="{Binding IsHistoryOpen}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+            <DataTrigger Binding="{Binding IsShopAdminOpen}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
         </Style.Triggers></Style></ScrollViewer.Style>
         <ScrollViewer.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/></ScrollViewer.Resources>
         <Grid x:Name="ContentFrame" Margin="64,6,64,24" MaxWidth="1440">
@@ -198,5 +199,6 @@
     <views:ShopConversionViewV2 x:Name="ConversionView"/>
     <views:ShopWalletViewV2 x:Name="WalletView"/>
     <views:ShopHistoryViewV2 x:Name="HistoryView"/>
+    <views:ShopAdminViewV2 x:Name="AdminView"/>
     </Grid>
 </UserControl>

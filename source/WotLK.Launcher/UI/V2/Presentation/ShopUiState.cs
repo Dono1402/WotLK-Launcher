@@ -86,7 +86,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     public IReadOnlyList<ShopCharacterRow> Characters { get; private set; } = [];
     public IReadOnlyList<ShopPriceRow> Prices { get; private set; } = [];
     public bool IsLoading { get; private set; }
-    public bool CanRefresh => !IsLoading && _read is not null && !_disposed;
+    public bool CanRefresh => !IsLoading && !IsFundingBusy && _read is not null && !_disposed;
     public bool HasOffers => Offers.Count != 0;
     public bool HasCharacters => Characters.Count != 0;
     public bool IsServiceOpen { get; private set; }
@@ -158,12 +158,13 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     internal void OpenService(ShopOfferRow row)
     {
         if (_disposed || !Offers.Contains(row)) return;
+        CloseAdminFunding();
         ClearFundingReturn();
         SelectedOffer = row; IsHistoryOpen = false; IsWalletOpen = false; IsConversionOpen = false; IsServiceOpen = true; Changed();
     }
     internal void CloseService() { IsServiceOpen = false; ClearFundingReturn(); Changed(); }
 
-    internal void Configure(Func<CancellationToken, Task<ShopSnapshot>> read) { _previewSnapshot = null; _read = read; Changed(); }
+    internal void Configure(Func<CancellationToken, Task<ShopSnapshot>> read) { ResetManualFunding(); _fundingActions=null; _previewSnapshot = null; _read = read; Changed(); }
 
     internal async Task RefreshAsync()
     {
@@ -208,6 +209,8 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     private void Apply(ShopSnapshot snapshot, string? offerId, uint? characterId, string? currency)
     {
         _snapshot = snapshot;
+        RefreshTopUpRows();
+        if (IsShopAdminOpen && !CanAdministerFunding) CloseAdminFunding(returnToWallet:true);
         RefreshHistoryRows();
         Offers = snapshot.Offers.Select(o => new ShopOfferRow(o)).ToArray();
         Characters = snapshot.Characters.Select(c => new ShopCharacterRow(c)).ToArray();
@@ -222,19 +225,26 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
 
     internal void RefreshLocale()
     {
-        foreach (ShopLocalizedRow row in Offers.Cast<ShopLocalizedRow>().Concat(Characters).Concat(Prices).Concat(PaymentMethods).Concat(HistoryRows).Concat(HistoryKindFilters).Concat(HistoryWalletFilters)) row.RefreshLocale();
+        foreach (ShopLocalizedRow row in Offers.Cast<ShopLocalizedRow>().Concat(Characters).Concat(Prices).Concat(PaymentMethods).Concat(HistoryRows).Concat(HistoryKindFilters).Concat(HistoryWalletFilters).Concat(TopUpRequests).Concat(AdminTopUps).Concat(AdminStatusFilters).Concat(AdminActions)) row.RefreshLocale();
         Changed();
     }
 
     internal void ResetSession()
     {
+        ResetManualFunding();
         ++_generation;
         CancellationTokenSource? pending = _pending; _pending = null;
         pending?.Cancel();
         if (_previewSnapshot is not null) _read = null;
         Clear(); ResetHistory(); ClearFundingReturn(); IsWalletOpen = false; _walletAmount = ""; _paymentMethod = null; _previewSnapshot = null; _conversionCharacterId = null; _conversionGold = ""; IsConversionOpen = false; IsLoading = false; _status = "unavailable"; Changed();
     }
-    private void Clear() { IsServiceOpen = false; _snapshot = null; _lastConversion = null; Offers = []; Characters = []; Prices = []; HistoryRows = []; _offer = null; _character = null; _conversionCharacter = null; _price = null; }
+    private void Clear()
+    {
+        IsServiceOpen = false; _snapshot = null; _lastConversion = null; Offers = []; Characters = []; Prices = []; HistoryRows = [];
+        _offer = null; _character = null; _conversionCharacter = null; _price = null; TopUpRequests=[];
+        CancelAdminReads(); ClearAdminDetail(); AdminTopUps=[];
+        foreach(ShopPaymentMethodRow row in PaymentMethods)row.SetManualFunding(false);
+    }
     private long? BalanceFor(string currency) => currency == "eur" ? _snapshot?.EuroBalanceCents : _snapshot?.CreditBalanceEuroCents;
     private ShopPriceRow CreatePriceRow(ShopPrice price) => new(price, BalanceFor(price.Currency));
     private void Changed() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));

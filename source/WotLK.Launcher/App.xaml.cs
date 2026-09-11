@@ -28,7 +28,8 @@ internal enum LauncherStartupMode
     InvalidArguments,
     GrantGameDirectoryAccess,
     UninstallGame,
-    UiV2ShopPreview
+    UiV2ShopPreview,
+    UiV2ShopFundingPreview
 }
 
 public partial class App : Application
@@ -206,6 +207,7 @@ public partial class App : Application
         bool useAddonsPreview = AddonsPreviewArguments.IsRequested(args);
         bool useActivityPreview = ActivityPreviewArguments.IsRequested(args);
         bool useShopPreview = args.Any(argument => string.Equals(argument, "--preview-shop", StringComparison.OrdinalIgnoreCase));
+        bool useFundingPreview = args.Any(argument => string.Equals(argument, "--preview-shop-funding", StringComparison.OrdinalIgnoreCase));
         int dedicatedPreviewCount = (useAuthPreview ? 1 : 0)
             + (useProfilePreview ? 1 : 0)
             + (useSettingsPreview ? 1 : 0)
@@ -213,7 +215,7 @@ public partial class App : Application
             + (useAccountPreview ? 1 : 0)
             + (useAddonsPreview ? 1 : 0)
             + (useActivityPreview ? 1 : 0)
-            + (useShopPreview ? 1 : 0);
+            + (useShopPreview ? 1 : 0) + (useFundingPreview ? 1 : 0);
         if ((useLegacy && useUiV2)
             || ((useGamePreview || dedicatedPreviewCount > 0) && !useUiV2)
             || dedicatedPreviewCount > 1)
@@ -223,6 +225,7 @@ public partial class App : Application
 
         if (useUiV2)
         {
+            if (useFundingPreview) return LauncherStartupMode.UiV2ShopFundingPreview;
             if (useShopPreview) return LauncherStartupMode.UiV2ShopPreview;
             if (useAuthPreview)
             {
@@ -304,6 +307,7 @@ public partial class App : Application
             case LauncherStartupMode.UiV2AddonsPreview:
             case LauncherStartupMode.UiV2ActivityPreview:
             case LauncherStartupMode.UiV2ShopPreview:
+            case LauncherStartupMode.UiV2ShopFundingPreview:
                 startV2Preview(startupMode);
                 return;
             default:
@@ -324,7 +328,8 @@ public partial class App : Application
         or LauncherStartupMode.UiV2AccountPreview
         or LauncherStartupMode.UiV2AddonsPreview
         or LauncherStartupMode.UiV2ActivityPreview
-        or LauncherStartupMode.UiV2ShopPreview;
+        or LauncherStartupMode.UiV2ShopPreview
+        or LauncherStartupMode.UiV2ShopFundingPreview;
 
     internal static bool UsesSingleInstance(LauncherStartupMode startupMode) => startupMode is
         LauncherStartupMode.Legacy or LauncherStartupMode.UiV2;
@@ -398,6 +403,7 @@ public partial class App : Application
                 ActivityPreviewArguments.ResolveScenario(args)),
             LauncherStartupMode.UiV2Preview => new LauncherShellV2(previewScenario),
             LauncherStartupMode.UiV2ShopPreview => new LauncherShellV2(previewScenario),
+            LauncherStartupMode.UiV2ShopFundingPreview => new LauncherShellV2(previewScenario),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(startupMode),
                 startupMode,
@@ -405,6 +411,7 @@ public partial class App : Application
         };
         ApplyV2PreviewOptions(previewWindow, args);
         if (startupMode == LauncherStartupMode.UiV2ShopPreview) previewWindow.PrepareShopPreview();
+        if (startupMode == LauncherStartupMode.UiV2ShopFundingPreview) previewWindow.PrepareShopPreview(manualFunding:true);
         MainWindow = previewWindow;
         previewWindow.Show();
     }
@@ -582,7 +589,8 @@ public partial class App : Application
             new AvatarFileSelectionService(new WindowsAvatarFilePicker()),
             window.Dispatcher);
         window.AttachAccount(accountCommands);
-        window.AttachShop(runtime.GetShopAsync);
+        window.AttachShop(runtime.GetShopAsync, new(runtime.CreateShopTopUpAsync, runtime.CancelShopTopUpAsync,
+            runtime.ListShopTopUpsAsync, runtime.ReadShopTopUpAsync, runtime.DecideShopTopUpAsync));
         window.AttachArmory(runtime.GetArmoryAccountAsync, runtime.GetArmoryDataAsync,
             () => runtime.Settings.InstallPath, runtime.GetFriendArmoryDataAsync, runtime.AvatarImages);
         AuthStateAdapter authStateAdapter = new(

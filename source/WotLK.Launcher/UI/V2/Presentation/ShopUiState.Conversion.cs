@@ -98,6 +98,7 @@ internal sealed partial class ShopUiState
     internal void OpenConversion(bool preserveServiceReturn = false)
     {
         if (_disposed) return;
+        CloseAdminFunding();
         if (!preserveServiceReturn) ClearFundingReturn();
         if (_conversionCharacter is null && _conversionCharacterId is null)
             SelectedConversionCharacter = SelectedCharacter ?? Characters.FirstOrDefault(c => !c.Character.Online && c.Character.GoldCopper is > 0) ?? Characters.FirstOrDefault();

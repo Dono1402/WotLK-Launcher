@@ -254,6 +254,8 @@ internal sealed class LauncherSchemaMigrator
             await _validator.ValidateChatV2Async(connection, cancellationToken);
         if (version >= 8)
             await _validator.ValidatePresenceAsync(connection, cancellationToken);
+        if (version >= 11)
+            await _validator.ValidateShopFundingAsync(connection, cancellationToken);
     }
 
     private static async Task ExecuteMigrationAsync(

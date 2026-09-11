@@ -20,6 +20,7 @@ public partial class LauncherShellV2
         WalletHeader.DataContext = ShopView.State;
         ShopView.ConversionRequested += OpenShopConversion;
         ShopView.HistoryRequested += OpenShopHistory;
+        ShopView.AdminRequested += OpenShopAdmin;
         WalletHeader.CreditsRequested += OpenShopConversion;
         WalletHeader.WalletRequested += OpenShopWallet;
         ShopView.State.CreditGranted += ShopCreditGranted;
@@ -29,6 +30,7 @@ public partial class LauncherShellV2
     {
         ShopView.ConversionRequested -= OpenShopConversion;
         ShopView.HistoryRequested -= OpenShopHistory;
+        ShopView.AdminRequested -= OpenShopAdmin;
         WalletHeader.CreditsRequested -= OpenShopConversion;
         WalletHeader.WalletRequested -= OpenShopWallet;
         ShopView.State.CreditGranted -= ShopCreditGranted;
@@ -58,6 +60,11 @@ public partial class LauncherShellV2
         if (!ShellState.IsNavigationEnabled || IsAuthenticationRequired || !_overlayCoordinator.CanNavigate) return;
         NavigateTo(LauncherShellPage.Shop); ShopView.State.OpenHistory();
     }
+    private async void OpenShopAdmin(object? sender, EventArgs e)
+    {
+        if (!ShellState.IsNavigationEnabled || IsAuthenticationRequired || !_overlayCoordinator.CanNavigate) return;
+        NavigateTo(LauncherShellPage.Shop); await ShopView.State.OpenAdminFundingAsync();
+    }
     private async Task RefreshShopHeaderAsync()
     {
         if (IsPreviewMode || _shopHeaderLoading || _shopHeaderRequested || IsAuthenticationRequired || !ShellState.IsAuthenticated || !ShopView.State.CanRefresh) return;
@@ -75,17 +82,24 @@ public partial class LauncherShellV2
         WalletHeader.AnimateCredit(change);
     }
 
-    internal void AttachShop(Func<CancellationToken, Task<ShopSnapshot>> read)
+    internal void AttachShop(Func<CancellationToken, Task<ShopSnapshot>> read, ShopFundingActions? funding = null)
     {
         if (IsPreviewMode) throw new InvalidOperationException("A preview cannot use the real shop.");
         ShopView.State.Configure(read);
+        if(funding is not null)ShopView.State.ConfigureFunding(funding);
         _ = RefreshShopHeaderAsync();
     }
 
-    internal void PrepareShopPreview()
+    internal void PrepareShopPreview(bool manualFunding = false)
     {
         if (!IsPreviewMode) throw new InvalidOperationException("Shop examples are restricted to explicit previews.");
-        ShopView.State.ConfigurePreview(ShopPreviewData.Create());
+        if(manualFunding)
+        {
+            ShopFundingPreview funding=new();
+            ShopView.State.Configure(funding.ReadSnapshot);
+            ShopView.State.ConfigureFunding(funding.Actions,preview:true);
+        }
+        else ShopView.State.ConfigurePreview(ShopPreviewData.Create());
         Loaded += OpenPreview;
         async void OpenPreview(object sender, RoutedEventArgs e)
         {
@@ -98,7 +112,7 @@ public partial class LauncherShellV2
     private async void ShopNavigationButton_Click(object sender, RoutedEventArgs e)
     {
         if (!ShellState.IsNavigationEnabled || !_overlayCoordinator.CanNavigate || IsAuthenticationRequired) return;
-        ShopView.State.CloseConversion(); ShopView.State.CloseService(); ShopView.State.CloseWallet(); ShopView.State.CloseHistory();
+        ShopView.State.CloseConversion(); ShopView.State.CloseService(); ShopView.State.CloseWallet(); ShopView.State.CloseHistory(); ShopView.State.CloseAdminFunding();
         NavigateTo(LauncherShellPage.Shop);
         await ShopView.State.RefreshAsync();
     }

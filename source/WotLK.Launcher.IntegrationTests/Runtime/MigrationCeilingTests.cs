@@ -28,7 +28,7 @@ internal static class MigrationCeilingTests
             ExpectConfigurationFailure(invalid, isProduction: true);
 
         IReadOnlyList<LauncherSchemaMigration> embedded = new EmbeddedLauncherSchemaMigrationSource().Load();
-        Equal(10, embedded.Count, "Les dix migrations doivent rester embarquees.");
+        Equal(11, embedded.Count, "Les onze migrations doivent rester embarquees.");
         Equal((uint)4, embedded[3].Version, "La frontiere d'identite doit rester versionnee en 0004.");
         Equal("atlas_profile_identity_boundary", embedded[3].Name,
             "La migration de frontiere ne doit pas etre remplacee.");
@@ -41,8 +41,10 @@ internal static class MigrationCeilingTests
         Equal((uint)9, embedded[8].Version, "Les familles de session doivent rester versionnees en 0009.");
         Equal("auth_session_families", embedded[8].Name,
             "Les familles de session doivent rester en migration 0009.");
-        Equal((uint)10, embedded[^1].Version, "0010 doit etre la derniere migration locale versionnee.");
-        Equal("auth_session_gc", embedded[^1].Name,
+        Equal((uint)10, embedded[9].Version, "Les index des sessions restent en 0010.");
+        Equal((uint)11, embedded[10].Version, "Le portefeuille reste en 0011.");
+        Equal("manual_shop_funding", embedded[10].Name, "La migration du portefeuille doit rester embarquee.");
+        Equal("auth_session_gc", embedded[9].Name,
             "Les index de collecte des sessions doivent rester en migration 0010.");
         foreach (string indexName in new[]
                  {
@@ -53,7 +55,7 @@ internal static class MigrationCeilingTests
                      "ix_atlas_session_account_active_order"
                  })
         {
-            True(embedded[^1].Sql.Contains(indexName, StringComparison.Ordinal),
+            True(embedded[9].Sql.Contains(indexName, StringComparison.Ordinal),
                 $"La migration 0010 doit embarquer l'index {indexName}.");
         }
         Equal(256, LauncherDatabase.RefreshHistoryCleanupBatchSize,
@@ -222,7 +224,7 @@ internal static class MigrationCeilingTests
             "Apres verrouillage du lot parent, chaque famille doit revalider son historique par l'index de session avant suppression.");
 
         Console.WriteLine(
-            "Migration ceiling configuration OK: production 0005 preserved; migrations locales 0006-0010 embedded; bounded session/history cleanup, replay lock order, rotation and account caps verified.");
+            "Migration ceiling configuration OK: production 0005 preserved; migrations locales 0006-0011 embedded; bounded session/history cleanup, replay lock order, rotation and account caps verified.");
         return 0;
     }
 
@@ -276,11 +278,11 @@ internal static class MigrationCeilingTests
             logger);
 
         IReadOnlyList<LauncherSchemaMigrationOutcome> first = await migrator.MigrateAsync();
-        Equal(10, first.Count, "Le resultat doit rendre visibles les migrations eligibles et bloquees.");
+        Equal(11, first.Count, "Le resultat doit rendre visibles les migrations eligibles et bloquees.");
         True(first.Take(3).All(item => item.State == LauncherSchemaMigrationState.Applied),
             "Une base fraiche doit appliquer 0001, 0002 et 0003.");
         True(first.Skip(3).All(item => item.State == LauncherSchemaMigrationState.BlockedByCeiling),
-            "0004 a 0010 doivent etre explicitement bloquees.");
+            "0004 a 0011 doivent etre explicitement bloquees.");
         True(logger.Messages.Any(message => message.Contains("0004", StringComparison.Ordinal)
             && message.Contains("0003", StringComparison.Ordinal)
             && message.Contains("bloquee", StringComparison.Ordinal)),
@@ -297,7 +299,7 @@ internal static class MigrationCeilingTests
         True(second.Take(3).All(item => item.State == LauncherSchemaMigrationState.AlreadyApplied),
             "La seconde execution doit conserver 0001-0003 sans modification.");
         True(second.Skip(3).All(item => item.State == LauncherSchemaMigrationState.BlockedByCeiling),
-            "0004 a 0010 doivent rester bloquees lors d'une seconde execution.");
+            "0004 a 0011 doivent rester bloquees lors d'une seconde execution.");
         await AssertHistoryAsync(builder.ConnectionString, [1U, 2U, 3U]);
     }
 

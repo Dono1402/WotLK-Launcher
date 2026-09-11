@@ -11,7 +11,7 @@ public sealed record ShopTransaction(string Id, DateTimeOffset OccurredAtUtc, st
     {
         if (string.IsNullOrWhiteSpace(Id) || Id.Length > 120
             || OccurredAtUtc.Year is < 2000 or > 2200 || OccurredAtUtc.Offset != TimeSpan.Zero
-            || Kind is not ("top-up" or "conversion" or "purchase" or "refund")
+            || Kind is not ("top-up" or "conversion" or "purchase" or "refund" or "payment-reversal")
             || Currency is not ("eur" or "credits")
             || AmountCents == 0 || AmountCents is < -ShopSnapshot.MaximumBalanceCents or > ShopSnapshot.MaximumBalanceCents
             || Status is not ("completed" or "pending" or "failed" or "cancelled")
@@ -20,7 +20,7 @@ public sealed record ShopTransaction(string Id, DateTimeOffset OccurredAtUtc, st
             || (CharacterName is not null && (string.IsNullOrWhiteSpace(CharacterName) || CharacterName.Length > 24))
             || BalanceAfterCents is < 0 or > ShopSnapshot.MaximumBalanceCents
             || (Status != "completed" && BalanceAfterCents is not null)
-            || (Kind == "purchase" ? AmountCents > 0 : AmountCents < 0)
+            || (Kind is "purchase" or "payment-reversal" ? AmountCents > 0 : AmountCents < 0)
             || (Kind == "top-up" && Currency != "eur")
             || (Kind == "conversion" && (Currency != "credits" || GoldCopper is null or 0))
             || (Kind != "conversion" && GoldCopper is not null))

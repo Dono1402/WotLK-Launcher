@@ -18,7 +18,7 @@ using WotLK.Launcher.Shop.Contracts;
 
 internal static partial class ShopWpfTests
 {
-    internal static async Task<int> RunAsync(string captureDirectory)
+    internal static async Task<int> RunAsync(string captureDirectory, bool fundingOnly = false)
     {
         TaskCompletionSource<int> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         Thread thread = new(() =>
@@ -53,8 +53,15 @@ internal static partial class ShopWpfTests
                         SetWindowLong(handle, -20, GetWindowLong(handle, -20) | 0x08000000);
                     };
                     ShopViewV2 shop = shell.ShopPage;
-                    shell.PrepareShopPreview();
+                    shell.PrepareShopPreview(manualFunding:fundingOnly);
                     shell.Show(); await Pump();
+                    if(fundingOnly)
+                    {
+                        await VerifyManualFundingAsync(shell,shop,captureDirectory);
+                        Check(errors.Messages.Count==0,"No manual funding binding errors: "+string.Join("\n",errors.Messages));
+                        Console.WriteLine("Manual funding WPF PASS: native create, pending reference, verified approval, dispute hold, confirmed refund, history, FR/EN, navigation and logout; no binding errors. Inactive offscreen demo only.");
+                        result=0; return;
+                    }
                     Check(shell.CurrentPage == LauncherShellPage.Shop, "Explicit shop preview starts without a runtime or a real account.");
                     Get<Button>(shell, "ShopNavigationButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     await Pump();

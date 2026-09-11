@@ -16,6 +16,7 @@ internal sealed class ShopHistoryRow(ShopTransaction transaction) : ShopLocalize
         "top-up" => ShopUiState.L("Recharge du portefeuille", "Wallet top-up"),
         "conversion" => ShopUiState.L("Conversion d’or", "Gold conversion"),
         "refund" => ShopUiState.L("Remboursement", "Refund"),
+        "payment-reversal" => ShopUiState.L("Reprise de paiement", "Payment reversal"),
         _ => ShopUiState.L("Achat en boutique", "Shop purchase")
     };
     public string Description => ShopUiState.Text(Transaction.Description)
@@ -40,7 +41,7 @@ internal sealed class ShopHistoryRow(ShopTransaction transaction) : ShopLocalize
     {
         "top-up" => "M3,5 H21 V19 H3 Z M3,9 H21 M8,14 H16 M12,11 V17",
         "conversion" => "M4,7 H18 L14,3 M18,7 L14,11 M20,17 H6 L10,13 M6,17 L10,21",
-        "refund" => "M7,6 H15 A7,7 0 0 1 15,20 H10 M7,6 L11,2 M7,6 L11,10",
+        "refund" or "payment-reversal" => "M7,6 H15 A7,7 0 0 1 15,20 H10 M7,6 L11,2 M7,6 L11,10",
         _ => "M2,3 H5 L8,15 H18 L21,7 H6 M9,20 A1,1 0 1 1 8.999,20 M18,20 A1,1 0 1 1 17.999,20"
     };
 }
@@ -75,7 +76,7 @@ internal sealed partial class ShopUiState
         set { _historyWallet = HistoryWalletFilters.Contains(value) ? value : null; Changed(); }
     }
     public IReadOnlyList<ShopHistoryRow> FilteredHistory => HistoryRows.Where(row =>
-        (SelectedHistoryKind.Id == "all" || row.Transaction.Kind == SelectedHistoryKind.Id)
+        (SelectedHistoryKind.Id == "all" || row.Transaction.Kind == SelectedHistoryKind.Id || (SelectedHistoryKind.Id == "refund" && row.Transaction.Kind == "payment-reversal"))
         && (SelectedHistoryWallet.Id == "all" || row.Transaction.Currency == SelectedHistoryWallet.Id)).ToArray();
     public string HistoryCountLabel => !HistoryAvailable ? "—" : FilteredHistory.Count + (FilteredHistory.Count == 1 ? L(" opération", " operation") : L(" opérations", " operations"));
     public bool ShowHistoryEmpty => !IsLoading && FilteredHistory.Count == 0;
@@ -89,6 +90,7 @@ internal sealed partial class ShopUiState
     internal void OpenHistory()
     {
         if (_disposed || IsHistoryOpen) return;
+        CloseAdminFunding();
         if (!IsWalletOpen) ClearFundingReturn();
         _historyReturnToWallet = IsWalletOpen;
         IsConversionOpen = false; IsServiceOpen = false; IsWalletOpen = false; IsHistoryOpen = true; Changed();

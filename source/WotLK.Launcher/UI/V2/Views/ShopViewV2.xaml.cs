@@ -11,8 +11,10 @@ public partial class ShopViewV2 : UserControl, IDisposable
     internal ShopConversionViewV2 ConversionPage => ConversionView;
     internal ShopWalletViewV2 WalletPage => WalletView;
     internal ShopHistoryViewV2 HistoryPage => HistoryView;
+    internal ShopAdminViewV2 AdminPage => AdminView;
     internal event EventHandler? ConversionRequested;
     internal event EventHandler? HistoryRequested;
+    internal event EventHandler? AdminRequested;
     public static readonly DependencyProperty LayoutModeProperty = DependencyProperty.Register(
         nameof(LayoutMode), typeof(AdaptiveLayoutMode), typeof(ShopViewV2),
         new PropertyMetadata(AdaptiveLayoutMode.Wide, (target, _) => ((ShopViewV2)target).ApplyLayout()));
@@ -22,6 +24,7 @@ public partial class ShopViewV2 : UserControl, IDisposable
         InitializeComponent();
         DataContext = State;
         WalletView.HistoryRequested += HistoryRequestedFromWallet;
+        WalletView.AdminRequested += AdminRequestedFromWallet;
         SizeChanged += (_, _) => ApplyLayout();
         PageScroll.ScrollChanged += (_, e) => { if (e.ViewportWidthChange != 0) ApplyLayout(); };
         Loaded += ViewLoaded;
@@ -64,12 +67,13 @@ public partial class ShopViewV2 : UserControl, IDisposable
     private void Funding_Click(object sender, RoutedEventArgs e) => State.PrepareServiceFunding();
     private void History_Click(object sender, RoutedEventArgs e) => HistoryRequested?.Invoke(this, EventArgs.Empty);
     private void HistoryRequestedFromWallet(object? sender, EventArgs e) => HistoryRequested?.Invoke(this, EventArgs.Empty);
+    private void AdminRequestedFromWallet(object? sender, EventArgs e) => AdminRequested?.Invoke(this, EventArgs.Empty);
     private void Credits_Click(object sender, RoutedEventArgs e)
     {
         ConversionRequested?.Invoke(this, EventArgs.Empty);
     }
     internal void ResetSession() => State.ResetSession();
-    public void Dispose() { LauncherLocalization.LocaleChanged -= LocaleChanged; WalletView.HistoryRequested -= HistoryRequestedFromWallet; State.Dispose(); }
+    public void Dispose() { LauncherLocalization.LocaleChanged -= LocaleChanged; WalletView.HistoryRequested -= HistoryRequestedFromWallet; WalletView.AdminRequested -= AdminRequestedFromWallet; State.Dispose(); }
     private void ApplyLayout()
     {
         if (!IsInitialized) return;

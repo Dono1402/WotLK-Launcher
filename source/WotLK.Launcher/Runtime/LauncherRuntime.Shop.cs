@@ -4,7 +4,14 @@ namespace WotLK.Launcher.Runtime;
 
 internal sealed partial class LauncherRuntime
 {
-    internal async Task<ShopSnapshot> GetShopAsync(CancellationToken cancellationToken)
+    internal Task<ShopSnapshot> GetShopAsync(CancellationToken token) => CallShopAsync(_shopApi.ReadAsync,token);
+    internal Task<ShopTopUp> CreateShopTopUpAsync(ShopCreateTopUp input,CancellationToken token) => CallShopAsync(ct=>_shopApi.CreateTopUpAsync(input,ct),token);
+    internal Task<ShopTopUp> CancelShopTopUpAsync(string id,CancellationToken token) => CallShopAsync(ct=>_shopApi.CancelTopUpAsync(id,ct),token);
+    internal Task<ShopAdminTopUpPage> ListShopTopUpsAsync(string? status,long? before,CancellationToken token) => CallShopAsync(ct=>_shopApi.ListTopUpsAsync(status,before,ct),token);
+    internal Task<ShopAdminTopUp> ReadShopTopUpAsync(string id,CancellationToken token) => CallShopAsync(ct=>_shopApi.ReadTopUpAsync(id,ct),token);
+    internal Task<ShopAdminTopUp> DecideShopTopUpAsync(string id,ShopTopUpDecision input,CancellationToken token) => CallShopAsync(ct=>_shopApi.DecideTopUpAsync(id,input,ct),token);
+
+    private async Task<T> CallShopAsync<T>(Func<CancellationToken,Task<T>> operation,CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         AuthSessionSnapshot session = _sessionCoordinator.CurrentSnapshot;
@@ -17,10 +24,10 @@ internal sealed partial class LauncherRuntime
             cancellationToken.ThrowIfCancellationRequested();
             if (!refreshed || !IsArmorySessionCurrent(session, account))
                 throw new UnauthorizedAccessException("Shop session changed.");
-            ShopSnapshot snapshot = await _shopApi.ReadAsync(cancellationToken).ConfigureAwait(false);
+            T result = await operation(cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             if (!IsArmorySessionCurrent(session, account)) throw new UnauthorizedAccessException("Shop session changed.");
-            return snapshot;
+            return result;
         }
         catch (Exception error) when (error is UnauthorizedAccessException
             or LauncherAuthException { StatusCode: System.Net.HttpStatusCode.Unauthorized })

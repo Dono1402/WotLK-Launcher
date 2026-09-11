@@ -8,6 +8,8 @@ internal static class ShopEndpoints
 {
     internal static void MapShopEndpoints(this WebApplication app)
     {
+        ShopManualFundingOptions fundingOptions = app.Services.GetService<ShopManualFundingOptions>() ?? new();
+        app.MapManualFundingEndpoints(fundingOptions);
         app.MapGet("/api/v1/shop", async (HttpContext context, LauncherDatabase database,
             ShopCatalog catalog, ArmoryReadLimiter limiter, CancellationToken cancellationToken) =>
         {
@@ -24,6 +26,12 @@ internal static class ShopEndpoints
             try
             {
                 ShopSnapshot snapshot = catalog.CreateSnapshot(await database.ListShopCharactersAsync(account.AccountId, cancellationToken));
+                if (fundingOptions.CanReadStorage)
+                {
+                    ShopFundingRead funding = await database.ReadShopFundingAsync(account.AccountId, fundingOptions, cancellationToken);
+                    snapshot = snapshot with { EuroBalanceCents = funding.AvailableCents, CreditBalanceEuroCents = funding.CreditCents,
+                        History = funding.History, ManualFunding = funding.Funding };
+                }
                 snapshot.Validate();
                 return Results.Json(snapshot);
             }
@@ -32,6 +40,6 @@ internal static class ShopEndpoints
                 return Results.Json(new { error = "shop-unavailable" }, statusCode: StatusCodes.Status503ServiceUnavailable);
             }
         });
-        // No purchase, wallet mutation or payment callback is exposed by this browsing milestone.
+        // Character purchases, gold conversion and automatic payment callbacks remain closed.
     }
 }

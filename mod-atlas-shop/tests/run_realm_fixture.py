@@ -48,10 +48,13 @@ def main():
     parser.add_argument('--hermes-package', choices=('hermes', 'hermes-disconnect', 'hermes-native'), default='hermes')
     parser.add_argument('--api-package', choices=('api-linux', 'api-candidate', 'api-account-services', 'api-gold'), default='api-linux')
     parser.add_argument('--gold-conversion', action='store_true', help='Exercise gold conversion and the full native rename chain.')
+    parser.add_argument('--rename-identity', action='store_true', help='Verify cached player names across rename, gameplay and observer sessions.')
     parser.add_argument('--account-services', action='store_true', help='Test the real native account consumer with four character database workers.')
     parser.add_argument('--world-candidate', type=Path,
                         help='Test an inactive release candidate whose compiled config directory points to this fixture.')
     args = parser.parse_args()
+    if args.rename_identity and not (args.account_services and args.with_hermes and not args.gold_conversion):
+        parser.error('Rename identity tests require --account-services --with-hermes without --gold-conversion.')
     if args.gold_conversion and not (args.account_services and args.with_hermes and args.api_package == 'api-gold'):
         parser.error('Gold conversion tests require --account-services --with-hermes --api-package api-gold.')
     root = Path(args.root).resolve(strict=True)
@@ -88,6 +91,8 @@ def main():
     if not args.hold:
         result_name = 'gold-conversion-result.json' if args.gold_conversion else ('hermes-account-services-result.json' if args.with_hermes else 'native-account-services-result.json') if args.account_services else (
             'hermes-test-result.json' if args.with_hermes else 'native-test-result.json')
+        if args.rename_identity:
+            result_name = 'hermes-identity-result.json'
         (root / result_name).write_text(json.dumps({'passed': False, 'state': 'starting', 'startedAtUnix': int(time.time())}) + '\n')
     config = configparser.ConfigParser()
     config.read(root / 'mysql-client.cnf')
@@ -224,6 +229,8 @@ def main():
             script_name = 'test_gold_conversion_realm.py' if args.gold_conversion else ('test_hermes_account_services.py' if args.with_hermes else 'test_account_services_realm.py') if args.account_services else (
                 'test_hermes_realm.py' if args.with_hermes else 'test_native_realm.py')
             script = root / 'mod-atlas-shop/tests' / script_name
+            if args.rename_identity:
+                script = root / 'mod-atlas-shop/tests/test_hermes_identity_realm.py'
             spec = importlib.util.spec_from_file_location('atlas_native_realm_test', script)
             test = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(test)

@@ -1,0 +1,241 @@
+{
+  "status": "verified-candidates-not-activated",
+  "clientBuild": "3.4.3.54261",
+  "observedProduction": {
+    "renamedCharacterPersistedInDatabase": true,
+    "characterEnumerationUsedNewName": true,
+    "invalidatePlayerSentAfterRename": false,
+    "newNameQueryAfterReentry": false,
+    "observedRenameUtc": "2026-09-12T17:54:14Z",
+    "playerNamesAndAccountDataOmitted": true
+  },
+  "regressionBeforeFix": {
+    "passed": false,
+    "state": "RuntimeError: Identity packet condition timed out.",
+    "checks": [
+      "Owner and connected observer resolve the original name from actual core queries before rename.",
+      "The owner returns to character selection with the old in-game name still cached.",
+      "Rejected names and validation alone preserve the character, service and client name caches."
+    ],
+    "characterDatabaseWorkers": 4,
+    "realCoreConsumer": true,
+    "realApiAndMySql": true,
+    "graphicalClientTested": false
+  },
+  "identity": {
+    "passed": true,
+    "state": "complete",
+    "checks": [
+      "Owner and connected observer resolve the original name from actual core queries before rename.",
+      "The owner returns to character selection with the old in-game name still cached.",
+      "Rejected names and validation alone preserve the character, service and client name caches.",
+      "Committed rename invalidates the owner and refreshes the online observer without another purchase or reconnect.",
+      "Re-entry sends the current Unicode identity without a client query and preserves own-character account and level metadata.",
+      "A real whisper reaches the renamed character by its new name; the old name is no longer a valid online target.",
+      "Replaying an older receipt after a second rename cannot restore the older name in the core or proxy selector.",
+      "A stale persisted client cache is repaired at login without rebuying or reapplying an already consumed service."
+    ],
+    "characterDatabaseWorkers": 4,
+    "realCoreConsumer": true,
+    "realApiAndMySql": true,
+    "graphicalClientTested": false,
+    "worldSha256": "aa9880f240a4bace95bd5c06028175fd6b50348a435d55c53cc632bff5ee3d62",
+    "hermesSha256": "8adc5af26635dc698f062a2b61bac8ee1367d48af7cdaaed0b8e90fa35b7ad8f"
+  },
+  "regressions": {
+    "core": {
+      "passed": true,
+      "state": "complete",
+      "checks": [
+        "The real account consumer opens four asynchronous character database connections and one synchronous connection.",
+        "The real core advertises protocol 2 after schema and transaction-grant checks.",
+        "The real API sells an unassigned account service before any character exists.",
+        "Authenticated native subscriptions expose only the current account services.",
+        "Three synthetic characters are created by the real ordinary core handlers.",
+        "The core rejects an invalid name without consuming the account service.",
+        "The core rejects an occupied name without consuming the account service.",
+        "The core rejects an character below level 10 without consuming the account service.",
+        "The core rejects an foreign character without consuming the account service.",
+        "A different authenticated account cannot consume the order by guessing its distribution ID.",
+        "An already-pending appearance service prevents a conflicting native rename.",
+        "Native validation succeeds without changing the character or consuming the jeton.",
+        "Native confirmation atomically renames the character and consumes the paid account service.",
+        "Consumption neither charges the wallet again nor changes unrelated at-login flags.",
+        "The real API exposes the committed old-to-new name receipt.",
+        "A fresh ordinary character enumeration immediately observes the core cache update.",
+        "A repeated confirmation returns its durable receipt without another debit.",
+        "A consumed distribution cannot be replayed with a different requested name.",
+        "The API refuses to refund an already-consumed native service.",
+        "A cancelled credit service cannot rename a character and is refunded exactly once.",
+        "A database failure rolls back both the actual character rename and its receipt.",
+        "The available service can be retried successfully after the database failure is removed.",
+        "Replaying an older consumed receipt returns the current identity without overwriting a later legitimate name change.",
+        "A competing character creation is temporarily rejected while the native name commit is guarded.",
+        "The guarded account cannot load its character before the native transaction completes.",
+        "A different account can enter the actual world while the rename transaction waits on SQL.",
+        "When consumption obtains the wallet lock first, it wins once and the concurrent API refund is rejected.",
+        "When the API refund obtains the wallet lock first, the native confirmation preserves the old name and cannot consume the refunded service.",
+        "An account can buy a service while playing, but the core refuses to consume it in world.",
+        "The core accepts a real logout while the character row is locked by the fixture.",
+        "Native consumption waits for the real queued logout save before acquiring the name guard.",
+        "Another account can create a character while a previous logout save is still blocked on SQL.",
+        "Releasing the real logout save permits one Unicode rename without a later stale-name overwrite.",
+        "The normal enumeration exposes the committed Unicode name after the save barrier.",
+        "A subsequent actual player login, logout and save preserve the new Unicode name.",
+        "Available services and idempotent consumed receipts survive a real world restart and reconnection."
+      ],
+      "characterDatabaseWorkers": 4,
+      "realCoreConsumer": true,
+      "realApiAndMySql": true,
+      "graphicalClientTested": false,
+      "worldSha256": "aa9880f240a4bace95bd5c06028175fd6b50348a435d55c53cc632bff5ee3d62",
+      "hermesSha256": "8adc5af26635dc698f062a2b61bac8ee1367d48af7cdaaed0b8e90fa35b7ad8f"
+    },
+    "hermes": {
+      "passed": true,
+      "state": "complete",
+      "checks": [
+        "The actual core creates the disposable beneficiary through ordinary character creation.",
+        "Launcher SSO and the encrypted 3.4.3 Hermes connection expose the real unassigned account service.",
+        "Hermes updates the native service feature gate after the real core handshake succeeds.",
+        "The native product-list request returns a valid empty Blizzard store.",
+        "The native purchase-list request returns the verified empty store envelope.",
+        "The native VAS-state request returns the verified state envelope.",
+        "The Lua enum value is rejected as an unsupported wire service without consuming the account service.",
+        "The captured client wire service type 7 returns the account character and a nonempty matching realm name.",
+        "A native 3.4.3 name rejection leaves the paid service available.",
+        "The real native validation round trip accepts Unicode without consuming or renaming.",
+        "The native confirmation round trip commits the Unicode name and receipt without a second debit.",
+        "Hermes sends the consumed distribution update that removes the native account-service button.",
+        "Fresh 3.4.3 character enumeration shows the new name with no forced-rename entitlement.",
+        "A repeated native confirmation returns the same receipt without another debit.",
+        "An API cancellation produces a native revocation update and refunds the currency exactly once.",
+        "An account service can be purchased during actual Hermes gameplay; consumption requires character selection.",
+        "The actual player logs out through both Hermes sockets while the account connection stays open.",
+        "The player consumes the account service immediately after real logout, without closing the account or BNet session.",
+        "A real realm-socket drop and SSO reconnection preserve the available native service and allow its consumption.",
+        "All completed native purchases preserve independent balances and debit each service exactly once."
+      ],
+      "characterDatabaseWorkers": 4,
+      "realCoreConsumer": true,
+      "realApiAndMySql": true,
+      "graphicalClientTested": false,
+      "worldSha256": "aa9880f240a4bace95bd5c06028175fd6b50348a435d55c53cc632bff5ee3d62",
+      "hermesSha256": "8adc5af26635dc698f062a2b61bac8ee1367d48af7cdaaed0b8e90fa35b7ad8f"
+    },
+    "gold": {
+      "passed": true,
+      "state": "complete",
+      "checks": [
+        "The core creates the synthetic source character through ordinary character creation.",
+        "A live core heartbeat opens gold conversion; the starting credit wallet is empty.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "Six concurrent POST retries convert 2000 gold exactly once, preserving all silver/copper and the euro wallet.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "A conversion receipt is inaccessible from another account.",
+        "The snapshot and history expose the same committed gold debit and credit receipt.",
+        "The rename service is funded entirely by converted gold and remains unassigned until selection in game.",
+        "Real SSO and encrypted 3.4.3 Hermes packets expose the service and its character selector.",
+        "Native Unicode name validation leaves the paid service available until confirmation.",
+        "Native name confirmation consumes the service without charging credits or gold a second time.",
+        "A fresh SSO/Hermes connection retains the new name, consumed service and exact remaining balances.",
+        "The core rechecks actual money after API enqueue and rejects a stale gold quote without granting credits.",
+        "An expired durable request releases its pending slot without changing either balance.",
+        "A failure writing the final receipt rolls back the real character debit and wallet credit together.",
+        "The durable request succeeds once after the SQL failure is removed, on the normal realm retry.",
+        "While conversion holds the core write guard, a competing native login cannot load the old money.",
+        "Releasing the controlled SQL lock commits the guarded conversion once.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "A full native login, logout and character save preserve the converted gold balance.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "Gold conversion preserves refund headroom; an unused service can refund exactly at the wallet ceiling.",
+        "The core independently rechecks the credit ceiling after enqueue, under the wallet lock.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "After a real world process restart, conversion history and the same idempotency key remain recoverable.",
+        "Every test request has a durable terminal outcome with no stranded debit."
+      ],
+      "characterDatabaseWorkers": 4,
+      "realCoreConsumer": true,
+      "realApiAndMySql": true,
+      "graphicalClientTested": false,
+      "worldSha256": "aa9880f240a4bace95bd5c06028175fd6b50348a435d55c53cc632bff5ee3d62",
+      "hermesSha256": "8adc5af26635dc698f062a2b61bac8ee1367d48af7cdaaed0b8e90fa35b7ad8f"
+    }
+  },
+  "unitTests": {
+    "passed": true,
+    "count": 24,
+    "groups": [
+      "AtlasAccountServicesPacketsTests",
+      "AtlasAccountServiceBridgeTests",
+      "WorldDisconnect"
+    ]
+  },
+  "worldBuild": {
+    "sha256": "aa9880f240a4bace95bd5c06028175fd6b50348a435d55c53cc632bff5ee3d62",
+    "baseCoreHead": "edfd79c4839c7c5a9fc6fc067ee0b627a8ee9a64",
+    "moduleSources": {
+      "src/atlas_shop.cpp": "b7c2f0ce28d15fcc5f6d07507951df05246e4361d716fee03a31d30528c3046b",
+      "src/atlas_shop_barrier.h": "90655e04bfc1a82767dc1b4cd641f4424944b869a7a9c736c2830a0b7d385655",
+      "src/atlas_shop_gold.cpp": "783f21aaffc0650da234a528e994f97bcd29203f12b68464812043f1e15f5489",
+      "src/atlas_shop_gold_sql.h": "a610a8a9f82843471f0aa2e4def33a09215300298d203589d202da30769bfd9a",
+      "src/atlas_shop_loader.cpp": "d56d83ef11670ae40c781b68e9581badcec12a6dc03e03be8153737198791a95",
+      "src/atlas_shop_native.cpp": "c13f2d3ecb28c0f4917784d22210e73de17a1bc74707d6129b6d6194f43b801a",
+      "src/atlas_shop_native.h": "3838546aee70f0ebaf86574464b0ab0361a077319b8b41779e9f977c3e80da95",
+      "src/atlas_shop_native_sql.h": "85a0676846f3446dace6694ee492c6afe60956cf698a45a3a78d70a6fbb820b6",
+      "src/atlas_shop_sql.h": "9372b9b831f111f7208cc027e047270a5274dffa1060243d708d1e16b62fab78"
+    },
+    "previousModuleRegistrationsPreserved": [
+      "Addmod_account_achievementsScripts",
+      "Addmod_ah_botScripts",
+      "Addmod_atlas_armoryScripts",
+      "Addmod_atlas_chatScripts",
+      "Addmod_atlas_friendsScripts",
+      "Addmod_atlas_shopScripts",
+      "Addmod_dungeon_clearScripts",
+      "Addmod_playerbotsScripts",
+      "Addmod_transmogScripts"
+    ],
+    "configurationDirectory": "/opt/arthas-next/candidates/atlas-shop-rename-identity-20260912/server/etc",
+    "releaseCandidate": true
+  },
+  "publicServicesAfterTests": {
+    "arthas-worldserver.dungeon-clear-8224099": {
+      "MainPID": "2828323",
+      "NRestarts": "0",
+      "ActiveState": "active",
+      "sha256": "6ad33749350a93c16da453c2c780348f24b07c3f76c84a6382612c5a5bc1cf8c"
+    },
+    "arthas-authserver": {
+      "MainPID": "323656",
+      "NRestarts": "0",
+      "ActiveState": "active",
+      "sha256": "e4f5156535e6bc5b1dd774cff1e0f462f267bb12aaa473542aeb28d229320498"
+    },
+    "hermesproxy-wotlk": {
+      "MainPID": "2860655",
+      "NRestarts": "0",
+      "ActiveState": "active",
+      "sha256": "4bd47690d3df31cb97b2eb6beacf2e37515b25373b3dc2718d527478ed3e7c47"
+    },
+    "wotlk-launcher-api": {
+      "MainPID": "2830654",
+      "NRestarts": "0",
+      "ActiveState": "active",
+      "sha256": "203484f27efc4a5383a1acdb0c9f642e9361456a7b3d69c8d81cd4c86dc2ea0e"
+    }
+  },
+  "fixtureStopped": true,
+  "graphicalClientTested": false,
+  "clientNameCacheIsProtocolTestModel": true,
+  "realSsoEncryptedSocketsCoreApiAndMySql": true,
+  "publicDatabaseMutatedByTests": false,
+  "maintenanceRequired": [
+    "arthas-worldserver.dungeon-clear-8224099",
+    "hermesproxy-wotlk"
+  ]
+}

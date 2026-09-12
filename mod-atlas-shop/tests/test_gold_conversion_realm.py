@@ -17,8 +17,12 @@ from test_account_services_realm import Fixture, RowLock
 def pause_world(f):
     pid = int((f.root / 'world.pid').read_text())
     executable = Path('/proc/' + str(pid) + '/exe').resolve(strict=True)
-    candidate = Path('/opt/arthas-next/candidates/atlas-shop-rename-gold-20260912')
-    private_candidate = executable == candidate / 'build/worldserver' and (candidate / 'server/etc').resolve() == f.root / 'etc'
+    candidates = [Path('/opt/arthas-next/candidates') / name for name in
+                  ('atlas-shop-rename-gold-20260912', 'atlas-shop-rename-identity-20260912')]
+    private_candidate = any(executable == candidate / 'build/worldserver'
+                            and (candidate / 'server/etc').resolve() == f.root / 'etc' for candidate in candidates)
+    if os.readlink('/proc/' + str(pid) + '/ns/net') != os.readlink('/proc/self/ns/net'):
+        raise RuntimeError('Refusing to signal a world outside this private test network.')
     if executable != f.root / 'build-native/worldserver' and not private_candidate:
         raise RuntimeError('Refusing to signal anything except the owned test world.')
     os.kill(pid, signal.SIGSTOP)

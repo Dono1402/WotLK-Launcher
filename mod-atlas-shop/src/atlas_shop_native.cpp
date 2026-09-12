@@ -315,7 +315,11 @@ private:
             std::string status = fields[0].Get<std::string>();
             if (status == "consumed")
             {
-                bool same = fields[1].Get<uint32>() == current.Guid && fields[2].Get<std::string>() == current.Name;
+                bool same = fields[1].Get<uint32>() == current.Guid && fields[2].Get<std::string>() == current.Name
+                    && !fields[3].IsNull() && fields[4].Get<uint32>() == current.Owner.Account && fields[9].Get<uint8>();
+                // The receipt identifies the original request, but the client
+                // must receive today's identity if another rename followed it.
+                if (same) current.Name = fields[5].Get<std::string>();
                 Finish(same); // Replayed confirmation never rewrites the character.
                 return;
             }
@@ -366,7 +370,15 @@ private:
                 && fields[2].Get<std::string>() == _job->Name;
             if (success)
             {
-                sCharacterCache->UpdateCharacterData(ObjectGuid::Create<HighGuid::Player>(_job->Guid), _job->Name);
+                ObjectGuid guid = ObjectGuid::Create<HighGuid::Player>(_job->Guid);
+                sCharacterCache->UpdateCharacterData(guid, _job->Name);
+                // This core's CharacterCache updates only its own maps. Tell
+                // every connected client to discard the old GUID/name binding,
+                // including the purchaser still at character selection.
+                WorldPacket invalidate(SMSG_INVALIDATE_PLAYER, 8);
+                invalidate << guid;
+                for (auto const& entry : sWorldSessionMgr->GetAllSessions())
+                    entry.second->SendPacket(&invalidate);
                 LOG_INFO("module", "AtlasShop account {} consumed rename service {} for character {}.",
                     _job->Owner.Account, _job->Distribution, _job->Guid);
             }

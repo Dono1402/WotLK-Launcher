@@ -5,7 +5,7 @@ index 81de95d..f175869 100644
 @@ -941,6 +941,10 @@ public class ByteBuffer : IDisposable
          return _buffer.AsSpan(0, _length);
      }
- 
+
 +    // A receive-side extension must inspect only the unread payload, including
 +    // when the constructor consumed an opcode or the pool rental has spare bytes.
 +    public ReadOnlySpan<byte> GetRemainingSpan() => _buffer.AsSpan(_position, _length - _position);
@@ -384,7 +384,7 @@ index baf646f..f165ce3 100644
      public BNetServer.Networking.GameAccountInfo GameAccountInfo = null!;
      public string Username = null!;
 @@ -2005,6 +2006,7 @@ public class GlobalSessionData
- 
+
      public void OnDisconnect()
      {
 +        AtlasAccountServices.Reset();
@@ -433,7 +433,7 @@ index 0000000..186bc8a
 +    }
 +}
 diff --git a/HermesProxy/World/Client/PacketHandlers/CharacterHandler.cs b/HermesProxy/World/Client/PacketHandlers/CharacterHandler.cs
-index e1318f0..b50df65 100644
+index e1318f0..bcce548 100644
 --- a/HermesProxy/World/Client/PacketHandlers/CharacterHandler.cs
 +++ b/HermesProxy/World/Client/PacketHandlers/CharacterHandler.cs
 @@ -17,6 +17,7 @@ public partial class WorldClient
@@ -444,6 +444,68 @@ index e1318f0..b50df65 100644
          Log.Print(LogType.Trace, "[Trace] HandleEnumCharactersResult: ENTER — translating legacy SMSG_ENUM_CHARACTERS_RESULT to modern");
          EnumCharactersResult charEnum = new();
          charEnum.Success = true;
+@@ -352,6 +353,18 @@ public partial class WorldClient
+
+         GetSession().GameState.IsInWorld = true;
+
++        if (ModernVersion.Build == ClientVersionBuild.V3_4_3_54261)
++        {
++            // A name can persist in the modern client's cache across character
++            // selection and SSO. Repair it on entry, including renames consumed
++            // before the server started emitting invalidation notifications.
++            var guid = GetSession().GameState.CurrentPlayerGuid;
++            SendPacketToClient(new InvalidatePlayer { Guid = guid });
++            WorldPacket query = new(Opcode.CMSG_NAME_QUERY);
++            query.WriteGuid(guid.To64());
++            SendPacketToServer(query);
++        }
++
+         bool isModernWotLK = ModernVersion.ExpansionVersion >= 3;
+
+         // V3_4_3 modern client expects EmptyInitWorldStates BEFORE WorldServerInfo
+diff --git a/HermesProxy/World/Client/PacketHandlers/MiscHandler.cs b/HermesProxy/World/Client/PacketHandlers/MiscHandler.cs
+index 25c6fdf..713ddf9 100644
+--- a/HermesProxy/World/Client/PacketHandlers/MiscHandler.cs
++++ b/HermesProxy/World/Client/PacketHandlers/MiscHandler.cs
+@@ -1,9 +1,11 @@
+ ﻿using Framework;
+ using HermesProxy.Enums;
++using Framework.Constants;
+ using HermesProxy.World.Enums;
+ using HermesProxy.World.Objects;
+ using HermesProxy.World.Server.Packets;
+ using System;
++using System.Linq;
+
+ namespace HermesProxy.World.Client;
+
+@@ -278,8 +280,24 @@ public partial class WorldClient
+         invalidate.Guid = packet.ReadGuid().To128(GetSession().GameState);
+         SendPacketToClient(invalidate);
+
+-        if (GetSession().GameState.CachedPlayers.ContainsKey(invalidate.Guid))
+-            GetSession().GameState.CachedPlayers.Remove(invalidate.Guid);
++        var state = GetSession().GameState;
++        if (ModernVersion.Build == ClientVersionBuild.V3_4_3_54261)
++        {
++            // Retain race/class/level and the own-character login prerequisite.
++            // In-world observers need an authoritative refresh even when the
++            // modern client does not issue another query after invalidation.
++            bool known = state.CachedPlayers.TryGetValue(invalidate.Guid, out var cached);
++            bool own = state.OwnCharacters.Any(character => character.CharacterGuid == invalidate.Guid);
++            if (known && !own) cached!.Name = null;
++            if (known && state.IsInWorld)
++            {
++                WorldPacket query = new(Opcode.CMSG_NAME_QUERY);
++                query.WriteGuid(invalidate.Guid.To64());
++                SendPacketToServer(query);
++            }
++        }
++        else
++            state.CachedPlayers.Remove(invalidate.Guid);
+     }
+
+     [PacketHandler(Opcode.SMSG_ZONE_UNDER_ATTACK)]
 diff --git a/HermesProxy/World/Enums/Opcodes.cs b/HermesProxy/World/Enums/Opcodes.cs
 index 20b9604..01e1098 100644
 --- a/HermesProxy/World/Enums/Opcodes.cs
@@ -461,7 +523,7 @@ index f3a2623..a5f531e 100644
 --- a/HermesProxy/World/Enums/V3_4_3_54261/Opcode.cs
 +++ b/HermesProxy/World/Enums/V3_4_3_54261/Opcode.cs
 @@ -2,6 +2,15 @@
- 
+
  public enum Opcode : uint
  {
 +	SMSG_ENUM_VAS_PURCHASE_STATES_RESPONSE = 0x27F5,
@@ -719,7 +781,7 @@ index 39b8718..5bd8ad7 100644
          SendPacketToServer(packet);
 +        RequestAtlasAccountServices();
      }
- 
+
      [PacketHandler(Opcode.CMSG_REORDER_CHARACTERS)]
 diff --git a/HermesProxy/World/Server/Packets/AtlasAccountServicesPackets.cs b/HermesProxy/World/Server/Packets/AtlasAccountServicesPackets.cs
 new file mode 100644
@@ -924,7 +986,7 @@ index f570acf..41e2e17 100644
 --- a/HermesProxy/World/Server/Packets/SystemPackets.cs
 +++ b/HermesProxy/World/Server/Packets/SystemPackets.cs
 @@ -463,7 +463,7 @@ public class FeatureSystemStatusGlueScreen : ServerPacket
- 
+
              _worldPacket.WriteBit(KioskModeEnabled);
              _worldPacket.WriteBit(CompetitiveModeEnabled);
 -            _worldPacket.WriteBit(false); // IsBoostEnabled

@@ -389,8 +389,9 @@ def run(root, restart_world=None):
         f.check(game.assign(failing['sequence'], guid, f.name('Ok'))['error'] == 0,
             'The available service can be retried successfully after the database failure is removed.')
         current = f.character(guid)[0]
-        f.check(game.assign(order['sequence'], guid, renamed)['error'] == 0 and f.character(guid)[0] == current,
-            'Replaying an older consumed receipt cannot overwrite a later legitimate name change.')
+        replay = game.assign(order['sequence'], guid, renamed)
+        f.check(replay['error'] == 0 and replay['name'] == current and f.character(guid)[0] == current,
+            'Replaying an older consumed receipt returns the current identity without overwriting a later legitimate name change.')
 
         refund_races(f, account, game, other, guid, stranger_guid)
         logout_save_race(f, account, game, guid)

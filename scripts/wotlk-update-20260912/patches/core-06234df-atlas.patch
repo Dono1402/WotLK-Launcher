@@ -1,0 +1,359 @@
+diff --git a/src/server/game/Entities/Player/Player.cpp b/src/server/game/Entities/Player/Player.cpp
+index 2f7e4f1f2..6e3f4db67 100644
+--- a/src/server/game/Entities/Player/Player.cpp
++++ b/src/server/game/Entities/Player/Player.cpp
+@@ -13226,7 +13226,7 @@ uint32 Player::GetCorpseReclaimDelay(bool pvp) const
+     if (pvp)
+     {
+         if (!sWorld->getBoolConfig(CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVP))
+-            return copseReclaimDelay[0];
++            return 0;
+     }
+     else if (!sWorld->getBoolConfig(CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVE))
+         return 0;
+diff --git a/src/server/game/Entities/Player/PlayerStorage.cpp b/src/server/game/Entities/Player/PlayerStorage.cpp
+index 79c67926d..f08fe8892 100644
+--- a/src/server/game/Entities/Player/PlayerStorage.cpp
++++ b/src/server/game/Entities/Player/PlayerStorage.cpp
+@@ -16,6 +16,7 @@
+  */
+ 
+ #include "AccountMgr.h"
++#include "atlas_shop_native.h"
+ #include "AchievementMgr.h"
+ #include "ArenaTeam.h"
+ #include "ArenaTeamMgr.h"
+@@ -7252,6 +7253,7 @@ void Player::SaveToDB(CharacterDatabaseTransaction trans, bool create, bool logo
+     if (!create)
+         sScriptMgr->OnPlayerSave(this);
+ 
++    AtlasShop::TrackSave(GetGUID().GetCounter(), trans, create);
+     _SaveCharacter(create, trans);
+ 
+     if (m_mailsUpdated)                                     //save mails only when needed
+@@ -7980,3 +7982,5 @@ void Player::outDebugValues() const
+     LOG_DEBUG("entities.player", "MIN_RANGED_DAMAGE is: \t{}\tMAX_RANGED_DAMAGE is: \t{}", GetFloatValue(UNIT_FIELD_MINRANGEDDAMAGE), GetFloatValue(UNIT_FIELD_MAXRANGEDDAMAGE));
+     LOG_DEBUG("entities.player", "ATTACK_TIME is: \t{}\t\tRANGE_ATTACK_TIME is: \t{}", GetAttackTime(BASE_ATTACK), GetAttackTime(RANGED_ATTACK));
+ }
++
++uint32 AtlasShop::StorageHooksVersion() { return 2; }
+diff --git a/src/server/game/Entities/Player/SocialMgr.cpp b/src/server/game/Entities/Player/SocialMgr.cpp
+index 46fc3a416..38e5c67b8 100644
+--- a/src/server/game/Entities/Player/SocialMgr.cpp
++++ b/src/server/game/Entities/Player/SocialMgr.cpp
+@@ -221,7 +221,7 @@ void SocialMgr::GetFriendInfo(Player* player, ObjectGuid const& friendGUID, Frie
+     friendInfo.Class = 0;
+ 
+     Player* pFriend = ObjectAccessor::FindConnectedPlayer(friendGUID);
+-    if (!pFriend || pFriend->GetSession()->IsGMAccount())
++    if (!pFriend)
+         return;
+ 
+     TeamId teamId = player->GetTeamId();
+diff --git a/src/server/game/Handlers/CharacterHandler.cpp b/src/server/game/Handlers/CharacterHandler.cpp
+index d2457ccda..fe6252d65 100644
+--- a/src/server/game/Handlers/CharacterHandler.cpp
++++ b/src/server/game/Handlers/CharacterHandler.cpp
+@@ -16,6 +16,7 @@
+  */
+ 
+ #include "AccountMgr.h"
++#include "atlas_shop_native.h"
+ #include "AreaDefines.h"
+ #include "RBAC.h"
+ #include "ArenaTeamMgr.h"
+@@ -265,6 +266,7 @@ void WorldSession::HandleCharEnumOpcode(WorldPacket& /*recvData*/)
+ void WorldSession::HandleCharCreateOpcode(WorldPacket& recvData)
+ {
+     std::shared_ptr<CharacterCreateInfo> createInfo = std::make_shared<CharacterCreateInfo>();
++    AtlasShop::TrackNameWork(createInfo);
+ 
+     recvData >> createInfo->Name
+         >> createInfo->Race
+@@ -540,6 +542,12 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recvData)
+                             }
+                         }
+ 
++                        if (!AtlasShop::CharacterWritesAllowed(GetAccountId()))
++                        {
++                            SendCharCreate(CHAR_CREATE_ERROR);
++                            return;
++                        }
++
+                         // Check name uniqueness in the same step as saving to database
+                         if (sCharacterCache->GetCharacterGuidByName(createInfo->Name))
+                         {
+@@ -1365,6 +1373,7 @@ void WorldSession::HandleShowingCloakOpcode(WorldPackets::Character::ShowingCloa
+ void WorldSession::HandleCharRenameOpcode(WorldPacket& recvData)
+ {
+     std::shared_ptr<CharacterRenameInfo> renameInfo = std::make_shared<CharacterRenameInfo>();
++    AtlasShop::TrackNameWork(renameInfo);
+ 
+     recvData >> renameInfo->Guid
+         >> renameInfo->Name;
+@@ -1400,7 +1409,7 @@ void WorldSession::HandleCharRenameOpcode(WorldPacket& recvData)
+ 
+ void WorldSession::HandleCharRenameCallBack(std::shared_ptr<CharacterRenameInfo> renameInfo, PreparedQueryResult result)
+ {
+-    if (!result)
++    if (!result || !AtlasShop::CharacterWritesAllowed(GetAccountId()))
+     {
+         SendCharRename(CHAR_CREATE_ERROR, renameInfo.get());
+         return;
+@@ -1427,21 +1436,26 @@ void WorldSession::HandleCharRenameCallBack(std::shared_ptr<CharacterRenameInfo>
+         return;
+     }
+ 
++    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
++
+     // Update name and at_login flag in the db
+     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_CHAR_NAME_AT_LOGIN);
+     stmt->SetData(0, renameInfo->Name);
+     stmt->SetData(1, atLoginFlags);
+     stmt->SetData(2, guidLow);
+-    CharacterDatabase.Execute(stmt);
++    trans->Append(stmt);
+ 
+     // Removed declined name from db
+     if (sWorld->getBoolConfig(CONFIG_DECLINED_NAMES_USED))
+     {
+         stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_DECLINED_NAME);
+         stmt->SetData(0, guidLow);
+-        CharacterDatabase.Execute(stmt);
++        trans->Append(stmt);
+     }
+ 
++    AtlasShop::TrackSave(guidLow, trans, true);
++    CharacterDatabase.CommitTransaction(trans);
++
+     LOG_INFO("entities.player.character", "Account: {} (IP: {}), Character [{}] (guid: {}) Changed name to: {}", GetAccountId(), GetRemoteAddress(), oldName, guidLow, renameInfo->Name);
+ 
+     SendCharRename(RESPONSE_SUCCESS, renameInfo.get());
+@@ -1644,6 +1658,7 @@ void WorldSession::HandleRemoveGlyph(WorldPacket& recvData)
+ void WorldSession::HandleCharCustomize(WorldPacket& recvData)
+ {
+     std::shared_ptr<CharacterCustomizeInfo> customizeInfo = std::make_shared<CharacterCustomizeInfo>();
++    AtlasShop::TrackNameWork(customizeInfo);
+ 
+     recvData >> customizeInfo->Guid;
+ 
+@@ -1683,7 +1698,7 @@ void WorldSession::HandleCharCustomize(WorldPacket& recvData)
+ 
+ void WorldSession::HandleCharCustomizeCallback(std::shared_ptr<CharacterCustomizeInfo> customizeInfo, PreparedQueryResult result)
+ {
+-    if (!result)
++    if (!result || !AtlasShop::CharacterWritesAllowed(GetAccountId()))
+     {
+         SendCharCustomize(CHAR_CREATE_ERROR, customizeInfo.get());
+         return;
+@@ -1765,6 +1780,7 @@ void WorldSession::HandleCharCustomizeCallback(std::shared_ptr<CharacterCustomiz
+         }
+     }
+ 
++    AtlasShop::TrackSave(lowGuid, trans, true);
+     CharacterDatabase.CommitTransaction(trans);
+ 
+     sCharacterCache->UpdateCharacterData(customizeInfo->Guid, customizeInfo->Name, customizeInfo->Gender);
+@@ -1952,6 +1968,7 @@ void WorldSession::HandleEquipmentSetUse(WorldPacket& recvData)
+ void WorldSession::HandleCharFactionOrRaceChange(WorldPacket& recvData)
+ {
+     std::shared_ptr<CharacterFactionChangeInfo> factionChangeInfo = std::make_shared<CharacterFactionChangeInfo>();
++    AtlasShop::TrackNameWork(factionChangeInfo);
+ 
+     recvData >> factionChangeInfo->Guid;
+ 
+@@ -1991,7 +2008,7 @@ void WorldSession::HandleCharFactionOrRaceChange(WorldPacket& recvData)
+ 
+ void WorldSession::HandleCharFactionOrRaceChangeCallback(std::shared_ptr<CharacterFactionChangeInfo> factionChangeInfo, PreparedQueryResult result)
+ {
+-    if (!result)
++    if (!result || !AtlasShop::CharacterWritesAllowed(GetAccountId()))
+     {
+         SendCharFactionChange(CHAR_CREATE_ERROR, factionChangeInfo.get());
+         return;
+@@ -2598,6 +2615,7 @@ void WorldSession::HandleCharFactionOrRaceChangeCallback(std::shared_ptr<Charact
+     stmt->SetData(1, lowGuid);
+     trans->Append(stmt);
+ 
++    AtlasShop::TrackSave(lowGuid, trans, true);
+     CharacterDatabase.CommitTransaction(trans);
+ 
+     LOG_DEBUG("entities.player", "{} (IP: {}) changed race from {} to {}", GetPlayerInfo(), GetRemoteAddress(), oldRace, factionChangeInfo->Race);
+@@ -2682,3 +2700,5 @@ void WorldSession::SendSetPlayerDeclinedNamesResult(DeclinedNameResult result, O
+     data << guid;
+     SendPacket(&data);
+ }
++
++uint32 AtlasShop::CharacterHooksVersion() { return 2; }
+diff --git a/src/server/game/Server/WorldSession.cpp b/src/server/game/Server/WorldSession.cpp
+index 96705ee6f..dec850fd4 100644
+--- a/src/server/game/Server/WorldSession.cpp
++++ b/src/server/game/Server/WorldSession.cpp
+@@ -22,6 +22,7 @@
+ #include "TC9Sidecar.h"
+ #include "WorldSession.h"
+ #include "AccountMgr.h"
++#include "atlas_shop_native.h"
+ #include "BattlegroundMgr.h"
+ #include "BanMgr.h"
+ #include "CharacterPackets.h"
+@@ -170,6 +171,7 @@ WorldSession::WorldSession(uint32 id, std::string&& name, uint32 accountFlags, s
+ /// WorldSession destructor
+ WorldSession::~WorldSession()
+ {
++    AtlasShop::ForgetSession(this);
+     LoginDatabase.Execute("UPDATE account SET totaltime = {} WHERE id = {}", GetTotalTime(), GetAccountId());
+ 
+     ///- unload player if not unloaded
+@@ -1465,6 +1467,11 @@ Warden* WorldSession::GetWarden()
+ 
+ WorldSession::DosProtection::Policy WorldSession::DosProtection::EvaluateOpcode(WorldPacket const& p, time_t const time) const
+ {
++    // Account-service traffic has its own bounded budget. Ordinary enum packets
++    // retain the existing three-per-second policy from the world database.
++    if (AtlasShop::IsNativePacket(p))
++        return AtlasShop::AllowNativePacket(Session) ? Policy::Process : Policy::DropPacket;
++
+     AntiDosOpcodePolicy const* policy = sWorldGlobals->GetAntiDosPolicyForOpcode(p.GetOpcode());
+     if (!policy)
+         return WorldSession::DosProtection::Policy::Process; // Return true if there is no policy for the opcode
+@@ -1732,3 +1739,5 @@ void WorldSession::InitRBACDataForTest()
+     _RBACData = new rbac::RBACData(_accountId, _accountName, realm.Id.Realm, _security);
+     _RBACData->LoadFromDBCallback(nullptr);
+ }
++
++uint32 AtlasShop::SessionHooksVersion() { return 3; }
+diff --git a/src/test/mocks/WorldMock.h b/src/test/mocks/WorldMock.h
+index 23cc89982..16550a017 100644
+--- a/src/test/mocks/WorldMock.h
++++ b/src/test/mocks/WorldMock.h
+@@ -76,6 +76,9 @@ public:
+     MOCK_METHOD(LocaleConstant, GetAvailableDbcLocale, (LocaleConstant locale), (const));
+     MOCK_METHOD(void, LoadDBVersion, ());
+     MOCK_METHOD(char const *, GetDBVersion, (), (const));
++#ifdef MOD_PLAYERBOTS
++    MOCK_METHOD(char const*, GetPlayerbotsDBRevision, (), (const));
++#endif
+     MOCK_METHOD(void, UpdateAreaDependentAuras, ());
+     MOCK_METHOD(uint32, GetCleaningFlags, (), (const));
+     MOCK_METHOD(void, SetCleaningFlags, (uint32 flags), ());
+@@ -84,6 +87,7 @@ public:
+     MOCK_METHOD(time_t, GetNextTimeWithMonthAndHour, (int8 month, int8 hour), ());
+     MOCK_METHOD(std::string const&, GetRealmName, (), (const));
+     MOCK_METHOD(void, SetRealmName, (std::string name), ());
++    MOCK_METHOD(SQLQueryHolderCallback&, AddQueryHolderCallback, (SQLQueryHolderCallback&& callback), ());
+     MOCK_METHOD(void, RemoveOldCorpses, ());
+     MOCK_METHOD(void, ReloadRBAC, ());
+ };
+diff --git a/src/test/server/game/Entities/CorpseReclaimDelayTest.cpp b/src/test/server/game/Entities/CorpseReclaimDelayTest.cpp
+new file mode 100644
+index 000000000..7d0f4ffcc
+--- /dev/null
++++ b/src/test/server/game/Entities/CorpseReclaimDelayTest.cpp
+@@ -0,0 +1,106 @@
++/*
++ * This file is part of the AzerothCore Project. See AUTHORS file for Copyright information
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License along
++ * with this program. If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include "TestMap.h"
++#include "TestPlayer.h"
++#include "WorldMock.h"
++#include "WorldSession.h"
++#include "gmock/gmock.h"
++#include "gtest/gtest.h"
++#include <string>
++
++using namespace testing;
++
++namespace
++{
++class CorpseReclaimDelayTest : public ::testing::Test
++{
++protected:
++    void SetUp() override
++    {
++        TestMap::EnsureDBC();
++
++        originalWorld = sWorld.release();
++        worldMock = new NiceMock<WorldMock>();
++        sWorld.reset(worldMock);
++
++        static std::string emptyString;
++        ON_CALL(*worldMock, GetDataPath()).WillByDefault(ReturnRef(emptyString));
++        ON_CALL(*worldMock, GetRealmName()).WillByDefault(ReturnRef(emptyString));
++        ON_CALL(*worldMock, GetDefaultDbcLocale()).WillByDefault(Return(LOCALE_enUS));
++        ON_CALL(*worldMock, getRate(_)).WillByDefault(Return(1.0f));
++        ON_CALL(*worldMock, getBoolConfig(_)).WillByDefault(Return(false));
++        ON_CALL(*worldMock, getIntConfig(_)).WillByDefault(Return(0));
++        ON_CALL(*worldMock, getFloatConfig(_)).WillByDefault(Return(0.0f));
++        ON_CALL(*worldMock, GetPlayerSecurityLimit()).WillByDefault(Return(SEC_PLAYER));
++
++        session = new WorldSession(1, "corpse-delay-test", 0, nullptr, SEC_PLAYER,
++            EXPANSION_WRATH_OF_THE_LICH_KING, 0, LOCALE_enUS, 0, false, false, 0);
++        session->InitRBACDataForTest();
++
++        player = new TestPlayer(session);
++        player->ForceInitValues();
++        session->SetPlayer(player);
++        player->SetSession(session);
++    }
++
++    void TearDown() override
++    {
++        // Intentional leaks of session/player to avoid database access in destructors.
++        IWorld* currentWorld = sWorld.release();
++        delete currentWorld;
++        worldMock = nullptr;
++
++        sWorld.reset(originalWorld);
++        originalWorld = nullptr;
++        session = nullptr;
++        player = nullptr;
++    }
++
++    IWorld* originalWorld = nullptr;
++    NiceMock<WorldMock>* worldMock = nullptr;
++    WorldSession* session = nullptr;
++    TestPlayer* player = nullptr;
++};
++
++// cppcheck-suppress syntaxError
++TEST_F(CorpseReclaimDelayTest, DisabledPvPDelayHasNoThirtySecondMinimum)
++{
++    ON_CALL(*worldMock, getBoolConfig(CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVP))
++        .WillByDefault(Return(false));
++
++    EXPECT_EQ(player->GetCorpseReclaimDelay(true), 0u);
++}
++
++// cppcheck-suppress syntaxError
++TEST_F(CorpseReclaimDelayTest, DisabledPvEDelayIsZero)
++{
++    ON_CALL(*worldMock, getBoolConfig(CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVE))
++        .WillByDefault(Return(false));
++
++    EXPECT_EQ(player->GetCorpseReclaimDelay(false), 0u);
++}
++
++// cppcheck-suppress syntaxError
++TEST_F(CorpseReclaimDelayTest, EnabledPvPDelayKeepsStandardInitialValue)
++{
++    ON_CALL(*worldMock, getBoolConfig(CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVP))
++        .WillByDefault(Return(true));
++
++    EXPECT_EQ(player->GetCorpseReclaimDelay(true), 30u);
++}
++}

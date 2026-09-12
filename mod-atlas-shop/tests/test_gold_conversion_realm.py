@@ -18,7 +18,8 @@ def pause_world(f):
     pid = int((f.root / 'world.pid').read_text())
     executable = Path('/proc/' + str(pid) + '/exe').resolve(strict=True)
     candidates = [Path('/opt/arthas-next/candidates') / name for name in
-                  ('atlas-shop-rename-gold-20260912', 'atlas-shop-rename-identity-20260912')]
+                  ('atlas-shop-rename-gold-20260912', 'atlas-shop-rename-identity-20260912',
+                   'atlas-all-update-20260912')]
     private_candidate = any(executable == candidate / 'build/worldserver'
                             and (candidate / 'server/etc').resolve() == f.root / 'etc' for candidate in candidates)
     if os.readlink('/proc/' + str(pid) + '/ns/net') != os.readlink('/proc/self/ns/net'):

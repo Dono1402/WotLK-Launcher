@@ -1,0 +1,590 @@
+{
+  "checkedAt": "2026-09-12T23:24:24.444074+00:00",
+  "status": "prepared-partially-validated-not-deployed",
+  "productionActivationPerformed": false,
+  "candidateBuild": {
+    "releaseCandidate": true,
+    "validationState": "partial: shop/identity passed; all-module startup exceeded fixture memory limit; five navigation probe failures",
+    "worldserverSha256": "0d88bf22b9924b8401a9805ee250f2e734c248ade4b1cbc1b015c5122745045a",
+    "authserverSha256": "33a1fcec79363ee25d3bab4fafd37992eab7d1dd643a23970da6a75e1cc24ef2",
+    "configurationDirectory": "/opt/arthas-next/candidates/atlas-all-update-20260912/server/etc",
+    "coreDirectory": "/opt/arthas-next/candidates/atlas-all-update-20260912/core",
+    "configurationMode": "isolated fixture symlink",
+    "components": {
+      "core": "e9d127f1a8bf285ce2b2e3df7e923225eb334d72",
+      "playerbots": "fe355fa88e3295729d4886dbb4078c4dd7547aa8",
+      "dungeon-clear": "98929d6d261e615aa410f8e2d08ca83710fd2cad"
+    },
+    "nativeCoreOverlay": [
+      {
+        "relative": "Entities/Player/PlayerStorage.cpp",
+        "originalSha256": "bcd368071217a82e7a6af8ac001337fac0092beff22f6e143d3ece40ad379606",
+        "overlaySha256": "d409573278dbd02cdb4c61014aee71d3a6a41a890a81199da1620f6b73407cbf"
+      },
+      {
+        "relative": "Handlers/CharacterHandler.cpp",
+        "originalSha256": "b1c36c230c457aa8bc139209103c8e9d2c59169cc2a550e71eee162356a963e0",
+        "overlaySha256": "d7360cf303e30bdbf88d6896aaba44a8880495cbb6bbca537e4a03823bc81b37"
+      },
+      {
+        "relative": "Server/WorldSession.cpp",
+        "originalSha256": "341ad4bec11dd5064882f07a9e5946ab41d2f9f4e3b20eda001f8a655471525c",
+        "overlaySha256": "6d0b303c7388db8c1da86d01157534261e08f3b07f976c6f46608533821c34b5"
+      }
+    ],
+    "productionActivationPerformed": false
+  },
+  "sourceReproduction": {
+    "core": {
+      "upstream": "06234df3d5ab26c93f4f1f06f3edb828b73ecd3c",
+      "tree": "130e2b1c10629c86a655214462f9bfdb17943438",
+      "patchSha256": "7b760716d32eb852b376cdf0a35643fede386e9bbcb0c8e464136fe668961e14",
+      "reproduced": true
+    },
+    "playerbots": {
+      "upstream": "b6696bdbd3740e575598d167d69f39f68cc0b907",
+      "tree": "ba9ac55c29af6045295af5f973abd770e6f2fbf6",
+      "patchSha256": "3c3eaaaf6f6dd78359e47bf1c90d469fa4d4ad743102634bfa3415be9683e2c8",
+      "reproduced": true
+    }
+  },
+  "hermes": {
+    "upstream": "bcacff9505a3da2f12c18a896461f5e901f7d367",
+    "candidateSourceCommit": "d4fe01a390fbda937b2b6643fbe29446ca2d5ffe",
+    "patchSha256": "875ca69bbe974032a4761938a20e68b117a901b22ac00d66b74fb328bc90369d",
+    "executableSha256": "15c30b8d0f52f614b9467e302a76f7b6c03144d334de78b2674b9860d8c01cfd",
+    "packageFileCount": 117,
+    "sourceReproduction": {
+      "upstream": "bcacff9505a3da2f12c18a896461f5e901f7d367",
+      "tree": "278236239d48e437d91ab83a6dfc083bfe2b05c6",
+      "patchSha256": "875ca69bbe974032a4761938a20e68b117a901b22ac00d66b74fb328bc90369d",
+      "reproduced": true
+    },
+    "testCounters": {
+      "total": 1958,
+      "executed": 1954,
+      "passed": 1954,
+      "failed": 0,
+      "error": 0,
+      "timeout": 0,
+      "aborted": 0,
+      "inconclusive": 0,
+      "passedButRunAborted": 0,
+      "notRunnable": 0,
+      "notExecuted": 4,
+      "disconnected": 0,
+      "warning": 0,
+      "completed": 0,
+      "inProgress": 0,
+      "pending": 0
+    },
+    "native-vas": {
+      "clientBuild": "3.4.3.54261",
+      "clientExecutableSha256": "e240f9d88445643d2545ac54b3c3874b2f86336bc8947256584ef07bb5fd66a7",
+      "snapshotSectionSha256": {
+        ".text": "4c51e95f74d5e750224c7107efaa71b560aa4fee03448f75c75ae0cfa2fc7597",
+        ".rdata": "a05e4ba3fe71dfb563ca9b52a8fa46d9f8386162b09f90e7f3741a7013c87f74",
+        ".data": "98270bbf19003776d780874fcdf5aaa268e0484d5407adbde8d41ef221c3be50",
+        ".pdata": "dbfd5f36ee6895a49ce5628ee75723f8787b0badb18f37efb36e31c44321439d",
+        "_RDATA": "d1f6246c35a11e2c10caf87fa93ef2b4b017c59ed837da6f7460b6a0585377c5",
+        ".rsrc": "86a79860c93cf2eb3412c1abcd9cde4bab1cf00b22c73e3991b4980bb6cbf8ae",
+        ".reloc": "7752aef7d45a75ab333d9c6633924eddebf530e458e690859a86172df7ab8387"
+      },
+      "packetFixtureSha256": "39e0ba1f6f20105a4e77f6f1797529e1da50b5a45183516ec6ccee61e733a708",
+      "method": "Actual client request conversion, response parsers, VAS classification and store-cache getters emulated on emitted Hermes packets; allocation/memory helpers, transport submission and event dispatch are replaced by host stubs.",
+      "nameChangeCharacterRequestHex": "0100000007000000",
+      "checks": [
+        "client-name-change-request-wire-type-7",
+        "distributions-0",
+        "distributions-1",
+        "distributions-2",
+        "distributions-100",
+        "consumed",
+        "revoked",
+        "products",
+        "purchases",
+        "states",
+        "glue-disabled",
+        "glue-enabled",
+        "assign-success",
+        "assign-rejected",
+        "store-cache-and-character-selector-getters",
+        "characters"
+      ],
+      "limitations": "No game UI, network session, or server consumption is validated by this protocol test."
+    },
+    "native-identity": {
+      "passed": true,
+      "clientBuild": "3.4.3.54261",
+      "clientExecutableSha256": "e240f9d88445643d2545ac54b3c3874b2f86336bc8947256584ef07bb5fd66a7",
+      "snapshotSectionSha256": {
+        ".text": "4c51e95f74d5e750224c7107efaa71b560aa4fee03448f75c75ae0cfa2fc7597",
+        ".rdata": "a05e4ba3fe71dfb563ca9b52a8fa46d9f8386162b09f90e7f3741a7013c87f74",
+        ".data": "98270bbf19003776d780874fcdf5aaa268e0484d5407adbde8d41ef221c3be50",
+        ".pdata": "dbfd5f36ee6895a49ce5628ee75723f8787b0badb18f37efb36e31c44321439d",
+        "_RDATA": "d1f6246c35a11e2c10caf87fa93ef2b4b017c59ed837da6f7460b6a0585377c5",
+        ".rsrc": "86a79860c93cf2eb3412c1abcd9cde4bab1cf00b22c73e3991b4980bb6cbf8ae",
+        ".reloc": "7752aef7d45a75ab333d9c6633924eddebf530e458e690859a86172df7ab8387"
+      },
+      "packetFixtureSha256": "250478d32cdfd8edf64aa74cacfe69e9e20bbff1d49b63a022e340b948323429",
+      "method": "Actual opcode dispatchers, packet constructors, realm/name caches, invalidation, pending-name callbacks and CGUnit name getter emulated on emitted Hermes packets.",
+      "checks": [
+        "native-authentication-parser-and-realm-cache",
+        "native-dispatch-cache-and-unit-getter-0",
+        "invalidation-clears-prior-native-name-1",
+        "native-dispatch-cache-and-unit-getter-1",
+        "native-pending-unit-callback-notified-1",
+        "invalidation-clears-prior-native-name-2",
+        "native-dispatch-cache-and-unit-getter-2",
+        "native-pending-unit-callback-notified-2",
+        "invalidation-clears-prior-native-name-3",
+        "native-dispatch-cache-and-unit-getter-3",
+        "native-pending-unit-callback-notified-3"
+      ],
+      "nativeNameReadyCallbacks": 3,
+      "limitations": "OS allocation, clock, transport, localization and graphics notification boundaries are stubbed. This test does not reproduce a full loading screen or prove visible in-game rendering."
+    }
+  },
+  "productionPreservation": {
+    "checkedAt": "2026-09-12T23:22:01.162274+00:00",
+    "failures": [],
+    "services": {
+      "arthas-worldserver.dungeon-clear-8224099": {
+        "unchanged": true,
+        "pid": 2878870
+      },
+      "hermesproxy-wotlk": {
+        "unchanged": true,
+        "pid": 2897226
+      },
+      "arthas-authserver": {
+        "unchanged": true,
+        "pid": 323656
+      },
+      "wotlk-launcher-api": {
+        "unchanged": true,
+        "pid": 2830654
+      }
+    },
+    "configurations": {
+      "modules/mod_achievements.conf": true,
+      "modules/mod_ahbot.conf": true,
+      "modules/mod_atlas_armory.conf": true,
+      "modules/mod_atlas_friends.conf": true,
+      "modules/mod_atlas_shop.conf": true,
+      "modules/mod_dungeon_clear.conf": true,
+      "modules/playerbots.conf": true,
+      "modules/transmog.conf": true,
+      "worldserver.conf": true
+    },
+    "modules": {
+      "mod-ah-bot": {
+        "comparedFiles": 28
+      },
+      "mod-transmog": {
+        "comparedFiles": 29
+      },
+      "mod-account-achievements": {
+        "comparedFiles": 9
+      },
+      "mod-atlas-armory": {
+        "comparedFiles": 7
+      },
+      "mod-atlas-friends": {
+        "comparedFiles": 5
+      },
+      "mod-atlas-chat": {
+        "comparedFiles": 3
+      },
+      "mod-atlas-shop": {
+        "comparedFiles": 28
+      }
+    },
+    "sources": {
+      "core": true,
+      "playerbots": true
+    },
+    "preservedServiceFileCount": 23,
+    "passed": true
+  },
+  "databaseMigrations": {
+    "database": "shop_test_world",
+    "networkMode": "none",
+    "backupBytes": 308056537,
+    "applied": [
+      {
+        "name": "2026_08_28_02.sql",
+        "sha256": "566e98906917cc9299ba4f1875c899394f0f0aa5ad0ef3d7e67360b358230a5c",
+        "elapsedMs": 15
+      },
+      {
+        "name": "2026_08_30_00.sql",
+        "sha256": "7d2e22bc3a92902716b05cb60d9e411a8d36877b3008ecd9a2eca0a02e2a42f2",
+        "elapsedMs": 16
+      },
+      {
+        "name": "2026_08_30_01.sql",
+        "sha256": "abca2b12ed27b66190c2262e95be56795f71344e05c20625aaac96b655081e87",
+        "elapsedMs": 32
+      },
+      {
+        "name": "2026_08_30_02.sql",
+        "sha256": "7748cafa63b5d9ff2eb0d57eb4b5c5283fb71d8febd99bc11ab916cd518f0431",
+        "elapsedMs": 64
+      },
+      {
+        "name": "2026_08_30_03.sql",
+        "sha256": "61d20e7bdcfe155b4056ff378d8865a8f790367161e661047d9e8e32995569d2",
+        "elapsedMs": 32
+      },
+      {
+        "name": "2026_08_30_04.sql",
+        "sha256": "dba1d613e3da52d7e52e208001f2d03963aedd24a55d019887621bfa9552e3b9",
+        "elapsedMs": 15
+      },
+      {
+        "name": "2026_08_30_05.sql",
+        "sha256": "9baf97b0ee298850e9e399218d2a61eb4b67eed68c1a4af7902199bef4b482a8",
+        "elapsedMs": 214
+      },
+      {
+        "name": "2026_08_31_00.sql",
+        "sha256": "5165c653e2fb1503c1dff48f709dc739aee05b7f8f86d1d032f0f642d64f88ed",
+        "elapsedMs": 15
+      },
+      {
+        "name": "2026_08_31_01.sql",
+        "sha256": "ca278fef24f29b7da58b7f330b22f4590021c38d0c037925f2e3d1710c66efa3",
+        "elapsedMs": 16
+      },
+      {
+        "name": "2026_08_31_02.sql",
+        "sha256": "e5762852560426a5c7f9ddcdb821c16700cd60daa9541b841123074b92ff0e36",
+        "elapsedMs": 32
+      },
+      {
+        "name": "2026_08_31_03.sql",
+        "sha256": "602e530b473e7ab12723c917c031da81b9df96abeda1b853dac4f1c0deaf39e0",
+        "elapsedMs": 16
+      },
+      {
+        "name": "2026_08_31_04.sql",
+        "sha256": "0ed40ec052c332b9220230ea0503c5fbcc87de2126f851b0cf0d68bd203e3542",
+        "elapsedMs": 15
+      },
+      {
+        "name": "2026_08_31_05.sql",
+        "sha256": "d0fe9f5314b616a3423faf19ca01cc03cc867fcbebf59331401a66164e30acf9",
+        "elapsedMs": 15
+      },
+      {
+        "name": "2026_08_31_06.sql",
+        "sha256": "b1f661524fffa3d07318698c0b7140e1126a03c4fd95ac9d9d9bd80915cfe1f6",
+        "elapsedMs": 15
+      },
+      {
+        "name": "2026_08_31_07.sql",
+        "sha256": "a8cec219c7ee41ddf9ca6dc5c0182fc8727cffed60f86ee3d0f19089bb078ef4",
+        "elapsedMs": 114
+      },
+      {
+        "name": "2026_09_01_00.sql",
+        "sha256": "43fb93e15f8cbc421ad1e6e371b11f908cb3061940eabc9be49234493671a909",
+        "elapsedMs": 15
+      },
+      {
+        "name": "2026_09_02_00.sql",
+        "sha256": "5f165eab0feaec8418c146075e5671f248fa0fcb3d2756c8821d7b5ce9647140",
+        "elapsedMs": 32
+      },
+      {
+        "name": "2026_09_03_00.sql",
+        "sha256": "d1e6b3a1b3370a96329b07e3c04315c3bd2aa85ec39059a36e9f95596c07088e",
+        "elapsedMs": 15
+      },
+      {
+        "name": "2026_09_03_01.sql",
+        "sha256": "8da27517b85e5e9a845390a98823ab01a5f55c26967a3db4bfe5d0365b248ad6",
+        "elapsedMs": 32
+      },
+      {
+        "name": "2026_09_03_02.sql",
+        "sha256": "d08dcbf80243f3b13289d28fe1406688703d0d0c5cbd933f2db602a71a1bb43e",
+        "elapsedMs": 16
+      },
+      {
+        "name": "2026_09_03_03.sql",
+        "sha256": "0c9f606d451a7f3fe4b07595271a61a4d5aac16777af0ff583e19409e5cb010f",
+        "elapsedMs": 31
+      },
+      {
+        "name": "2026_09_03_04.sql",
+        "sha256": "3f7479315818df95c601dbacb3dda992dd3e4aedf518ef78b1af08b38870d212",
+        "elapsedMs": 15
+      },
+      {
+        "name": "2026_09_03_05.sql",
+        "sha256": "6ba8670675efab249f541918bcbf557872ad9a64426bbd141a79e8dde7b70b09",
+        "elapsedMs": 32
+      },
+      {
+        "name": "2026_09_03_06.sql",
+        "sha256": "e7e9bd9bdbe52ab625f6a6517af753a03f9290c6c34eb9dd2bed4e5492f0daba",
+        "elapsedMs": 16
+      },
+      {
+        "name": "2026_09_03_07.sql",
+        "sha256": "943593605e8798101619a6541b28d950ef20a71b29dc4b1b90579d57d4737277",
+        "elapsedMs": 16
+      },
+      {
+        "name": "2026_09_04_00.sql",
+        "sha256": "c3007b6548951ffa0911792832a08704b173cf9b8023ce57049e95c567574601",
+        "elapsedMs": 16
+      },
+      {
+        "name": "2026_09_04_01.sql",
+        "sha256": "66f537513fd424f1dd1f1b9fa2e9584a8c45b9952f28ca480eb86be3b5cb4049",
+        "elapsedMs": 16
+      },
+      {
+        "name": "2026_09_04_02.sql",
+        "sha256": "4ae5036e9ce6b1949637151ff2475ad9d29c383b1ec57f00574b00fdea659c52",
+        "elapsedMs": 16
+      }
+    ],
+    "productionWritePerformed": false,
+    "customStringAndItemTablesUnchanged": true,
+    "verifiedBuildColumn": "int\tYES",
+    "passed": true
+  },
+  "build": {
+    "passed": true,
+    "unit": "atlas-all-update-build-final-20260912.service",
+    "journalMessageId": "7ad2d189f7e94e70a38c781354912448",
+    "completedAtUnixMicros": 1789252826918310,
+    "builtTargetBytes": {
+      "src/server/apps/worldserver": 2492067848,
+      "src/server/apps/authserver": 38710616,
+      "src/test/unit_tests": 673808856,
+      "dungeon_clear_tests": 1585087584
+    }
+  },
+  "cppSuites": {
+    "core": {
+      "suite": "core",
+      "exit": 0,
+      "elapsedSeconds": 1.12,
+      "totalTests": 11403,
+      "failedTests": [],
+      "passedTests": 5916,
+      "skippedTestCount": 5487
+    },
+    "dungeon-clear": {
+      "suite": "dungeon-clear",
+      "exit": 1,
+      "elapsedSeconds": 16.85,
+      "totalTests": 1600,
+      "failedTests": [
+        "UtgardePinnacleRouteProbe.EveryLegRoutesEndToEndWithNoLedge",
+        "PitOfSaronRouteProbe.TheArmStagingPointIsClearOfGateOne",
+        "CullingOfStratholmeRouteProbe.TheApproachAndTheCrateRoadRoute",
+        "CullingOfStratholmeRouteProbe.TheTownHallAndMarketLegsRoute",
+        "CullingOfStratholmeRouteProbe.TheCorruptorIsOnlyNearArthasPreMalganisStop"
+      ],
+      "passedTests": 1595,
+      "skippedTestCount": 0
+    }
+  },
+  "realmPhases": {
+    "gold": {
+      "phase": "gold",
+      "exit": 0,
+      "elapsedSeconds": 72.01,
+      "reportPassed": true,
+      "currentReportPresent": true,
+      "hermesPackageFilesVerified": 117,
+      "checkCount": 30,
+      "checks": [
+        "The core creates the synthetic source character through ordinary character creation.",
+        "A live core heartbeat opens gold conversion; the starting credit wallet is empty.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "Six concurrent POST retries convert 2000 gold exactly once, preserving all silver/copper and the euro wallet.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "A conversion receipt is inaccessible from another account.",
+        "The snapshot and history expose the same committed gold debit and credit receipt.",
+        "The rename service is funded entirely by converted gold and remains unassigned until selection in game.",
+        "Real SSO and encrypted 3.4.3 Hermes packets expose the service and its character selector.",
+        "Native Unicode name validation leaves the paid service available until confirmation.",
+        "Native name confirmation consumes the service without charging credits or gold a second time.",
+        "A fresh SSO/Hermes connection retains the new name, consumed service and exact remaining balances.",
+        "The core rechecks actual money after API enqueue and rejects a stale gold quote without granting credits.",
+        "An expired durable request releases its pending slot without changing either balance.",
+        "A failure writing the final receipt rolls back the real character debit and wallet credit together.",
+        "The durable request succeeds once after the SQL failure is removed, on the normal realm retry.",
+        "While conversion holds the core write guard, a competing native login cannot load the old money.",
+        "Releasing the controlled SQL lock commits the guarded conversion once.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "A full native login, logout and character save preserve the converted gold balance.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "Gold conversion preserves refund headroom; an unused service can refund exactly at the wallet ceiling.",
+        "The core independently rechecks the credit ceiling after enqueue, under the wallet lock.",
+        "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+        "After a real world process restart, conversion history and the same idempotency key remain recoverable.",
+        "Every test request has a durable terminal outcome with no stranded debit."
+      ],
+      "otherModulesEnabled": false
+    },
+    "identity": {
+      "phase": "identity",
+      "exit": 0,
+      "elapsedSeconds": 79.07,
+      "reportPassed": true,
+      "currentReportPresent": true,
+      "hermesPackageFilesVerified": 117,
+      "checkCount": 20,
+      "checks": [
+        "World-entry repair waits while the client is still loading; no premature identity invalidation is emitted.",
+        "After loading finishes, the server invalidates the name and delivers the authoritative identity in that order.",
+        "Repeated loading-hidden notifications do not invalidate the identity again.",
+        "World-entry repair waits while the client is still loading; no premature identity invalidation is emitted.",
+        "After loading finishes, the server invalidates the name and delivers the authoritative identity in that order.",
+        "Repeated loading-hidden notifications do not invalidate the identity again.",
+        "Owner and connected observer resolve the original name from actual core queries before rename.",
+        "The owner returns to character selection with the old in-game name still cached.",
+        "Rejected names and validation alone preserve the character, service and client name caches.",
+        "Committed rename invalidates the owner and refreshes the online observer without another purchase or reconnect.",
+        "World-entry repair waits while the client is still loading; no premature identity invalidation is emitted.",
+        "After loading finishes, the server invalidates the name and delivers the authoritative identity in that order.",
+        "Repeated loading-hidden notifications do not invalidate the identity again.",
+        "Re-entry sends the current Unicode identity without a client query and preserves own-character account and level metadata.",
+        "A real whisper reaches the renamed character by its new name; the old name is no longer a valid online target.",
+        "Replaying an older receipt after a second rename cannot restore the older name in the core or proxy selector.",
+        "World-entry repair waits while the client is still loading; no premature identity invalidation is emitted.",
+        "After loading finishes, the server invalidates the name and delivers the authoritative identity in that order.",
+        "Repeated loading-hidden notifications do not invalidate the identity again.",
+        "A stale persisted client cache is repaired at login without rebuying or reapplying an already consumed service."
+      ],
+      "otherModulesEnabled": false
+    },
+    "services": {
+      "phase": "services",
+      "exit": 0,
+      "elapsedSeconds": 57.68,
+      "reportPassed": true,
+      "currentReportPresent": true,
+      "hermesPackageFilesVerified": 117,
+      "checkCount": 20,
+      "checks": [
+        "The actual core creates the disposable beneficiary through ordinary character creation.",
+        "Launcher SSO and the encrypted 3.4.3 Hermes connection expose the real unassigned account service.",
+        "Hermes updates the native service feature gate after the real core handshake succeeds.",
+        "The native product-list request returns a valid empty Blizzard store.",
+        "The native purchase-list request returns the verified empty store envelope.",
+        "The native VAS-state request returns the verified state envelope.",
+        "The Lua enum value is rejected as an unsupported wire service without consuming the account service.",
+        "The captured client wire service type 7 returns the account character and a nonempty matching realm name.",
+        "A native 3.4.3 name rejection leaves the paid service available.",
+        "The real native validation round trip accepts Unicode without consuming or renaming.",
+        "The native confirmation round trip commits the Unicode name and receipt without a second debit.",
+        "Hermes sends the consumed distribution update that removes the native account-service button.",
+        "Fresh 3.4.3 character enumeration shows the new name with no forced-rename entitlement.",
+        "A repeated native confirmation returns the same receipt without another debit.",
+        "An API cancellation produces a native revocation update and refunds the currency exactly once.",
+        "An account service can be purchased during actual Hermes gameplay; consumption requires character selection.",
+        "The actual player logs out through both Hermes sockets while the account connection stays open.",
+        "The player consumes the account service immediately after real logout, without closing the account or BNet session.",
+        "A real realm-socket drop and SSO reconnection preserve the available native service and allow its consumption.",
+        "All completed native purchases preserve independent balances and debit each service exactly once."
+      ],
+      "otherModulesEnabled": false
+    },
+    "native": {
+      "phase": "native",
+      "exit": 0,
+      "elapsedSeconds": 93.2,
+      "reportPassed": true,
+      "currentReportPresent": true,
+      "hermesPackageFilesVerified": 0,
+      "checkCount": 36,
+      "checks": [
+        "The real account consumer opens four asynchronous character database connections and one synchronous connection.",
+        "The real core advertises protocol 2 after schema and transaction-grant checks.",
+        "The real API sells an unassigned account service before any character exists.",
+        "Authenticated native subscriptions expose only the current account services.",
+        "Three synthetic characters are created by the real ordinary core handlers.",
+        "The core rejects an invalid name without consuming the account service.",
+        "The core rejects an occupied name without consuming the account service.",
+        "The core rejects an character below level 10 without consuming the account service.",
+        "The core rejects an foreign character without consuming the account service.",
+        "A different authenticated account cannot consume the order by guessing its distribution ID.",
+        "An already-pending appearance service prevents a conflicting native rename.",
+        "Native validation succeeds without changing the character or consuming the jeton.",
+        "Native confirmation atomically renames the character and consumes the paid account service.",
+        "Consumption neither charges the wallet again nor changes unrelated at-login flags.",
+        "The real API exposes the committed old-to-new name receipt.",
+        "A fresh ordinary character enumeration immediately observes the core cache update.",
+        "A repeated confirmation returns its durable receipt without another debit.",
+        "A consumed distribution cannot be replayed with a different requested name.",
+        "The API refuses to refund an already-consumed native service.",
+        "A cancelled credit service cannot rename a character and is refunded exactly once.",
+        "A database failure rolls back both the actual character rename and its receipt.",
+        "The available service can be retried successfully after the database failure is removed.",
+        "Replaying an older consumed receipt returns the current identity without overwriting a later legitimate name change.",
+        "A competing character creation is temporarily rejected while the native name commit is guarded.",
+        "The guarded account cannot load its character before the native transaction completes.",
+        "A different account can enter the actual world while the rename transaction waits on SQL.",
+        "When consumption obtains the wallet lock first, it wins once and the concurrent API refund is rejected.",
+        "When the API refund obtains the wallet lock first, the native confirmation preserves the old name and cannot consume the refunded service.",
+        "An account can buy a service while playing, but the core refuses to consume it in world.",
+        "The core accepts a real logout while the character row is locked by the fixture.",
+        "Native consumption waits for the real queued logout save before acquiring the name guard.",
+        "Another account can create a character while a previous logout save is still blocked on SQL.",
+        "Releasing the real logout save permits one Unicode rename without a later stale-name overwrite.",
+        "The normal enumeration exposes the committed Unicode name after the save barrier.",
+        "A subsequent actual player login, logout and save preserve the new Unicode name.",
+        "Available services and idempotent consumed receipts survive a real world restart and reconnection."
+      ],
+      "otherModulesEnabled": false
+    }
+  },
+  "lint": {
+    "cpp": {
+      "exit": 1,
+      "scope": "all core src files"
+    },
+    "sql": {
+      "exit": 0,
+      "scope": "all 28 frozen incoming db_world migration files; exact upstream check functions; no network fetch, no modified base/archive files"
+    }
+  },
+  "notExecuted": [
+    "upstream Go protocol suites",
+    "Atlas social end-to-end",
+    "guild reservation runtime",
+    "Dungeon Clear autonomous run"
+  ],
+  "graphicalClientTested": false,
+  "allModules": {
+    "ready": false,
+    "result": "fixture-cgroup-oom-kill",
+    "memoryMaxBytes": 5368709120,
+    "referenceTablesSeeded": 16,
+    "referenceSeedPassed": true,
+    "phase": {
+      "phase": "modules",
+      "exit": 1,
+      "elapsedSeconds": 116.46,
+      "reportPassed": null,
+      "currentReportPresent": false,
+      "hermesPackageFilesVerified": 117
+    },
+    "databaseStopped": true,
+    "remainingFixtureProcesses": [],
+    "comparisonAgainstPreviousRuntimePerformed": false
+  }
+}

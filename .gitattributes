@@ -5,6 +5,10 @@
 # Unified patches prefix context with a space, including before source tabs.
 # Preserve these markers: the patches are verified by applying to their base.
 mod-atlas-chat/hermes/*.patch text eol=lf whitespace=-blank-at-eol,-space-before-tab
+mod-atlas-shop/patches/*.patch text eol=lf whitespace=-blank-at-eol,-space-before-tab
+# This complete diff retains CRLF bytes from a preserved source file.
+# Keep its bytes exact so applying it reproduces the verified Git tree.
+mod-atlas-shop/patches/hermes-bcacff9-atlas.patch -text whitespace=cr-at-eol,-blank-at-eol,-space-before-tab
 
 # Migration manifests hash these bytes; keep the same LF form on every platform.
 source/WotLK.Launcher.Server/Database/Migrations/*.sql text eol=lf
@@ -12,6 +16,10 @@ source/WotLK.Launcher.Server/Database/Migrations/*.sql text eol=lf
 # Historical deployment recipes and sanitized proofs carry exact file hashes.
 scripts/wotlk-update-20260909/** text eol=lf
 docs/update-preparation/2026-09-09/*.json text eol=lf
+docs/update-preparation/2026-09-12/*.json text eol=lf
+scripts/wotlk-update-20260912/** text eol=lf
+scripts/wotlk-update-20260912/patches/*.patch whitespace=-blank-at-eol,-space-before-tab
+mod-atlas-shop/mod-atlas-shop.cmake text eol=lf
 
 # Published metadata and checksums must retain their exact bytes on Windows.
 releases/**/*.md text eol=lf

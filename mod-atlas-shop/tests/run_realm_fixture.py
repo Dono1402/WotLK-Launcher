@@ -45,13 +45,17 @@ def main():
     parser.add_argument('--root', required=True)
     parser.add_argument('--hold', action='store_true', help='Keep the fixture available for bounded diagnostic tests.')
     parser.add_argument('--with-hermes', action='store_true', help='Run the isolated Hermes/3.4.3 suite, or add Hermes to --hold.')
-    parser.add_argument('--hermes-package', choices=('hermes', 'hermes-disconnect', 'hermes-native'), default='hermes')
+    parser.add_argument('--hermes-package', choices=('hermes', 'hermes-disconnect', 'hermes-native', 'hermes-all-update'), default='hermes')
     parser.add_argument('--api-package', choices=('api-linux', 'api-candidate', 'api-account-services', 'api-gold'), default='api-linux')
     parser.add_argument('--gold-conversion', action='store_true', help='Exercise gold conversion and the full native rename chain.')
     parser.add_argument('--rename-identity', action='store_true', help='Verify cached player names across rename, gameplay and observer sessions.')
     parser.add_argument('--account-services', action='store_true', help='Test the real native account consumer with four character database workers.')
     parser.add_argument('--world-candidate', type=Path,
                         help='Test an inactive release candidate whose compiled config directory points to this fixture.')
+    parser.add_argument('--all-modules', action='store_true',
+                        help='Enable the nine Atlas modules with a small synthetic bot pool in a held combined candidate.')
+    parser.add_argument('--reserve-guild-bots', action='store_true',
+                        help='Limit autologin to the two reserved guild bots in the combined fixture.')
     args = parser.parse_args()
     if args.rename_identity and not (args.account_services and args.with_hermes and not args.gold_conversion):
         parser.error('Rename identity tests require --account-services --with-hermes without --gold-conversion.')
@@ -64,6 +68,7 @@ def main():
         raise RuntimeError('PrivateNetwork=yes is mandatory for the test API/world.')
     os.umask(0o077)
     world_binary = root / ('build-native/worldserver' if args.account_services else 'build/worldserver')
+    base = BASE
     if args.account_services and not args.world_candidate:
         manifest = json.loads((root / 'build-native/manifest.json').read_text())
         if len(manifest.get('nativeCoreOverlay', [])) != 3 or manifest['configurationDirectory'] != str(root / 'etc'):
@@ -73,8 +78,8 @@ def main():
                 raise RuntimeError('Native fixture binary differs from its manifest.')
     if args.world_candidate:
         candidate = args.world_candidate.resolve(strict=True)
-        if candidate.parent != Path('/opt/arthas-next/candidates') or not re.fullmatch(r'atlas-shop-rename-[0-9A-Za-z-]+', candidate.name):
-            raise RuntimeError('Expected a dedicated AtlasShop candidate.')
+        if candidate.parent != Path('/opt/arthas-next/candidates') or not re.fullmatch(r'atlas-(?:shop-rename|all-update)-[0-9A-Za-z-]+', candidate.name):
+            raise RuntimeError('Expected a dedicated Atlas candidate.')
         manifest = json.loads((candidate / 'build/manifest.json').read_text())
         config_dir = candidate / 'server/etc'
         if not manifest.get('releaseCandidate') or manifest['configurationDirectory'] != str(config_dir):
@@ -85,6 +90,14 @@ def main():
         with world_binary.open('rb') as stream:
             if hashlib.file_digest(stream, 'sha256').hexdigest() != manifest['worldserverSha256']:
                 raise RuntimeError('Candidate binary differs from its build manifest.')
+        if candidate.name.startswith('atlas-all-update-'):
+            base = candidate / 'core'
+            if manifest.get('coreDirectory') != str(base) or not (base / 'src/server/apps/worldserver/worldserver.conf.dist').is_file():
+                raise RuntimeError('Combined candidate must declare its own reviewed source directory.')
+    if args.all_modules and not (args.hold and args.world_candidate and base != BASE):
+        parser.error('--all-modules requires --hold and a combined --world-candidate.')
+    if args.reserve_guild_bots and not args.all_modules:
+        parser.error('--reserve-guild-bots requires --all-modules.')
     api_package = root / args.api_package
     if not (api_package / 'WotLK.Launcher.Server').is_file():
         raise RuntimeError('Expected an existing fixture API package.')
@@ -106,6 +119,16 @@ def main():
         time.sleep(1)
     else:
         raise RuntimeError('The disposable MySQL Unix socket did not become ready.')
+    # An interrupted World initialization can leave flag 3 in this private
+    # realm. Auth excludes it before World has a chance to clear the flag.
+    if config['client'].get('protocol', '').upper() != 'SOCKET' or Path(config['client']['socket']) != root / 'socket/mysql.sock':
+        raise RuntimeError('Fixture realm reset requires its dedicated Unix socket.')
+    mysql = ['mysql', '--defaults-extra-file=' + str(root / 'mysql-client.cnf'), '-NBe']
+    realm = subprocess.check_output(mysql + [
+        'SELECT id,address,localAddress,port FROM shop_test_auth.realmlist;'], text=True).strip()
+    if realm != '1\t127.0.0.1\t127.0.0.1\t14001':
+        raise RuntimeError('Expected exactly the isolated fixture realm before resetting its status.')
+    subprocess.run(mysql + ['UPDATE shop_test_auth.realmlist SET flag=0 WHERE id=1;'], check=True)
     databases = {'Login': 'shop_test_auth', 'Character': 'shop_test_chars',
                  'World': 'shop_test_world', 'Playerbots': 'shop_test_playerbots'}
     values = {key + 'DatabaseInfo': '"127.0.0.1;13308;root;' + password + ';' + database + '"'
@@ -127,13 +150,28 @@ def main():
                    'DungeonClear.Enable': 0, 'DungeonClear.DungeonQueueFill.Enable': 0,
                    'AuctionHouseBot.EnableSeller': 0, 'AuctionHouseBot.EnableBuyer': 0,
                    'Transmogrification.Enable': 0})
+    if args.all_modules:
+        values.update({'AiPlayerbot.Enabled': 1, 'AiPlayerbot.RandomBotAutologin': int(args.reserve_guild_bots),
+                       'AiPlayerbot.MinRandomBots': 2 if args.reserve_guild_bots else 5,
+                       'AiPlayerbot.MaxRandomBots': 2 if args.reserve_guild_bots else 5,
+                       'AiPlayerbot.RandomBotAccountPrefix': '"atlasfixturebot"',
+                       'AiPlayerbot.RandomBotAccountCount': 6, 'AiPlayerbot.AddClassAccountPoolSize': 5,
+                       'AiPlayerbot.RandomBotGuildCount': 0, 'AiPlayerbot.DeleteRandomBotGuilds': 0,
+                       'AiPlayerbot.DeleteRandomBotArenaTeams': 0, 'AiPlayerbot.RealGuildBotAutologin': 1,
+                       'AiPlayerbot.EnablePeriodicOnlineOffline': 0,
+                       'AtlasFriends.Enable': 1, 'AtlasArmory.Enable': 1,
+                       'AtlasArmory.LiveEnable': 1, 'AtlasArmory.OnlyGuid': 0, 'AtlasChat.Enable': 1,
+                       'Account.Achievements.Enable': 1, 'DungeonClear.Enable': 1,
+                       'DungeonClear.TestRun.OverallTimeoutS': 1200,
+                       'AuctionHouseBot.EnableSeller': 1, 'AuctionHouseBot.EnableBuyer': 1,
+                       'Transmogrification.Enable': 1})
     etc = root / 'etc'
     etc.mkdir(exist_ok=True)
     (root / 'empty-source').mkdir(exist_ok=True)
     # Start from public distribution defaults, never from the production configuration.
-    template = BASE / 'src/server/apps/worldserver/worldserver.conf.dist'
+    template = base / 'src/server/apps/worldserver/worldserver.conf.dist'
     (etc / 'worldserver.conf').write_text(replace_options(template.read_text(), values))
-    for path in (BASE / 'modules').glob('*/conf/*.conf.dist'):
+    for path in (base / 'modules').glob('*/conf/*.conf.dist'):
         module_text = path.read_text()
         keys = set(re.findall(r'^\s*([A-Za-z0-9_.]+)\s*=', module_text, re.M))
         (etc / 'modules' / path.name.removesuffix('.dist')).write_text(replace_options(
@@ -156,6 +194,7 @@ def main():
            'AC_UPDATES_ENABLE_DATABASES': '0', 'AC_PLAYERBOTS_UPDATES_ENABLE_DATABASES': '0'}
     (root / 'tmp').mkdir(exist_ok=True)
     children = []
+    child_names = {}
     logs = []
 
     # This core mutates shared connection info from "." to "localhost" after
@@ -189,6 +228,7 @@ def main():
         process = subprocess.Popen(command, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
                                    stdout=log, stderr=subprocess.STDOUT)
         children.append(process)
+        child_names[process.pid] = name
         (root / (name + '.pid')).write_text(str(process.pid) + '\n')
         print('STARTED', name, process.pid, flush=True)
         return process
@@ -201,7 +241,7 @@ def main():
     try:
         if args.with_hermes:
             from hermes_realm_fixture import configure
-            auth_command, hermes_command = configure(root, BASE, values, password, args.hermes_package, args.api_package)
+            auth_command, hermes_command = configure(root, base, values, password, args.hermes_package, args.api_package)
             start('auth', auth_command, root)
             start('hermes', hermes_command, root / args.hermes_package)
         api = start('api', [str(api_package / 'WotLK.Launcher.Server')], api_package)
@@ -222,8 +262,10 @@ def main():
             print('Fixture API healthy; world starting. Hold mode, maximum 45 minutes.', flush=True)
             deadline = time.monotonic() + 2700
             while time.monotonic() < deadline and not (root / 'stop-fixture').exists():
-                if any(child.poll() is not None for child in children):
-                    raise RuntimeError('A fixture child exited; inspect private logs.')
+                exited = [{'name': child_names[child.pid], 'pid': child.pid, 'exit': child.poll()}
+                          for child in children if child.poll() is not None]
+                if exited:
+                    raise RuntimeError('Fixture children exited before cleanup: ' + json.dumps(exited))
                 time.sleep(1)
         else:
             script_name = 'test_gold_conversion_realm.py' if args.gold_conversion else ('test_hermes_account_services.py' if args.with_hermes else 'test_account_services_realm.py') if args.account_services else (
@@ -268,6 +310,9 @@ def main():
                     process.wait(timeout=10)
         for log in logs:
             log.close()
+        (root / 'child-exit-status.json').write_text(json.dumps([
+            {'name': child_names[child.pid], 'pid': child.pid, 'exit': child.returncode}
+            for child in children], indent=2) + '\n')
         bridge.shutdown()
         bridge.server_close()
         print('Fixture API/world stopped.', flush=True)

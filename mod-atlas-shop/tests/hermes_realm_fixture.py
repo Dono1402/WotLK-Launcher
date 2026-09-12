@@ -16,7 +16,7 @@ def configure(root, base, values, password, package='hermes', api_package='api-l
     (root / 'logs/auth').mkdir(exist_ok=True)
     config = root / 'etc/authserver.conf'
     config.write_text(replace_options((base / 'src/server/apps/authserver/authserver.conf.dist').read_text(), auth_values))
-    if package not in ('hermes', 'hermes-disconnect', 'hermes-native'):
+    if package not in ('hermes', 'hermes-disconnect', 'hermes-native', 'hermes-all-update'):
         raise ValueError('Expected a reviewed fixture Hermes package name.')
     hermes = root / package
     if not (hermes / 'HermesProxy').is_file():

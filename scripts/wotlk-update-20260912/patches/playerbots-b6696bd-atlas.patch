@@ -1,0 +1,149 @@
+diff --git a/conf/playerbots.conf.dist b/conf/playerbots.conf.dist
+index eaa040b7..437f152a 100644
+--- a/conf/playerbots.conf.dist
++++ b/conf/playerbots.conf.dist
+@@ -85,6 +85,11 @@ AiPlayerbot.Enabled = 1
+ # Enable randombot system
+ AiPlayerbot.RandomBotAutologin = 1
+ 
++# Always reserve randombots that belong to a guild led by a real player when the active bot list is rebuilt.
++# Reserved guild bots are also connected before the rest of the random bot pool after a server restart.
++# Default: 0 (disabled)
++AiPlayerbot.RealGuildBotAutologin = 0
++
+ # Randombot count
+ AiPlayerbot.MinRandomBots = 500
+ AiPlayerbot.MaxRandomBots = 500
+diff --git a/src/Bot/RandomPlayerbotMgr.cpp b/src/Bot/RandomPlayerbotMgr.cpp
+index 6ad6ddbc..acf4010e 100644
+--- a/src/Bot/RandomPlayerbotMgr.cpp
++++ b/src/Bot/RandomPlayerbotMgr.cpp
+@@ -11,6 +11,7 @@
+ #include "Cell.h"
+ #include "CellImpl.h"
+ #include "ChannelMgr.h"
++#include "Config.h"
+ #include "DBCStores.h"
+ #include "DBCStructure.h"
+ #include "DatabaseEnv.h"
+@@ -28,6 +29,7 @@
+ #include "PlayerbotAI.h"
+ #include "PlayerbotAIConfig.h"
+ #include "PlayerbotFactory.h"
++#include "PlayerbotGuildMgr.h"
+ #include "PlayerbotTextMgr.h"
+ #include "Playerbots.h"
+ #include "Position.h"
+@@ -56,6 +58,11 @@ struct GuidClassRaceInfo
+     uint32 rRace;
+ };
+ 
++namespace
++{
++    std::unordered_set<uint32> realGuildBots;
++}
++
+ void PrintStatsThread() { sRandomPlayerbotMgr.PrintStats(); }
+ 
+ void activatePrintStatsThread()
+@@ -310,7 +317,9 @@ void RandomPlayerbotMgr::UpdateAIInternal(uint32 /*elapsed*/, bool /*minimal*/)
+     GetBots();
+     // Copied deliberately: ProcessBot() erases from currentBots while this is
+     // being iterated below, so the loops must run over a snapshot.
+-    std::unordered_set<uint32> availableBots = currentBots;
++    std::vector<uint32> availableBots(currentBots.begin(), currentBots.end());
++    std::stable_partition(availableBots.begin(), availableBots.end(),
++        [](uint32 bot) { return realGuildBots.contains(bot); });
+     uint32 availableBotCount = availableBots.size();
+     uint32 onlineBotCount = playerBots.size();
+ 
+@@ -1761,7 +1770,70 @@ void RandomPlayerbotMgr::Init()
+     if (sPlayerbotAIConfig.randomBotJoinBG)
+         sRandomPlayerbotMgr.LoadBattleMastersCache();
+ 
+-    PlayerbotsDatabase.Execute("DELETE FROM playerbots_random_bots WHERE event = 'add'");
++    PlayerbotsDatabase.DirectExecute("DELETE FROM playerbots_random_bots WHERE event = 'add'");
++    eventCache.clear();
++    currentBots.clear();
++    realGuildBots.clear();
++
++    if (!sPlayerbotAIConfig.randomBotAutologin ||
++        !sConfigMgr->GetOption<bool>("AiPlayerbot.RealGuildBotAutologin", false))
++        return;
++
++    uint32 maxAllowedBotCount = GetEventValue(0, "bot_count");
++    if (!maxAllowedBotCount || maxAllowedBotCount < sPlayerbotAIConfig.minRandomBots ||
++        maxAllowedBotCount > sPlayerbotAIConfig.maxRandomBots)
++    {
++        maxAllowedBotCount = urand(sPlayerbotAIConfig.minRandomBots, sPlayerbotAIConfig.maxRandomBots);
++        SetEventValue(0, "bot_count", maxAllowedBotCount,
++            urand(sPlayerbotAIConfig.randomBotCountChangeMinInterval,
++                sPlayerbotAIConfig.randomBotCountChangeMaxInterval));
++    }
++
++    if (!maxAllowedBotCount)
++        return;
++
++    std::unordered_set<uint32> randomBotAccounts(rndBotTypeAccounts.begin(), rndBotTypeAccounts.end());
++
++    QueryResult result = CharacterDatabase.Query(
++        "SELECT gm.guid, gm.guildid, c.account "
++        "FROM guild_member gm "
++        "INNER JOIN characters c ON c.guid = gm.guid "
++        "ORDER BY gm.guildid, gm.guid");
++
++    if (!result)
++    {
++        LOG_INFO("playerbots", "No guild members found while reserving real-guild randombots");
++        return;
++    }
++
++    do
++    {
++        Field* fields = result->Fetch();
++        uint32 bot = fields[0].Get<uint32>();
++        uint32 guildId = fields[1].Get<uint32>();
++        uint32 accountId = fields[2].Get<uint32>();
++
++        if (!PlayerbotGuildMgr::instance().IsRealGuild(guildId) || !randomBotAccounts.contains(accountId))
++            continue;
++
++        if (realGuildBots.size() >= maxAllowedBotCount)
++        {
++            LOG_WARN("playerbots",
++                "Real-guild randombot reservation reached the active bot count ({}); remaining guild bots cannot be pinned",
++                maxAllowedBotCount);
++            break;
++        }
++
++        // Load every existing event for this bot before create-on-write updates the cache.
++        GetEventValue(bot, "add");
++        SetEventValue(bot, "add", 1, 0);
++        SetEventValue(bot, "logout", 0, 0);
++        currentBots.insert(bot);
++        realGuildBots.insert(bot);
++    } while (result->NextRow());
++
++    LOG_INFO("playerbots", "Reserved {} randombots from guilds led by real players for priority login",
++        realGuildBots.size());
+ }
+ 
+ void RandomPlayerbotMgr::InitArenaTeams()
+diff --git a/src/PlayerbotAIConfig.cpp b/src/PlayerbotAIConfig.cpp
+index e3cb3a31..7932a9c9 100644
+--- a/src/PlayerbotAIConfig.cpp
++++ b/src/PlayerbotAIConfig.cpp
+@@ -760,12 +760,12 @@ bool PlayerbotAIConfig::Initialize()
+     // Assign account types after accounts are created
+     sRandomPlayerbotMgr.AssignAccountTypes();
+ 
++    PlayerbotGuildMgr::instance().Init();
+     if (sPlayerbotAIConfig.enabled)
+     {
+         sRandomPlayerbotMgr.Init();
+     }
+ 
+-    PlayerbotGuildMgr::instance().Init();
+     sRandomPlayerbotMgr.InitArenaTeams();
+     sRandomItemMgr.Init();
+     sRandomItemMgr.InitAfterAhBot();

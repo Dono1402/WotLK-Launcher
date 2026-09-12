@@ -2,6 +2,11 @@
 
 État : **correctif activé le 12 septembre 2026 à 20 h 37 (Paris), après autorisation explicite de redémarrage ; stabilité vérifiée à 20 h 39**.
 
+Suivi : un nouveau signalement « Inconnu » a conduit à déplacer le
+rafraîchissement de l'identité après la fin du chargement. Voir
+[le correctif complémentaire et ses limites de validation](BOUTIQUE-ATLAS-NOM-INCONNU-20260912.md).
+Les chemins et résultats ci-dessous décrivent la livraison initiale de 20 h 37.
+
 Le signalement du 12 septembre était confirmé : après un renommage réussi, la
 sélection affichait le nouveau nom mais le client pouvait conserver l'ancien
 en jeu. La base et le cache du serveur contenaient déjà le nouveau nom. La

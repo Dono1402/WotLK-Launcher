@@ -1,0 +1,171 @@
+{
+  "status": "prepared-and-tested",
+  "clientBuild": "3.4.3.54261",
+  "graphicalClientTested": false,
+  "observedProduction": {
+    "renamePersisted": true,
+    "correctNameAndGuidReceived": true,
+    "nameResponsesObservedDuringLoading": true,
+    "nameResponseAfterActivePlayerCreationObserved": false,
+    "playerNamesAndAccountDataOmitted": true,
+    "graphicalRootCauseFullyEstablished": false
+  },
+  "unitTests": {
+    "passed": true,
+    "checks": 25
+  },
+  "regressionBeforeFix": {
+    "passed": false,
+    "state": "AssertionError: World-entry repair waits while the client is still loading; no premature identity invalidation is emitted.",
+    "checks": [],
+    "characterDatabaseWorkers": 4,
+    "realCoreConsumer": true,
+    "realApiAndMySql": true,
+    "graphicalClientTested": false,
+    "worldSha256": "f20d3463ca27fdf0a590b81338862a832bf255dec12f4b15e067e8d9b5bdfa9e",
+    "hermesSha256": "8adc5af26635dc698f062a2b61bac8ee1367d48af7cdaaed0b8e90fa35b7ad8f"
+  },
+  "nativeIdentity": {
+    "passed": true,
+    "clientBuild": "3.4.3.54261",
+    "clientExecutableSha256": "e240f9d88445643d2545ac54b3c3874b2f86336bc8947256584ef07bb5fd66a7",
+    "snapshotSectionSha256": {
+      ".text": "4c51e95f74d5e750224c7107efaa71b560aa4fee03448f75c75ae0cfa2fc7597",
+      ".rdata": "a05e4ba3fe71dfb563ca9b52a8fa46d9f8386162b09f90e7f3741a7013c87f74",
+      ".data": "98270bbf19003776d780874fcdf5aaa268e0484d5407adbde8d41ef221c3be50",
+      ".pdata": "dbfd5f36ee6895a49ce5628ee75723f8787b0badb18f37efb36e31c44321439d",
+      "_RDATA": "d1f6246c35a11e2c10caf87fa93ef2b4b017c59ed837da6f7460b6a0585377c5",
+      ".rsrc": "86a79860c93cf2eb3412c1abcd9cde4bab1cf00b22c73e3991b4980bb6cbf8ae",
+      ".reloc": "7752aef7d45a75ab333d9c6633924eddebf530e458e690859a86172df7ab8387"
+    },
+    "packetFixtureSha256": "250478d32cdfd8edf64aa74cacfe69e9e20bbff1d49b63a022e340b948323429",
+    "method": "Actual opcode dispatchers, packet constructors, realm/name caches, invalidation, pending-name callbacks and CGUnit name getter emulated on emitted Hermes packets.",
+    "checks": [
+      "native-authentication-parser-and-realm-cache",
+      "native-dispatch-cache-and-unit-getter-0",
+      "invalidation-clears-prior-native-name-1",
+      "native-dispatch-cache-and-unit-getter-1",
+      "native-pending-unit-callback-notified-1",
+      "invalidation-clears-prior-native-name-2",
+      "native-dispatch-cache-and-unit-getter-2",
+      "native-pending-unit-callback-notified-2",
+      "invalidation-clears-prior-native-name-3",
+      "native-dispatch-cache-and-unit-getter-3",
+      "native-pending-unit-callback-notified-3"
+    ],
+    "nativeNameReadyCallbacks": 3,
+    "limitations": "OS allocation, clock, transport, localization and graphics notification boundaries are stubbed. This test does not reproduce a full loading screen or prove visible in-game rendering."
+  },
+  "nativeServices": {
+    "clientBuild": "3.4.3.54261",
+    "clientExecutableSha256": "e240f9d88445643d2545ac54b3c3874b2f86336bc8947256584ef07bb5fd66a7",
+    "snapshotSectionSha256": {
+      ".text": "4c51e95f74d5e750224c7107efaa71b560aa4fee03448f75c75ae0cfa2fc7597",
+      ".rdata": "a05e4ba3fe71dfb563ca9b52a8fa46d9f8386162b09f90e7f3741a7013c87f74",
+      ".data": "98270bbf19003776d780874fcdf5aaa268e0484d5407adbde8d41ef221c3be50",
+      ".pdata": "dbfd5f36ee6895a49ce5628ee75723f8787b0badb18f37efb36e31c44321439d",
+      "_RDATA": "d1f6246c35a11e2c10caf87fa93ef2b4b017c59ed837da6f7460b6a0585377c5",
+      ".rsrc": "86a79860c93cf2eb3412c1abcd9cde4bab1cf00b22c73e3991b4980bb6cbf8ae",
+      ".reloc": "7752aef7d45a75ab333d9c6633924eddebf530e458e690859a86172df7ab8387"
+    },
+    "packetFixtureSha256": "39e0ba1f6f20105a4e77f6f1797529e1da50b5a45183516ec6ccee61e733a708",
+    "method": "Actual client request conversion, response parsers, VAS classification and store-cache getters emulated on emitted Hermes packets; allocation/memory helpers, transport submission and event dispatch are replaced by host stubs.",
+    "nameChangeCharacterRequestHex": "0100000007000000",
+    "checks": [
+      "client-name-change-request-wire-type-7",
+      "distributions-0",
+      "distributions-1",
+      "distributions-2",
+      "distributions-100",
+      "consumed",
+      "revoked",
+      "products",
+      "purchases",
+      "states",
+      "glue-disabled",
+      "glue-enabled",
+      "assign-success",
+      "assign-rejected",
+      "store-cache-and-character-selector-getters",
+      "characters"
+    ],
+    "limitations": "No game UI, network session, or server consumption is validated by this protocol test."
+  },
+  "network": {
+    "passed": true,
+    "hermesSha256": "b915e5c0c4093f5e5bbdb79e39dfec0ade8907d59b7103b9ad3e295f0bcc248b",
+    "suites": {
+      "identity": {
+        "passed": true,
+        "state": "complete",
+        "checks": [
+          "World-entry repair waits while the client is still loading; no premature identity invalidation is emitted.",
+          "After loading finishes, the server invalidates the name and delivers the authoritative identity in that order.",
+          "Repeated loading-hidden notifications do not invalidate the identity again.",
+          "World-entry repair waits while the client is still loading; no premature identity invalidation is emitted.",
+          "After loading finishes, the server invalidates the name and delivers the authoritative identity in that order.",
+          "Repeated loading-hidden notifications do not invalidate the identity again.",
+          "Owner and connected observer resolve the original name from actual core queries before rename.",
+          "The owner returns to character selection with the old in-game name still cached.",
+          "Rejected names and validation alone preserve the character, service and client name caches.",
+          "Committed rename invalidates the owner and refreshes the online observer without another purchase or reconnect.",
+          "World-entry repair waits while the client is still loading; no premature identity invalidation is emitted.",
+          "After loading finishes, the server invalidates the name and delivers the authoritative identity in that order.",
+          "Repeated loading-hidden notifications do not invalidate the identity again.",
+          "Re-entry sends the current Unicode identity without a client query and preserves own-character account and level metadata.",
+          "A real whisper reaches the renamed character by its new name; the old name is no longer a valid online target.",
+          "Replaying an older receipt after a second rename cannot restore the older name in the core or proxy selector.",
+          "World-entry repair waits while the client is still loading; no premature identity invalidation is emitted.",
+          "After loading finishes, the server invalidates the name and delivers the authoritative identity in that order.",
+          "Repeated loading-hidden notifications do not invalidate the identity again.",
+          "A stale persisted client cache is repaired at login without rebuying or reapplying an already consumed service."
+        ],
+        "characterDatabaseWorkers": 4,
+        "realCoreConsumer": true,
+        "realApiAndMySql": true,
+        "graphicalClientTested": false,
+        "hermesSha256": "b915e5c0c4093f5e5bbdb79e39dfec0ade8907d59b7103b9ad3e295f0bcc248b",
+        "worldSha256": "f20d3463ca27fdf0a590b81338862a832bf255dec12f4b15e067e8d9b5bdfa9e"
+      },
+      "services": {
+        "passed": true,
+        "state": "complete",
+        "checks": [
+          "The actual core creates the disposable beneficiary through ordinary character creation.",
+          "Launcher SSO and the encrypted 3.4.3 Hermes connection expose the real unassigned account service.",
+          "Hermes updates the native service feature gate after the real core handshake succeeds.",
+          "The native product-list request returns a valid empty Blizzard store.",
+          "The native purchase-list request returns the verified empty store envelope.",
+          "The native VAS-state request returns the verified state envelope.",
+          "The Lua enum value is rejected as an unsupported wire service without consuming the account service.",
+          "The captured client wire service type 7 returns the account character and a nonempty matching realm name.",
+          "A native 3.4.3 name rejection leaves the paid service available.",
+          "The real native validation round trip accepts Unicode without consuming or renaming.",
+          "The native confirmation round trip commits the Unicode name and receipt without a second debit.",
+          "Hermes sends the consumed distribution update that removes the native account-service button.",
+          "Fresh 3.4.3 character enumeration shows the new name with no forced-rename entitlement.",
+          "A repeated native confirmation returns the same receipt without another debit.",
+          "An API cancellation produces a native revocation update and refunds the currency exactly once.",
+          "An account service can be purchased during actual Hermes gameplay; consumption requires character selection.",
+          "The actual player logs out through both Hermes sockets while the account connection stays open.",
+          "The player consumes the account service immediately after real logout, without closing the account or BNet session.",
+          "A real realm-socket drop and SSO reconnection preserve the available native service and allow its consumption.",
+          "All completed native purchases preserve independent balances and debit each service exactly once."
+        ],
+        "characterDatabaseWorkers": 4,
+        "realCoreConsumer": true,
+        "realApiAndMySql": true,
+        "graphicalClientTested": false,
+        "hermesSha256": "b915e5c0c4093f5e5bbdb79e39dfec0ade8907d59b7103b9ad3e295f0bcc248b",
+        "worldSha256": "f20d3463ca27fdf0a590b81338862a832bf255dec12f4b15e067e8d9b5bdfa9e"
+      }
+    }
+  },
+  "prepared": {
+    "prepared": true,
+    "hermesSha256": "b915e5c0c4093f5e5bbdb79e39dfec0ade8907d59b7103b9ad3e295f0bcc248b",
+    "sourceCommit": null,
+    "backupVerified": true,
+    "publicProcessesUnchanged": true
+  }
+}

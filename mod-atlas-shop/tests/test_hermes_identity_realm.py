@@ -7,6 +7,7 @@ real. No graphical-client or addon rendering is claimed by this suite.
 """
 import argparse
 import select
+import socket
 import struct
 import time
 from hermes_protocol_client import BnetClient, packed_guid
@@ -85,22 +86,32 @@ class IdentityClient(VasClient):
 
 def run(root):
     f = Fixture(root, 'hermes-identity-result.json')
-    connections, active = [], []
+    connections, active, retiring = [], [], set()
+
+    def pump(timeout=.2):
+        for sock in select.select([c.socket for c in active], [], [], timeout)[0]:
+            client = next(c for c in active if c.socket is sock)
+            # LogoutComplete travels on the realm socket while Hermes closes
+            # the instance socket. Their arrival order is not synchronized.
+            # Accept only a clean EOF on the explicitly retiring instance;
+            # logout still requires the real accepted and complete packets.
+            if client in retiring and sock.recv(1, socket.MSG_PEEK) == b'':
+                active.remove(client)
+                continue
+            opcode, data = client.receive()
+            if opcode == 11730:
+                client.send(14909, data[:4] + struct.pack('<I', int(time.monotonic() * 1000) & 0xffffffff))
+            elif opcode == 9859:
+                client.events.append(('logout-accepted', int.from_bytes(data[:4], 'little')))
+            elif opcode == 9860:
+                client.events.append(('logout-complete',))
 
     def drain(predicate, timeout=15):
         deadline = time.monotonic() + timeout
         while not predicate():
             if time.monotonic() >= deadline:
                 raise RuntimeError('Identity packet condition timed out.')
-            for sock in select.select([c.socket for c in active], [], [], .2)[0]:
-                client = next(c for c in active if c.socket is sock)
-                opcode, data = client.receive()
-                if opcode == 11730:
-                    client.send(14909, data[:4] + struct.pack('<I', int(time.monotonic() * 1000) & 0xffffffff))
-                elif opcode == 9859:
-                    client.events.append(('logout-accepted', int.from_bytes(data[:4], 'little')))
-                elif opcode == 9860:
-                    client.events.append(('logout-complete',))
+            pump()
 
     def connect(account, names=None):
         ticket = f.http(account, 'game-ticket', {})
@@ -110,6 +121,8 @@ def run(root):
         return bnet, world, world.character()
 
     def enter(world, character):
+        start = len(world.events)
+        world.send(13817, struct.pack('<IB', 0, 0x80))
         world.send(13803, character['packedGuid'] + struct.pack('<f', 300.0))
         target = world.until(12365)
         instance = IdentityClient(continued=(int.from_bytes(target[-8:], 'little'), world.key),
@@ -117,14 +130,40 @@ def run(root):
         connections.append(instance); active.append(instance)
         instance.until(9623)
         f.wait(lambda: f.character(character['guid'])[2] == '1')
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline:
+            pump(.1)
+        f.check(('invalidate', character['guid']) not in world.events[start:],
+                'World-entry repair waits while the client is still loading; no premature identity invalidation is emitted.')
+        world.events.append(('loading-hidden', character['guid']))
+        world.send(13817, struct.pack('<IB', 0xffffffff, 0))
+        drain(lambda: ('invalidate', character['guid']) in world.events[start:]
+              and character['guid'] in world.names)
+        identity_events = world.events[start:]
+        hidden = identity_events.index(('loading-hidden', character['guid']))
+        invalidated = identity_events.index(('invalidate', character['guid']))
+        assert hidden < invalidated and any(e[0] == 'name' and e[1] == character['guid'] for e in identity_events[invalidated + 1:])
+        f.check(True, 'After loading finishes, the server invalidates the name and delivers the authoritative identity in that order.')
+        count = sum(e == ('invalidate', character['guid']) for e in world.events)
+        world.send(13817, struct.pack('<IB', 0, 0))
+        deadline = time.monotonic() + .4
+        while time.monotonic() < deadline:
+            pump(.1)
+        f.check(count == sum(e == ('invalidate', character['guid']) for e in world.events),
+                'Repeated loading-hidden notifications do not invalidate the identity again.')
         return instance
 
     def logout(world, instance, guid):
         start = len(world.events)
-        instance.send(13526, b'\0')
-        drain(lambda: ('logout-complete',) in world.events[start:], 40)
+        retiring.add(instance)
+        try:
+            instance.send(13526, b'\0')
+            drain(lambda: ('logout-complete',) in world.events[start:], 40)
+        finally:
+            retiring.discard(instance)
         assert ('logout-accepted', 0) in world.events[start:]
-        active.remove(instance); instance.close()
+        if instance in active: active.remove(instance)
+        instance.close()
         f.wait(lambda: f.character(guid)[2] == '0')
         return world.character()
 

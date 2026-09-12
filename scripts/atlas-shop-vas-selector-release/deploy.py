@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage, test, then activate only the explicitly authorized Hermes selector fix."""
+"""Stage, test, then activate an explicitly authorized Hermes-only fix."""
 import datetime
 import hashlib
 import json
@@ -23,13 +23,16 @@ RELEASE = 'vas-selector-20260912'
 
 def configure_release(release):
     global ROOT, UPLOAD, HERMES, OVERRIDE, RELEASE
-    if release not in ('vas-selector-20260912', 'vas-wire-type-20260912'):
+    if release not in ('vas-selector-20260912', 'vas-wire-type-20260912', 'name-response-20260912'):
         raise ValueError('Unknown Hermes release')
     RELEASE = release
     ROOT = Path('/opt/atlas-shop-releases') / release
     UPLOAD = Path('/tmp') / ('atlas-hermes-' + release)
     HERMES = Path('/opt/hermesproxy-wotlk/releases') / ('hermes-' + release)
     OVERRIDE = Path('/etc/systemd/system/hermesproxy-wotlk.service.d') / ('zzzzzz-atlas-shop-' + release + '.conf')
+    if release == 'name-response-20260912':
+        UPLOAD = Path('/tmp/atlas-name-response-20260912')
+        OVERRIDE = OVERRIDE.with_name('zzzzzzzz-atlas-shop-' + release + '.conf')
 
 def run(args, **kwargs):
     return subprocess.check_output(args, text=True, timeout=60, **kwargs).strip()
@@ -64,12 +67,15 @@ def prepare():
     manifest=json.loads((UPLOAD/'candidate.json').read_text())
     before=json.loads((UPLOAD/'before.json').read_text(encoding='utf-8-sig'))
     verify_baseline(before)
+    if any(Path(path).name >= OVERRIDE.name for path in before['services'][SERVICE]['DropInPaths'].split()):
+        raise RuntimeError('A later Hermes override already exists')
     if sha(UPLOAD/'candidate.tar.gz') != manifest['archiveSha256']: raise RuntimeError('Archive hash mismatch')
     ROOT.mkdir(mode=0o700); HERMES.mkdir(mode=0o755)
     HERMES.chmod(0o755)
     (ROOT/'tests').mkdir(); backup=ROOT/'backup'; backup.mkdir()
     shutil.copy2(UPLOAD/'candidate.json',ROOT/'candidate.json')
     shutil.copy2(UPLOAD/'before.json',ROOT/'before.json')
+    shutil.copy2(Path(__file__).resolve(),ROOT/'deploy.py')
     with tarfile.open(UPLOAD/'candidate.tar.gz') as archive:
         for item in archive.getmembers():
             if not item.isfile() or item.issym() or item.islnk(): raise RuntimeError('Unexpected archive member')
@@ -100,6 +106,11 @@ def prepare():
         (HERMES/name).symlink_to(shared,target_is_directory=True)
     run(['runuser','-u','hermesproxy','--','test','-x',str(HERMES/'HermesProxy')])
     run(['runuser','-u','hermesproxy','--','test','-r',str(CONFIG)])
+    override='[Service]\nWorkingDirectory='+str(HERMES)+'\nExecStart=\nExecStart='+str(HERMES/'HermesProxy')+' --config '+str(CONFIG)+'\n'
+    (ROOT/'planned-override.conf').write_text(override)
+    rendered=ROOT/'hermesproxy-wotlk.service'
+    rendered.write_text(run(['systemctl','cat',SERVICE])+'\n'+override)
+    run(['systemd-analyze','verify',str(rendered)],stderr=subprocess.PIPE)
     write(ROOT/'prepared.json',{'prepared':True,'hermesSha256':manifest['files']['HermesProxy'],
         'sourceCommit':manifest['sourceCommit'],'backupVerified':True,'publicProcessesUnchanged':True})
     print('PASS: candidate staged; previous executable and configuration backed up; public processes unchanged.',flush=True)
@@ -113,13 +124,16 @@ def test():
             if str(proc.resolve()).startswith(str(FIXTURE)+'/'): raise RuntimeError('Fixture is still active')
         except (FileNotFoundError,PermissionError): pass
     prior=FIXTURE/('hermes-native-before-' + RELEASE)
-    if prior.exists(): raise RuntimeError('Fixture package was already staged')
-    (FIXTURE/'hermes-native').rename(prior)
+    retry = prior.exists()
+    if not retry: (FIXTURE/'hermes-native').rename(prior)
     for name, checksum in manifest['files'].items():
         source=HERMES/name
         if sha(source)!=checksum: raise RuntimeError('Candidate changed')
         target=FIXTURE/'hermes-native'/name
-        target.parent.mkdir(parents=True,exist_ok=True); shutil.copy2(source,target)
+        if retry:
+            if sha(target)!=checksum: raise RuntimeError('Previously staged fixture candidate changed')
+        else:
+            target.parent.mkdir(parents=True,exist_ok=True); shutil.copy2(source,target)
     for path in (ROOT/'tests').glob('*.py'): shutil.copy2(path,FIXTURE/'mod-atlas-shop/tests'/path.name)
     container=(FIXTURE/'container-id').read_text().strip()
     info=json.loads(run(['docker','inspect',container]))[0]
@@ -130,19 +144,27 @@ def test():
     if not info['State']['Running']: run(['docker','start',container])
     log=FIXTURE/'logs'/(RELEASE + '.log')
     try:
-        result=subprocess.run(['systemd-run','--unit=atlas-shop-' + RELEASE + '-test','--wait','--collect',
+        suites = [('services', [], 'hermes-account-services-result.json')]
+        if RELEASE == 'name-response-20260912':
+            suites.insert(0, ('identity', ['--rename-identity'], 'hermes-identity-result.json'))
+        proofs = {}
+        for suite, extra, result_file in suites:
+            result=subprocess.run(['systemd-run','--unit=atlas-shop-' + RELEASE + '-' + suite + '-test','--wait','--collect',
             '--property=MemoryMax=3G','--property=MemorySwapMax=0','--property=CPUQuota=150%',
             '--property=Nice=10','--property=IOWeight=25','--property=PrivateNetwork=yes',
             '--property=ProtectSystem=strict','--property=ReadWritePaths='+str(FIXTURE),
             '--property=NoNewPrivileges=yes','--property=RuntimeMaxSec=600',
             '--property=StandardOutput=append:'+str(log),'--property=StandardError=append:'+str(log),
             '/usr/bin/python3',str(FIXTURE/'mod-atlas-shop/tests/run_realm_fixture.py'),'--root',str(FIXTURE),
-            '--account-services','--api-package','api-gold','--with-hermes','--hermes-package','hermes-native'],timeout=660)
-        proof=json.loads((FIXTURE/'hermes-account-services-result.json').read_text())
-        if result.returncode or not proof.get('passed'): raise RuntimeError('Candidate network test failed; inspect private fixture log')
-        proof['hermesSha256']=manifest['files']['HermesProxy']
-        write(ROOT/'tested.json',proof)
-        print('PASS: isolated native service round trip, including the client request type and returned realm name.',flush=True)
+            '--account-services','--api-package','api-gold','--with-hermes','--hermes-package','hermes-native',*extra],timeout=660)
+            proof=json.loads((FIXTURE/result_file).read_text())
+            if result.returncode or not proof.get('passed'): raise RuntimeError('Candidate '+suite+' test failed; inspect private fixture log')
+            proof['hermesSha256']=manifest['files']['HermesProxy']
+            proof['worldSha256']=sha(FIXTURE/'build-native/worldserver')
+            proofs[suite]=proof
+            write(ROOT/('tested-'+suite+'.json'),proof)
+            print('PASS: isolated '+suite+' suite, '+str(len(proof['checks']))+' checks.',flush=True)
+        write(ROOT/'tested.json',{'passed':True,'hermesSha256':manifest['files']['HermesProxy'],'suites':proofs})
     finally:
         run(['python3',str(FIXTURE/'mod-atlas-shop/tests/prepare_realm_fixture.py'),'--root',str(FIXTURE),'--stop'])
         verify_baseline(before)
@@ -154,10 +176,14 @@ def activate():
     verify_baseline(before)
     if not proof.get('passed') or proof['hermesSha256']!=manifest['files']['HermesProxy']:
         raise RuntimeError('Candidate has not passed the isolated network test')
+    if RELEASE == 'name-response-20260912' and set(proof.get('suites',{})) != {'identity','services'}:
+        raise RuntimeError('Both name-timing and native-service regression suites are required')
     for name, checksum in manifest['files'].items():
         if sha(HERMES/name)!=checksum: raise RuntimeError('Tested bytes changed')
     if OVERRIDE.exists(): raise RuntimeError('Activation override already exists')
     override='[Service]\nWorkingDirectory='+str(HERMES)+'\nExecStart=\nExecStart='+str(HERMES/'HermesProxy')+' --config '+str(CONFIG)+'\n'
+    planned=ROOT/'planned-override.conf'
+    if planned.exists() and planned.read_text()!=override: raise RuntimeError('Prepared override changed')
     started=time.time()
     config=json.loads(CONFIG.read_text())
     network=config.get('ProxyNetworkOptions',{})
@@ -202,7 +228,7 @@ if __name__=='__main__':
     import argparse
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('phase',choices=('prepare','test','activate'))
-    parser.add_argument('--release',default=RELEASE,choices=('vas-selector-20260912','vas-wire-type-20260912'))
+    parser.add_argument('--release',default=RELEASE,choices=('vas-selector-20260912','vas-wire-type-20260912','name-response-20260912'))
     args=parser.parse_args()
     os.umask(0o077)
     if os.geteuid()!=0: raise SystemExit('Expected root')

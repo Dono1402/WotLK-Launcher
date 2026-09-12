@@ -2,7 +2,9 @@
 
 Cette campagne a préparé un launcher `1.7.2-local`, sans publication de mise à
 jour. Après la demande explicite d'activer le correctif du sélecteur, Hermes seul
-a été remplacé et redémarré le 12 septembre à 18 h 09 (Paris). World, Auth et l'API
+a été remplacé et redémarré le 12 septembre à 18 h 09 puis à 18 h 51 (Paris).
+La seconde activation corrige le type réseau qui bloquait encore la sélection.
+World, Auth et l'API
 conservent leurs processus. Le déploiement n'applique aucune migration et ne crée
 aucun achat, conversion ou renommage sur un compte joueur.
 
@@ -145,4 +147,23 @@ Vérifications locales du correctif :
 Voir la [preuve du défaut et des contrôles client](validation/hermes-vas-wire-type-client-20260912.json).
 Le déploiement de ce second correctif utilise les phases existantes avec
 `--release vas-wire-type-20260912`, dans un nouveau répertoire avec sa propre
-sauvegarde. Le test réseau et l'activation restent à enregistrer ci-dessous.
+sauvegarde.
+
+Le correctif est activé depuis le 12 septembre à **18 h 51 (Paris)**, avec
+Hermes PID `2860655`, sans redémarrage automatique. Le binaire actif est celui
+du test isolé : SHA-256
+`4bd47690d3df31cb97b2eb6beacf2e37515b25373b3dc2718d527478ed3e7c47`.
+Les **20 contrôles réseau passent**, dont la requête réelle de type 7,
+la validation, le renommage Unicode, l'absence de double débit et la reconnexion
+après jeu. Tous les processus et le conteneur MySQL de test sont arrêtés.
+
+World `2828323`, Auth `323656` et API `2830654` conservent leurs PID,
+exécutables et unités systemd. La configuration Hermes et le manifeste public
+du launcher 1.7.2 sont inchangés. Les sauvegardes vérifiées sont conservées sous
+`/opt/atlas-shop-releases/vas-wire-type-20260912/backup` ; le paquet actif est
+`/opt/hermesproxy-wotlk/releases/hermes-vas-wire-type-20260912`.
+Voir la [preuve d'activation et de test réseau](validation/hermes-vas-wire-type-20260912.json).
+
+Le passage graphique à l'étape 2 reste à confirmer dans le jeu après une
+reconnexion complète au royaume ; aucune interaction avec le jeu de l'utilisateur
+n'a été effectuée pendant ces contrôles.

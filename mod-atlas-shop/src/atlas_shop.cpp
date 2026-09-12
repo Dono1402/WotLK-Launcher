@@ -1,5 +1,6 @@
 #include "Define.h"
 #include "atlas_shop_sql.h"
+#include "atlas_shop_native.h"
 #include "AsyncCallbackProcessor.h"
 #include "Config.h"
 #include "DatabaseEnv.h"
@@ -25,7 +26,8 @@ public:
     static Delivery& Instance() { static Delivery instance; return instance; }
     void Configure()
     {
-        _enabled = sConfigMgr->GetOption<bool>("AtlasShop.Enable", false);
+        _enabled = sConfigMgr->GetOption<bool>("AtlasShop.Enable", false)
+            && !sConfigMgr->GetOption<bool>("AtlasShop.AccountServices", false);
         _realm = sConfigMgr->GetOption<uint32>("RealmID", 1);
         if (!_configuredOnce)
         {
@@ -145,15 +147,40 @@ class ShopPackets : public ServerScript
 {
 public:
     ShopPackets() : ServerScript("AtlasShopPackets", { SERVERHOOK_CAN_PACKET_RECEIVE }) { }
+    // The pinned Atlas core dispatches its older const overload, while current
+    // upstream headers expose only the mutable overload. Keep both entry points;
+    // the const form intentionally omits override for upstream compatibility.
+    bool CanPacketReceive(WorldSession* session, WorldPacket const& packet)
+    {
+        if (!session) return true;
+        if (AtlasShop::IsNativePacket(packet))
+        {
+            WorldPacket copy(packet);
+            return AtlasShop::NativeCanReceive(session, copy);
+        }
+        return AllowOrdinaryPacket(session, packet);
+    }
     bool CanPacketReceive(WorldSession* session, WorldPacket& packet) override
     {
-        if (!session || !Delivery::Instance().Guarded(session->GetAccountId())) return true;
+        return CanPacketReceive(session, static_cast<WorldPacket const&>(packet));
+    }
+private:
+    bool AllowOrdinaryPacket(WorldSession* session, WorldPacket const& packet)
+    {
+        bool guarded = Delivery::Instance().Guarded(session->GetAccountId()) || AtlasShop::NativeGuarded(session->GetAccountId());
+        bool namesPaused = AtlasShop::NativeNamesPaused();
+        if (!guarded && !namesPaused) return true;
         uint16 response; uint8 error;
         switch (packet.GetOpcode())
         {
-            case CMSG_PLAYER_LOGIN: response = SMSG_CHARACTER_LOGIN_FAILED; error = CHAR_LOGIN_FAILED; break;
+            case CMSG_PLAYER_LOGIN:
+                if (!guarded) return true;
+                response = SMSG_CHARACTER_LOGIN_FAILED; error = CHAR_LOGIN_FAILED; break;
+            case CMSG_CHAR_CREATE: response = SMSG_CHAR_CREATE; error = CHAR_CREATE_ERROR; break;
             case CMSG_CHAR_RENAME: response = SMSG_CHAR_RENAME; error = CHAR_CREATE_ERROR; break;
-            case CMSG_CHAR_DELETE: response = SMSG_CHAR_DELETE; error = CHAR_DELETE_FAILED; break;
+            case CMSG_CHAR_DELETE:
+                if (!guarded) return true;
+                response = SMSG_CHAR_DELETE; error = CHAR_DELETE_FAILED; break;
             case CMSG_CHAR_CUSTOMIZE: response = SMSG_CHAR_CUSTOMIZE; error = CHAR_CREATE_ERROR; break;
             case CMSG_CHAR_FACTION_CHANGE:
             case CMSG_CHAR_RACE_CHANGE: response = SMSG_CHAR_FACTION_CHANGE; error = CHAR_CREATE_ERROR; break;
@@ -165,4 +192,4 @@ public:
 };
 }
 
-void AddAtlasShopScripts() { new ShopWorld(); new ShopPackets(); }
+void AddAtlasShopScripts() { new ShopWorld(); new ShopPackets(); AtlasShop::AddNativeScripts(); }

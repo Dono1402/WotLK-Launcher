@@ -1,5 +1,9 @@
 # Validation du renommage sur un vrai royaume isolé
 
+> Campagne historique du mode attribué à un personnage. Le nouveau parcours
+> de services du compte et ses tests sont décrits dans
+> [Services natifs](BOUTIQUE-ATLAS-SERVICES-NATIFS.md).
+
 Le 11 septembre 2026, un `worldserver` Linux incluant `mod-atlas-shop` a été
 lié et démarré sur Atlas, avec une API du launcher et des bases de test séparées.
 Le client de test utilise le protocole natif 3.3.5 : création de personnages,

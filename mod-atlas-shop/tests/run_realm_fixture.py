@@ -45,8 +45,9 @@ def main():
     parser.add_argument('--root', required=True)
     parser.add_argument('--hold', action='store_true', help='Keep the fixture available for bounded diagnostic tests.')
     parser.add_argument('--with-hermes', action='store_true', help='Run the isolated Hermes/3.4.3 suite, or add Hermes to --hold.')
-    parser.add_argument('--hermes-package', choices=('hermes', 'hermes-disconnect'), default='hermes')
-    parser.add_argument('--api-package', choices=('api-linux', 'api-candidate'), default='api-linux')
+    parser.add_argument('--hermes-package', choices=('hermes', 'hermes-disconnect', 'hermes-native'), default='hermes')
+    parser.add_argument('--api-package', choices=('api-linux', 'api-candidate', 'api-account-services'), default='api-linux')
+    parser.add_argument('--account-services', action='store_true', help='Test the real native account consumer with four character database workers.')
     parser.add_argument('--world-candidate', type=Path,
                         help='Test an inactive release candidate whose compiled config directory points to this fixture.')
     args = parser.parse_args()
@@ -56,7 +57,14 @@ def main():
     if os.readlink('/proc/self/ns/net') == os.readlink('/proc/1/ns/net'):
         raise RuntimeError('PrivateNetwork=yes is mandatory for the test API/world.')
     os.umask(0o077)
-    world_binary = root / 'build/worldserver'
+    world_binary = root / ('build-native/worldserver' if args.account_services else 'build/worldserver')
+    if args.account_services and not args.world_candidate:
+        manifest = json.loads((root / 'build-native/manifest.json').read_text())
+        if len(manifest.get('nativeCoreOverlay', [])) != 3 or manifest['configurationDirectory'] != str(root / 'etc'):
+            raise RuntimeError('Native fixture requires the verified core overlay and its private configuration directory.')
+        with world_binary.open('rb') as stream:
+            if hashlib.file_digest(stream, 'sha256').hexdigest() != manifest['worldserverSha256']:
+                raise RuntimeError('Native fixture binary differs from its manifest.')
     if args.world_candidate:
         candidate = args.world_candidate.resolve(strict=True)
         if candidate.parent != Path('/opt/arthas-next/candidates') or not re.fullmatch(r'atlas-shop-rename-[0-9A-Za-z-]+', candidate.name):
@@ -75,7 +83,8 @@ def main():
     if not (api_package / 'WotLK.Launcher.Server').is_file():
         raise RuntimeError('Expected an existing fixture API package.')
     if not args.hold:
-        result_name = 'hermes-test-result.json' if args.with_hermes else 'native-test-result.json'
+        result_name = ('hermes-account-services-result.json' if args.with_hermes else 'native-account-services-result.json') if args.account_services else (
+            'hermes-test-result.json' if args.with_hermes else 'native-test-result.json')
         (root / result_name).write_text(json.dumps({'passed': False, 'state': 'starting', 'startedAtUnix': int(time.time())}) + '\n')
     config = configparser.ConfigParser()
     config.read(root / 'mysql-client.cnf')
@@ -94,6 +103,8 @@ def main():
     values = {key + 'DatabaseInfo': '"127.0.0.1;13308;root;' + password + ';' + database + '"'
               for key, database in databases.items()}
     values.update({key + 'Database.WorkerThreads': 1 for key in databases})
+    if args.account_services:
+        values['CharacterDatabase.WorkerThreads'] = 4
     values.update({key + 'Database.SynchThreads': 1 for key in databases})
     values.update({'RealmID': 1, 'WorldServerPort': 14001, 'BindIP': '"127.0.0.1"',
                    'DataDir': '"' + str(DATA) + '"', 'LogsDir': '"' + str(root / 'logs') + '"',
@@ -119,18 +130,20 @@ def main():
         keys = set(re.findall(r'^\s*([A-Za-z0-9_.]+)\s*=', module_text, re.M))
         (etc / 'modules' / path.name.removesuffix('.dist')).write_text(replace_options(
             module_text, {key: value for key, value in values.items() if key in keys}))
-    (etc / 'modules/mod_atlas_shop.conf').write_text('[worldserver]\nAtlasShop.Enable = 1\n')
+    (etc / 'modules/mod_atlas_shop.conf').write_text('[worldserver]\nAtlasShop.Enable = 1\nAtlasShop.AccountServices = '
+        + ('1' if args.account_services else '0') + '\n')
     api_config = {'Urls': 'http://127.0.0.1:18081', 'LauncherServer': {
         'ConnectionString': 'Server=127.0.0.1;Port=13308;User ID=root;Password=' + password + ';Database=shop_test_auth;SSL Mode=None;',
         'CharacterDatabaseName': 'shop_test_chars', 'WorldDatabaseName': 'shop_test_world',
         'PlayerbotsDatabaseName': 'shop_test_playerbots', 'AvatarMediaRoot': str(root / 'media/avatars'),
         'ChatMediaRoot': str(root / 'media/chat'), 'FeedRoot': str(root / 'feed'),
         'AddonRoot': str(root / 'addons'), 'PublicBaseUrl': 'http://127.0.0.1:18081', 'BrevoApiKey': ''},
-        'AtlasShop': {'Purchases': {'RenameEnabled': True, 'RealmId': 1}}}
+        'AtlasShop': {'Purchases': {'RenameEnabled': True, 'RealmId': 1, 'AccountServicesEnabled': args.account_services}}}
     (api_package / 'appsettings.Testing.json').write_text(json.dumps(api_config, indent=2) + '\n')
     env = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': str(root), 'TMPDIR': str(root / 'tmp'),
            'DOTNET_ENVIRONMENT': 'Testing', 'ASPNETCORE_ENVIRONMENT': 'Testing',
-           'WOTLK_LAUNCHER_MAX_SCHEMA_VERSION': '12', 'DOTNET_CLI_TELEMETRY_OPTOUT': '1',
+           'WOTLK_LAUNCHER_MAX_SCHEMA_VERSION': '13' if args.account_services or args.api_package == 'api-account-services' else '12',
+           'DOTNET_CLI_TELEMETRY_OPTOUT': '1',
            'AC_UPDATES_ENABLE_DATABASES': '0', 'AC_PLAYERBOTS_UPDATES_ENABLE_DATABASES': '0'}
     (root / 'tmp').mkdir(exist_ok=True)
     children = []
@@ -204,7 +217,8 @@ def main():
                     raise RuntimeError('A fixture child exited; inspect private logs.')
                 time.sleep(1)
         else:
-            script_name = 'test_hermes_realm.py' if args.with_hermes else 'test_native_realm.py'
+            script_name = ('test_hermes_account_services.py' if args.with_hermes else 'test_account_services_realm.py') if args.account_services else (
+                'test_hermes_realm.py' if args.with_hermes else 'test_native_realm.py')
             script = root / 'mod-atlas-shop/tests' / script_name
             spec = importlib.util.spec_from_file_location('atlas_native_realm_test', script)
             test = importlib.util.module_from_spec(spec)

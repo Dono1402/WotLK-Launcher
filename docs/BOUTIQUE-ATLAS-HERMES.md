@@ -1,5 +1,9 @@
 # Validation du renommage via Hermes, sans interface graphique
 
+> Campagne historique du mode attribué à un personnage. Le nouveau parcours
+> de services du compte et ses tests sont décrits dans
+> [Services natifs](BOUTIQUE-ATLAS-SERVICES-NATIFS.md).
+
 Cette campagne du 11 septembre 2026 utilise les vrais services du royaume isolé
 et un client réseau écrit pour le protocole 3.4.3.54261. Elle n'utilise ni Computer
 Use, ni l'exécutable du jeu, ni le launcher installé. Elle complète les

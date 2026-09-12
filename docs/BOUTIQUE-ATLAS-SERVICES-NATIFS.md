@@ -2,212 +2,171 @@
 
 ## État au 12 septembre 2026
 
-L'achat de services pour le compte est implémenté et testé dans l'API et le
-launcher, sur des données jetables. Les structures de paquets BattlePay/VAS de
-Hermes sont maintenant vérifiées avec les fonctions de décodage du client
-3.4.3.54261. Leur acheminement vers le cœur et la consommation en jeu restent
-à implémenter et à vérifier. **Ce parcours
-n'est pas prêt à être activé sur le royaume public.**
+Le parcours **acheter un service pour le compte dans le launcher, puis choisir
+le personnage en jeu** est implémenté et validé sur le royaume isolé. L'API,
+Hermes 3.4.3, le cœur World et MySQL ont effectué de vrais achats, validations,
+renommages, consommations et remboursements sur des comptes jetables.
 
-## Parcours demandé
+**La production n'a pas été modifiée. Le rendu graphique du bouton et de son
+parcours n'a pas été observé dans le client installé.** Aucun outil Computer Use
+ni lancement du jeu sur le PC n'a été utilisé. Les exécutables de test restent
+dans la fixture ; ils ne constituent pas une version publique du launcher.
 
-Le 11 septembre 2026, pendant la préparation du déploiement, le parcours a été
-réexaminé : un achat ne doit pas obliger à interrompre la partie. Le launcher
-confirme l'achat ; le joueur retourne volontairement à la sélection des
-personnages pour utiliser le service.
+## Parcours livré
 
-Le parcours confirmé par l'utilisateur est le suivant : le compte reçoit un
-service disponible, puis son personnage bénéficiaire est choisi dans le
-parcours natif du client. Aucun personnage n'est imposé au moment de l'achat.
+- L'achat crée une commande `available` du compte et du royaume, sans personnage
+  imposé (`character_guid=0`). Il est permis sans personnage ou pendant la partie.
+- Le joueur peut continuer à jouer. Une notification indique la disponibilité
+  du service ; son utilisation nécessite un retour volontaire à la sélection.
+- Hermes fournit au client natif les services disponibles et les personnages
+  du compte. Le parcours natif valide le nom puis confirme le renommage.
+- Le cœur vérifie le propriétaire, le royaume, le niveau minimal de 10,
+  l'absence de personnage en cours de chargement/jeu, les règles de nom et les
+  services déjà en attente. Le nom et le reçu passent ensemble à l'état final.
+- Aucun débit supplémentaire n'a lieu à la consommation. L'historique du
+  launcher expose le personnage, l'ancien nom et le nouveau nom.
+- Un service disponible peut être annulé et remboursé une fois. L'annulation
+  envoie aussi une révocation native pour retirer le service du cache du client.
+- Une confirmation répétée retrouve son reçu. Un service consommé ne peut
+  ni être remboursé ni être utilisé avec un autre personnage ou nom.
 
-Ce choix correspond au bouton de services demandé. Le schéma 0012 imposait un
-personnage bénéficiaire dès l'achat. La migration 0013 permet maintenant de
-conserver un service disponible sur le compte, sans bénéficiaire prédéfini.
+Ce parcours conserve les **quatre workers CharacterDatabase**. Il ne nécessite
+pas de fermer la session du compte, BNet ou le launcher après chaque achat.
 
-## Achat et suivi implémentés
+## Vérifications réalisées
 
-- Une commande `available` appartient au compte et au royaume. Son personnage
-  vaut zéro et son nom est vide jusqu'à son utilisation. Le portefeuille,
-  l'écriture du débit et le reçu restent dans une seule transaction.
-- Une requête répétée retrouve la même commande, y compris après annulation ou
-  après qu'un consommateur a renseigné un personnage et un nouveau nom.
-- Un service disponible peut être annulé et recrédité une seule fois. Une
-  commande `consumed` ne peut pas être annulée par l'API. La réservation de
-  capacité du portefeuille inclut les services disponibles remboursables.
-- Le launcher masque le choix du personnage pour ce mode, permet l'achat avec
-  des personnages en ligne ou sans personnage, affiche le stock et explique
-  le retour volontaire à la sélection. Le suivi conserve le mode du compte
-  même si la lecture suivante échoue. Le passage vers la recharge n'impose pas
-  de bénéficiaire ; la conversion d'or garde ses conditions sur le personnage
-  source.
-- L'historique conserve les anciens reçus attribués à un personnage. Pour les
-  nouveaux services, un nom absent est exposé comme tel dans l'historique ; un
-  reçu consommé affiche l'ancien et le nouveau nom.
+| Vérification | Résultat |
+| --- | --- |
+| Cœur natif et vraie API/MySQL, avec 4 workers asynchrones et 1 synchrone | 36 contrôles réussis |
+| SSO launcher, BNet, transport AES-GCM 3.4.3, Hermes, cœur et MySQL | 19 contrôles réussis |
+| Nouveaux tests unitaires Hermes : paquets et passerelle | 18 tests réussis |
+| Paquets Hermes décodés par les fonctions réelles du client émulées par Unicorn | 14 vérifications réussies |
+| Barrière C++ : plusieurs sauvegardes, transaction partagée, callback antérieur, durée de vie côté worker | Réussi |
 
-Le nouveau mode requiert `AtlasShop:Purchases:AccountServicesEnabled=true` et,
-pour ouvrir les achats, `RenameEnabled=true`, un plafond de schéma d'au moins
-13 et une preuve de disponibilité récente du consommateur en protocole 2.
-Le module actuel n'annonce que le protocole 1. Il ne peut donc pas ouvrir les
-achats du nouveau mode. Les paramètres restent désactivés par défaut.
+Les 36 contrôles du cœur couvrent notamment les noms invalides et occupés,
+les comptes étrangers, le niveau minimal, les services conflictuels, la
+validation sans consommation, le reçu, la reprise et un redémarrage réel.
+Une panne SQL provoquée annule à la fois le renommage et le reçu. Les deux
+ordres de la course remboursement/consommation sont contrôlés avec un vrai
+verrou MySQL : une seule opération gagne, l'autre préserve le résultat.
 
-Le protocole 2 est une exigence de compatibilité réservée au futur consommateur,
-pas une déclaration selon laquelle ce consommateur serait déjà implémenté.
-Un nouveau launcher compatible devra aussi être distribué avant l'activation :
-les anciennes versions ne connaissent pas les états `available` et `consumed`.
+Le scénario de sauvegarde fait réellement entrer puis déconnecter un Player.
+Une ligne verrouillée retarde sa transaction de sauvegarde alors que le client
+est déjà revenu à la sélection. Le service attend cette transaction ; un autre
+compte peut encore créer un personnage. Après libération, le renommage Unicode
+réussit et résiste à une nouvelle entrée, déconnexion et sauvegarde.
 
-## Compatibilité du client vérifiée dans les sources
+Les 19 contrôles Hermes vérifient les paquets du sélecteur natif, l'activation
+du drapeau de services après le signal du cœur, les noms Unicode, la révocation,
+la consommation, l'achat pendant le jeu, le retour à la sélection avec la
+session du compte ouverte, puis une coupure de socket et une reconnexion SSO.
+Un rafraîchissement redondant après une confirmation déjà traitée a été retiré
+pour conserver la limite ordinaire des demandes de liste de personnages.
 
-Le tag `3.4.3` du miroir des sources d'interface Blizzard pointe sur
-`564ca565fd2de4d1bd4ca787d75d9f8c6d1ffcde`. Il contient :
+La campagne Hermes complète forcée en 3.4.3 compte 1 180 tests : 1 177 passent,
+deux échecs LFG existent déjà sur la base inchangée et un test de métriques
+attend un séparateur décimal anglais alors que le processus utilise le français.
+Ces trois tests ne sont pas présentés comme réussis et n'ont pas été modifiés.
 
-- `CharacterSelect.lua` : lecture des services disponibles, création des boutons
-  et affichage de leur quantité ;
-- `Interface_TBC/GlueXML/CharacterSelect.xml` : le conteneur de ces boutons est
-  placé au bord supérieur de la liste des personnages ;
-- `CharacterServicesPaidNameChange.lua` : sélection du personnage, saisie du
-  nouveau nom, validation puis confirmation de l'utilisation du service.
+Les validations antérieures de l'API/launcher restent distinctes : 186 contrôles
+de financement, 35 propres aux services de compte, 369 assertions de contrats
+et comportement du launcher, 67 contrôles du SQL ancien, 181 assertions de
+sécurité des sessions et 10 contrôles de migration depuis l'ancienne API.
+Les vues WPF ont été inspectées hors écran avec des données fictives.
 
-Sources : [boutons et services disponibles](https://github.com/Gethe/wow-ui-source/blob/564ca565fd2de4d1bd4ca787d75d9f8c6d1ffcde/Interface/GlueXML/CharacterSelect.lua),
-[position du conteneur](https://github.com/Gethe/wow-ui-source/blob/564ca565fd2de4d1bd4ca787d75d9f8c6d1ffcde/Interface_TBC/GlueXML/CharacterSelect.xml),
-[parcours du renommage](https://github.com/Gethe/wow-ui-source/blob/564ca565fd2de4d1bd4ca787d75d9f8c6d1ffcde/Interface/SharedXML/CharacterServicesPaidNameChange.lua).
+## Construction et fichiers
 
-Cela établit la présence du parcours dans les sources 3.4.3. Cela ne constitue
-pas une observation graphique de l'exécutable 3.4.3.54261 installé ni une
-validation de ses échanges avec Atlas. Le parcours natif consulté impose aussi
-des règles côté client, notamment un niveau minimal de 10 pour le renommage
-payant ; il faudra aligner les conditions affichées et celles du serveur.
+- `mod-atlas-shop/src/atlas_shop_native.cpp` : protocole interne, authentification
+  par WorldSession, liste des services, validation, consommation et reçus.
+- `atlas_shop_native_sql.h` : verrou du portefeuille avant la commande,
+  renommage et reçu dans une transaction, littéraux UTF-8 encodés en hexadécimal.
+- `atlas_shop_barrier.h` : références faibles aux sauvegardes/transactions et
+  demandes de noms antérieures. Leur expiration suit leur fin effective.
+- `tests/patch_native_core.py` : copie de travail de trois fichiers du cœur
+  Atlas, avec contrôle SHA-256 des sources. Les sources actives restent intactes.
+- `patches/hermes-f859d0c-account-services.patch` : passerelle et paquets Hermes,
+  à appliquer **après** `hermes-f859d0c-disconnect-owner.patch` sur `f859d0c`.
+  L'application successive des deux correctifs a été vérifiée.
 
-## Écart avec Hermes et le module actuels
+Les hooks couvrent `Player::SaveToDB`, les opérations de création/nom, la durée
+de vie de WorldSession et une limite propre de 20 requêtes de service par
+session et par 10 secondes. Une seule consommation est en cours globalement.
+Pendant son court commit/contrôle de reçu, les autres créations ou changements
+de nom peuvent recevoir un refus temporaire ; les autres comptes peuvent
+continuer à jouer et entrer dans le monde. Si la lecture du reçu échoue après
+la transaction, la protection du nom reste en place jusqu'au retour de MySQL.
 
-L'inspection de Hermes `f859d0c`, incluant le correctif séparé de fermeture des
-connexions, ne trouve pas de gestionnaires ni de structures de paquets pour
-alimenter et utiliser les services BattlePay/VAS. Leurs noms existent dans les
-énumérations générales ; cela ne fournit pas leur implémentation. La table
-3.4.3.54261 utilisée par ce fork est également incomplète pour ces échanges.
+Le module requiert les hooks versionnés et refuse une liaison sans ceux-ci.
+Copier uniquement le module dans un cœur non adapté ne suffit pas. La recette
+de construction est propre au cœur Atlas épinglé ; ce n'est pas un installateur
+universel d'AzerothCore. Les écritures manuelles SQL et commandes GM qui changent
+les noms en dehors des chemins de joueur couverts restent hors du périmètre.
 
-Les tests déjà réussis couvrent le renommage classique attribué à un personnage
-par `AT_LOGIN_RENAME`, annoncé dans l'énumération des personnages puis consommé
-par la commande native de renommage. Ils ne couvrent pas le bouton de services
-disponibles du compte.
+## Reproduction dans la fixture
 
-Pour ce bouton, il reste à implémenter et vérifier la liste des services, le
-choix d'un personnage appartenant au compte, la validation du nom et la
-consommation unique. Une annulation, un nom refusé, une requête répétée ou une
-coupure réseau ne doivent pas perdre le service ni créer un second débit.
+Racine privée : `/opt/atlas-shop-tests/rename-20260911`. Réutiliser son MySQL
+jetable existant, sans réinitialiser ses données ni exposer de port. Les comptes
+et fonds sont synthétiques. Aucun compte/personnage public n'y est importé.
 
-Les structures anciennes trouvées dans d'autres cœurs ne constituent pas une
-preuve du format de cette version du client. L'analyse initiale de l'exécutable
-sur disque était insuffisante : ses sections de code nécessitent une
-initialisation. Une copie du seul exécutable a ensuite été initialisée sous
-Wine, dans un conteneur privé sur Atlas, sans réseau, limité à un CPU et 1 Gio
-de mémoire. Aucun compte, répertoire de données du jeu ou fichier personnel
-n'était monté. Ce processus a été arrêté après la lecture de ses sections.
-Le jeu installé sur le PC n'a pas été lancé. Aucun outil Computer Use n'a
-été utilisé.
+1. Copier les sources du module et ses scripts dans la fixture. Exécuter
+   `build_realm_linux.py --root <racine> --output-name build-native` dans une
+   unité `PrivateNetwork=yes`, `ProtectSystem=strict`, `ReadWritePaths=<racine>`,
+   `MemoryMax=4G`, `MemorySwapMax=0`, `CPUQuota=100%`, avec priorité basse.
+   `--reuse-verified` ne réutilise que des objets dont les sources, en-têtes,
+   options, signatures des entrées et hashes correspondent au manifeste.
+2. Publier l'API dans `api-account-services`, puis exécuter
+   `run_realm_fixture.py --root <racine> --account-services --api-package api-account-services`
+   sous la même isolation réseau/fichiers, avec `MemoryMax=3G`, sans swap et
+   `CPUQuota=150%`. Le script lance puis arrête ses propres API/World.
+3. Publier Hermes corrigé dans `hermes-native` ; ajouter
+   `--with-hermes --hermes-package hermes-native` pour le scénario 3.4.3 complet.
+   La fixture ajoute alors son Auth et son Hermes, et les arrête aussi à la fin.
+4. Vérifier `native-account-services-result.json`,
+   `hermes-account-services-result.json` et `build-native/manifest.json`.
+   Les rapports ne passent à `passed=true` qu'après tous leurs contrôles.
+5. Arrêter le seul conteneur enregistré avec
+   `prepare_realm_fixture.py --root <racine> --stop` ; conserver les preuves.
 
-La lecture des sections initialisées a permis d'identifier les formats exacts.
-Le correctif `mod-atlas-shop/patches/hermes-f859d0c-account-services.patch`
-contient leurs structures et leurs tests, sans activer le service. Les messages
-synthétiques produits par Hermes ont passé **12 vérifications** avec les
-véritables fonctions de décodage du client émulées par Unicorn : listes de
-0, 1, 2 et 100 services, service consommé/révoqué, listes vides du magasin,
-liste des personnages et réponses de validation. La fonction de classement
-du client reconnaît le produit comme `PaidNameChange` et masque les services
-consommés ou révoqués. Son rappel de validation reçoit bien le jeton de la
-demande et le résultat attendu.
+Les 14 contrôles de formats utilisent `tests/verify_native_protocol.py`, les
+paquets produits par les tests Hermes et les sections privées du client
+3.4.3.54261. Ils exécutent ses parseurs, son classement `PaidNameChange` et son
+rappel de résultat sous émulation CPU. Les seuls remplacements sont les
+allocateurs et copies mémoire. Aucun code binaire du client n'est versionné.
 
-Les **11 tests Hermes** supplémentaires couvrent aussi les demandes produites
-par le véritable sérialiseur du client, dont le nom UTF-8, la distinction
-validation/confirmation, chaque troncature et les octets superflus. Une
-vérification explicite des longueurs évite d'accepter une chaîne tronquée.
-Les exécutables et sections du client restent privés et hors Git. Le script
-`mod-atlas-shop/tests/verify_native_protocol.py` ne contient que l'oracle de
-vérification et exige la copie locale correspondante.
+Le parcours existe dans les [sources de CharacterSelect 3.4.3](https://github.com/Gethe/wow-ui-source/blob/564ca565fd2de4d1bd4ca787d75d9f8c6d1ffcde/Interface/GlueXML/CharacterSelect.lua)
+et du [renommage payant](https://github.com/Gethe/wow-ui-source/blob/564ca565fd2de4d1bd4ca787d75d9f8c6d1ffcde/Interface/SharedXML/CharacterServicesPaidNameChange.lua).
+La vérification de protocole ne remplace pas l'observation de ce parcours à l'écran.
 
-Cela valide le format des paquets, **pas l'affichage dans un client connecté
-ni une consommation réelle**. L'acheminement, la notification dans le jeu et
-le consommateur doivent encore être reliés et testés ; le message du launcher
-est déjà présent.
+## Mise en service restante
 
-## Sauvegardes et déconnexions
+Les paquets de test sont prêts et vérifiés. La bascule publique doit utiliser
+une version propre du launcher/API/Hermes/World, avec les configurations et
+droits de production contrôlés, une sauvegarde et une procédure de retour.
+Le binaire World de la fixture embarque son chemin de configuration de test :
+**ne pas le copier directement à la place du World public**. Le candidat
+préparé auparavant pour l'ancien parcours à un seul worker est lui aussi obsolète.
 
-Une déconnexion forcée n'est pas une condition fonctionnelle de l'achat. Le
-problème technique est d'éviter qu'une sauvegarde du personnage encore en cours
-écrase une modification apportée par le service.
+L'installation initiale nécessite un redémarrage de World et Hermes, donc une
+déconnexion des joueurs, ainsi qu'un redémarrage bref de l'API. L'authserver
+n'a pas besoin d'être remplacé. Les quatre workers CharacterDatabase restent
+à quatre. Cette coupure d'installation est indépendante de l'usage des achats.
 
-Le module actuellement validé attend la fermeture de toute la session du compte
-et exige un worker CharacterDatabase unique. Le royaume public utilise quatre
-workers. Ce paramètre n'a pas été modifié.
+Avant ouverture, le module doit avoir `AtlasShop.Enable=1` et
+`AtlasShop.AccountServices=1`. L'API requiert un plafond de schéma 13,
+`AtlasShop:Purchases:AccountServicesEnabled=true` et `RenameEnabled=true`.
+Les achats restent fermés tant que le cœur n'annonce pas un signal protocole 2
+récent après contrôle des tables InnoDB et droits SQL. Les valeurs distribuées
+restent désactivées par défaut. Le magasin Blizzard reste désactivé.
 
-Une piste pour conserver les quatre workers consiste à suivre la durée de vie
-des transactions produites par `Player::SaveToDB`, jusqu'à leur libération par
-les workers SQL. L'inspection du cœur établit que le worker détruit son opération
-après l'exécution de la transaction. Une référence faible par personnage
-pourrait donc attendre ses sauvegardes sans bloquer celles des autres joueurs.
-Cette piste n'est pas encore implémentée ni validée. Elle doit aussi couvrir
-plusieurs sauvegardes simultanées, les transactions partagées, la reconnexion
-et le retour à la sélection avant la fin d'une sauvegarde.
+La migration publique passe de 0008 à 0013 ; sa répétition a vérifié les sessions
+existantes et la rotation des jetons. Après migration, l'ancienne API 0008 ne
+peut pas être simplement remise en place : elle refuse le schéma plus récent.
+Le retour opérationnel doit garder l'API compatible, fermer les achats et
+préserver soldes/reçus ; il peut rétablir les anciens World/Hermes. Ne pas
+restaurer une ancienne base par-dessus des écritures financières ou sessions
+créées après la bascule. Le détail de la bascule publique reste à finaliser.
 
-Le redémarrage du World et de Hermes évoqué pour l'installation initiale est
-distinct de l'utilisation de chaque achat.
-
-## Préparation indépendante déjà vérifiée
-
-La répétition de migration exécute le véritable ancien binaire de l'API avec une
-copie de la structure du schéma public et de son historique 0001–0008. Aucune
-ligne de compte ou de personnage public n'est copiée. Un compte synthétique
-est créé par cette API, puis le candidat applique les migrations jusqu'à 0013.
-
-Les dix contrôles réussis vérifient notamment la conservation des échéances de
-session, l'utilisation de l'ancien jeton d'accès, la rotation du jeton de
-renouvellement, un redémarrage idempotent et le maintien des achats fermés en
-l'absence de consommateur natif. Aucun solde ou achat n'est créé par la
-migration. Une première répétition jusqu'à 0012 avait déjà réussi neuf
-contrôles. Le script est `mod-atlas-shop/tests/test_api_upgrade.py` ; les
-preuves et configurations jetables restent hors Git.
-
-Les tests locaux MySQL 8.4 de sécurité des sessions passent avec **181 assertions**,
-ainsi que les contrôles de plafonnement des migrations. Les corrections du banc
-adaptent le nombre de migrations disponibles, l'attente sur un signal de
-révocation déjà émis et l'ordre déterministe des sessions à expirer. Le code
-d'authentification n'a pas été modifié.
-
-Les vérifications spécifiques au nouveau mode passent également :
-
-- **186 contrôles** de financement et **35 contrôles supplémentaires** sur les
-  services du compte, avec l'API HTTP et MySQL 8.4 réels : migration et reprise,
-  achats concurrents, absence de personnage, personnage en ligne, annulation,
-  isolation des comptes, panne du journal, reprise après réponse perdue et
-  protection de la capacité de remboursement ;
-- **369 assertions** de comportement du launcher et des contrats ;
-- **67 contrôles supplémentaires** du parcours ancien, avec le SQL du module
-  réel et MySQL, pour vérifier sa compatibilité après les changements de l'API ;
-- parcours WPF ancien et nouveau, exécutés hors écran dans une fenêtre
-  inactive avec données fictives, sans lancer le jeu ; les vues françaises à
-  1280 × 760 et anglaise à 1586 × 992 ont été inspectées.
-
-Le test MySQL renseigne explicitement un reçu `consumed` pour vérifier le
-comportement de l'API face à cet état. **Il ne simule pas une validation du
-protocole natif, de l'application du renommage ou de la course entre
-consommation en jeu et remboursement.** Ces vérifications attendent le vrai
-consommateur.
-
-Les paquets construits pendant cette préparation ne sont pas une livraison du
-nouveau parcours de services natifs. Aucun remplacement de service public,
-aucune migration publique et aucune publication du client n'ont été effectués.
-Les changements provisoires de version 1.7 ont été retirés tant que le parcours
-en jeu n'est pas prêt. Le candidat World construit précédemment correspond
-encore au mécanisme ancien, avec un seul worker ; il n'a pas été démarré et ne
-doit pas servir à activer les services du compte.
-
-L'audit final confirme les mêmes processus et les mêmes exécutables publics
-pour World, Auth, Hermes et l'API, avec quatre workers CharacterDatabase.
-Les bases locales de test ont été supprimées et leurs processus arrêtés. Le
-conteneur MySQL distant jetable est arrêté ; ses données et preuves sont
-conservées pour la suite.
-
-Un retour à l'ancien binaire API seul ne suffit pas après une migration publique
-jusqu'à 0013 : cet ancien binaire ne connaît que le schéma 0008. Le retour arrière
-devra préserver les sessions et les écritures effectuées après la bascule, en
-particulier les soldes et commandes. La procédure finale reste à préparer pour
-le parcours retenu.
+Après cette campagne, les processus de fixture et son MySQL sont arrêtés.
+L'audit public retrouve les mêmes PID, exécutables, configurations et quatre
+workers pour World, Auth, Hermes et l'API. Aucune migration publique, publication
+du launcher ou modification du jeu installé n'a été effectuée.

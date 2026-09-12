@@ -1,3 +1,7 @@
-# Requires launcher auth schema 0012 and both databases on one MySQL instance.
+# Legacy mode requires schema 0012 and one character database worker.
+# Native account services require schema 0013 and the verified core overlay;
+# they support multiple character database workers.
+# Both databases must use the same MySQL instance.
 # Keep disabled until module/core integration has been verified on a test realm.
 AtlasShop.Enable = 0
+AtlasShop.AccountServices = 0

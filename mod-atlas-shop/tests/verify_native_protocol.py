@@ -138,7 +138,7 @@ class Fixture:
         return self.obj
 f = Fixture()
 packets = json.loads(args.packets.read_text(encoding='utf-8'))
-expected = {'distributions-0', 'distributions-1', 'distributions-2', 'distributions-100', 'consumed', 'revoked', 'products', 'purchases', 'states', 'assign-success', 'assign-rejected', 'characters'}
+expected = {'distributions-0', 'distributions-1', 'distributions-2', 'distributions-100', 'consumed', 'revoked', 'products', 'purchases', 'states', 'assign-success', 'assign-rejected', 'characters', 'glue-enabled', 'glue-disabled'}
 if set(packets) != expected:
     raise RuntimeError('The complete set of emitted packet fixtures is required.')
 checks = []
@@ -161,6 +161,12 @@ for name, hexdata in packets.items():
         f.parse(5375758224, p, True)
     elif name == 'states':
         f.parse(5375783440, p, True)
+    elif name.startswith('glue-'):
+        o = f.parse(0x1406bf640, p, True)
+        # The real glue-status callback copies object+0x35 into the flag read by
+        # C_CharacterServices.IsBoostEnabled, also used by the paid-name button.
+        assert f.get(o + 0x35, 'B') == (name == 'glue-enabled')
+        assert f.read(o + 0x20, 3) == bytes(3)  # The Blizzard store remains disabled.
     elif name.startswith('assign-'):
         o = f.parse(5375757584, p, True)
         event = []

@@ -13,6 +13,7 @@ import re
 import shlex
 import subprocess
 import time
+from patch_native_core import overlay
 
 BASE = Path('/opt/arthas-next/candidates/modules-update-20260905T1016Z')
 CURRENT = Path('/opt/arthas-next/candidates/modules-update-20260909T1035Z')
@@ -47,6 +48,8 @@ def read_flags(path, config_dir, main=False):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, required=True)
+    parser.add_argument('--output-name', choices=('build', 'build-native'), default='build')
+    parser.add_argument('--reuse-verified', action='store_true', help='Reuse matching objects from this fixture when its core inputs and module headers are unchanged.')
     parser.add_argument('--release-candidate', action='store_true',
                         help='Build a separate, inactive AtlasShop release with its own server/etc directory.')
     args = parser.parse_args()
@@ -59,7 +62,7 @@ def main():
         if root.parent != Path('/opt/atlas-shop-tests') or not re.fullmatch(r'rename-[0-9A-Za-z-]+', root.name):
             raise RuntimeError('Expected an existing, dedicated /opt/atlas-shop-tests/rename-* directory.')
         config_dir = root / 'etc'
-    out = root / 'build'
+    out = root / args.output_name
     out.mkdir(exist_ok=True)
     module = root / 'mod-atlas-shop'
     recipe = CURRENT / 'build-isolated/logs/world-candidate-link.command.json'
@@ -75,6 +78,14 @@ def main():
     manifest = {'moduleSources': source_hashes, 'baseCoreHead': subprocess.check_output(
         ['git', '-c', 'safe.directory=' + str(BASE / 'core'), '-C', str(BASE / 'core'), 'rev-parse', 'HEAD'], text=True).strip(),
         'originalLinkRecipeSha256': sha(recipe), 'inputSignatures': before, 'compiled': []}
+    previous = {}
+    manifest_path = out / 'manifest.json'
+    if args.reuse_verified and manifest_path.exists():
+        candidate = json.loads(manifest_path.read_text())
+        headers = lambda entries: {key: value for key, value in entries.items() if key.endswith(('.h', '.hpp'))}
+        if all(candidate.get(key) == manifest[key] for key in ('baseCoreHead', 'originalLinkRecipeSha256', 'inputSignatures')) \
+                and headers(candidate.get('moduleSources', {})) == headers(source_hashes):
+            previous = {entry['source']: entry for entry in candidate.get('compiled', [])}
 
     def run(name, cmd):
         print('RUN', name, flush=True)
@@ -87,6 +98,11 @@ def main():
 
     def compile_source(name, source, flags):
         obj = out / (name + '.o')
+        old = previous.get(str(source))
+        if old and old['sourceSha256'] == sha(source) and old['flags'] == flags and obj.exists() and old['objectSha256'] == sha(obj):
+            print('REUSE', name, flush=True)
+            manifest['compiled'].append({**old, 'reused': True})
+            return str(obj)
         cmd = ['/usr/bin/c++', *flags, '-c', str(source), '-o', str(obj)]
         run(name, cmd)
         manifest['compiled'].append({'source': str(source), 'sourceSha256': sha(source),
@@ -102,8 +118,17 @@ def main():
         raise RuntimeError('Unexpected previous module loader.')
     loader = out / 'ModulesLoader.cpp'
     loader.write_text('void Addmod_atlas_shopScripts();\n' + loader_text.replace(marker, marker + '    Addmod_atlas_shopScripts();\n'))
-    additions = [compile_source('atlas_shop', module / 'src/atlas_shop.cpp', module_flags),
-                 compile_source('atlas_shop_loader', module / 'src/atlas_shop_loader.cpp', module_flags)]
+    additions = [compile_source(name, module / 'src' / (name + '.cpp'), module_flags)
+                 for name in ('atlas_shop', 'atlas_shop_native', 'atlas_shop_loader')]
+    # The save barrier and session lifetime hooks are compiled into a separate
+    # overlay. Never edit or reuse objects from the active/source checkout.
+    game_flags = read_flags(BASE / 'build/src/server/game/CMakeFiles/game.dir/flags.make', config_dir)
+    game_flags += ['-I' + str(module / 'src')]
+    core_overlay = out / 'native-core'
+    manifest['nativeCoreOverlay'] = overlay(BASE / 'core/src/server/game', core_overlay)
+    for entry in manifest['nativeCoreOverlay']:
+        source = core_overlay / entry['relative']
+        additions.append(compile_source('native_' + source.stem, source, game_flags))
     loader_obj = compile_source('ModulesLoader', loader, module_flags)
     # ConfigMgr embeds _CONF_DIR: changing only --config would still read live module configs.
     additions.append(compile_source('Config', BASE / 'core/src/common/Configuration/Config.cpp', common_flags))
@@ -127,6 +152,9 @@ def main():
     missing = sorted(x for x in expected if x + '()' not in symbols)
     if missing:
         raise RuntimeError('Missing module registrations: ' + ', '.join(missing))
+    for marker in ('StorageHooksVersion', 'CharacterHooksVersion', 'SessionHooksVersion'):
+        if 'AtlasShop::' + marker + '()' not in symbols:
+            raise RuntimeError('Native core hook missing from linked worldserver: ' + marker)
     after = {str(p): [p.stat().st_size, p.stat().st_mtime_ns, p.stat().st_ino] for p in inputs}
     if before != after:
         raise RuntimeError('Existing link inputs changed during the build.')

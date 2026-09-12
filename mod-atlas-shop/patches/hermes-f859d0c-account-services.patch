@@ -1,9 +1,209 @@
+diff --git a/Framework/IO/ByteBuffer.cs b/Framework/IO/ByteBuffer.cs
+index 81de95d..f175869 100644
+--- a/Framework/IO/ByteBuffer.cs
++++ b/Framework/IO/ByteBuffer.cs
+@@ -941,6 +941,10 @@ public class ByteBuffer : IDisposable
+         return _buffer.AsSpan(0, _length);
+     }
+ 
++    // A receive-side extension must inspect only the unread payload, including
++    // when the constructor consumed an opcode or the pool rental has spare bytes.
++    public ReadOnlySpan<byte> GetRemainingSpan() => _buffer.AsSpan(_position, _length - _position);
++
+     /// <remarks>
+     /// In read mode this returns the backing buffer itself, which for a pooled receive is longer
+     /// than the packet — <c>GetData().Length</c> is not the packet length. Use
+diff --git a/HermesProxy.Tests/World/Server/AtlasAccountServiceBridgeTests.cs b/HermesProxy.Tests/World/Server/AtlasAccountServiceBridgeTests.cs
+new file mode 100644
+index 0000000..5500cdc
+--- /dev/null
++++ b/HermesProxy.Tests/World/Server/AtlasAccountServiceBridgeTests.cs
+@@ -0,0 +1,179 @@
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using HermesProxy.World;
++using HermesProxy.World.Server;
++using HermesProxy.World.Server.Packets;
++using Xunit;
++
++namespace HermesProxy.Tests.World.Server;
++
++public class AtlasAccountServiceBridgeTests
++{
++    static readonly WowGuid128 Account = new(51, 29ul << 58);
++    static readonly WowGuid128 Character = new(981, 2ul << 58);
++    const uint Realm = 1;
++
++    [Fact]
++    public void ListUpdate_RevokesCancelledServicesInsteadOfLeavingThemInTheClientCache()
++    {
++        var bridge = new AtlasAccountServiceBridge();
++        using var request = bridge.Subscribe(1000)!;
++        Assert.Null(bridge.Subscribe(1100));
++        var initial = List(bridge, request, 10, 11);
++        Assert.True(bridge.Ready);
++        Assert.Equal(2, Assert.IsType<AtlasDistributionList>(Assert.Single(initial.Packets)).Distributions.Count);
++        var updated = List(bridge, request, 11, 12);
++        var revoked = Assert.IsType<AtlasDistributionUpdate>(updated.Packets[0]).Distribution;
++        Assert.Equal(10ul, revoked.Id); Assert.True(revoked.Revoked);
++        Assert.Equal(new ulong[] { 11, 12 }, Assert.IsType<AtlasDistributionList>(updated.Packets[1]).Distributions.Select(x => x.Id));
++        var empty = List(bridge, request);
++        Assert.Equal(3, empty.Packets.Count);
++        Assert.All(empty.Packets.Take(2), p => Assert.True(Assert.IsType<AtlasDistributionUpdate>(p).Distribution.Revoked));
++    }
++
++    [Fact]
++    public void Assignment_ValidatesBeforeConsuming_AndReturnsTheAuthoritativeNormalizedName()
++    {
++        var bridge = new AtlasAccountServiceBridge();
++        using var list = bridge.Subscribe(1000)!;
++        List(bridge, list, 10);
++        using var native = Request(true);
++        using var validation = bridge.Assign(native, true, Realm, false, 1100)!;
++        Assert.NotNull(validation);
++        Assert.Null(bridge.Assign(native, true, Realm, false, 1200));
++        var validated = Reply(bridge, validation, "Nativeproof");
++        Assert.Null(validated.ChangedName);
++        Assert.Equal(73u, Assert.IsType<AtlasAssignVasResponse>(Assert.Single(validated.Packets)).Token);
++        native.ValidateOnly = false;
++        using var confirmation = bridge.Assign(native, true, Realm, false, 1300)!;
++        var consumed = Reply(bridge, confirmation, "Nativeproof");
++        Assert.Equal(Character, consumed.ChangedCharacter);
++        Assert.Equal("Nativeproof", consumed.ChangedName);
++        var distribution = Assert.IsType<AtlasDistributionUpdate>(consumed.Packets[0]).Distribution;
++        Assert.Equal(3u, distribution.Status); Assert.Equal(Character, distribution.Character);
++        Assert.Equal(0u, Assert.IsType<AtlasAssignVasResponse>(consumed.Packets[1]).StoreError);
++        Assert.Empty(Reply(bridge, confirmation, "Nativeproof").Packets); // Duplicate server response.
++        // The core, which retains receipts, decides whether a consumed ID is an
++        // idempotent retry. A missing local distribution is not authority to debit.
++        Assert.NotNull(bridge.Assign(native, true, Realm, false, 1400));
++    }
++
++    [Fact]
++    public void UnavailableForeignRealmAndInWorldAssignments_AreRejected()
++    {
++        var bridge = new AtlasAccountServiceBridge();
++        using var native = Request(false);
++        Assert.Null(bridge.Assign(native, true, Realm, false, 1000));
++        using var list = bridge.Subscribe(1000)!;
++        List(bridge, list, 10);
++        Assert.Null(bridge.Assign(native, false, Realm, false, 1100));
++        Assert.Null(bridge.Assign(native, true, Realm + 1, false, 1100));
++        Assert.Null(bridge.Assign(native, true, Realm, true, 1100));
++        native.IsSupportedNameChange = false;
++        Assert.Null(bridge.Assign(native, true, Realm, false, 1100));
++    }
++
++    [Fact]
++    public void OldConnectionReplies_CannotAffectAReconnectedAccount()
++    {
++        var bridge = new AtlasAccountServiceBridge();
++        using var old = bridge.Subscribe(1000)!;
++        List(bridge, old, 10);
++        bridge.Reset();
++        Assert.False(bridge.Ready);
++        using var current = bridge.Subscribe(1001)!;
++        Assert.Empty(List(bridge, old, 42).Packets);
++        Assert.False(bridge.Ready);
++        var refreshed = List(bridge, current);
++        Assert.True(Assert.IsType<AtlasDistributionUpdate>(refreshed.Packets[0]).Distribution.Revoked);
++        Assert.True(bridge.Ready);
++    }
++
++    [Fact]
++    public void ForeignOrMalformedReplies_DoNotConsumeThePendingConfirmation()
++    {
++        var bridge = new AtlasAccountServiceBridge();
++        using var list = bridge.Subscribe(1000)!;
++        List(bridge, list, 10);
++        using var native = Request(false);
++        using var request = bridge.Assign(native, true, Realm, false, 1100)!;
++        byte[] body = AssignmentResponse(request, "Nativeproof");
++        for (int length = 5; length < body.Length; ++length)
++        {
++            using var truncated = new WorldPacket(1, body[..length]);
++            var result = bridge.Receive(truncated, Account, Realm);
++            Assert.True(result.Handled); Assert.Empty(result.Packets);
++        }
++        byte[] wrongGuid = (byte[])body.Clone(); wrongGuid[28] ^= 1;
++        using var foreign = new WorldPacket(1, wrongGuid);
++        Assert.Empty(bridge.Receive(foreign, Account, Realm).Packets);
++        byte[] invalidUtf8 = (byte[])body.Clone(); invalidUtf8[^1] = 0xff;
++        using var invalid = new WorldPacket(1, invalidUtf8);
++        Assert.Empty(bridge.Receive(invalid, Account, Realm).Packets);
++        Assert.Equal("Nativeproof", Reply(bridge, request, "Nativeproof").ChangedName);
++    }
++
++    [Fact]
++    public void ErrorReply_PreservesTheDistributionAndAllowsRetry()
++    {
++        var bridge = new AtlasAccountServiceBridge();
++        using var list = bridge.Subscribe(1000)!;
++        List(bridge, list, 10);
++        using var native = Request(false);
++        using var request = bridge.Assign(native, true, Realm, false, 1100)!;
++        var result = Reply(bridge, request, "Nativeproof", 1);
++        Assert.Null(result.ChangedName);
++        Assert.Equal(3u, Assert.IsType<AtlasAssignVasResponse>(Assert.Single(result.Packets)).StoreError);
++        Assert.NotNull(bridge.Assign(native, true, Realm, false, 1101));
++    }
++
++    [Fact]
++    public void PooledReceive_InspectsUnreadPayloadAndNeverIncludesRentalSlack()
++    {
++        var bridge = new AtlasAccountServiceBridge();
++        using var request = bridge.Subscribe(1000)!;
++        using var writer = ResponseHeader(request, 0);
++        writer.WriteUInt32(1); writer.WriteUInt64(10);
++        byte[] payload = writer.GetData();
++        byte[] rental = new byte[2048];
++        payload.CopyTo(rental, 2);
++        using var received = new WorldPacket(rental, payload.Length + 2, false);
++        Assert.Single(bridge.Receive(received, Account, Realm).Packets);
++        using var ordinary = new WorldPacket(1, new byte[] { 0 });
++        Assert.False(bridge.Receive(ordinary, Account, Realm).Handled);
++    }
++
++    static AtlasAssignNameChange Request(bool validate) => new(new WorldPacket()) {
++        Token = 73, DistributionId = 10, Character = Character, RealmAddress = Realm,
++        Name = "nativeproof", ValidateOnly = validate, IsSupportedNameChange = true,
++    };
++    static WorldPacket ResponseHeader(WorldPacket request, byte error)
++    {
++        using var input = new WorldPacket(1, request.GetData());
++        var writer = new WorldPacket(1);
++        writer.WriteBytes(input.ReadBytes(19)); writer.WriteUInt8(error);
++        return writer;
++    }
++    static AtlasAccountServiceBridge.Result List(AtlasAccountServiceBridge bridge, WorldPacket request, params ulong[] ids)
++    {
++        using var writer = ResponseHeader(request, 0);
++        writer.WriteUInt32((uint)ids.Length);
++        foreach (ulong id in ids) writer.WriteUInt64(id);
++        using var response = new WorldPacket(1, writer.GetData());
++        return bridge.Receive(response, Account, Realm);
++    }
++    static byte[] AssignmentResponse(WorldPacket request, string name, byte error = 0)
++    {
++        using var writer = ResponseHeader(request, error);
++        writer.WriteBytes(request.GetDataSpan().Slice(19, 17).ToArray());
++        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(name);
++        writer.WriteUInt8((byte)bytes.Length); writer.WriteBytes(bytes);
++        return writer.GetData();
++    }
++    static AtlasAccountServiceBridge.Result Reply(AtlasAccountServiceBridge bridge, WorldPacket request, string name, byte error = 0)
++    {
++        using var response = new WorldPacket(1, AssignmentResponse(request, name, error));
++        return bridge.Receive(response, Account, Realm);
++    }
++}
 diff --git a/HermesProxy.Tests/World/Server/AtlasAccountServicesPacketsTests.cs b/HermesProxy.Tests/World/Server/AtlasAccountServicesPacketsTests.cs
 new file mode 100644
-index 0000000..ec9c781
+index 0000000..80128d0
 --- /dev/null
 +++ b/HermesProxy.Tests/World/Server/AtlasAccountServicesPacketsTests.cs
-@@ -0,0 +1,122 @@
+@@ -0,0 +1,124 @@
 +using System;
 +using System.IO;
 +using System.Linq;
@@ -105,6 +305,8 @@ index 0000000..ec9c781
 +        bodies["products"] = Emit(new AtlasEmptyProductList());
 +        bodies["purchases"] = Emit(new AtlasEmptyPurchaseList());
 +        bodies["states"] = Emit(new AtlasEmptyVasStates());
++        bodies["glue-disabled"] = Emit(new FeatureSystemStatusGlueScreen { MaxCharactersPerRealm = 10, MinimumExpansionLevel = 5, MaximumExpansionLevel = 8, Unk14 = true });
++        bodies["glue-enabled"] = Emit(new FeatureSystemStatusGlueScreen { CharacterServicesEnabled = true, MaxCharactersPerRealm = 10, MinimumExpansionLevel = 5, MaximumExpansionLevel = 8, Unk14 = true });
 +        bodies["assign-success"] = Emit(new AtlasAssignVasResponse { Token = 73 });
 +        bodies["assign-rejected"] = Emit(new AtlasAssignVasResponse { Token = 73, StoreError = 3 });
 +        var characters = new AtlasVasCharactersResult { Token = 42 };
@@ -126,6 +328,79 @@ index 0000000..ec9c781
 +    }
 +    static byte[] Frame(byte[] body) => new byte[2].Concat(body).ToArray();
 +}
+diff --git a/HermesProxy/GlobalSessionData.cs b/HermesProxy/GlobalSessionData.cs
+index baf646f..f165ce3 100644
+--- a/HermesProxy/GlobalSessionData.cs
++++ b/HermesProxy/GlobalSessionData.cs
+@@ -1888,6 +1888,7 @@ public class ArenaTeamData
+ }
+ public class GlobalSessionData
+ {
++    public AtlasAccountServiceBridge AtlasAccountServices { get; } = new();
+     public BNetServer.Networking.AccountInfo AccountInfo = null!;
+     public BNetServer.Networking.GameAccountInfo GameAccountInfo = null!;
+     public string Username = null!;
+@@ -2005,6 +2006,7 @@ public class GlobalSessionData
+ 
+     public void OnDisconnect()
+     {
++        AtlasAccountServices.Reset();
+         if (ModernSniff != null)
+         {
+             ModernSniff.CloseFile();
+diff --git a/HermesProxy/World/Client/PacketHandlers/AtlasAccountServicesHandler.cs b/HermesProxy/World/Client/PacketHandlers/AtlasAccountServicesHandler.cs
+new file mode 100644
+index 0000000..186bc8a
+--- /dev/null
++++ b/HermesProxy/World/Client/PacketHandlers/AtlasAccountServicesHandler.cs
+@@ -0,0 +1,35 @@
++using Framework.Constants;
++using HermesProxy.Enums;
++using HermesProxy.World.Enums;
++
++namespace HermesProxy.World.Client;
++
++public partial class WorldClient
++{
++    bool HandleAtlasAccountServices(WorldPacket packet)
++    {
++        if (ModernVersion.Build != ClientVersionBuild.V3_4_3_54261) return false;
++        var session = GetSession();
++        var result = session.AtlasAccountServices.Receive(packet,
++            WowGuid128.Create(HighGuidType703.WowAccount, session.GameAccountInfo.Id), session.RealmId.GetAddress());
++        if (!result.Handled) return false;
++        if (result.ReadinessChanged) session.RealmSocket?.SendFeatureSystemStatusGlueScreen();
++        bool refreshCharacters = false;
++        if (result.ChangedName != null)
++        {
++            foreach (var own in session.GameState.OwnCharacters)
++                if (own.CharacterGuid == result.ChangedCharacter && own.Name != result.ChangedName)
++                {
++                    own.Name = result.ChangedName;
++                    refreshCharacters = true;
++                }
++            if (session.GameState.CachedPlayers.TryGetValue(result.ChangedCharacter, out var cached))
++                cached.Name = result.ChangedName;
++        }
++        foreach (var response in result.Packets) SendPacketToClient(response);
++        // Replayed receipts still receive their success response, but do not
++        // produce duplicate enum requests against the core's ordinary rate limit.
++        if (refreshCharacters) SendPacketToServer(new WorldPacket(Opcode.CMSG_ENUM_CHARACTERS));
++        return true;
++    }
++}
+diff --git a/HermesProxy/World/Client/PacketHandlers/CharacterHandler.cs b/HermesProxy/World/Client/PacketHandlers/CharacterHandler.cs
+index e1318f0..b50df65 100644
+--- a/HermesProxy/World/Client/PacketHandlers/CharacterHandler.cs
++++ b/HermesProxy/World/Client/PacketHandlers/CharacterHandler.cs
+@@ -17,6 +17,7 @@ public partial class WorldClient
+     [PacketHandler(Opcode.SMSG_ENUM_CHARACTERS_RESULT)]
+     void HandleEnumCharactersResult(WorldPacket packet)
+     {
++        if (HandleAtlasAccountServices(packet)) return;
+         Log.Print(LogType.Trace, "[Trace] HandleEnumCharactersResult: ENTER — translating legacy SMSG_ENUM_CHARACTERS_RESULT to modern");
+         EnumCharactersResult charEnum = new();
+         charEnum.Success = true;
 diff --git a/HermesProxy/World/Enums/Opcodes.cs b/HermesProxy/World/Enums/Opcodes.cs
 index 20b9604..01e1098 100644
 --- a/HermesProxy/World/Enums/Opcodes.cs
@@ -158,6 +433,240 @@ index f3a2623..a5f531e 100644
  	MSG_NULL_ACTION = 0u,
  	CMSG_ACCEPT_TRADE = 12634u,
  	CMSG_ACTIVATE_TAXI = 13483u,
+diff --git a/HermesProxy/World/Server/AtlasAccountServiceBridge.cs b/HermesProxy/World/Server/AtlasAccountServiceBridge.cs
+new file mode 100644
+index 0000000..2a91759
+--- /dev/null
++++ b/HermesProxy/World/Server/AtlasAccountServiceBridge.cs
+@@ -0,0 +1,140 @@
++using System;
++using System.Collections.Generic;
++using System.IO;
++using System.Linq;
++using System.Security.Cryptography;
++using System.Text;
++using HermesProxy.World.Enums;
++using HermesProxy.World.Server.Packets;
++
++namespace HermesProxy.World.Server;
++
++// Per authenticated account, shared by realm and instance connections. The
++// private extension carries no account ID: the core uses its own WorldSession.
++public sealed class AtlasAccountServiceBridge
++{
++    public static ReadOnlySpan<byte> Magic => [0xff, (byte)'A', (byte)'T', (byte)'L', (byte)'S', 2];
++    readonly object _sync = new();
++    readonly HashSet<ulong> _available = new();
++    ulong _nonce;
++    uint _serial, _listRequest;
++    long _lastList = long.MinValue / 2;
++    bool _ready;
++    Pending? _pending;
++    sealed record Pending(uint Request, uint Token, ulong Distribution, WowGuid128 Character, bool Validate, long Started);
++
++    public AtlasAccountServiceBridge() => _nonce = NewNonce();
++    static ulong NewNonce()
++    {
++        ulong result;
++        do { result = BitConverter.ToUInt64(RandomNumberGenerator.GetBytes(8)); } while (result == 0);
++        return result;
++    }
++    public bool Ready { get { lock (_sync) return _ready; } }
++    public void Reset()
++    {
++        lock (_sync)
++        {
++            _nonce = NewNonce(); _ready = false; _pending = null; _lastList = long.MinValue / 2;
++            // Keep IDs until the next authoritative list can revoke them in the
++            // modern client's cache, including after a backend reconnection.
++        }
++    }
++    WorldPacket Header(byte kind, uint request)
++    {
++        var packet = new WorldPacket(Opcode.CMSG_ENUM_CHARACTERS);
++        packet.WriteBytes(Magic.ToArray());
++        packet.WriteUInt8(kind); packet.WriteUInt32(request); packet.WriteUInt64(_nonce);
++        return packet;
++    }
++    public WorldPacket? Subscribe(long now)
++    {
++        lock (_sync)
++        {
++            if (now - _lastList < 500) return null;
++            _lastList = now; _listRequest = ++_serial;
++            return Header(1, _listRequest);
++        }
++    }
++    public WorldPacket? Assign(AtlasAssignNameChange request, bool ownsCharacter, uint realm, bool inWorld, long now)
++    {
++        lock (_sync)
++        {
++            if (!_ready || !request.IsSupportedNameChange || !ownsCharacter || inWorld || request.RealmAddress != realm
++                || (_pending != null && now - _pending.Started < 12_000)) return null;
++            byte[] name = Encoding.UTF8.GetBytes(request.Name);
++            if (name.Length is 0 or > 48) return null;
++            uint serial = ++_serial;
++            _pending = new(serial, request.Token, request.DistributionId, request.Character, request.ValidateOnly, now);
++            var packet = Header(2, serial);
++            packet.WriteUInt64(request.DistributionId); packet.WriteUInt32((uint)request.Character.Low);
++            packet.WriteUInt32(request.Token); packet.WriteUInt8(request.ValidateOnly ? (byte)1 : (byte)0);
++            packet.WriteUInt8((byte)name.Length); packet.WriteBytes(name);
++            return packet;
++        }
++    }
++    public sealed record Result(bool Handled, List<ServerPacket> Packets, WowGuid128 ChangedCharacter = default, string? ChangedName = null,
++        bool ReadinessChanged = false);
++    public Result Receive(WorldPacket packet, WowGuid128 account, uint realm)
++    {
++        ReadOnlySpan<byte> bytes = packet.GetRemainingSpan();
++        if (bytes.Length < 5 || !bytes[..5].SequenceEqual(Magic[..5])) return new(false, new());
++        var output = new List<ServerPacket>();
++        if (bytes.Length < 20 || bytes.Length > 1024 || !bytes[..6].SequenceEqual(Magic)) return new(true, output);
++        using var body = new WorldPacket(1, bytes.ToArray());
++        body.ReadBytes(6);
++        byte kind = body.ReadUInt8();
++        uint request = body.ReadUInt32();
++        ulong nonce = body.ReadUInt64();
++        byte error = body.ReadUInt8();
++        lock (_sync)
++        {
++            if (nonce != _nonce || error > 1) return new(true, output);
++            if (kind == 1)
++            {
++                if (request != _listRequest || !body.CanRead(4)) return new(true, output);
++                uint count = body.ReadUInt32();
++                if (count > 100 || body.GetRemainingSpan().Length != count * 8 || (error != 0 && count != 0)) return new(true, output);
++                var incoming = new HashSet<ulong>();
++                for (uint i = 0; i < count; ++i)
++                {
++                    ulong id = body.ReadUInt64();
++                    if (id == 0 || !incoming.Add(id)) return new(true, output);
++                }
++                foreach (ulong removed in _available.Except(incoming))
++                    output.Add(new AtlasDistributionUpdate { Distribution = Distribution(removed, account, realm, revoked: true) });
++                _available.Clear(); _available.UnionWith(incoming);
++                bool readinessChanged = _ready != (error == 0);
++                _ready = error == 0;
++                var list = new AtlasDistributionList();
++                foreach (ulong id in incoming.Order()) list.Distributions.Add(Distribution(id, account, realm));
++                output.Add(list);
++                return new(true, output, ReadinessChanged: readinessChanged);
++            }
++            if (kind != 2 || _pending is not { } pending || request != pending.Request || !body.CanRead(18)) return new(true, output);
++            ulong distribution = body.ReadUInt64();
++            uint guid = body.ReadUInt32(), token = body.ReadUInt32();
++            byte validate = body.ReadUInt8(), length = body.ReadUInt8();
++            if (distribution != pending.Distribution || guid != pending.Character.Low || token != pending.Token
++                || validate != (pending.Validate ? 1 : 0) || length is 0 or > 48 || body.GetRemainingSpan().Length != length)
++                return new(true, output);
++            string name;
++            try { name = new UTF8Encoding(false, true).GetString(body.ReadBytes(length)); }
++            catch (DecoderFallbackException) { return new(true, output); }
++            if (name.IndexOf('\0') >= 0) return new(true, output);
++            _pending = null;
++            bool changed = error == 0 && !pending.Validate;
++            if (changed)
++            {
++                _available.Remove(distribution);
++                var consumed = Distribution(distribution, account, realm);
++                consumed.Status = 3; consumed.Character = pending.Character;
++                output.Add(new AtlasDistributionUpdate { Distribution = consumed });
++            }
++            output.Add(new AtlasAssignVasResponse { Token = token, StoreError = error == 0 ? 0u : 3u });
++            return new(true, output, changed ? pending.Character : default, changed ? name : null);
++        }
++    }
++    static AtlasDistribution Distribution(ulong id, WowGuid128 account, uint realm, bool revoked = false) =>
++        new() { Id = id, Account = account, RealmAddress = realm, Revoked = revoked };
++}
+diff --git a/HermesProxy/World/Server/PacketHandlers/AtlasAccountServicesHandler.cs b/HermesProxy/World/Server/PacketHandlers/AtlasAccountServicesHandler.cs
+new file mode 100644
+index 0000000..09e176e
+--- /dev/null
++++ b/HermesProxy/World/Server/PacketHandlers/AtlasAccountServicesHandler.cs
+@@ -0,0 +1,70 @@
++using System;
++using System.Linq;
++using Framework.Constants;
++using HermesProxy.Enums;
++using HermesProxy.World.Enums;
++using HermesProxy.World.Server.Packets;
++
++namespace HermesProxy.World.Server;
++
++public partial class WorldSocket
++{
++    bool SupportsAtlasServices => ModernVersion.Build == ClientVersionBuild.V3_4_3_54261
++        && LegacyVersion.Build == ClientVersionBuild.V3_3_5a_12340;
++
++    void RequestAtlasAccountServices()
++    {
++        if (SupportsAtlasServices && GetSession().WorldClient?.IsConnected() == true
++            && GetSession().AtlasAccountServices.Subscribe(Environment.TickCount64) is { } request)
++            SendPacketToServer(request);
++    }
++
++    [PacketHandler(Opcode.CMSG_BATTLE_PAY_GET_PRODUCT_LIST)]
++    void HandleAtlasProducts(AtlasStoreEmptyRequest request)
++    {
++        if (!SupportsAtlasServices) return;
++        SendPacket(new AtlasEmptyProductList());
++        RequestAtlasAccountServices();
++    }
++    [PacketHandler(Opcode.CMSG_BATTLE_PAY_GET_PURCHASE_LIST)]
++    void HandleAtlasPurchases(AtlasStoreEmptyRequest request)
++    {
++        if (!SupportsAtlasServices) return;
++        SendPacket(new AtlasEmptyPurchaseList());
++        RequestAtlasAccountServices();
++    }
++    [PacketHandler(Opcode.CMSG_UPDATE_VAS_PURCHASE_STATES)]
++    void HandleAtlasVasStates(AtlasStoreEmptyRequest request)
++    {
++        if (!SupportsAtlasServices) return;
++        SendPacket(new AtlasEmptyVasStates());
++        RequestAtlasAccountServices();
++    }
++    [PacketHandler(Opcode.CMSG_GET_VAS_ACCOUNT_CHARACTER_LIST)]
++    void HandleAtlasVasCharacters(AtlasVasCharactersRequest request)
++    {
++        if (!SupportsAtlasServices) return;
++        var response = new AtlasVasCharactersResult { Token = request.Token };
++        if (request.ServiceType != 4 || !GetSession().AtlasAccountServices.Ready) response.Result = 1;
++        else foreach (var own in GetSession().GameState.OwnCharacters)
++            response.Characters.Add(new AccountCharacterListEntry {
++                AccountId = WowGuid128.Create(HighGuidType703.WowAccount, GetSession().GameAccountInfo.Id),
++                CharacterGuid = own.CharacterGuid, RealmVirtualAddress = GetSession().RealmId.GetAddress(),
++                RealmName = "", Name = own.Name ?? string.Empty, LastLoginUnixSec = own.LastLoginUnixSec,
++                Race = own.RaceId, Class = own.ClassId, Sex = own.SexId, Level = own.Level,
++            });
++        SendPacket(response);
++    }
++    [PacketHandler(Opcode.CMSG_BATTLE_PAY_DISTRIBUTION_ASSIGN_VAS)]
++    void HandleAtlasAssignment(AtlasAssignNameChange request)
++    {
++        if (!SupportsAtlasServices) return;
++        var session = GetSession();
++        bool owns = session.GameState.OwnCharacters.Any(character => character.CharacterGuid == request.Character);
++        var packet = session.AtlasAccountServices.Assign(request, owns, session.RealmId.GetAddress(),
++            session.GameState.IsInWorld, Environment.TickCount64);
++        if (packet == null || session.WorldClient?.IsConnected() != true)
++            SendPacket(new AtlasAssignVasResponse { Token = request.Token, StoreError = 3 });
++        else SendPacketToServer(packet);
++    }
++}
+diff --git a/HermesProxy/World/Server/PacketHandlers/CharacterHandler.cs b/HermesProxy/World/Server/PacketHandlers/CharacterHandler.cs
+index 39b8718..5bd8ad7 100644
+--- a/HermesProxy/World/Server/PacketHandlers/CharacterHandler.cs
++++ b/HermesProxy/World/Server/PacketHandlers/CharacterHandler.cs
+@@ -21,6 +21,7 @@ public partial class WorldSocket
+     {
+         WorldPacket packet = new WorldPacket(Opcode.CMSG_ENUM_CHARACTERS);
+         SendPacketToServer(packet);
++        RequestAtlasAccountServices();
+     }
+ 
+     [PacketHandler(Opcode.CMSG_REORDER_CHARACTERS)]
 diff --git a/HermesProxy/World/Server/Packets/AtlasAccountServicesPackets.cs b/HermesProxy/World/Server/Packets/AtlasAccountServicesPackets.cs
 new file mode 100644
 index 0000000..21f9440
@@ -354,3 +863,36 @@ index 0000000..21f9440
 +    public AtlasEmptyVasStates() : base(Opcode.SMSG_ENUM_VAS_PURCHASE_STATES_RESPONSE) { }
 +    public override void Write() { _worldPacket.WriteBits(0u, 6); _worldPacket.FlushBits(); }
 +}
+diff --git a/HermesProxy/World/Server/Packets/SystemPackets.cs b/HermesProxy/World/Server/Packets/SystemPackets.cs
+index f570acf..41e2e17 100644
+--- a/HermesProxy/World/Server/Packets/SystemPackets.cs
++++ b/HermesProxy/World/Server/Packets/SystemPackets.cs
+@@ -463,7 +463,7 @@ public class FeatureSystemStatusGlueScreen : ServerPacket
+ 
+             _worldPacket.WriteBit(KioskModeEnabled);
+             _worldPacket.WriteBit(CompetitiveModeEnabled);
+-            _worldPacket.WriteBit(false); // IsBoostEnabled
++            _worldPacket.WriteBit(CharacterServicesEnabled); // Shared VAS button activation gate, including paid name changes.
+             _worldPacket.WriteBit(TrialBoostEnabled);
+             _worldPacket.WriteBit(TokenBalanceEnabled);
+             _worldPacket.WriteBit(LiveRegionCharacterListEnabled);
+@@ -587,6 +587,7 @@ public class FeatureSystemStatusGlueScreen : ServerPacket
+     public bool IsExpansionPreorderInStore; // NYI
+     public bool KioskModeEnabled; // NYI
+     public bool CompetitiveModeEnabled; // NYI
++    public bool CharacterServicesEnabled; // Verified native account-service consumer is available.
+     public bool TrialBoostEnabled; // NYI
+     public bool TokenBalanceEnabled; // NYI
+     public bool LiveRegionCharacterListEnabled; // NYI
+diff --git a/HermesProxy/World/Server/WorldSocket.cs b/HermesProxy/World/Server/WorldSocket.cs
+index 93f4a7c..486f499 100644
+--- a/HermesProxy/World/Server/WorldSocket.cs
++++ b/HermesProxy/World/Server/WorldSocket.cs
+@@ -1218,6 +1218,7 @@ public partial class WorldSocket : SocketBase, BnetServices.INetwork
+     public void SendFeatureSystemStatusGlueScreen()
+     {
+         FeatureSystemStatusGlueScreen features = new();
++        features.CharacterServicesEnabled = SupportsAtlasServices && GetSession().AtlasAccountServices.Ready;
+         features.BpayStoreAvailable = false;
+         features.BpayStoreDisabledByParentalControls = false;
+         features.CharUndeleteEnabled = false;

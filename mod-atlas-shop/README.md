@@ -1,23 +1,23 @@
 # mod-atlas-shop
 
-Module AzerothCore pour la livraison des achats Atlas de changement de nom.
-Il traite les commandes persistantes de l'API du launcher et accorde le service
-natif `AT_LOGIN_RENAME` une seule fois. Désactivé par défaut.
+Module AzerothCore pour les services de changement de nom achetés dans le
+launcher Atlas. Il est désactivé par défaut.
 
-Le nouveau [parcours de services achetés pour le compte](../docs/BOUTIQUE-ATLAS-SERVICES-NATIFS.md)
-est préparé côté API et launcher. Ce module ne fournit pas encore le bouton
-BattlePay/VAS ni la consommation native de ces services ; il ne faut pas
-l'activer pour ce parcours.
+Le [parcours de services pour le compte](../docs/BOUTIQUE-ATLAS-SERVICES-NATIFS.md)
+permet d'acheter pendant la partie puis de choisir le personnage à la sélection,
+via le sélecteur natif 3.4.3 et Hermes. La validation et la consommation sont
+testées avec les vrais services sur un royaume isolé ; le rendu graphique et
+la mise en production restent distincts.
 
-Voir [le parcours, les prérequis et les tests](../docs/BOUTIQUE-ATLAS-RENOMMAGE.md).
-Le [banc Linux isolé](../docs/BOUTIQUE-ATLAS-TEST-ROYAUME.md) lie un vrai World
-et teste l'API avec les commandes natives de personnage, sans client graphique.
-La [campagne Hermes](../docs/BOUTIQUE-ATLAS-HERMES.md) vérifie aussi le SSO du
-launcher, les paquets 3.4.3 et les coupures réseau. Elle fournit un correctif
-Hermes séparé, validé uniquement dans cette fixture.
+Ce mode requiert le schéma 0013, les trois fichiers du cœur adaptés par
+`tests/patch_native_core.py`, le correctif Hermes et
+`AtlasShop.AccountServices=1`. Il a été vérifié avec quatre workers des
+personnages. Auth et characters doivent être sur la même instance MySQL, avec
+les tables concernées en InnoDB. Les hooks sont obligatoires à la liaison.
 
-Le module exige les bases auth/characters sur la même instance MySQL, des tables
-InnoDB, le schéma Atlas 0012 et **un seul worker CharacterDatabase dès le démarrage**.
-Il attend la déconnexion complète du compte au royaume. Copier ce dossier dans
-les modules du cœur et reconstruire le worldserver relève d'une étape distincte
-de mise en service sur un royaume de test.
+L'ancien mode, `AtlasShop.AccountServices=0`, conserve les commandes attribuées
+à un personnage et le bit `AT_LOGIN_RENAME` ; il exige un seul worker et la
+fermeture du compte. Ses campagnes historiques sont décrites dans le
+[banc World](../docs/BOUTIQUE-ATLAS-TEST-ROYAUME.md) et le
+[banc Hermes](../docs/BOUTIQUE-ATLAS-HERMES.md). Elles ne décrivent pas le
+nouveau parcours de services du compte.

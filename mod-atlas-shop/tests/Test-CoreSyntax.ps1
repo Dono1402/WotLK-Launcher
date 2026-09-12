@@ -41,7 +41,7 @@ try {
     [System.IO.File]::WriteAllText((Join-Path $atlasBuild 'compiler-output.txt'), '')
     # Zig's driver tries to locate a non-emitted object with -fsyntax-only.
     # Compile real COFF objects instead: this also checks code generation, without linking.
-    foreach ($atlasName in @('atlas_shop','atlas_shop_loader')) {
+    foreach ($atlasName in @('atlas_shop','atlas_shop_native','atlas_shop_loader')) {
         $atlasResponse = Join-Path $atlasBuild ($atlasName + '.rsp')
         $atlasCompile = $atlasArguments + @('"' + (Join-Path $atlasModuleRoot "src/$atlasName.cpp").Replace('\','/') + '"') +
             @('-o', ('"' + (Join-Path $atlasBuild ($atlasName + '.obj')).Replace('\','/') + '"'))
@@ -49,7 +49,7 @@ try {
         & $ZigPath c++ "@$atlasResponse" 2>&1 | Tee-Object -Append -FilePath (Join-Path $atlasBuild 'compiler-output.txt')
         if ($LASTEXITCODE -ne 0) { throw "The real module/core compile check failed ($LASTEXITCODE); see compiler-output.txt." }
     }
-    'PASS: actual atlas_shop.cpp and loader compiled to COFF objects against unmodified local AzerothCore headers; no link or game execution.' |
+    'PASS: actual legacy/native modules and loader compiled to COFF objects against unmodified local AzerothCore headers; no link or game execution.' |
         Tee-Object -FilePath (Join-Path $atlasBuild 'result.txt')
 } finally {
     $env:ZIG_GLOBAL_CACHE_DIR = $atlasPreviousGlobal

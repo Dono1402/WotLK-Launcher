@@ -1,5 +1,11 @@
 # Atlas Launcher 1.7.1 : correction de l’auto-update
 
+Version publiée le 12 septembre 2026 : serveur à 10:26:03 UTC, puis
+[GitHub v1.7.1](https://github.com/Dono1402/WotLK-Launcher/releases/tag/v1.7.1)
+à 10:27:15 UTC. Les six fichiers GitHub correspondent aux tailles et empreintes
+prévues. Le tag désigne le commit `6e8699948a898461e8fda69d74042221dcac3a98`.
+Les preuves figurent dans `publication.json` et `github-publication.json`.
+
 La transition 1.6.0 vers 1.7.0 pouvait échouer après un téléchargement valide.
 Les journaux du 12 septembre 2026 montrent un helper accepté puis en attente de
 fermeture du parent, tandis que le parent termine avec `ReplacementFailed`.
@@ -32,6 +38,9 @@ ne peut pas modifier ce code avant le transfert de contrôle.
   réussies, puis relancées sur la compilation publique 1.7.1.
 - Installation de l’artefact dans un dossier temporaire, octets du launcher,
   métadonnées, raccourcis de test et désinstallation de test vérifiés.
+- Téléchargements HTTPS complets du client et de l’installateur vérifiés par
+  SHA-256 ; manifeste public relu et validé depuis Windows avec le vérificateur
+  réel du launcher. Le contrôle d’une version déjà identique retourne `NoUpdate`.
 - Build public et build des tests sans avertissement ni erreur. Armurerie
   identique au paquet publié avec la 1.7.0.
 

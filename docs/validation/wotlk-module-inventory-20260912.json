@@ -1,0 +1,435 @@
+{
+  "scope": "Read-only inventory of active server modules, core and Hermes; client addons excluded.",
+  "startedAtUtc": "2026-09-12T20:12:41.775487+00:00",
+  "completedAtUtc": "2026-09-12T20:20:11.594862+00:00",
+  "upstreamCheckedAtUtc": "2026-09-12T20:14:45.307656+00:00",
+  "services": {
+    "arthas-worldserver.dungeon-clear-8224099": {
+      "MainPID": "2878870",
+      "NRestarts": "0",
+      "WorkingDirectory": "/opt/arthas-next/candidates/modules-update-20260905T1016Z/server/bin",
+      "ActiveState": "active",
+      "executable": "/opt/arthas-next/candidates/atlas-shop-rename-identity-20260912/build/worldserver",
+      "sha256": "aa9880f240a4bace95bd5c06028175fd6b50348a435d55c53cc632bff5ee3d62",
+      "configurationPaths": [
+        "/opt/arthas-next/candidates/atlas-shop-rename-identity-20260912/server/etc/worldserver.conf"
+      ],
+      "resolvedConfiguration": "/opt/arthas-next/candidates/atlas-shop-rename-identity-20260912/server/etc-production/worldserver.conf"
+    },
+    "hermesproxy-wotlk": {
+      "MainPID": "2897226",
+      "NRestarts": "0",
+      "WorkingDirectory": "/opt/hermesproxy-wotlk/releases/hermes-name-response-20260912",
+      "ActiveState": "active",
+      "executable": "/opt/hermesproxy-wotlk/releases/hermes-name-response-20260912/HermesProxy",
+      "sha256": "b915e5c0c4093f5e5bbdb79e39dfec0ade8907d59b7103b9ad3e295f0bcc248b",
+      "configurationPaths": [
+        "/opt/hermesproxy-wotlk/appsettings.atlas.json"
+      ]
+    },
+    "arthas-authserver": {
+      "MainPID": "323656",
+      "NRestarts": "0",
+      "WorkingDirectory": "/opt/arthas-next/candidates/dungeon-clear-20260830T183457Z/server/bin",
+      "ActiveState": "active",
+      "executable": "/opt/arthas-next/candidates/dungeon-clear-20260830T183457Z/server/bin/authserver",
+      "sha256": "e4f5156535e6bc5b1dd774cff1e0f462f267bb12aaa473542aeb28d229320498",
+      "configurationPaths": [
+        "/opt/arthas-next/candidates/dungeon-clear-20260830T183457Z/server/etc/authserver.conf"
+      ]
+    },
+    "wotlk-launcher-api": {
+      "MainPID": "2830654",
+      "NRestarts": "0",
+      "WorkingDirectory": "/opt/wotlk-launcher-api-releases/shop-gold-1.7.2-20260912",
+      "ActiveState": "active",
+      "executable": "/opt/wotlk-launcher-api-releases/shop-gold-1.7.2-20260912/WotLK.Launcher.Server",
+      "sha256": "203484f27efc4a5383a1acdb0c9f642e9361456a7b3d69c8d81cd4c86dc2ea0e",
+      "configurationPaths": []
+    }
+  },
+  "compiledRegistrations": [
+    "Addmod_account_achievementsScripts",
+    "Addmod_ah_botScripts",
+    "Addmod_atlas_armoryScripts",
+    "Addmod_atlas_chatScripts",
+    "Addmod_atlas_friendsScripts",
+    "Addmod_atlas_shopScripts",
+    "Addmod_dungeon_clearScripts",
+    "Addmod_playerbotsScripts",
+    "Addmod_transmogScripts"
+  ],
+  "moduleCount": 9,
+  "modules": [
+    {
+      "name": "Playerbots",
+      "role": "Bots joueurs",
+      "kind": "upstream-with-atlas-changes",
+      "runtimeSource": "cc4579afaf58e3caef2b982eb5800d7b42ebc0bb",
+      "upstreamKey": "playerbots",
+      "enabledBy": "AiPlayerbot.Enabled",
+      "enabled": true
+    },
+    {
+      "name": "Dungeon Clear",
+      "role": "Stratégies et progression en donjon",
+      "kind": "upstream",
+      "runtimeSource": "3dd90f7c1122abc291edcbd9d3dc68f6c8fed0bc",
+      "upstreamKey": "dungeon-clear",
+      "enabledBy": "DungeonClear.Enable",
+      "enabled": true
+    },
+    {
+      "name": "AH Bot",
+      "role": "Achats et ventes automatiques à l’hôtel des ventes",
+      "kind": "upstream-with-atlas-changes",
+      "runtimeSource": "a680cc1c98290713e9b3d3289544af78e5186dc1",
+      "upstreamKey": "ah-bot",
+      "enabledBy": "AuctionHouseBot.EnableSeller",
+      "enabled": true
+    },
+    {
+      "name": "Transmog",
+      "role": "Transmogrification",
+      "kind": "upstream-with-atlas-changes",
+      "runtimeSource": "36b4b72aca3c294266a5fde764c807279382165f",
+      "upstreamKey": "transmog",
+      "enabledBy": "Transmogrification.Enable",
+      "enabled": true
+    },
+    {
+      "name": "Account Achievements",
+      "role": "Hauts faits partagés entre personnages du compte",
+      "kind": "upstream",
+      "runtimeSource": "bfbe3677635feeef823057964e028e023633115a",
+      "upstreamKey": "account-achievements",
+      "enabledBy": "Account.Achievements.Enable",
+      "enabled": true
+    },
+    {
+      "name": "Atlas Armory",
+      "role": "Équipement, statistiques et profils pour le launcher",
+      "kind": "internal",
+      "runtimeSource": "armory-live-20260905T1310Z/module",
+      "enabledBy": "AtlasArmory.Enable",
+      "enabled": true
+    },
+    {
+      "name": "Atlas Friends",
+      "role": "Synchronisation sociale avec le launcher",
+      "kind": "internal",
+      "runtimeSource": "modules-update-20260905T1016Z/core/modules/mod-atlas-friends",
+      "enabledBy": "AtlasFriends.Enable",
+      "enabled": true
+    },
+    {
+      "name": "Atlas Chat",
+      "role": "Chat et messages privés entre launcher et jeu",
+      "kind": "internal",
+      "runtimeSource": "atlas-chat-whispers-20260907/module",
+      "enabledBy": "AtlasChat.Enable",
+      "enabled": true
+    },
+    {
+      "name": "Atlas Shop",
+      "role": "Boutique, conversion d’or et services de compte",
+      "kind": "internal",
+      "runtimeSource": "6a536c1c8c9d6b5091d14309a64f4a5c6aee722c",
+      "enabledBy": "AtlasShop.Enable",
+      "enabled": true
+    }
+  ],
+  "upstream": [
+    {
+      "name": "account-achievements",
+      "repository": "https://github.com/azerothcore/mod-account-achievements",
+      "branch": "master",
+      "integratedUpstream": "bfbe3677635feeef823057964e028e023633115a",
+      "latestUpstream": "bfbe3677635feeef823057964e028e023633115a",
+      "commitsAhead": 0,
+      "nonMergeCommitsAhead": 0,
+      "changedFiles": 0,
+      "changedSqlFiles": 0,
+      "comparisonUrl": null,
+      "commitShas": []
+    },
+    {
+      "name": "ah-bot",
+      "repository": "https://github.com/azerothcore/mod-ah-bot",
+      "branch": "master",
+      "integratedUpstream": "a680cc1c98290713e9b3d3289544af78e5186dc1",
+      "latestUpstream": "a680cc1c98290713e9b3d3289544af78e5186dc1",
+      "commitsAhead": 0,
+      "nonMergeCommitsAhead": 0,
+      "changedFiles": 0,
+      "changedSqlFiles": 0,
+      "comparisonUrl": null,
+      "commitShas": []
+    },
+    {
+      "name": "core",
+      "repository": "https://github.com/mod-playerbots/azerothcore-wotlk",
+      "branch": "Playerbot",
+      "integratedUpstream": "413bea61a85e20d9caef7d66fc601a661fdddd9d",
+      "latestUpstream": "06234df3d5ab26c93f4f1f06f3edb828b73ecd3c",
+      "commitsAhead": 69,
+      "nonMergeCommitsAhead": 66,
+      "changedFiles": 52,
+      "changedSqlFiles": 28,
+      "comparisonUrl": "https://github.com/mod-playerbots/azerothcore-wotlk/compare/413bea61a85e20d9caef7d66fc601a661fdddd9d...06234df3d5ab26c93f4f1f06f3edb828b73ecd3c",
+      "commitShas": [
+        "d51dee8b30d126a751112f27dbd9161491bd1137",
+        "89e94f70a05264b43e68b015b10e1d1615c6836e",
+        "e9f3e0acc3b055db3628e796e15e00089de9190b",
+        "73a301904afd279b7adc22cf762ef50c1d3d7bb4",
+        "2fed8b96e46609df69edb5c189d87947379cc71c",
+        "e8371bfc93fce48469afcbea4414f4b15b2d14df",
+        "ec9578f703dcc9a4203959d2b5df3cfb216f7243",
+        "d4c0aa80abd353d81b0ff918f015597f5cf5357e",
+        "60701d89826bd23574946fede375555f393ad9bc",
+        "f7df88efaa513b46a5637b79157d7e24a4648356",
+        "eb05f0ef4f38d763032ae6f4ed2cc548b5efc22a",
+        "21116b2d015346d93d25757521e341cfeedd8b16",
+        "c34622069a108b7e057a498668eee7f30a6383d7",
+        "4fb8f254b7ec3f2d821f905d9371638ff151b7e5",
+        "69a8c4beb7eba4715184c59a9b528d9419d30d50",
+        "83cf15628caca2457c2ca5bb26b279cdd9e7ec2c",
+        "e5c4f2b09cd2b3f9bde13408e3f254f7372fcd85",
+        "c0ed123499ce6b5509e0290669630f6673c0de4d",
+        "7c398fa9c29844c4b2f6ae9f665adf7277f3f925",
+        "0faf1b4ce5461afc8097f751fdb7295589bb70df",
+        "1c231a6606c1f73c129482828bf7e44e0a615c92",
+        "7e18ca5b8db15063534dad0fffe51e50bfed47a1",
+        "54783860e439c9d41be7627a8d91aa8890be8033",
+        "455d9e23050ff9ffca449f2d0ffe930377e5414b",
+        "8cc3bbfc476fbcb857cd2247b8ec8b7609d7064f",
+        "49c3881314577fa56302d84b4641955564f47e74",
+        "c429a0b460a85d69e253967ae95d436d1279f712",
+        "d1f4ccb627702f78dc84d2b6c6a41afa66d56281",
+        "97dbeac1f7ee63f9754085ef7ca2f000ae4418d3",
+        "bcb6451e132ac489eb1845d8b159afcd6ca7895f",
+        "17cd40f276f8657fc36bb099d8db56aacdea7821",
+        "3247c7e4d5a7c29ffdfba7f9acaeea8bf3fc505c",
+        "4c18a5b6ab48ae8dc58faf21639979d79798051b",
+        "d8dbe9ebbe5d2b71c1820521da07636a39bf03a8",
+        "cecdf4c4afdbb88f2e1e045e6523f15f6524c59c",
+        "98c2d82af8d3f28effe9c31c98fcc699c7a67d36",
+        "e90886df891ceaeda309273e48c446f556e483c1",
+        "1483728006c4fce43565aa893371c5abfea877a4",
+        "dca4e27e9b96323421300988c357cd3cefaadd0e",
+        "90097aba846a1288125d08a10e304dcd66222ced",
+        "9eab2c5ec15b013fd32a246a0879f5c9b387cc55",
+        "fc82095b02fbb123ab18dabd3fb6a59366652903",
+        "37de65eb068e06ae8121896f66b30328b9f48954",
+        "dee060a85306a5adfe8629734cb918cf6b5bf136",
+        "16c4ff5646d0e2eb6891bf7326425b40bb50b106",
+        "1956815141d0262e6777f8f7409d32ed2da95854",
+        "dd53e4e16ce1e1c021568df02d8d0237d2136d5f",
+        "20af385ce2c2561d3a8f7ab8786904fcf19b08d8",
+        "8e6c5c59da946c4c044f0e9d79396bcf42b3a4d1",
+        "70a7acc309a18b46367b5013ad13c1216f808065",
+        "df6a618bc583035a55f49dfa6b3529f370a30aa2",
+        "3f90e7c5465fdf0e4d41c3ac6a19566759747f06",
+        "97c0ed927141bb30f0b1799fbf6c70958e478be4",
+        "88f3a42ea99ee9ca9076996d640351717fdf4c0e",
+        "9c700d2a569fca3c023fa9dcc3d14f7bb3a39344",
+        "bbb8548659e0b6bcca8a69b295d3e56074f1d56e",
+        "1b509f2c075912c288da3db436560c3279297f4a",
+        "6c794c11baefb700bb447508649545b806f52a9d",
+        "0d1071fff1f3ea6eaffa12547e442ea967bb4519",
+        "c663eac30bca224aaec09ff0bda731e6a991f675",
+        "2f9a1f95f3ad8e432d5124fa7094bb8ec81ef84e",
+        "931fc9b4b01c33d27ebbadc8ed0184d6d1c89856",
+        "05daeb61b95ab815d5bb4116ea0a395dd31d0859",
+        "4e80596cdaa21fa31830522f6f2d7ed8750bfffd",
+        "78ef336d61b08140ebcda588c26134d694f4584a",
+        "70dda745ba9e9e2ed96f8b4b1be10bb98e5ca9c3",
+        "b81ec13b0a0b59c3c9f3bd312828c21b9d046174",
+        "08ea891f973a98b0f629b1aee7a0af9181d832c4",
+        "06234df3d5ab26c93f4f1f06f3edb828b73ecd3c"
+      ]
+    },
+    {
+      "name": "dungeon-clear",
+      "repository": "https://github.com/jrad7/mod-dungeon-clear",
+      "branch": "master",
+      "integratedUpstream": "3dd90f7c1122abc291edcbd9d3dc68f6c8fed0bc",
+      "latestUpstream": "98929d6d261e615aa410f8e2d08ca83710fd2cad",
+      "commitsAhead": 7,
+      "nonMergeCommitsAhead": 7,
+      "changedFiles": 59,
+      "changedSqlFiles": 0,
+      "comparisonUrl": "https://github.com/jrad7/mod-dungeon-clear/compare/3dd90f7c1122abc291edcbd9d3dc68f6c8fed0bc...98929d6d261e615aa410f8e2d08ca83710fd2cad",
+      "commitShas": [
+        "f009d7338d4b10485a26370b99b41f0f0006a28a",
+        "fe57123dc9fc40e62598eaf7affc975ea02b4d5f",
+        "e999e95bbabb4cd2c3212785f6ff9527a2ea12d8",
+        "c09adcda382be6994f41b1e6fd211a71c32734a0",
+        "c30f0849bd517416a1a152400783a55e805022c6",
+        "1d490446798c635e6819c2c598a31d5f6d321cfc",
+        "98929d6d261e615aa410f8e2d08ca83710fd2cad"
+      ]
+    },
+    {
+      "name": "hermes",
+      "repository": "https://github.com/Xian55/HermesProxy",
+      "branch": "master",
+      "integratedUpstream": "4247d957b78e6621047783560b3606f8fcf7ff42",
+      "latestUpstream": "bcacff9505a3da2f12c18a896461f5e901f7d367",
+      "commitsAhead": 32,
+      "nonMergeCommitsAhead": 16,
+      "changedFiles": 214,
+      "changedSqlFiles": 0,
+      "comparisonUrl": "https://github.com/Xian55/HermesProxy/compare/4247d957b78e6621047783560b3606f8fcf7ff42...bcacff9505a3da2f12c18a896461f5e901f7d367",
+      "commitShas": [
+        "b4bfd4e646bdf18a41bc11d79d317cfff5c35147",
+        "30f78fed42b88c3ee15c6e875caea7714549b91a",
+        "4f12242940d7ad6554708825df285d9f5b9f68c1",
+        "e02aa25dcf83feccd59ca16b84e16f58bcf2ab7f",
+        "e47a42349dfb2e3a13a2aa7127daafb5c48ba2fb",
+        "be7653edc6e78e417a812dc3526cf20019ca4d25",
+        "3230644973bd33623ce9ab7b08810e6a8c29e3aa",
+        "db39ecee2281b629137f6a94a33fbea7ed87edea",
+        "c975f097fa722e0c6ef1a0c105456cc46066dcd1",
+        "41f22f59f6000cda6dd5ba2499fd8d1754a69bcc",
+        "b2e08f2b4dfcb5a9b77a170f8b5052c69693f7e5",
+        "88d7c8a67f1bd2771c4e28aedc8a25b17ed2b9e3",
+        "a73fe343a0dfdc53b8960d91869e67d2c17f8275",
+        "fa5d49e8e8b601fb92d6effcb1d5c6d9d9bc4176",
+        "acc633c8fdd9be6ad6a4a406c345fc93e0aa811e",
+        "a37d58ac2f8cb2190f71d15f719242c0414975f4",
+        "0b7fb8e3b15f28e0f8771b2f72f21f0471f10c27",
+        "44147c2f14e54a49f75eab7ce627b6726e9124dc",
+        "a23a7746f0967cec23f0c693a406efea240c4bce",
+        "7b6d76153bb549a10e9959f1ccf91010e5f3206c",
+        "0298ea96f972f7b5fb8a65a4b362bfd9a6f22f0f",
+        "cb77907256355882a2b509b199712ae212ed6425",
+        "51748390da670600dc1f49fec649a0ebde904236",
+        "b22e6950a3bb0356d78f0111f1eab7c299793387",
+        "1bffaf9532695176b7e523c6cf4de1d10d9e36b3",
+        "f6883950797d821e5cfd7dff86ad680ec62a6b62",
+        "12294a03412c4c6b11fc06fa794536c714be78ee",
+        "f8255a8546153bb7bd9de3ec6fc8ae231c4c943c",
+        "04b764b4542c24747015a77136d19d593214c9a3",
+        "6142081efba73ea0a944b2b17d41a061c87b4ed5",
+        "b5536653b3dc158d063067ca7162a547f3035369",
+        "bcacff9505a3da2f12c18a896461f5e901f7d367"
+      ]
+    },
+    {
+      "name": "playerbots",
+      "repository": "https://github.com/mod-playerbots/mod-playerbots",
+      "branch": "master",
+      "integratedUpstream": "b949b50bfcdd4fab937781bac2d7765e39330e4b",
+      "latestUpstream": "b6696bdbd3740e575598d167d69f39f68cc0b907",
+      "commitsAhead": 24,
+      "nonMergeCommitsAhead": 23,
+      "changedFiles": 89,
+      "changedSqlFiles": 0,
+      "comparisonUrl": "https://github.com/mod-playerbots/mod-playerbots/compare/b949b50bfcdd4fab937781bac2d7765e39330e4b...b6696bdbd3740e575598d167d69f39f68cc0b907",
+      "commitShas": [
+        "8cc9024b143fd82be3ac30ff9ce72a7ddc81292d",
+        "164335fe9bfe7761d1ac14b42c0dd9a0991034b7",
+        "02207b556bf89917dd761cc69a651643bb873a89",
+        "6dc51480442fa3addddfe2cd8ea33b03d6a3f361",
+        "8c000dfcafe2ecd59ae65509a6da6a25d594152f",
+        "1fea462f7db24e67e97944337fd2af782a79fe28",
+        "44afe2323c6d9743390bb3521ef1dd05ef745be5",
+        "c1fed46199e425838d2684df8a6ec68f18c6fe26",
+        "22b15514a2558a0d7663678c90e5a74d667fcd19",
+        "bf6190b241354934181800973d8023c276086a78",
+        "9daa24f29f471cd474cd8c3cfad6a47ee9a0764e",
+        "9ed41a81c00db11c51b0932caf65769e84b0a9d1",
+        "f119bf48278c621e770e9eb47c910242e4a27b84",
+        "5b71503aa71b9e9715c4034c8e33104466bb2dc0",
+        "9f13694c9a3d0436c82f4bfc9eddfeaaeb82ec7b",
+        "6704d5532a299972aa0d7b8082dab6b74b4fb1ff",
+        "e64f7508abf37e73dd6013586e747780c81e6b5d",
+        "1e064b4595048c7942502a6affbc7b814d886d2d",
+        "b99419cc23cd06c2eafd25455a8ac4cdabdf29f3",
+        "dd369c42708e937adaaf2895029f80d25246198c",
+        "ce244c32a596036ce7a26b47637ee44044504dca",
+        "86d0f48265da6386c9279ab106023ae4cea18392",
+        "075242fd1ec45c0441c3e572b322dc2e19addd17",
+        "b6696bdbd3740e575598d167d69f39f68cc0b907"
+      ]
+    },
+    {
+      "name": "transmog",
+      "repository": "https://github.com/azerothcore/mod-transmog",
+      "branch": "master",
+      "integratedUpstream": "0d85cbc53d63ce2df8527169ce6ae47f5f6f6ba8",
+      "latestUpstream": "0d85cbc53d63ce2df8527169ce6ae47f5f6f6ba8",
+      "commitsAhead": 0,
+      "nonMergeCommitsAhead": 0,
+      "changedFiles": 0,
+      "changedSqlFiles": 0,
+      "comparisonUrl": null,
+      "commitShas": []
+    }
+  ],
+  "selectedConfiguration": {
+    "AiPlayerbot.MinRandomBots": "1500",
+    "AiPlayerbot.MaxRandomBots": "1500",
+    "AiPlayerbot.RealGuildBotAutologin": "1",
+    "DungeonClear.DungeonQueueFill.Enable": "0",
+    "AtlasArmory.OnlyGuid": "0",
+    "AtlasArmory.LiveEnable": "1",
+    "AuctionHouseBot.EnableBuyer": "1",
+    "AuctionHouseBot.EnableSeller": "1"
+  },
+  "protectedPlayerbotSettings": {
+    "MaxPrimaryTradeSkill": 2,
+    "AiPlayerbot.RealGuildBotAutologin": 1,
+    "AiPlayerbot.DeleteRandomBotGuilds": 0,
+    "AiPlayerbot.SyncLevelWithPlayers": 0,
+    "AiPlayerbot.DeleteRandomBotArenaTeams": 0
+  },
+  "localCommits": {
+    "core": [
+      "25a959264 custom(atlas): preserve deployed social synchronization",
+      "ee60100e4 fix(player): honor disabled PvP corpse reclaim delay",
+      "b4abd4794 test: update WorldMock for current world interface"
+    ],
+    "playerbots": [
+      "549c2fd0 custom(atlas): preserve deployed playerbot configuration and behavior"
+    ]
+  },
+  "customSourceHashes": {
+    "armory": {
+      "src/CaptureSchedule.h": "13a61846f0c7e3f69e15c218fc903948cd038a4266c66bd48c322bcd67d48c97",
+      "src/CombatMath.h": "a43b3b45805b0f698d7dfab6366080a8c1dfcde8d7f9c13adca61f9317a48a49",
+      "src/SqlJson.h": "45fb86904d7defb35ce6195b83475b46ca24134329c40c99a1c80408a296979f",
+      "src/atlas_armory.cpp": "2b5243ddde30d3da09c74a54b78e45d58f2a91b8850b9d526a1f00bf7adb124e",
+      "src/atlas_armory_loader.cpp": "428b64f520144d2a039e13973e7f5e523bb7bc19f455072ef278e7f2bff8aae9"
+    },
+    "friends": {
+      "src/atlas_friends.cpp": "4b245ada9f38bf1df21e76542955e4f2568515921ef8e9d69e92f16fd5c82868",
+      "src/atlas_friends_loader.cpp": "add1370ab37c94b4b5e186228a6a52829d542b175fc8032337ebd39476139be7"
+    },
+    "chat": {
+      "src/atlas_chat.cpp": "3e047b5d8ad82353e3fae300edfe639f61afe58975108eaafd99129089a151f7",
+      "src/atlas_chat_loader.cpp": "4731fe9299468e034a8aa38056bb9c1d100ecfeb67788c0008ddb71b043087f0",
+      "src/atlas_chat_policy.h": "6dd06e1f39376af86fc0c821ad2c4fbcfeba14dd6f8b98339c48f4234e27d0d1"
+    }
+  },
+  "hermes": {
+    "sourceCommit": "6d4a71760e43ad8c1b1ee554c5cacc7e748e2e0d",
+    "sourceBaseCommit": "2a7b39bbe07fe8f094986bb236e78f274f363350",
+    "hermesBase": "f859d0c59696b62483a98133b1e064c15dcb5604",
+    "accountServicesPatchSha256": "a406452758df1990e408bb178171917bf397289d5e584508760a2889a58abe51",
+    "sha256": "b915e5c0c4093f5e5bbdb79e39dfec0ade8907d59b7103b9ad3e295f0bcc248b"
+  },
+  "shop": {
+    "sourceCommit": "6a536c1c8c9d6b5091d14309a64f4a5c6aee722c",
+    "sourceHashesMatch": true
+  },
+  "dungeonClearSourceFilesVerified": 515,
+  "transmogUpstreamVerifiedAsDirectParent": true,
+  "historyLimitations": "Some module repositories have missing historical parent objects. Transmog upstream provenance was verified from the direct parent of the deployed Atlas commit; its generic ancestry traversal returned an error, not evidence of divergence.",
+  "productionProcessesAndConfigurationUnchanged": true,
+  "productionWrites": false,
+  "buildsRun": false,
+  "newCandidateTestsRun": false,
+  "updatesInstalled": false
+}

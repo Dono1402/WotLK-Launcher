@@ -1,6 +1,10 @@
 # Nom « Inconnu » après un renommage
 
-État : **Hermes activé le 12 septembre 2026 à 21 h 59 (Paris), stabilité vérifiée à 22 h 00 ; affichage en jeu à confirmer**.
+État : **Hermes activé le 12 septembre 2026 à 21 h 59 (Paris), stabilité vérifiée à 22 h 00 ; affichage en jeu confirmé par l'utilisateur**.
+
+Retour utilisateur consigné le 12 septembre à 22 h 06 (Paris) :
+« Ca a fonctionné ». Le défaut d'affichage « Inconnu » est donc considéré
+résolu pour le parcours signalé.
 
 Après l'activation du premier correctif d'identité à 20 h 37 (Paris), un nouveau
 renommage a bien été enregistré, mais le client a affiché « Inconnu » au-dessus
@@ -12,8 +16,8 @@ journal du client. Aucune nouvelle réponse n'a été observée après cette ét
 La vérification du décodeur natif `3.4.3.54261`, de son cache et de sa fonction
 de lecture du nom confirme que les réponses Hermes sont lisibles. Il n'y a pas
 de changement de format du paquet dans ce correctif. Le décalage observé dans
-le chargement justifie de déplacer le rafraîchissement ; **la cause complète
-du défaut graphique et sa disparition restent à confirmer dans le jeu**.
+le chargement a justifié de déplacer le rafraîchissement. La disparition du
+défaut en jeu a ensuite été confirmée par l'utilisateur.
 
 ## Comportement corrigé
 
@@ -97,7 +101,8 @@ Le code testé et activé correspond au commit
 Les fichiers du candidat, des tests et du script persistant ont été comparés
 par empreinte avant de renseigner cette provenance et d'activer Hermes.
 
-Pour la vérification visuelle, se déconnecter complètement du royaume, puis
-se reconnecter et entrer en jeu avec le personnage déjà renommé. Le nouveau
-rafraîchissement doit alors s'exécuter à la fin du chargement. Aucun nouveau
-service payant ni autre renommage n'est nécessaire pour cet essai.
+La consigne de vérification visuelle était de se déconnecter complètement du
+royaume, puis de se reconnecter et d'entrer en jeu avec le personnage déjà
+renommé, sans nouveau service payant ni autre renommage. L'utilisateur a
+confirmé le fonctionnement après cette livraison ; cette confirmation est
+consignée séparément des tests automatisés dans le rapport.

@@ -1,7 +1,14 @@
 {
-  "status": "activated-and-verified",
+  "status": "activated-and-user-confirmed",
   "clientBuild": "3.4.3.54261",
   "graphicalClientTested": false,
+  "userVisualConfirmation": {
+    "confirmed": true,
+    "reportedBy": "user",
+    "message": "Ca a fonctionné",
+    "recordedAtUtc": "2026-09-12T20:06:41Z",
+    "scope": "The user confirms that the complementary Hermes release resolves the reported unknown-name display issue. This confirmation is separate from automated graphical testing."
+  },
   "observedProduction": {
     "renamePersisted": true,
     "correctNameAndGuidReceived": true,

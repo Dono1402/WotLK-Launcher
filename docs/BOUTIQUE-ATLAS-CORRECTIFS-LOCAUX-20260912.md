@@ -189,5 +189,5 @@ Le [correctif complémentaire Hermes](BOUTIQUE-ATLAS-NOM-INCONNU-20260912.md)
 attend la fin du chargement pour rafraîchir le nom du personnage actif. Il est
 activé, avec stabilité vérifiée à 22 h 00. Les 40 contrôles réseau, 27 contrôles
 natifs et 25 tests .NET ciblés réussissent. Seul Hermes a redémarré ; World,
-Auth et API ont conservé leurs processus. La confirmation visuelle en jeu
-reste attendue après reconnexion, sans autre achat ni renommage.
+Auth et API ont conservé leurs processus. L'utilisateur a ensuite confirmé
+le fonctionnement en jeu : « Ca a fonctionné » (retour consigné à 22 h 06).

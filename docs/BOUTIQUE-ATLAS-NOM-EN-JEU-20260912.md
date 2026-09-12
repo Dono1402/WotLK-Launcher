@@ -119,4 +119,5 @@ de joueur réel n'a été créé par la procédure d'activation.
 
 Le client déjà renommé doit maintenant se reconnecter au royaume et entrer
 en jeu : le rafraîchissement de son identité est automatique, sans nouvel achat.
-La confirmation visuelle dans le client de l'utilisateur reste à recueillir.
+L'utilisateur a confirmé le fonctionnement en jeu après le correctif
+complémentaire de 21 h 59 décrit dans le suivi du nom « Inconnu ».

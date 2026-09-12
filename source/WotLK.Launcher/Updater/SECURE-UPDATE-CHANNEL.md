@@ -1,5 +1,27 @@
 # Atlas Launcher secure update channel
 
+## 1.7.1 helper identity correction
+
+The schema-2 update path introduced in 1.6.0 checked the elevated helper through
+`.NET 8 Process.MainModule`. That API requests process memory access (`VM_READ`),
+which can be denied to the unelevated launcher. The helper wrote its acceptance
+signal and waited for the parent to exit, while the parent rejected its process
+identity until the 15-second acceptance timeout. The helper then abandoned the
+transaction after 45 seconds, leaving the installed executable intact.
+
+Windows process-path validation now uses `QueryFullProcessImageNameW` with
+`PROCESS_QUERY_LIMITED_INFORMATION`. Exact executable paths, process start times,
+protected signal ACLs and signed candidate checks remain enforced. The regression
+test restricts only a disposable hidden child process: the old `MainModule` call
+must fail with access denied while the corrected identity checks succeed. Wrong
+paths, stale start times, missing processes and terminated processes are rejected.
+This test reproduces the kernel access restriction without invoking UAC or opening
+the installed launcher; it is not a real interactive installation test.
+
+Affected 1.6.0 and 1.7.0 installations need the 1.7.1 installer once. Replacing
+the downloaded candidate alone cannot fix code already running in the old parent
+process. Keep the published 1.7.0 artifacts immutable.
+
 ## Transition from 1.5.0 to 1.6.0
 
 Version 1.6.0 writes authenticated schema-2 update transactions. The 1.5.0

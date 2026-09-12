@@ -7,6 +7,9 @@ using System.Text.RegularExpressions;
 using WotLK.Launcher;
 using WotLK.Launcher.Server;
 
+if (args.Length == 1 && args[0] == "--launcher-update-process-identity")
+    return await LauncherUpdateProcessIdentityTests.RunAsync();
+
 if (args.Length == 1 && args[0] == "--shop") return await ShopRuntimeTests.RunAsync();
 if (args.Length == 1 && args[0] == "--shop-mysql") return await ShopApiMySqlTests.RunAsync();
 if (args.Length == 1 && args[0] == "--shop-funding-mysql") return await ShopManualFundingMySqlTests.RunAsync();

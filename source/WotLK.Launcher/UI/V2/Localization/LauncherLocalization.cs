@@ -10,6 +10,13 @@ internal static class LauncherLocalization
     private static readonly IReadOnlyDictionary<string, string> EnglishByFrench =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            ["Atlas Launcher 1.7.1 corrige un échec de mise à jour après le téléchargement."] = "Atlas Launcher 1.7.1 fixes an update failure after the download.",
+            ["Mise à jour du launcher"] = "Launcher update",
+            ["Correction du contrôle Windows qui empêchait le launcher de reconnaître son outil de mise à jour."] = "Fixed a Windows check that prevented the launcher from recognizing its update helper.",
+            ["Les vérifications de signature et d’intégrité des téléchargements restent actives."] = "Download signature and integrity checks remain active.",
+            ["Installation de cette correction"] = "Installing this fix",
+            ["Depuis la version 1.6.0 ou 1.7.0, fermez Atlas Launcher et lancez l’installateur 1.7.1 téléchargé depuis la page de la release."] = "From version 1.6.0 or 1.7.0, close Atlas Launcher and run the 1.7.1 installer downloaded from the release page.",
+            ["Choisissez le dossier d’installation habituel. Aucune désinstallation préalable n’est nécessaire."] = "Choose the usual installation folder. No prior uninstall is required.",
             ["Atlas Launcher 1.7.0 ajoute la boutique Atlas, les soldes séparés et le changement de nom à utiliser depuis la sélection des personnages."] = "Atlas Launcher 1.7.0 adds the Atlas shop, separate balances, and a name change service used from character selection.",
             ["Boutique Atlas"] = "Atlas shop",
             ["Changement de nom"] = "Name change",

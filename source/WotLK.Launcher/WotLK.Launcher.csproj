@@ -14,10 +14,10 @@
     <Company>AnimeClub</Company>
     <Description>Launcher officiel du royaume Arthas pour WotLK Classic</Description>
     <Copyright>Copyright © 2026 AnimeClub</Copyright>
-    <Version>1.7.0</Version>
-    <AssemblyVersion>1.7.0.0</AssemblyVersion>
-    <FileVersion>1.7.0.0</FileVersion>
-    <InformationalVersion>1.7.0</InformationalVersion>
+    <Version>1.7.1</Version>
+    <AssemblyVersion>1.7.1.0</AssemblyVersion>
+    <FileVersion>1.7.1.0</FileVersion>
+    <InformationalVersion>1.7.1</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>

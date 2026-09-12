@@ -19,6 +19,7 @@ internal static class LauncherSelfUpdateAtomicReplacementTests
         ValidateInternalCommandLineContract();
         ValidateHelperRequesterBoundary();
         ValidateHelperHashDoesNotCaptureWpfContext();
+        await LauncherUpdateProcessIdentityTests.RunAsync();
         await PreserveLegacyStartupHandshakeWithoutLegacyElevationAsync();
         await RejectElevatedUpdatedProcessAndReleaseTargetAsync();
         await PrepareTransactionWithoutTouchingActiveReleaseAsync();

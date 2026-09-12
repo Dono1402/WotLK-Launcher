@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
 
 namespace WotLK.Launcher.Updater;
 
@@ -138,6 +140,25 @@ internal sealed class LauncherUpdateParentWaiter : ILauncherUpdateParentWaiter
     {
         try
         {
+            if (OperatingSystem.IsWindows())
+            {
+                // .NET 8 MainModule requires VM_READ, which an unelevated launcher
+                // cannot obtain for its elevated helper. Query only the image name;
+                // retain the exact-path check without requesting memory access.
+                using SafeProcessHandle handle = OpenProcess(
+                    0x00001000, // PROCESS_QUERY_LIMITED_INFORMATION
+                    inheritHandle: false,
+                    process.Id);
+                if (handle.IsInvalid)
+                    return null;
+
+                StringBuilder path = new(32768);
+                int length = path.Capacity;
+                return QueryFullProcessImageName(handle, 0, path, ref length)
+                    ? path.ToString()
+                    : null;
+            }
+
             return process.MainModule?.FileName;
         }
         catch (Exception ex) when (ex is InvalidOperationException
@@ -147,6 +168,17 @@ internal sealed class LauncherUpdateParentWaiter : ILauncherUpdateParentWaiter
             return null;
         }
     }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern SafeProcessHandle OpenProcess(
+        uint desiredAccess,
+        [MarshalAs(UnmanagedType.Bool)] bool inheritHandle,
+        int processId);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool QueryFullProcessImageName(
+        SafeProcessHandle process, uint flags, StringBuilder path, ref int length);
 
     private static bool SamePath(string left, string right) =>
         string.Equals(

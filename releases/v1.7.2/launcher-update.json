@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "keyId": "atlas-prod-p256-2026-01",
+  "version": "1.7.2",
+  "url": "https://animeclub.fr/wotlk/launcher/releases/1.7.2/WotLK-Launcher.exe",
+  "size": 413508130,
+  "sha256": "92cd2729fe26ac0c7e7f430a87e511a98d763f9f43b2714b0fd73f628b25492f",
+  "publishedAt": "2026-09-12T12:45:53Z",
+  "signature": "MEUCIQD0/g/ZQrG9y/+VupVVKq+pMfp8/sWeIb1QvCvD7dJEMQIgKIhjluKyveiaNKC7EZJf8TTcJ9N+Kgqhku40gKDyoRU="
+}

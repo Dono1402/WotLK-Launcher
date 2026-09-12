@@ -1,0 +1,25 @@
+{
+  "id": "atlas-launcher-1-7-2",
+  "category": "Launcher",
+  "title": "Atlas Launcher 1.7.2",
+  "version": "1.7.2",
+  "isDraft": true,
+  "summary": "Convertissez l’or de vos personnages en Crédits Atlas et utilisez-les pour changer de nom.",
+  "sections": [
+    {
+      "title": "Conversion d’or",
+      "items": [
+        "100 po donnent 1 € de Crédits Atlas. L’argent et le cuivre restants sont conservés.",
+        "La conversion est définitive. Gardez tous les personnages du compte déconnectés pendant son traitement.",
+        "Un reçu confirme la conversion. Son résultat est retrouvé après une actualisation ou une reconnexion, sans double débit."
+      ]
+    },
+    {
+      "title": "Changement de nom",
+      "items": [
+        "Les Crédits Atlas permettent d’acheter le changement de nom pour 7 € de crédits.",
+        "Choisissez le personnage et son nouveau nom dans le service natif du jeu."
+      ]
+    }
+  ]
+}

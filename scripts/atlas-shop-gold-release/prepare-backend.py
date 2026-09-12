@@ -38,6 +38,7 @@ def main():
     if [int(row[0]) for row in baseline['database']['migrationHistory']] != list(range(1, 14)):
         raise RuntimeError('Expected schema 0013 before this release.')
     ROOT.mkdir(parents=True, mode=0o700); API.mkdir(mode=0o755)
+    API.chmod(0o755)  # The private process umask must not block the service user.
     files = {}
     with tarfile.open('/tmp/atlas-shop-gold-fixture.tar.gz') as archive:
         for item in archive.getmembers():

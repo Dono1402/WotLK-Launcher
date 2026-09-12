@@ -1,0 +1,138 @@
+{
+  "version": "1.7.2",
+  "status": "published-and-activated",
+  "verifiedAtUtc": "2026-09-12T12:54:33.073294+00:00",
+  "authorizedMaintenance": true,
+  "sourceCommit": "5dc3b085205719768e3a1e27500041e6543180b0",
+  "runtime": {
+    "arthas-worldserver.dungeon-clear-8224099": {
+      "MainPID": "2828323",
+      "NRestarts": "0",
+      "ExecMainStartTimestampMonotonic": "9621086493139",
+      "WorkingDirectory": "/opt/arthas-next/candidates/modules-update-20260905T1016Z/server/bin",
+      "ActiveState": "active",
+      "executable": "/opt/arthas-next/candidates/atlas-shop-rename-gold-20260912/build/worldserver",
+      "sha256": "6ad33749350a93c16da453c2c780348f24b07c3f76c84a6382612c5a5bc1cf8c"
+    },
+    "wotlk-launcher-api": {
+      "MainPID": "2830654",
+      "NRestarts": "0",
+      "ExecMainStartTimestampMonotonic": "9621247075785",
+      "WorkingDirectory": "/opt/wotlk-launcher-api-releases/shop-gold-1.7.2-20260912",
+      "ActiveState": "active",
+      "executable": "/opt/wotlk-launcher-api-releases/shop-gold-1.7.2-20260912/WotLK.Launcher.Server",
+      "sha256": "203484f27efc4a5383a1acdb0c9f642e9361456a7b3d69c8d81cd4c86dc2ea0e"
+    },
+    "hermesproxy-wotlk": {
+      "MainPID": "2800827",
+      "NRestarts": "0",
+      "ExecMainStartTimestampMonotonic": "9610187719283",
+      "WorkingDirectory": "/opt/hermesproxy-wotlk/releases/hermes-shop-native-1.7.0-20260912",
+      "ActiveState": "active"
+    },
+    "arthas-authserver": {
+      "MainPID": "323656",
+      "NRestarts": "0",
+      "ExecMainStartTimestampMonotonic": "8522748383234",
+      "WorkingDirectory": "/opt/arthas-next/candidates/dungeon-clear-20260830T183457Z/server/bin",
+      "ActiveState": "active"
+    },
+    "apiFlags": {
+      "WOTLK_LAUNCHER_MAX_SCHEMA_VERSION": "14",
+      "AtlasShop__Purchases__AccountServicesEnabled": "true",
+      "AtlasShop__Purchases__RenameEnabled": "true",
+      "AtlasShop__GoldConversion__Enabled": "true",
+      "AtlasShop__GoldConversion__RealmId": "1"
+    }
+  },
+  "schemaVersion": 14,
+  "earlierMigrationsPreserved": true,
+  "migration": [
+    "14",
+    "shop_gold_conversion",
+    "28A19CE7E883CBDFB87929ACEDDE45C47D4CA75052F3460CD9A4FE8E6E334FC8",
+    "1.7.2+c02651c630cd6bc1090d7452547f70461f350764"
+  ],
+  "coreHeartbeats": {
+    "native": [
+      "1",
+      "2",
+      "arthas_chars",
+      "3"
+    ],
+    "gold": [
+      "1",
+      "1",
+      "arthas_chars",
+      "10000",
+      "3"
+    ]
+  },
+  "characterDatabaseWorkers": 4,
+  "euroWalletIndependent": true,
+  "productionCheckCreatedOrders": 0,
+  "productionCheckCreatedConversions": 0,
+  "liveChecks": {
+    "closed": {
+      "phase": "closed",
+      "passed": true,
+      "realOrdersCreated": 0,
+      "goldConversionAvailable": false,
+      "httpsAuthenticatedShop": true,
+      "checkoutAvailable": false,
+      "accountServices": true,
+      "independentZeroBalances": true,
+      "emptyHistory": true,
+      "authenticatedPatchNotes": "atlas-launcher-1-7-1",
+      "anonymousRequestsRejected": true,
+      "completedAtUnix": 1789217416,
+      "canaryRemoved": true
+    },
+    "enabled": {
+      "phase": "enabled",
+      "passed": true,
+      "realOrdersCreated": 0,
+      "goldConversionAvailable": true,
+      "httpsAuthenticatedShop": true,
+      "checkoutAvailable": true,
+      "accountServices": true,
+      "independentZeroBalances": true,
+      "emptyHistory": true,
+      "authenticatedPatchNotes": "atlas-launcher-1-7-1",
+      "anonymousRequestsRejected": true,
+      "completedAtUnix": 1789217473,
+      "canaryRemoved": true
+    },
+    "published": {
+      "phase": "published",
+      "passed": true,
+      "realOrdersCreated": 0,
+      "goldConversionAvailable": true,
+      "httpsAuthenticatedShop": true,
+      "checkoutAvailable": true,
+      "accountServices": true,
+      "independentZeroBalances": true,
+      "emptyHistory": true,
+      "authenticatedPatchNotes": "atlas-launcher-1-7-2",
+      "anonymousRequestsRejected": true,
+      "completedAtUnix": 1789217545,
+      "canaryRemoved": true
+    }
+  },
+  "backup": {
+    "sha256": "50f657798ac4b66340db89b4898a56fb41d985087226943213e8f73ff7111ae5",
+    "compressedBytes": 109579120,
+    "uncompressedBytes": 496325468,
+    "gzipIntegrityVerified": true,
+    "afterWorldAndApiStop": true,
+    "restoreRehearsed": false
+  },
+  "publicManifestMatches": true,
+  "publicManifestSha256": "420988c2b3ba4e794215456b3b8ec9eab51ea72057df3dad89b63d1cba752d06",
+  "versionedDownloadsFullyHashed": true,
+  "candidateSignatureAndNoUpdateVerifiedSeparately": true,
+  "previousReleasesPreserved": true,
+  "maintenanceStartedAtUnix": 1789217271,
+  "backendReadyAtUnix": 1789217365,
+  "publicationCompletedAtUnix": 1789217518
+}

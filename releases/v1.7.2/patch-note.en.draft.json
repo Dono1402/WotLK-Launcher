@@ -1,0 +1,25 @@
+{
+  "id": "atlas-launcher-1-7-2",
+  "category": "Launcher",
+  "title": "Atlas Launcher 1.7.2",
+  "version": "1.7.2",
+  "isDraft": true,
+  "summary": "Convert character gold into Atlas credits and use them to change your name.",
+  "sections": [
+    {
+      "title": "Gold conversion",
+      "items": [
+        "100 gold grants €1 in Atlas credits. Remaining silver and copper stay on the character.",
+        "Conversion is final. Keep every character on the account logged out while it is processed.",
+        "A receipt confirms the conversion. Recover its result after refreshing or signing back in without spending the gold twice."
+      ]
+    },
+    {
+      "title": "Name change",
+      "items": [
+        "Buy a name change for €7 in Atlas credits.",
+        "Choose the character and its new name through the native service in game."
+      ]
+    }
+  ]
+}

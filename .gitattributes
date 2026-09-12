@@ -18,3 +18,7 @@ releases/**/*.md text eol=lf
 releases/**/*.json text eol=lf
 releases/**/*.txt text eol=lf
 current/launcher-update.json text eol=lf
+
+# These published 1.7.2 assets are immutable, including their line endings.
+releases/v1.7.2/SHA256SUMS.txt -text whitespace=cr-at-eol
+releases/v1.7.2/PATCH-NOTES*.md whitespace=-blank-at-eof

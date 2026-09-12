@@ -1,0 +1,52 @@
+{
+  "published": true,
+  "tag": "v1.7.0",
+  "commit": "ee2ea060ed29db30b6a16a70a807fadc17f00172",
+  "url": "https://github.com/Dono1402/WotLK-Launcher/releases/tag/v1.7.0",
+  "author": "Dono1402",
+  "publishedAt": "2026-09-12T10:00:58Z",
+  "verifiedAt": "2026-09-12T10:01:00.312261+00:00",
+  "draft": false,
+  "prerelease": false,
+  "isLatest": true,
+  "notesMatch": true,
+  "assetDigestsMatch": true,
+  "assets": [
+    {
+      "name": "armory-runtime.zip",
+      "bytes": 298278314,
+      "sha256": "84a57db71c985be18c47f62e5761e21effe7d032a7316e0f69e9edc650a7e645",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.7.0/armory-runtime.zip"
+    },
+    {
+      "name": "AtlasLauncherSetup.exe",
+      "bytes": 518851673,
+      "sha256": "246479ea47c4cd1a712752b80a9b5c9d12306634f150bce356312bd31f45b57e",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.7.0/AtlasLauncherSetup.exe"
+    },
+    {
+      "name": "launcher-update.json",
+      "bytes": 424,
+      "sha256": "b655351085031612cf8231da39f78edc3db6767c7c37188f5316bee94c2b650e",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.7.0/launcher-update.json"
+    },
+    {
+      "name": "PATCH-NOTES.en.md",
+      "bytes": 1155,
+      "sha256": "4c20c9b2a80a0471ecd12db79e2eb7a9fbe09582158390e22ec0ec4177923938",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.7.0/PATCH-NOTES.en.md"
+    },
+    {
+      "name": "PATCH-NOTES.md",
+      "bytes": 1370,
+      "sha256": "60a72f7e143c5e7801308e540a2c8f19f356eeb20b4d9431babac127286c0056",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.7.0/PATCH-NOTES.md"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "bytes": 431,
+      "sha256": "99d727745f6eb9b004d383b362be84c60a9d2ac1af1a0be09309e84f63ff0257",
+      "url": "https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.7.0/SHA256SUMS.txt"
+    }
+  ]
+}

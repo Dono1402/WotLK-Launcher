@@ -1,0 +1,108 @@
+{
+  "version": "1.7.0",
+  "deployed": true,
+  "checkedAtUtc": "2026-09-12T09:54:12.533030+00:00",
+  "purchasesEnabled": true,
+  "accountServicesEnabled": true,
+  "schemaVersion": 13,
+  "characterDatabaseWorkers": 4,
+  "authProcessPreserved": true,
+  "runtime": {
+    "arthas-worldserver.dungeon-clear-8224099": {
+      "MainPID": "2799369",
+      "NRestarts": "0",
+      "ExecMainStartTimestampMonotonic": "9610126786282",
+      "WorkingDirectory": "/opt/arthas-next/candidates/modules-update-20260905T1016Z/server/bin",
+      "ActiveState": "active",
+      "executable": "/opt/arthas-next/candidates/atlas-shop-rename-native-20260912/build/worldserver",
+      "sha256": "8b67ff4929ed78e7209efbe4d8bfd886ebf2fe8d6549e09d0f03ba672f0c01cf"
+    },
+    "hermesproxy-wotlk": {
+      "MainPID": "2800827",
+      "NRestarts": "0",
+      "ExecMainStartTimestampMonotonic": "9610187719283",
+      "WorkingDirectory": "/opt/hermesproxy-wotlk/releases/hermes-shop-native-1.7.0-20260912",
+      "ActiveState": "active",
+      "executable": "/opt/hermesproxy-wotlk/releases/hermes-shop-native-1.7.0-20260912/HermesProxy",
+      "sha256": "0cf39b72930f890ab589c2ecf5d9e43c49b670369ba815bacbaa766e56178527"
+    },
+    "wotlk-launcher-api": {
+      "MainPID": "2801703",
+      "NRestarts": "0",
+      "ExecMainStartTimestampMonotonic": "9610384612238",
+      "WorkingDirectory": "/opt/wotlk-launcher-api-releases/shop-native-1.7.0-20260912",
+      "ActiveState": "active",
+      "executable": "/opt/wotlk-launcher-api-releases/shop-native-1.7.0-20260912/WotLK.Launcher.Server",
+      "sha256": "3ab0ddee1a9835a9227726924613b232f1bfef33ca082ac023dd7c1f457f8d9a"
+    },
+    "arthas-authserver": {
+      "MainPID": "323656",
+      "NRestarts": "0",
+      "ExecMainStartTimestampMonotonic": "8522748383234",
+      "WorkingDirectory": "/opt/arthas-next/candidates/dungeon-clear-20260830T183457Z/server/bin",
+      "ActiveState": "active"
+    },
+    "apiFlags": {
+      "WOTLK_LAUNCHER_MAX_SCHEMA_VERSION": "13",
+      "AtlasShop__Purchases__AccountServicesEnabled": "true",
+      "AtlasShop__Purchases__RenameEnabled": "true"
+    }
+  },
+  "listeners": {
+    "arthas-worldserver.dungeon-clear-8224099": [
+      "0.0.0.0:4000",
+      "0.0.0.0:8888"
+    ],
+    "hermesproxy-wotlk": [
+      "0.0.0.0:1119",
+      "0.0.0.0:8081",
+      "0.0.0.0:8084",
+      "0.0.0.0:8086",
+      "127.0.0.1:8099"
+    ],
+    "wotlk-launcher-api": [
+      "127.0.0.1:4323"
+    ]
+  },
+  "heartbeat": [
+    [
+      "1",
+      "2",
+      "arthas_chars",
+      "1"
+    ]
+  ],
+  "publication": {
+    "published": true,
+    "version": "1.7.0",
+    "completedAtUnix": 1789206778,
+    "launcher": {
+      "bytes": 413487932,
+      "sha256": "c5df5667a63483f98c09206aa60e2ae22546e1d99a0bd68c2295422e7394d747"
+    },
+    "installer": {
+      "bytes": 518851673,
+      "sha256": "246479ea47c4cd1a712752b80a9b5c9d12306634f150bce356312bd31f45b57e"
+    },
+    "manifestSha256": "b655351085031612cf8231da39f78edc3db6767c7c37188f5316bee94c2b650e",
+    "signedManifestVerified": true,
+    "publicDownloadsFullyHashed": true,
+    "publicManifestMatches": true,
+    "threeAliasesVerified": true,
+    "historicalNotesPreserved": true,
+    "authenticatedShopAndPatchNotesVerified": true,
+    "servicesUnchangedDuringPublication": true
+  },
+  "preMigrationBackup": {
+    "dump": "/opt/atlas-shop-releases/native-1.7.0-20260912/backups/20260912T094522Z/arthas-auth-chars-playerbots.sql.gz",
+    "sha256": "1bdc08dd124c48bfc6fa9799845120da5bd87bd34110ac7ea8f1995bc92a2ca5",
+    "compressedBytes": 109300594,
+    "gzipIntegrityVerified": true,
+    "onlineSnapshot": false,
+    "restoreRehearsed": false
+  },
+  "authenticatedShopAndNotesChecked": true,
+  "syntheticAccountsRemoved": true,
+  "realOrdersCreatedByVerification": 0,
+  "gameGraphicalObservation": false
+}

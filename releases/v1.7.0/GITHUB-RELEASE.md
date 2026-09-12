@@ -1,5 +1,13 @@
 # Atlas Launcher 1.7.0
 
+**[Télécharger Atlas Launcher pour Windows](https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.7.0/AtlasLauncherSetup.exe)**
+
+Téléchargez **AtlasLauncherSetup.exe** et suivez les étapes de l'assistant. Si Atlas Launcher est déjà installé, la 1.7.0 est proposée dans l'application.
+
+La boutique Atlas et le changement de nom sont activés. Achetez le service pour votre compte, puis choisissez le personnage et le nouveau nom à la sélection des personnages.
+
+[English release notes](https://github.com/Dono1402/WotLK-Launcher/releases/download/v1.7.0/PATCH-NOTES.en.md)
+
 Publication : 12 septembre 2026.
 
 Atlas Launcher 1.7.0 ajoute la boutique Atlas, les soldes séparés et le changement de nom à utiliser depuis la sélection des personnages.

@@ -1,6 +1,6 @@
 # Atlas Launcher 1.7.0
 
-Prepared release — not published.
+Published: September 12, 2026.
 
 Atlas Launcher 1.7.0 adds the Atlas shop, separate balances, and a name change service used from character selection.
 

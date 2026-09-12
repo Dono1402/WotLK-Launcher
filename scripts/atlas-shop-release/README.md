@@ -1,9 +1,16 @@
 # Préparation Atlas 1.7.0 — services de compte natifs
 
-Ces scripts sont liés à la livraison du 12 septembre 2026 et aux chemins exacts
-audités sur Atlas. Ils préparent et vérifient des candidats privés. Ils ne
-redémarrent aucun service public, ne publient pas le launcher et n'appliquent pas
-de migration à la base publique. Les chemins existants provoquent volontairement
+**Bascule effectuée le 12 septembre 2026 après accord explicite de maintenance.**
+L'API utilise le schéma 13, World/Hermes servent les services de compte natifs et
+le changement de nom est activé. Le launcher public est en 1.7.0. Voir
+`releases/v1.7.0/deployment-result.json` pour les preuves et les limites.
+
+Ces scripts sont liés à cette livraison et aux chemins exacts audités sur Atlas.
+Les scripts `prepare-*`, `prepare_backend.py`, `test-candidate.py` et
+`verify-prepared.py` servent à la préparation privée. `activate-backend.py`,
+`enable-purchases.py` et `publish-client.py` effectuent les mutations de
+production décrites ci-dessous ; ils ne doivent pas être relancés sur la
+livraison achevée. Les chemins existants provoquent volontairement
 un arrêt dans les scripts de préparation : ne pas les relancer pour « réparer »
 un candidat sans examiner son état.
 
@@ -27,7 +34,7 @@ comparée à l'ancre embarquée. La clé privée n'est ni exportée ni copiée.
 `prepare-operations.py` rend les trois unités complètes et les vérifie avec
 `systemd-analyze verify`; leurs surcharges restent privées.
 
-La vérification finale est une lecture seule :
+Avant activation, la vérification finale était une lecture seule :
 
 ```bash
 sudo python3 /opt/atlas-shop-releases/native-1.7.0-20260912/scripts/verify-prepared.py
@@ -37,6 +44,13 @@ Elle vérifie aussi que chaque compte de service peut lire ses fichiers et
 exécuter son binaire, que les quatre processus publics n'ont pas changé, que les
 configurations actives correspondent aux sauvegardes, et que le manifeste public
 est encore celui de la 1.6.0.
+
+Après activation, utiliser `verify-live.py` : il vérifie le schéma, les services,
+les configurations, les ports, le heartbeat et les preuves de
+publication. `check-live.py` est réservé aux trois étapes de cette livraison :
+il crée un compte synthétique avec session de cinq minutes, effectue uniquement
+des lectures HTTPS authentifiées, puis supprime ce compte et sa session. Aucun
+achat, débit ou recharge n'est créé. Les trois comptes de contrôle ont été retirés.
 
 ## Bascule proposée, après accord de maintenance
 

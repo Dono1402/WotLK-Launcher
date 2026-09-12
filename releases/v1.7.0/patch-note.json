@@ -1,0 +1,34 @@
+{
+  "id": "atlas-launcher-1-7-0",
+  "category": "Launcher",
+  "title": "Atlas Launcher 1.7.0",
+  "summary": "Atlas Launcher 1.7.0 ajoute la boutique Atlas, les soldes sÃ©parÃ©s et le changement de nom Ã  utiliser depuis la sÃ©lection des personnages.",
+  "sections": [
+    {
+      "title": "Boutique Atlas",
+      "items": [
+        "Parcourez les services et comparez leur prix en euros du portefeuille ou en CrÃ©dits Atlas.",
+        "Consultez les deux soldes sÃ©parÃ©ment et accÃ©dez Ã  leur dÃ©tail depuis la barre supÃ©rieure.",
+        "Retrouvez les conditions du service, la monnaie choisie et le montant manquant Ã©ventuel avant un achat.",
+        "Suivez vos achats, annulations et remboursements dans un historique filtrable."
+      ]
+    },
+    {
+      "title": "Changement de nom",
+      "items": [
+        "Achetez un changement de nom pour votre compte, puis choisissez le personnage en jeu au moment de lâ€™utiliser.",
+        "Continuez votre partie aprÃ¨s lâ€™achat et revenez volontairement Ã  la sÃ©lection des personnages pour utiliser le service.",
+        "Validez le nouveau nom avant de confirmer ; un nom refusÃ© laisse le service disponible.",
+        "Annulez un service non utilisÃ© pour rÃ©cupÃ©rer son montant dans la monnaie de lâ€™achat."
+      ]
+    },
+    {
+      "title": "Suivi et disponibilitÃ©",
+      "items": [
+        "Retrouvez les services disponibles aprÃ¨s une reconnexion et le reÃ§u du renommage avec lâ€™ancien et le nouveau nom.",
+        "Le changement de nom est le premier service prÃ©vu pour activation. Les autres services, la conversion rÃ©elle dâ€™or et les paiements automatiques restent indisponibles."
+      ]
+    }
+  ],
+  "publishedAt": "2026-09-12T09:18:49Z"
+}

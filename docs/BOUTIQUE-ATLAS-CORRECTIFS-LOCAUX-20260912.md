@@ -176,5 +176,9 @@ l'invalidation du cache de noms du client et des autres joueurs connectés.
 Le [correctif de l'identité en jeu](BOUTIQUE-ATLAS-NOM-EN-JEU-20260912.md) complète
 cette notification, le rafraîchissement à l'entrée en jeu et le traitement des
 anciens reçus. Ses candidats passent 94 contrôles d'intégration et 24 tests
-Hermes. Ils sont préparés et sauvegardés à 20 h 30, mais leur activation attend
-l'accord explicite pour redémarrer World. Le lanceur public reste en 1.7.2.
+Hermes. Après préparation et sauvegardes à 20 h 30, leur activation a été
+explicitement autorisée puis terminée à **20 h 37**. World `2878870` et Hermes
+`2878967` utilisent les exécutables testés ; leur stabilité et les heartbeats
+natifs ont été vérifiés à 20 h 39. Auth et l'API conservent leurs processus.
+Le lanceur public reste en 1.7.2. Une reconnexion au royaume suffit pour appliquer
+le rafraîchissement d'identité au personnage déjà renommé, sans nouvel achat.

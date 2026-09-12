@@ -1,5 +1,5 @@
 {
-  "status": "prepared-awaiting-world-restart-authorization",
+  "status": "activated-and-verified",
   "clientBuild": "3.4.3.54261",
   "observedProduction": {
     "renamedCharacterPersistedInDatabase": true,
@@ -258,5 +258,71 @@
       "/etc/systemd/system/hermesproxy-wotlk.service.d/zzzzzzz-atlas-shop-rename-identity-20260912.conf"
     ],
     "fixtureStopped": true
+  },
+  "activation": {
+    "activated": true,
+    "stable": true,
+    "sourceCommit": "6a536c1c8c9d6b5091d14309a64f4a5c6aee722c",
+    "activatedAtUtc": "2026-09-12T18:37:20.656106+00:00",
+    "verifiedAtUtc": "2026-09-12T18:39:13.973149+00:00",
+    "stableForSeconds": 113.3,
+    "services": {
+      "arthas-worldserver.dungeon-clear-8224099": {
+        "MainPID": "2878870",
+        "ActiveState": "active",
+        "NRestarts": "0",
+        "executable": "/opt/arthas-next/candidates/atlas-shop-rename-identity-20260912/build/worldserver",
+        "sha256": "aa9880f240a4bace95bd5c06028175fd6b50348a435d55c53cc632bff5ee3d62"
+      },
+      "hermesproxy-wotlk": {
+        "MainPID": "2878967",
+        "ActiveState": "active",
+        "NRestarts": "0",
+        "executable": "/opt/hermesproxy-wotlk/releases/hermes-rename-identity-20260912/HermesProxy",
+        "sha256": "8adc5af26635dc698f062a2b61bac8ee1367d48af7cdaaed0b8e90fa35b7ad8f"
+      },
+      "arthas-authserver": {
+        "MainPID": "323656",
+        "ActiveState": "active",
+        "NRestarts": "0",
+        "executable": "/opt/arthas-next/candidates/dungeon-clear-20260830T183457Z/server/bin/authserver",
+        "sha256": "e4f5156535e6bc5b1dd774cff1e0f462f267bb12aaa473542aeb28d229320498"
+      },
+      "wotlk-launcher-api": {
+        "MainPID": "2830654",
+        "ActiveState": "active",
+        "NRestarts": "0",
+        "executable": "/opt/wotlk-launcher-api-releases/shop-gold-1.7.2-20260912/WotLK.Launcher.Server",
+        "sha256": "203484f27efc4a5383a1acdb0c9f642e9361456a7b3d69c8d81cd4c86dc2ea0e"
+      }
+    },
+    "configurationPreserved": true,
+    "authAndApiProcessesPreserved": true,
+    "apiHealthy": true,
+    "nativeHeartbeats": {
+      "rename": {
+        "protocol": 2,
+        "ageSeconds": 2,
+        "renewedAfterActivation": true
+      },
+      "gold": {
+        "protocol": 1,
+        "ageSeconds": 2,
+        "renewedAfterActivation": true
+      }
+    },
+    "publicLauncherVersion": "1.7.2",
+    "publicManifestSha256": "420988c2b3ba4e794215456b3b8ec9eab51ea72057df3dad89b63d1cba752d06",
+    "fixtureStopped": true,
+    "isolatedIdentityChecks": 8,
+    "regressionChecks": {
+      "core": 36,
+      "hermes": 20,
+      "gold": 30
+    },
+    "graphicalClientTested": false,
+    "livePlayerOrdersCreated": 0,
+    "livePlayerConversionsCreated": 0,
+    "backupVerified": true
   }
 }

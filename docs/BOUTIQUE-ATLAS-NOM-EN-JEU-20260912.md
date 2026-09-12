@@ -1,6 +1,6 @@
 # Renommage : identité en jeu et cache des autres joueurs
 
-État : **correctif implémenté et vérifié en environnement isolé ; activation publique en attente de l'accord explicite pour redémarrer World**.
+État : **correctif activé le 12 septembre 2026 à 20 h 37 (Paris), après autorisation explicite de redémarrage ; stabilité vérifiée à 20 h 39**.
 
 Le signalement du 12 septembre était confirmé : après un renommage réussi, la
 sélection affichait le nouveau nom mais le client pouvait conserver l'ancien
@@ -67,12 +67,12 @@ le test. Il refuse de suspendre un processus public.
 
 Les rapports détaillés et empreintes sont dans
 [`validation/hermes-rename-identity-20260912.json`](validation/hermes-rename-identity-20260912.json).
-Après les tests, la fixture et son MySQL sont arrêtés. Les processus publics
-World, Hermes, Auth et API sont restés inchangés.
+Après les tests, la fixture et son MySQL sont arrêtés. Pendant ces tests,
+les processus publics World, Hermes, Auth et API sont restés inchangés.
 
-## Activation préparée
+## Préparation et activation
 
-Les deux exécutables sont préparés sous des chemins distincts et inactifs :
+Les deux exécutables testés sont maintenant actifs sous ces chemins :
 
 - World : `/opt/arthas-next/candidates/atlas-shop-rename-identity-20260912` ;
 - Hermes : `/opt/hermesproxy-wotlk/releases/hermes-rename-identity-20260912`.
@@ -87,20 +87,31 @@ Les nouveaux paramètres de service restent inactifs jusqu'à l'activation.
 Préparation vérifiée le 12 septembre à **20 h 30 (Paris)** : les sauvegardes
 sont contrôlées sous `/opt/atlas-shop-releases/rename-identity-20260912/backup`,
 le plan sous `plan.json` et le script persistant sous `deploy.py` dans le même
-répertoire. Les nouveaux paramètres systemd ne sont pas installés et le lien
-de configuration du candidat World vise encore la fixture. World `2828323`,
-Hermes `2860655`, Auth `323656` et API `2830654` sont toujours actifs avec leurs
-exécutables précédents.
+répertoire. À cette étape, les nouveaux paramètres systemd n'étaient pas
+installés et le lien de configuration du candidat World visait encore la
+fixture. World `2828323`, Hermes `2860655`, Auth `323656` et API `2830654`
+conservaient alors leurs exécutables précédents.
 
-L'activation nécessite **un arrêt propre et démarrage de World, puis un
-redémarrage de Hermes**, avec déconnexion des joueurs. Elle conserve Auth et
-l'API en activité, ainsi que la configuration, le schéma SQL et le manifeste
-du lanceur. La vérification contrôle les nouveaux exécutables, les ports et les
-heartbeats natifs du renommage et de la conversion d'or. Un échec déclenche le
-rétablissement des anciens exécutables ; aucune restauration SQL automatique
-n'est effectuée.
+Après le message d'autorisation « active », la phase
+`activate --authorized-maintenance` a effectué **un arrêt propre et démarrage
+de World, puis un redémarrage de Hermes**. L'activation est terminée à
+`2026-09-12T18:37:20.656106Z` ; World utilise le PID `2878870` et Hermes `2878967`.
+Les empreintes des exécutables chargés correspondent aux candidats testés.
+Auth `323656` et API `2830654` ont conservé leurs processus, exécutables et
+définitions de services.
 
-La consigne de ne pas redémarrer World sans demande explicite demeure applicable.
-La phase `activate --authorized-maintenance` ne doit être exécutée qu'après cet
-accord, puis suivie d'une vérification de stabilité et d'un retour en jeu du
-client déjà renommé.
+À 20 h 39, les deux nouveaux PID sont identiques et aucun redémarrage automatique
+n'est enregistré. Les ports `4000`, `8081`, `1119`, `8084` et `8086` répondent ;
+l'API retourne un état sain. Les heartbeats de renommage (protocole 2) et de
+conversion d'or (protocole 1) ont été renouvelés après l'activation. Les valeurs
+de configuration et le manifeste public du lanceur 1.7.2 sont inchangés.
+
+Les preuves privées sont conservées sous `activation.json`, `verified.json`
+et `stable.json` dans le répertoire de livraison. Le rapport de validation du
+dépôt contient leur synthèse, avec les empreintes, PID et contrôles de stabilité.
+La fixture et son MySQL restent arrêtés. Aucun achat, conversion ou renommage
+de joueur réel n'a été créé par la procédure d'activation.
+
+Le client déjà renommé doit maintenant se reconnecter au royaume et entrer
+en jeu : le rafraîchissement de son identité est automatique, sans nouvel achat.
+La confirmation visuelle dans le client de l'utilisateur reste à recueillir.

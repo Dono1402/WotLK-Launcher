@@ -1,0 +1,133 @@
+{
+  "version": "1.7.0",
+  "state": "prepared-not-published",
+  "preparedAtUtc": "2026-09-12T09:28:03Z",
+  "sourceBaseCommit": "f0a0354997ee42a0f2f7fba1313dfb3ac2758cf8",
+  "sourceNote": "Built from this base plus the version 1.7.0 and French/English patch-note changes committed with this record. The API informational revision identifies the base, not a clean release commit.",
+  "productionActivated": false,
+  "publicLauncherVersion": "1.6.0",
+  "requiredSchemaVersion": 13,
+  "currentProductionSchemaVersion": 8,
+  "characterDatabaseWorkerThreads": 4,
+  "worldSha256": "8b67ff4929ed78e7209efbe4d8bfd886ebf2fe8d6549e09d0f03ba672f0c01cf",
+  "apiSha256": "3ab0ddee1a9835a9227726924613b232f1bfef33ca082ac023dd7c1f457f8d9a",
+  "hermesSha256": "0cf39b72930f890ab589c2ecf5d9e43c49b670369ba815bacbaa766e56178527",
+  "launcher": {
+    "bytes": 413487932,
+    "sha256": "c5df5667a63483f98c09206aa60e2ae22546e1d99a0bd68c2295422e7394d747"
+  },
+  "installer": {
+    "bytes": 518851673,
+    "sha256": "246479ea47c4cd1a712752b80a9b5c9d12306634f150bce356312bd31f45b57e"
+  },
+  "signedManifestSha256": "b655351085031612cf8231da39f78edc3db6767c7c37188f5316bee94c2b650e",
+  "signingKeyId": "atlas-prod-p256-2026-01",
+  "armoryRuntimeSha256": "84a57db71c985be18c47f62e5761e21effe7d032a7316e0f69e9edc650a7e645",
+  "verification": {
+    "definitiveNativeRealmChecks": 19,
+    "definitiveNativeRealmPassed": true,
+    "privateNetwork": true,
+    "candidateProcessesAndMysqlStopped": true,
+    "signedClientVerifiedByProductionTrustStore": true,
+    "installerExactEmbeddedPayloadVerified": true,
+    "installerRuntimeVerifiedWithoutInstallation": true,
+    "atomicUpdateAndArmoryPackageChecksPassed": true,
+    "patchNotesFrenchAndEnglishPassed": true,
+    "serviceUnitsVerifiedBySystemd": true,
+    "publicProcessesUnchanged": true,
+    "publicPointersUnchanged": true,
+    "gameGraphicalObservation": false
+  },
+  "preparationBackup": {
+    "sha256": "a83276a7a94a2e0a48fac364b8721671f931224ae070b95655ba44d28d159538",
+    "compressedBytes": 109199891,
+    "uncompressedBytes": 494958448,
+    "gzipIntegrityVerified": true,
+    "onlineSnapshot": true,
+    "singleTransaction": true,
+    "restoreRehearsed": false,
+    "nontransactionalTables": [
+      [
+        "arthas_chars",
+        "playerbots_arena_team_names",
+        "MyISAM"
+      ],
+      [
+        "arthas_chars",
+        "playerbots_guild_names",
+        "MyISAM"
+      ],
+      [
+        "arthas_chars",
+        "playerbots_names",
+        "MyISAM"
+      ],
+      [
+        "arthas_playerbots",
+        "playerbots_dungeon_suggestion_abbrevation",
+        "MyISAM"
+      ],
+      [
+        "arthas_playerbots",
+        "playerbots_dungeon_suggestion_definition",
+        "MyISAM"
+      ],
+      [
+        "arthas_playerbots",
+        "playerbots_dungeon_suggestion_strategy",
+        "MyISAM"
+      ],
+      [
+        "arthas_playerbots",
+        "playerbots_equip_cache",
+        "MyISAM"
+      ],
+      [
+        "arthas_playerbots",
+        "playerbots_item_info_cache",
+        "MyISAM"
+      ],
+      [
+        "arthas_playerbots",
+        "playerbots_rarity_cache",
+        "MyISAM"
+      ],
+      [
+        "arthas_playerbots",
+        "playerbots_rnditem_cache",
+        "MyISAM"
+      ],
+      [
+        "arthas_playerbots",
+        "playerbots_tele_cache",
+        "MyISAM"
+      ],
+      [
+        "arthas_playerbots",
+        "playerbots_travelnode",
+        "MyISAM"
+      ],
+      [
+        "arthas_playerbots",
+        "playerbots_travelnode_link",
+        "MyISAM"
+      ],
+      [
+        "arthas_playerbots",
+        "playerbots_travelnode_path",
+        "MyISAM"
+      ],
+      [
+        "arthas_playerbots",
+        "updates",
+        "MyISAM"
+      ],
+      [
+        "arthas_playerbots",
+        "updates_include",
+        "MyISAM"
+      ]
+    ]
+  },
+  "remainingActivation": "Explicit World/Hermes maintenance authorization, fresh backup after their stop, API schema migration, runtime checks and publication of the prepared signed client."
+}

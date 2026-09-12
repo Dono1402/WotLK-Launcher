@@ -8,96 +8,33 @@ internal static class LocalPatchNotesDraft
 
     internal static PatchNoteEntryViewState Create() => new(
         Id,
-        Version: "1.6.0",
-        Title: "Atlas Launcher 1.6.0",
+        Version: "1.7.0",
+        Title: "Atlas Launcher 1.7.0",
         PublishedText: "Non publiée",
-        Intro: "Atlas Launcher 1.6.0 améliore la fluidité du launcher, la fiabilité de Messages et des addons, ainsi que les contrôles appliqués aux sessions, téléchargements, installations et mises à jour.",
+        Intro: "Atlas Launcher 1.7.0 ajoute la boutique Atlas, les soldes séparés et le changement de nom à utiliser depuis la sélection des personnages.",
         HasIntro: true,
         IsLatest: true,
         IsDraft: true,
         Sections:
         [
-            new("Amis",
+            new("Boutique Atlas",
             [
-                "Liste plus compacte, avec une distinction plus claire entre pseudo Atlas et personnage.",
-                "Présence hors ligne plus discrète et pastille mieux positionnée sur l'avatar.",
-                "Accès rapide à la messagerie depuis une carte d'ami.",
-                "Recherche par pseudo ou personnage et groupes En ligne/Hors ligne repliables.",
-                "Actualisation allégée lorsque le launcher reste en arrière-plan, avec mise à jour immédiate au retour au premier plan.",
-                "Action « Retirer cet ami » plus explicite dans le menu des amis."
+                "Parcourez les services et comparez leur prix en euros du portefeuille ou en Crédits Atlas.",
+                "Consultez les deux soldes séparément et accédez à leur détail depuis la barre supérieure.",
+                "Retrouvez les conditions du service, la monnaie choisie et le montant manquant éventuel avant un achat.",
+                "Suivez vos achats, annulations et remboursements dans un historique filtrable."
             ]),
-            new("Messages",
+            new("Changement de nom",
             [
-                "Texte principal agrandi à 15 px et informations secondaires à 12 px.",
-                "Contraste renforcé tout en conservant le décor de la Citadelle.",
-                "Recherche dans la conversation avec Ctrl+F, surlignage des résultats et parcours de l'historique.",
-                "Commandes des petits aperçus vidéo réorganisées pour garder les durées lisibles à 12 px.",
-                "Les fichiers audio et vidéo proches de la zone visible se préparent plus tôt, y compris au survol et au clavier, pour démarrer plus rapidement.",
-                "La navigation dans la barre de lecture reste stable pendant les glissements et évite les repositionnements inutiles.",
-                "Bouton Réessayer pour rouvrir Messages après un incident, en retrouvant la conversation et son brouillon déjà enregistré, sans relancer le launcher.",
-                "Sauvegarde périodique des brouillons pendant la frappe continue, avec nouvelle tentative automatique et message discret en cas d’échec.",
-                "Reprise de la messagerie après un problème temporaire de lecture locale, sans redémarrage ni effacement des brouillons et messages en attente.",
-                "Bouton Réessayer conservé après un passage temporaire au mode de secours."
+                "Achetez un changement de nom pour votre compte, puis choisissez le personnage en jeu au moment de l’utiliser.",
+                "Continuez votre partie après l’achat et revenez volontairement à la sélection des personnages pour utiliser le service.",
+                "Validez le nouveau nom avant de confirmer ; un nom refusé laisse le service disponible.",
+                "Annulez un service non utilisé pour récupérer son montant dans la monnaie de l’achat."
             ]),
-            new("Addons",
+            new("Suivi et disponibilité",
             [
-                "Catalogue plus compact, noms à 15 px et informations secondaires à 12 px.",
-                "Filtres par catégorie, favoris et installations manuelles, tri et recherche avec Ctrl+F.",
-                "Sélection de plusieurs addons, packs et profils locaux, avec import et export des sélections.",
-                "Installation automatique des dépendances avec aperçu et confirmation des remplacements manuels.",
-                "Suivi des opérations groupées, annulation persistante et reprise après un échec ou une interruption.",
-                "Inventaire des addons externes, vérification des fichiers et réinstallation des paquets gérés.",
-                "Distinction entre compatibilité déclarée et validation Atlas documentée.",
-                "Position dans le catalogue et addon sélectionné conservés après navigation et actualisation de la liste.",
-                "Actions clarifiées avec les libellés « Désinstaller » et « Tout désélectionner ».",
-                "Le catalogue, les archives et l’état local des addons sont contrôlés plus strictement avant toute modification.",
-                "Les installations, mises à jour et réparations groupées sont entièrement préparées avant leur application ; les dossiers précédents sont restaurés si une étape échoue ou est annulée."
-            ]),
-            new("Profil et armurerie",
-            [
-                "Menu de présence plus compact : le statut courant déplie les quatre choix au clic, puis la liste se referme après sélection.",
-                "Possibilité de relancer l’armurerie après un incident, avec conservation du personnage partagé demandé.",
-                "Entretien des données de profils en cache et arrêt de l’armurerie effectués en arrière-plan pour préserver la réactivité du launcher.",
-                "Réduction des allocations mémoire lors des changements successifs de profils, avec masquage immédiat du profil précédent pendant le chargement."
-            ]),
-            new("Navigation et fluidité",
-            [
-                "Position de défilement conservée lors des retours entre les pages, tandis que les menus et confirmations temporaires se ferment.",
-                "Affichage allégé des longues listes d’amis et de notes de version ; seuls les éléments proches de la zone visible sont préparés.",
-                "Mémoire du cache des avatars plafonnée et meilleure libération des anciens éléments de l’interface après navigation ou changement de langue.",
-                "Avatars affichés même si leur cache disque est indisponible ; écritures et nettoyages regroupés en arrière-plan.",
-                "Ouverture des pages moins gourmande en mémoire.",
-                "Page Notes de version plus compacte, avec des titres, des textes et des espacements harmonisés avec les autres pages.",
-                "Un démarrage direct ouvre désormais l’interface actuelle du launcher, sans option de lancement supplémentaire.",
-                "Les messages d’attente et confirmations superflus ont été retirés dans plusieurs pages, tandis que les erreurs et progressions utiles restent visibles."
-            ]),
-            new("Paramètres",
-            [
-                "Enregistrement des réglages renforcé pour éviter les fichiers incomplets en cas d’interruption.",
-                "Récupération depuis une copie de secours lorsque le fichier de réglages est absent ou illisible, avec un message invitant à vérifier les préférences.",
-                "Sauvegarde des préférences hors du thread d’interface, avec restauration de la valeur précédente en cas d’échec et attente de l’écriture en cours à la fermeture.",
-                "Changement de langue du jeu sans bloquer l’interface pendant la mise à jour de sa configuration, avec un message si le fichier ne peut pas être modifié."
-            ]),
-            new("Sécurité et compatibilité",
-            [
-                "Les opérations de connexion, de renouvellement de session, de changement de mot de passe et de déconnexion restent cohérentes lorsqu’elles se chevauchent ou sont interrompues.",
-                "Les réponses Atlas inattendues ou anormalement volumineuses sont refusées sans remplacer ni effacer la session active.",
-                "La déconnexion et le changement de compte ignorent les réponses réseau tardives afin qu’une ancienne session ne puisse pas redevenir active.",
-                "Le changement de mot de passe reste compatible avec les services Atlas actuellement déployés, sans interrompre inutilement la session en cours.",
-                "Les jetons de connexion sont ajoutés uniquement aux requêtes HTTPS destinées aux services Atlas.",
-                "Les anciennes adresses Atlas reconnues dans les catalogues et manifestes sont remplacées par une adresse HTTPS du domaine officiel avant toute requête. Les autres origines non sécurisées ou inattendues restent refusées."
-            ]),
-            new("Installation et mises à jour",
-            [
-                "Les manifestes et téléchargements du jeu sont vérifiés plus strictement avant toute modification du dossier d’installation.",
-                "L’installation, la réparation et la désinstallation du jeu contrôlent davantage le dossier ciblé, refusent les emplacements ambigus et annulent proprement une opération incomplète.",
-                "L’installateur Atlas Launcher prépare et vérifie ses fichiers avant leur activation, puis retire les changements incomplets si l’installation échoue. Le launcher est ensuite démarré sans privilèges administrateur.",
-                "Les mises à jour du launcher vérifient un manifeste signé et le paquet associé avant leur application. Le remplacement peut restaurer l’installation précédente s’il échoue ou si le nouveau launcher ne démarre pas correctement.",
-                "La désinstallation d’Atlas Launcher cible uniquement ses composants enregistrés, ses raccourcis et son entrée Windows. Le jeu, les addons, la configuration de WoW et les données Atlas de l’utilisateur sont conservés."
-            ]),
-            new("Windows",
-            [
-                "Correction du menu de l’icône de notification qui pouvait passer derrière le panneau Windows au clic droit."
+                "Retrouvez les services disponibles après une reconnexion et le reçu du renommage avec l’ancien et le nouveau nom.",
+                "Le changement de nom est le premier service prévu pour activation. Les autres services, la conversion réelle d’or et les paiements automatiques restent indisponibles."
             ])
         ]);
 
@@ -105,7 +42,7 @@ internal static class LocalPatchNotesDraft
         ImmutableArray<PatchNoteEntryViewState> publishedNotes)
     {
         if (publishedNotes.Any(note => string.Equals(note.Id, Id, StringComparison.Ordinal)
-            || string.Equals(note.Id, "atlas-launcher-1-6-0", StringComparison.Ordinal)))
+            || string.Equals(note.Id, "atlas-launcher-1-7-0", StringComparison.Ordinal)))
         {
             return publishedNotes;
         }

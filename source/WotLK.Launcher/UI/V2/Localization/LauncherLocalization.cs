@@ -10,6 +10,20 @@ internal static class LauncherLocalization
     private static readonly IReadOnlyDictionary<string, string> EnglishByFrench =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            ["Atlas Launcher 1.7.0 ajoute la boutique Atlas, les soldes séparés et le changement de nom à utiliser depuis la sélection des personnages."] = "Atlas Launcher 1.7.0 adds the Atlas shop, separate balances, and a name change service used from character selection.",
+            ["Boutique Atlas"] = "Atlas shop",
+            ["Changement de nom"] = "Name change",
+            ["Suivi et disponibilité"] = "Tracking and availability",
+            ["Parcourez les services et comparez leur prix en euros du portefeuille ou en Crédits Atlas."] = "Browse services and compare their prices in wallet euros or Atlas Credits.",
+            ["Consultez les deux soldes séparément et accédez à leur détail depuis la barre supérieure."] = "View both balances separately and open their details from the top bar.",
+            ["Retrouvez les conditions du service, la monnaie choisie et le montant manquant éventuel avant un achat."] = "Review service conditions, the selected currency, and any missing funds before purchasing.",
+            ["Suivez vos achats, annulations et remboursements dans un historique filtrable."] = "Track purchases, cancellations, and refunds in a filterable history.",
+            ["Achetez un changement de nom pour votre compte, puis choisissez le personnage en jeu au moment de l’utiliser."] = "Buy a name change for your account, then choose the character in game when you use it.",
+            ["Continuez votre partie après l’achat et revenez volontairement à la sélection des personnages pour utiliser le service."] = "Keep playing after the purchase and return to character selection when you want to use the service.",
+            ["Validez le nouveau nom avant de confirmer ; un nom refusé laisse le service disponible."] = "Validate the new name before confirming; a rejected name leaves the service available.",
+            ["Annulez un service non utilisé pour récupérer son montant dans la monnaie de l’achat."] = "Cancel an unused service to recover its cost in the original purchase currency.",
+            ["Retrouvez les services disponibles après une reconnexion et le reçu du renommage avec l’ancien et le nouveau nom."] = "Find available services after reconnecting and the rename receipt with the previous and new names.",
+            ["Le changement de nom est le premier service prévu pour activation. Les autres services, la conversion réelle d’or et les paiements automatiques restent indisponibles."] = "Name change is the first service planned for activation. Other services, real gold conversion, and automatic payments remain unavailable.",
             ["Boutique"] = "Shop",
             ["CATALOGUE"] = "CATALOG",
             ["VOTRE SÉLECTION"] = "YOUR SELECTION",

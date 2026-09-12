@@ -1,0 +1,24 @@
+# Atlas Launcher 1.7.0
+
+Prepared release — not published.
+
+Atlas Launcher 1.7.0 adds the Atlas shop, separate balances, and a name change service used from character selection.
+
+## Atlas shop
+
+- Browse services and compare their prices in wallet euros or Atlas Credits.
+- View both balances separately and open their details from the top bar.
+- Review service conditions, the selected currency, and any missing funds before purchasing.
+- Track purchases, cancellations, and refunds in a filterable history.
+
+## Name change
+
+- Buy a name change for your account, then choose the character in game when you use it.
+- Keep playing after the purchase and return to character selection when you want to use the service.
+- Validate the new name before confirming; a rejected name leaves the service available.
+- Cancel an unused service to recover its cost in the original purchase currency.
+
+## Tracking and availability
+
+- Find available services after reconnecting and the rename receipt with the previous and new names.
+- Name change is the first service planned for activation. Other services, real gold conversion, and automatic payments remain unavailable.

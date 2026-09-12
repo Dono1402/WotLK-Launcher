@@ -139,30 +139,21 @@ internal static class LauncherDashboardTests
         True(localClient.PatchNotes[0].Sections.SelectMany(section => section.Items).All(item => !item.Contains(".cs", StringComparison.OrdinalIgnoreCase)),
             "Le brouillon utilisateur ne doit pas contenir de détail de code.");
         PatchNoteEntryViewState draft = localClient.PatchNotes[0];
-        Equal("1.6.0", draft.Version, "Le brouillon doit conserver la version cible demandée.");
-        Equal("Atlas Launcher 1.6.0", draft.Title, "Le titre doit afficher la version cible.");
-        Equal(
-            "Atlas Launcher 1.6.0 améliore la fluidité du launcher, la fiabilité de Messages et des addons, ainsi que les contrôles appliqués aux sessions, téléchargements, installations et mises à jour.",
-            draft.Intro,
-            "L’introduction doit présenter fidèlement le périmètre de la version 1.6.0.");
+        Equal("1.7.0", draft.Version, "Le brouillon doit cibler la nouvelle version.");
+        Equal("Atlas Launcher 1.7.0", draft.Title, "Le titre doit afficher la version cible.");
         True(draft.Sections.Select(section => section.Title).SequenceEqual(
-            new[] { "Amis", "Messages", "Addons", "Profil et armurerie", "Navigation et fluidité", "Paramètres", "Sécurité et compatibilité", "Installation et mises à jour", "Windows" }),
-            "Le brouillon doit conserver les neuf rubriques françaises dans leur ordre éditorial.");
-        True(draft.Sections.Select(section => section.Items.Length).SequenceEqual(
-            new[] { 6, 10, 11, 4, 8, 4, 6, 5, 1 }),
-            "Chaque rubrique doit conserver tous ses points dans leur répartition éditoriale.");
+            new[] { "Boutique Atlas", "Changement de nom", "Suivi et disponibilité" }),
+            "Les trois rubriques doivent présenter le parcours livré et ses limites.");
         string[] draftItems = draft.Sections.SelectMany(section => section.Items).ToArray();
-        Equal(55, draftItems.Length, "Le brouillon 1.6.0 doit conserver ses 55 points.");
-        True(draftItems.Any(item => item.Contains("manifeste signé", StringComparison.Ordinal)),
-            "Le patchnote doit conserver le contrôle des mises à jour signées.");
-        True(draftItems.Any(item => item.Contains("les dossiers précédents sont restaurés", StringComparison.Ordinal)),
-            "Le patchnote doit conserver la restauration des addons après un échec.");
-        True(draftItems.Any(item => item.Contains("panneau Windows", StringComparison.Ordinal)),
-            "Le correctif du menu de l’icône de notification doit rester présent.");
+        Equal(10, draftItems.Length, "Les dix changements doivent rester présents.");
+        True(draftItems.Any(item => item.Contains("personnage en jeu", StringComparison.Ordinal)),
+            "Le choix du personnage se fait en jeu après l'achat.");
+        True(draftItems.Any(item => item.Contains("restent indisponibles", StringComparison.Ordinal)),
+            "Les autres services et paiements automatiques ne doivent pas être annoncés disponibles.");
         True(LauncherLocalization.TranslateFromFrench(draft.Intro) != draft.Intro,
-            "L’introduction du brouillon 1.6.0 doit être traduite en anglais.");
+            "L'introduction doit être traduite en anglais.");
         True(draftItems.All(item => LauncherLocalization.TranslateFromFrench(item) != item),
-            "Chaque changement du brouillon doit être traduit en anglais.");
+            "Chaque changement doit être traduit en anglais.");
         True(projected.PatchNotes.All(note => !note.IsDraft),
             "La projection publique ne doit jamais ajouter le brouillon local.");
         Equal(structured.Title, localClient.PatchNotes[1].Title,
@@ -175,9 +166,9 @@ internal static class LauncherDashboardTests
         Equal(localClient.PatchNotes.Length, LocalPatchNotesDraft.PrependTo(localClient.PatchNotes).Length,
             "Un rafraîchissement ne doit pas dupliquer le brouillon.");
         var released = projected.PatchNotes.SetItem(0,
-            projected.PatchNotes[0] with { Id = "atlas-launcher-1-6-0", Version = "1.6.0" });
+            projected.PatchNotes[0] with { Id = "atlas-launcher-1-7-0", Version = "1.7.0" });
         True(LocalPatchNotesDraft.PrependTo(released).SequenceEqual(released),
-            "Une fois la 1.6.0 publiée, le client local ne doit plus ajouter son ancien brouillon.");
+            "Une fois la 1.7.0 publiée, le client local ne doit plus ajouter son ancien brouillon.");
     }
 
     private static async Task RefuseRequestsWithoutSessionAsync()

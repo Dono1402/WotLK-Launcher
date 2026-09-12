@@ -170,10 +170,12 @@ internal static class LauncherSelfUpdateSecurityTests
         verifier.Verify(manifest);
         Equal(ProductionKeyId, manifest.KeyId,
             "Le manifeste candidat doit utiliser l'ancre de production Atlas.");
-        Equal("1.3.0", manifest.Version,
-            "Le manifeste candidat doit annoncer Atlas Launcher 1.3.0.");
+        string candidateVersion = System.Diagnostics.FileVersionInfo.GetVersionInfo(packagePath)
+            .ProductVersion?.Split('+')[0] ?? throw new InvalidOperationException("Version du candidat absente.");
+        Equal(candidateVersion, manifest.Version,
+            "Le manifeste candidat doit annoncer la version du binaire fourni.");
         Equal(
-            "https://animeclub.fr/wotlk/launcher/releases/1.3.0/WotLK-Launcher.exe",
+            $"https://animeclub.fr/wotlk/launcher/releases/{candidateVersion}/WotLK-Launcher.exe",
             LauncherSelfUpdateHttpClient.BuildDownloadUri(
                 manifest.Url,
                 manifest.Version).AbsoluteUri,
@@ -196,14 +198,14 @@ internal static class LauncherSelfUpdateSecurityTests
             finalizer,
             timer,
             automaticChecksEnabled: false,
-            installedVersion: "v1.3.0",
+            installedVersion: "v" + candidateVersion,
             selfUpdateRecoveryOccurred: false,
             getExecutablePath: () => packagePath,
             writeLog: _ => { });
 
         LauncherSelfUpdateCheckResult result = await coordinator.CheckAsync();
         Equal(LauncherSelfUpdateCheckOutcome.NoUpdate, result.Outcome,
-            "Une installation 1.3.0 identique au candidat doit produire NoUpdate.");
+            "Une installation identique au candidat doit produire NoUpdate.");
         True(!coordinator.CurrentSnapshot.IsUpdateAvailable,
             "Le candidat identique ne doit pas être publié comme mise à jour.");
         Equal(1, client.ManifestRequests,
@@ -224,7 +226,7 @@ internal static class LauncherSelfUpdateSecurityTests
             "Le contrôle candidat ponctuel ne doit pas démarrer le timer.");
 
         Console.WriteLine(
-            "Atlas Launcher 1.3.0 signed candidate OK: signature=valid, "
+            $"Atlas Launcher {candidateVersion} signed candidate OK: signature=valid, "
             + "package=matching, outcome=NoUpdate, activity=0, download=0, uac=0.");
         return 0;
     }

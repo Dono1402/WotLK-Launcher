@@ -1,10 +1,5 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <DrawingImage x:Key="ShopGoldCoin"><DrawingImage.Drawing><DrawingGroup>
-        <GeometryDrawing Geometry="M16,1 A15,15 0 1 1 15.99,1"><GeometryDrawing.Brush><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#FFEDAE" Offset="0"/><GradientStop Color="#BA7C22" Offset=".5"/><GradientStop Color="#F8D981" Offset="1"/></LinearGradientBrush></GeometryDrawing.Brush><GeometryDrawing.Pen><Pen Brush="#8C5B17" Thickness="1"/></GeometryDrawing.Pen></GeometryDrawing>
-        <GeometryDrawing Geometry="M16,5 A11,11 0 1 1 15.99,5"><GeometryDrawing.Brush><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#E5B954" Offset="0"/><GradientStop Color="#9D651C" Offset="1"/></LinearGradientBrush></GeometryDrawing.Brush><GeometryDrawing.Pen><Pen Brush="#FBE29B" Thickness="1"/></GeometryDrawing.Pen></GeometryDrawing>
-        <GeometryDrawing Brush="#F9DB8A" Geometry="M16,8 L23,16 L16,24 L9,16 Z M16,12 L12.5,16 L16,20 L19.5,16 Z"/>
-        <GeometryDrawing Geometry="M8,6 L10,8 M5,11 L7,12 M5,20 L7,19 M9,26 L10,24 M23,26 L22,24 M27,20 L25,19 M27,11 L25,12 M23,6 L22,8"><GeometryDrawing.Pen><Pen Brush="#FBE29B" Thickness="1"/></GeometryDrawing.Pen></GeometryDrawing>
-    </DrawingGroup></DrawingImage.Drawing></DrawingImage>
+    <BitmapImage x:Key="ShopGoldCoin" UriSource="/WotLK.Launcher;component/Assets/Shop/Gold_coins.png" DecodePixelWidth="256"/>
     <SolidColorBrush x:Key="ShopGold" Color="#FFCA53"/>
     <SolidColorBrush x:Key="ShopIce" Color="#53DFFD"/>
     <SolidColorBrush x:Key="ShopWalletAmount" Color="#A9DCFA"/>

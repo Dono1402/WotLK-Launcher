@@ -92,9 +92,11 @@ class VasClient(ModernWorldClient):
             pos += 2
             name_length, realm_length = sizes >> 10, (sizes >> 1) & 511
             name = data[pos:pos + name_length].decode('utf-8')
-            pos += name_length + realm_length
+            pos += name_length
+            realm_name = data[pos:pos + realm_length].decode('utf-8')
+            pos += realm_length
             result.append({'account': account, 'guid': guid, 'packedGuid': guid_bytes,
-                           'realm': realm, 'level': level, 'name': name})
+                           'realm': realm, 'realmName': realm_name, 'level': level, 'name': name})
         if pos != len(data): raise RuntimeError('Service character list has trailing bytes.')
         return result
 
@@ -141,9 +143,11 @@ def run(root):
         world.send(0x36fb)
         f.check(world.until(0x27f5) == bytes(1), 'The native VAS-state request returns the verified state envelope.')
         choices = world.service_characters()
+        expected_realm_name = f.sql('SELECT name FROM shop_test_auth.realmlist WHERE id=1')
         f.check(len(choices) == 1 and choices[0]['account'] == account['id'] and choices[0]['guid'] == guid
-            and choices[0]['level'] == 10 and choices[0]['name'] == original.capitalize(),
-            'The native service selector receives the authenticated account character, level and current name.')
+            and choices[0]['level'] == 10 and choices[0]['name'] == original.capitalize()
+            and choices[0]['realm'] == bnet.realm_address and choices[0]['realmName'] == expected_realm_name != '',
+            'The native service selector receives the authenticated account character and a nonempty matching realm name.')
         requested = '\u00c9' + f.name('va').lower()
         f.check(world.assign(order, modern, bnet.realm_address, 'Invalid123') != (0, 0) and f.state(order) == 'available',
             'A native 3.4.3 name rejection leaves the paid service available.')

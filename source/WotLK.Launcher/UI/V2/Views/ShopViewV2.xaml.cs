@@ -42,7 +42,7 @@ public partial class ShopViewV2 : UserControl, IDisposable
     private void ViewUnloaded(object sender, RoutedEventArgs e) { LauncherLocalization.LocaleChanged -= LocaleChanged; _orderPoll.Stop(); }
     private async void PollOrders(object? sender, EventArgs e)
     {
-        if (IsVisible && (State.NeedsPurchaseRefresh || State.NeedsConversionRefresh)) await State.RefreshPurchaseAsync();
+        if (IsVisible && (State.NeedsPurchaseRefresh || State.NeedsConversionRefresh)) await State.PollPurchaseAsync();
     }
     private void LocaleChanged(object? sender, EventArgs e)
     {

@@ -72,7 +72,7 @@ internal sealed partial class ShopUiState
     public bool HasValidConversionAmount => CanPreviewConversion && ConversionQuote is { CreditEuroCents: > 0 }
         && RequestedCopper <= AvailableCopper
         && _snapshot?.CreditBalanceEuroCents is long balance && balance <= ShopSnapshot.MaximumBalanceCents - ConversionQuote.CreditEuroCents;
-    public bool CanConvert => !_disposed && IsConversionOpen && !IsConverting && !IsLoading && !IsPurchaseReading && !IsPurchasing && !IsFundingBusy
+    public bool CanConvert => !_disposed && IsConversionOpen && !IsConverting && !IsLoading && !IsBlockingPurchaseRead && !IsPurchasing && !IsFundingBusy
         && (_conversionAttempt is not null && _conversionActions is not null
             || !HasPendingConversion && (IsConversionPreview || RealConversionAvailable) && HasValidConversionAmount && (_snapshot?.ManualFunding?.DebtCents ?? 0) == 0);
     public string ConversionMaximum => AvailableCopper is uint available ? FormatGoldNumber(available) : "—";

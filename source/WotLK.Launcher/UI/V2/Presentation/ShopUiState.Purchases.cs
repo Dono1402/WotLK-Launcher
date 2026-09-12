@@ -7,7 +7,7 @@ namespace WotLK.Launcher.UI.V2.Presentation;
 internal sealed record ShopPurchaseActions(Func<ShopCreateOrder, CancellationToken, Task<ShopOrder>> Create,
     Func<string, CancellationToken, Task<ShopOrder>> Cancel);
 
-internal sealed class ShopOrderRow(ShopOrder order)
+internal sealed class ShopOrderRow(ShopOrder order) : ShopLocalizedRow
 {
     public ShopOrder Order { get; } = order;
     public string Id => Order.Id;
@@ -27,32 +27,38 @@ internal sealed partial class ShopUiState
     private ShopText? _purchaseNotice;
     public bool IsPurchasing { get; private set; }
     public bool IsPurchaseReading { get; private set; }
-    public bool CanEditPurchase => !IsConverting && !IsPurchasing && !IsPurchaseReading && _purchaseAttempt is null;
-    public bool UsesAccountService => _snapshot?.Purchases?.AccountServices == true && _offer?.Offer.Id == "character-rename";
+    private bool _backgroundPurchaseRead;
+    private bool IsBlockingPurchaseRead => IsPurchaseReading && !_backgroundPurchaseRead;
+    private IReadOnlyList<ShopOrderRow> _purchaseOrderRows = [];
+    public bool CanEditPurchase => !IsConverting && !IsPurchasing && !IsBlockingPurchaseRead && _purchaseAttempt is null;
+    public bool UsesAccountService => _snapshot?.Purchases?.AccountServices == true && _offer?.Offer.Id is "character-rename" or "character-level-70" or "character-faction-change" or "character-race-change";
     public bool ShowPurchaseCharacter => !UsesAccountService;
     public bool CanChoosePurchaseCharacter => ShowPurchaseCharacter && HasCharacters && CanEditPurchase;
     public bool CanManagePurchaseOrders => CanEditPurchase && !IsLoading && !IsFundingBusy && _purchaseActions is not null;
     private bool RenameAvailable => _snapshot is { CheckoutAvailable: true, Purchases.RenameAvailable: true } && _offer?.Offer.Id == "character-rename";
-    public bool CanPurchase => !_disposed && !IsConverting && !IsPurchasing && !IsPurchaseReading && !IsLoading && !IsFundingBusy && _purchaseActions is not null
+    public bool CanPurchase => !_disposed && !IsConverting && !IsPurchasing && !IsBlockingPurchaseRead && !IsLoading && !IsFundingBusy && _purchaseActions is not null
         && (_purchaseAttempt is not null || (RenameAvailable && (UsesAccountService
             ? AvailableServiceCount < 100 : _character?.Character is { Online: false, RenamePending: false })
             && _price?.MissingCents == 0 && (_snapshot?.ManualFunding?.DebtCents ?? 0) == 0));
     public int AvailableServiceCount => _snapshot?.Purchases?.Orders.Count(o => o.Status == "available" && o.OfferId == _offer?.Offer.Id) ?? 0;
     private ShopOrder? SelectedOrder => _snapshot?.Purchases?.Orders.FirstOrDefault(o => (UsesAccountService || o.CharacterGuid == _character?.Character.Guid) && o.OfferId == _offer?.Offer.Id);
-    public bool CanCancelPurchase => !IsConverting && !IsPurchasing && !IsPurchaseReading && !IsLoading && !IsFundingBusy && _purchaseAttempt is null && _purchaseActions is not null && SelectedOrder?.Status is "available" or "pending" or "rejected";
+    public bool CanCancelPurchase => !IsConverting && !IsPurchasing && !IsBlockingPurchaseRead && !IsLoading && !IsFundingBusy && _purchaseAttempt is null && _purchaseActions is not null && SelectedOrder?.Status is "available" or "pending" or "rejected";
     public bool ShowPurchaseReceipt => SelectedOrder is not null || _purchaseNotice is not null;
     public string PurchaseReceipt => (SelectedOrder is { } order
         ? OrderSummary(order) + "\n" + FormatPrice(new(order.Currency, order.AmountCents)) + " · " + order.Id[..8].ToUpperInvariant() : "")
         + (_purchaseNotice is not null ? (SelectedOrder is not null ? "\n" : "") + Text(_purchaseNotice) : "");
     public string PurchaseOrdersSummary => string.Join("\n", (_snapshot?.Purchases?.Orders ?? []).Take(5).Select(OrderSummary));
     public bool HasPurchaseOrders => _snapshot?.Purchases?.Orders.Count > 0;
-    public IReadOnlyList<ShopOrderRow> PurchaseOrderRows => (_snapshot?.Purchases?.Orders ?? []).Select(o => new ShopOrderRow(o)).ToArray();
+    public IReadOnlyList<ShopOrderRow> PurchaseOrderRows => _purchaseOrderRows = ReconcileRows(_purchaseOrderRows, _snapshot?.Purchases?.Orders ?? [], row => row.Order, order => new ShopOrderRow(order));
     public string PurchaseOrdersHeading => L("Suivi des services · ", "Service orders · ") + (_snapshot?.Purchases?.Orders.Count ?? 0);
     internal bool NeedsPurchaseRefresh => CanRefresh && _purchaseActions is not null
         && (_purchaseAttempt is not null || _snapshot?.Purchases?.Orders.Any(o => o.Status is "available" or "pending" or "rejected") == true);
     public string CancelPurchaseLabel => L("Annuler et recréditer", "Cancel and restore funds");
     public string RefreshPurchaseLabel => L("Actualiser le suivi", "Refresh order status");
-    public string PurchaseHint => UsesAccountService
+    public string PurchaseHint => UsesAccountService && !RenameAvailable && SelectedOrder is null
+        ? L("À l’ouverture du service, l’achat l’ajoutera à votre compte. Vous choisirez ensuite le personnage en jeu en cliquant sur l’icône du service.",
+            "Once the service opens, purchasing it will add it to your account. You will then choose the character in game by clicking the service icon.")
+        : UsesAccountService
         ? L("Vous pouvez continuer à jouer après l’achat. Pour utiliser le service, revenez quand vous le souhaitez à la sélection des personnages et cliquez sur son icône. Annulation possible avant utilisation.",
             "You can keep playing after your purchase. To use the service, return to character selection whenever you wish and click its icon. You can cancel before use.")
         : SelectedOrder?.Status == "delivered" && _character?.Character.RenamePending == true
@@ -95,6 +101,7 @@ internal sealed partial class ShopUiState
     }
     private async Task PurchaseMutationAsync(Func<CancellationToken, Task<ShopOrder>> operation, bool creating)
     {
+        CancelBackgroundPurchaseRead();
         long session = _purchaseSession;
         using CancellationTokenSource pending = new(); _purchasePending = pending;
         IsPurchasing = true; _purchaseNotice = null; Changed();
@@ -142,32 +149,51 @@ internal sealed partial class ShopUiState
         }
     }
     internal async Task RefreshPurchaseAsync() { if (CanRefresh) await RefreshPurchaseAsync(CancellationToken.None); }
-    private async Task RefreshPurchaseAsync(CancellationToken token)
+    internal async Task PollPurchaseAsync() { if (CanRefresh) await RefreshPurchaseAsync(CancellationToken.None, background: true); }
+    private async Task RefreshPurchaseAsync(CancellationToken token, bool background = false)
     {
         if (_read is null || _disposed || IsPurchaseReading) return;
         long session = _purchaseSession;
         using CancellationTokenSource pending = CancellationTokenSource.CreateLinkedTokenSource(token);
-        _purchaseReadPending = pending; IsPurchaseReading = true; Changed();
+        _purchaseReadPending = pending; IsPurchaseReading = true; _backgroundPurchaseRead = background;
+        if (!background) Changed();
+        bool notify = !background;
         try
         {
             ShopSnapshot snapshot = await _read(pending.Token); snapshot.Validate();
             if (session != _purchaseSession || _disposed || pending.IsCancellationRequested) return;
             Apply(snapshot, _offer?.Offer.Id, _character?.Character.Guid, _price?.Price.Currency);
             if (_purchaseAttempt is { } attempt && snapshot.Purchases?.Orders.Any(o => o.IdempotencyKey == attempt.IdempotencyKey) == true) _purchaseAttempt = null;
-            _purchaseNotice = null; Changed();
+            _purchaseNotice = null; notify = true;
         }
         catch (Exception error) when (FundingError(error))
-        { if (session == _purchaseSession) { _purchaseNotice = new("Actualisation impossible. Le suivi sera repris au prochain essai.", "Refresh failed. Order tracking will resume on the next attempt."); Changed(); } }
+        {
+            if (session != _purchaseSession || pending.IsCancellationRequested) return;
+            if (error is UnauthorizedAccessException or LauncherAuthException { StatusCode: HttpStatusCode.Unauthorized })
+            { ResetSession(); _status = "unauthorized"; Changed(); return; }
+            _purchaseNotice = new("Actualisation impossible. Le suivi sera repris au prochain essai.", "Refresh failed. Order tracking will resume on the next attempt.");
+            notify = true;
+        }
         finally
         {
-            if (ReferenceEquals(_purchaseReadPending, pending)) _purchaseReadPending = null;
-            if (session == _purchaseSession) { IsPurchaseReading = false; Changed(); }
+            if (ReferenceEquals(_purchaseReadPending, pending))
+            {
+                _purchaseReadPending = null; IsPurchaseReading = false; _backgroundPurchaseRead = false;
+                if (notify) Changed();
+            }
         }
+    }
+    private void CancelBackgroundPurchaseRead()
+    {
+        if (!_backgroundPurchaseRead) return;
+        CancellationTokenSource? pending = _purchaseReadPending;
+        _purchaseReadPending = null; IsPurchaseReading = false; _backgroundPurchaseRead = false;
+        pending?.Cancel();
     }
     private void ResetPurchases()
     {
         ++_purchaseSession; _purchasePending?.Cancel(); _purchasePending = null;
-        _purchaseReadPending?.Cancel(); _purchaseReadPending = null;
+        _purchaseReadPending?.Cancel(); _purchaseReadPending = null; _backgroundPurchaseRead = false;
         _purchaseAttempt = null; _purchaseNotice = null; IsPurchasing = false; IsPurchaseReading = false;
     }
 }

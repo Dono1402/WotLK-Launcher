@@ -18,7 +18,7 @@ internal sealed partial class ShopUiState
     private ShopText? _conversionNotice;
     public bool IsConverting { get; private set; }
     public bool HasPendingConversion => _conversionAttempt is not null || _conversionRecord?.Status == "pending";
-    public bool CanEditConversion => !IsConverting && !HasPendingConversion && !IsLoading && !IsPurchaseReading;
+    public bool CanEditConversion => !IsConverting && !HasPendingConversion && !IsLoading && !IsBlockingPurchaseRead;
     public bool CanChooseConversionCharacter => CanEditConversion && HasCharacters;
     private bool RealConversionAvailable => _conversionActions is not null && _snapshot?.Conversions?.Available == true;
     internal bool NeedsConversionRefresh => CanRefresh && HasPendingConversion;
@@ -29,6 +29,7 @@ internal sealed partial class ShopUiState
     {
         if (IsConversionPreview) return TryConvertPreview();
         if (!CanConvert || _conversionActions is null) return false;
+        CancelBackgroundPurchaseRead();
         _conversionAttempt ??= new(Guid.NewGuid().ToString("N"), _conversionCharacter!.Character.Guid,
             RequestedCopper!.Value, ConversionQuote!.CreditEuroCents, _snapshot!.CatalogRevision);
         long session = _conversionSession;

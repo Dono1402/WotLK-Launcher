@@ -75,9 +75,10 @@ internal sealed partial class ShopUiState
         get => _historyWallet ?? HistoryWalletFilters[0];
         set { _historyWallet = HistoryWalletFilters.Contains(value) ? value : null; Changed(); }
     }
-    public IReadOnlyList<ShopHistoryRow> FilteredHistory => HistoryRows.Where(row =>
+    private IReadOnlyList<ShopHistoryRow> _filteredHistory = [];
+    public IReadOnlyList<ShopHistoryRow> FilteredHistory => _filteredHistory = KeepRows(_filteredHistory, HistoryRows.Where(row =>
         (SelectedHistoryKind.Id == "all" || row.Transaction.Kind == SelectedHistoryKind.Id || (SelectedHistoryKind.Id == "refund" && row.Transaction.Kind == "payment-reversal"))
-        && (SelectedHistoryWallet.Id == "all" || row.Transaction.Currency == SelectedHistoryWallet.Id)).ToArray();
+        && (SelectedHistoryWallet.Id == "all" || row.Transaction.Currency == SelectedHistoryWallet.Id)));
     public string HistoryCountLabel => !HistoryAvailable ? "—" : FilteredHistory.Count + (FilteredHistory.Count == 1 ? L(" opération", " operation") : L(" opérations", " operations"));
     public bool ShowHistoryEmpty => !IsLoading && FilteredHistory.Count == 0;
     public bool ShowHistoryLimit => HistoryRows.Count == ShopSnapshot.MaximumHistoryEntries;
@@ -101,6 +102,6 @@ internal sealed partial class ShopUiState
         if (returnToOrigin && wasOpen && _historyReturnToWallet) IsWalletOpen = true;
         Changed();
     }
-    private void RefreshHistoryRows() => HistoryRows = (_snapshot?.History ?? []).OrderByDescending(t => t.OccurredAtUtc).Select(t => new ShopHistoryRow(t)).ToArray();
+    private void RefreshHistoryRows() => HistoryRows = ReconcileRows(HistoryRows, (_snapshot?.History ?? []).OrderByDescending(t => t.OccurredAtUtc), row => row.Transaction, transaction => new ShopHistoryRow(transaction));
     private void ResetHistory() { IsHistoryOpen = false; _historyReturnToWallet = false; _historyKind = _historyWallet = null; HistoryRows = []; }
 }

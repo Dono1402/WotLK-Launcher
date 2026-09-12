@@ -32,7 +32,13 @@ internal sealed partial class ShopUiState
         : _character.Character.Online ? L("Personnage en ligne", "Character is online")
         : RenameAvailable && _character.Character.RenamePending == false ? L("Personnage disponible", "Character available") : L("Éligibilité à confirmer", "Eligibility to be confirmed");
     public string EligibilityDescription => UsesAccountService
-        ? L("Choisissez en jeu un personnage de niveau 10 minimum et son nouveau nom au moment d’utiliser le service.", "Choose a character of level 10 or above and a new name in game when you use the service.")
+        ? _offer?.Offer.Id switch
+        {
+            "character-rename" => L("Choisissez en jeu un personnage de niveau 10 minimum et son nouveau nom au moment d’utiliser le service.", "Choose a character of level 10 or above and a new name in game when you use the service."),
+            "character-level-70" => L("Le sésame sera disponible sur le compte. Choisissez en jeu le personnage à faire progresser jusqu’au niveau 70.", "The boost will be available on your account. Choose the character to raise to level 70 in game."),
+            "character-faction-change" => L("Le service sera disponible sur le compte. Choisissez le personnage et sa nouvelle faction dans le jeu.", "The service will be available on your account. Choose the character and its new faction in game."),
+            _ => L("Le service sera disponible sur le compte. Choisissez le personnage et sa nouvelle race dans le jeu.", "The service will be available on your account. Choose the character and its new race in game.")
+        }
         : !HasCharacters ? L("Aucun personnage sur ce compte.", "No characters on this account.")
         : _character is null ? L("Sélectionnez le personnage qui recevra ce service.", "Select the character that will receive this service.")
         : HasBoostLevelConflict ? L($"Ce personnage est déjà de niveau {_character.Character.Level}. Ce sésame vise le niveau 70.",

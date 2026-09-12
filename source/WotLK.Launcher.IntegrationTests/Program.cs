@@ -12,6 +12,7 @@ if (args.Length == 1 && args[0] == "--launcher-update-process-identity")
 
 if (args.Length == 1 && args[0] == "--shop") return await ShopRuntimeTests.RunAsync();
 if (args.Length == 1 && args[0] == "--shop-gold") return await ShopGoldConversionTests.RunAsync();
+if (args.Length == 1 && args[0] == "--shop-refresh") return await ShopRefreshTests.RunAsync();
 if (args.Length == 1 && args[0] == "--shop-gold-mysql") return await ShopManualFundingMySqlTests.RunAsync(accountServices: true, goldConversions: true);
 if (args.Length == 1 && args[0] == "--shop-mysql") return await ShopApiMySqlTests.RunAsync();
 if (args.Length == 1 && args[0] == "--shop-funding-mysql") return await ShopManualFundingMySqlTests.RunAsync();
@@ -19,6 +20,7 @@ if (args.Length == 1 && args[0] == "--shop-rename-mysql") return await ShopManua
 if (args.Length == 1 && args[0] == "--shop-account-services-mysql") return await ShopManualFundingMySqlTests.RunAsync(accountServices: true);
 if (args.Length == 2 && args[0] == "--shop-wpf") return await ShopWpfTests.RunAsync(args[1]);
 if (args.Length == 2 && args[0] == "--shop-gold-wpf") return await ShopWpfTests.RunAsync(args[1], goldOnly: true);
+if (args.Length == 2 && args[0] == "--shop-local-fixes-wpf") return await ShopWpfTests.RunAsync(args[1], localFixesOnly: true);
 if (args.Length == 2 && args[0] == "--shop-funding-wpf") return await ShopWpfTests.RunAsync(args[1],fundingOnly:true);
 if (args.Length == 2 && args[0] == "--shop-rename-wpf") return await ShopWpfTests.RunAsync(args[1],renameOnly:true);
 

@@ -104,7 +104,7 @@ internal sealed partial class ShopUiState
     }
     private void RefreshTopUpRows()
     {
-        TopUpRequests=_snapshot?.ManualFunding?.Requests.Select(row=>new ShopTopUpRow(row)).ToArray()??[];
+        TopUpRequests=ReconcileRows(TopUpRequests, _snapshot?.ManualFunding?.Requests ?? [], row => row.Request, request => new ShopTopUpRow(request));
         if(TopUpRequests.FirstOrDefault(row=>row.IsPending) is { } pending)_walletAmount=(pending.Request.AmountCents/100m).ToString("0.##",Culture);
         if (_snapshot?.ManualFunding?.Available==true && _paymentMethod is null) _paymentMethod=PaymentMethods.Single(row=>row.Id=="paypal");
         foreach(ShopPaymentMethodRow row in PaymentMethods)row.SetManualFunding(_snapshot?.ManualFunding?.Available==true);
@@ -130,7 +130,8 @@ internal sealed partial class ShopUiState
     }
     private async Task RunFundingMutation(Func<CancellationToken,Task> mutation,ShopText success)
     {
-        if (IsFundingBusy || IsLoading || IsConverting || IsPurchasing || IsPurchaseReading || _disposed) return;
+        if (IsFundingBusy || IsLoading || IsConverting || IsPurchasing || IsBlockingPurchaseRead || _disposed) return;
+        CancelBackgroundPurchaseRead();
         long session=_fundingSession;
         using CancellationTokenSource pending=new(); _fundingMutation=pending;
         IsFundingBusy=true; _fundingNotice=null; Changed();

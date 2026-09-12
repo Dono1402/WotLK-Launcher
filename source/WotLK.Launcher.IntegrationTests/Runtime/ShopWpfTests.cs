@@ -18,7 +18,7 @@ using WotLK.Launcher.Shop.Contracts;
 
 internal static partial class ShopWpfTests
 {
-    internal static async Task<int> RunAsync(string captureDirectory, bool fundingOnly = false, bool renameOnly = false, bool goldOnly = false)
+    internal static async Task<int> RunAsync(string captureDirectory, bool fundingOnly = false, bool renameOnly = false, bool goldOnly = false, bool localFixesOnly = false)
     {
         TaskCompletionSource<int> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         Thread thread = new(() =>
@@ -55,6 +55,13 @@ internal static partial class ShopWpfTests
                     ShopViewV2 shop = shell.ShopPage;
                     shell.PrepareShopPreview(manualFunding:fundingOnly);
                     shell.Show(); await Pump();
+                    if (localFixesOnly)
+                    {
+                        await VerifyLocalFixesAsync(shell, shop, captureDirectory);
+                        Check(errors.Messages.Count == 0, "No local-fixes binding errors: " + string.Join("\n", errors.Messages));
+                        Console.WriteLine("Local shop WPF PASS: stable rendered containers, editable draft during polling, all four account-service pages, two conversion panels and supplied PNG, FR/EN at 1080 and 1586; inactive offscreen fixture only.");
+                        result = 0; return;
+                    }
                     if (goldOnly)
                     {
                         await VerifyGoldConversionAsync(shell, shop, captureDirectory);
@@ -171,7 +178,7 @@ internal static partial class ShopWpfTests
                                 "Shop uses exactly the same adaptive title size, weight and ice gradient as Addons.");
                             Image rateCoin = Get<Image>(shop, "ShortcutGoldCoin");
                             TextBlock rateNumber = Get<TextBlock>(shop, "ShortcutRateNumber");
-                            Check(rateCoin.IsVisible && rateCoin.Source is DrawingImage && rateCoin.ActualWidth >= 14
+                            Check(rateCoin.IsVisible && rateCoin.Source is BitmapImage && rateCoin.ActualWidth >= 14
                                 && rateCoin.TranslatePoint(new Point(), shop).X > rateNumber.TranslatePoint(new Point(rateNumber.ActualWidth, 0), shop).X,
                                 "A visible gold coin immediately follows the conversion rate number.");
                             foreach (int index in Enumerable.Range(0, 4))

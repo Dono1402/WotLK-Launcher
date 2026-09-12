@@ -45,6 +45,7 @@ internal sealed class ShopCharacterRow(ShopCharacter character) : ShopLocalizedR
     internal void Update(ShopCharacter character)
     {
         if (character.Guid != Character.Guid) throw new InvalidOperationException("A shop row cannot change its character identity.");
+        if (Character == character) return;
         Character = character; RefreshLocale();
     }
     public string Label => $"{Character.Name} - {ShopUiState.L("Niv.", "Lv.")} {Character.Level}";
@@ -65,7 +66,7 @@ internal sealed class ShopPriceRow(ShopPrice price, long? balanceCents = null) :
         : ShopUiState.L("Il manque ", "Missing ") + ShopUiState.FormatEuros(MissingCents.Value);
     public string StatusColor => MissingCents == 0 ? "#A0DFCE" : "#B8CCDB";
     public string AccessibleLabel => CurrencyLabel + " · " + Amount + " · " + AvailableLabel + " · " + BalanceStatus;
-    internal void UpdateBalance(long? balance) { _balanceCents = balance; RefreshLocale(); }
+    internal void UpdateBalance(long? balance) { if (_balanceCents == balance) return; _balanceCents = balance; RefreshLocale(); }
 }
 
 internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
@@ -215,18 +216,18 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
         if (IsShopAdminOpen && !CanAdministerFunding) CloseAdminFunding(returnToWallet:true);
         RefreshHistoryRows();
         if (!sameCatalog) Offers = snapshot.Offers.Select(o => new ShopOfferRow(o)).ToArray();
-        Characters = snapshot.Characters.Select(c =>
+        Characters = KeepRows(oldCharacters, snapshot.Characters.Select(c =>
         {
             ShopCharacterRow? row = oldCharacters.FirstOrDefault(old => old.Character.Guid == c.Guid);
             if (row is null) return new ShopCharacterRow(c);
             row.Update(c); return row;
-        }).ToArray();
+        }));
         _offer = Offers.FirstOrDefault(o => o.Offer.Id == offerId) ?? Offers.FirstOrDefault();
-        Prices = _offer?.Offer.Prices.Select(price =>
+        Prices = KeepRows(oldPrices, (_offer?.Offer.Prices ?? []).Select(price =>
         {
             ShopPriceRow row = oldPrices.FirstOrDefault(old => old.Price == price) ?? CreatePriceRow(price);
             row.UpdateBalance(BalanceFor(price.Currency)); return row;
-        }).ToArray() ?? [];
+        }));
         // Never silently assign a different beneficiary after a character disappears.
         _character = Characters.FirstOrDefault(c => c.Character.Guid == characterId);
         _price = Prices.FirstOrDefault(p => p.Price.Currency == currency) ?? Prices.FirstOrDefault();
@@ -237,7 +238,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
 
     internal void RefreshLocale()
     {
-        foreach (ShopLocalizedRow row in Offers.Cast<ShopLocalizedRow>().Concat(Characters).Concat(Prices).Concat(PaymentMethods).Concat(HistoryRows).Concat(HistoryKindFilters).Concat(HistoryWalletFilters).Concat(TopUpRequests).Concat(AdminTopUps).Concat(AdminStatusFilters).Concat(AdminActions)) row.RefreshLocale();
+        foreach (ShopLocalizedRow row in Offers.Cast<ShopLocalizedRow>().Concat(Characters).Concat(Prices).Concat(PaymentMethods).Concat(HistoryRows).Concat(PurchaseOrderRows).Concat(HistoryKindFilters).Concat(HistoryWalletFilters).Concat(TopUpRequests).Concat(AdminTopUps).Concat(AdminStatusFilters).Concat(AdminActions)) row.RefreshLocale();
         Changed();
     }
 

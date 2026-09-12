@@ -115,3 +115,34 @@ La vérification finale a confirmé Hermes actif sans redémarrage automatique,
 les quatre ports attendus ouverts et l'API saine. Les processus World `2828323`,
 Auth `323656` et API `2830654` sont restés identiques. Voir la
 [preuve d'activation](validation/hermes-vas-selector-20260912.json).
+
+## Sélection toujours bloquée après cette activation
+
+L'essai du client à 18 h 34 a mis en évidence un second défaut : la requête
+`CMSG_GET_VAS_ACCOUNT_CHARACTER_LIST` contient le type réseau **7**, tandis que
+le proxy attendait **4**. La réponse observée avait `Result=1` et zéro personnage.
+Le correctif du nom de royaume ne pouvait donc pas être utilisé par l'interface.
+
+Le client 3.4.3.54261 convertit lui-même la valeur Lua `PaidNameChange=4` en
+type réseau `7`. Cette conversion a été exécutée sous émulation CPU et reproduit
+exactement les huit octets observés : `0100000007000000`. Le proxy utilise
+désormais une constante `PaidNameChangeWireType=7` ; les autres types restent
+refusés. Le client du test réseau utilise également la valeur réellement émise
+par le jeu. Son ancienne valeur 4 expliquait pourquoi le test passait alors que
+l'interface restait bloquée.
+
+Vérifications locales du correctif :
+
+- Le nouveau test rejette la requête avant correction, puis passe après.
+- Les 24 tests ciblés passent avec `HERMES_TEST_MODERN_BUILD=3.4.3`.
+- Les 16 contrôles natifs passent, y compris la conversion de la requête, le
+  remplissage du cache de la boutique et les fonctions `GetRealmList` et
+  `GetCharactersForRealm` utilisées par l'étape 1. Les événements et l'envoi réseau
+  sont capturés par le test ; le jeu et son interface ne sont pas lancés.
+- La compilation Linux autonome est réussie. Les avertissements de compilation
+  et de trimming préexistants restent présents.
+
+Voir la [preuve du défaut et des contrôles client](validation/hermes-vas-wire-type-client-20260912.json).
+Le déploiement de ce second correctif utilise les phases existantes avec
+`--release vas-wire-type-20260912`, dans un nouveau répertoire avec sa propre
+sauvegarde. Le test réseau et l'activation restent à enregistrer ci-dessous.

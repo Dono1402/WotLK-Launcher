@@ -142,6 +142,21 @@ expected = {'distributions-0', 'distributions-1', 'distributions-2', 'distributi
 if set(packets) != expected:
     raise RuntimeError('The complete set of emitted packet fixtures is required.')
 checks = []
+# Exercise the client's conversion before checking server responses. Lua's
+# ValueAddedServiceType.PaidNameChange is 4; the network request uses type 7.
+# Capture the request at the transport boundary; no socket is opened.
+requests = []
+def capture_character_request():
+    payload = f.get(f.reg(UC_X86_REG_RCX) + 0x20, 'Q')
+    requests.append(f.read(payload, 8).hex())
+    f.ret()
+f.stubs[0x14156dc60] = capture_character_request
+request_hook = f.u.hook_add(UC_HOOK_CODE, f.hook, begin=0x14156dc60, end=0x14156dc60)
+f.put(0x1431f7828, 0)
+f.invoke(0x141a4c410, (4,))
+f.u.hook_del(request_hook)
+assert requests == ['0100000007000000'], requests
+checks.append('client-name-change-request-wire-type-7')
 for name, hexdata in packets.items():
     p = bytes.fromhex(hexdata)
     if name.startswith('distributions-'):
@@ -185,9 +200,39 @@ for name, hexdata in packets.items():
         a = f.get(o + 48, 'Q')
         assert f.get(a, 'Q') == 51 and f.get(a + 8, 'Q') == 29 << 58 and (f.get(a + 16, 'Q') == 981) and (f.get(a + 24, 'Q') == 2 << 58)
         assert f.read(a + 342, 4) == bytes([1, 1, 0, 80]) and f.read(a + 36, 11) == b'Nativeproof'
+        assert f.read(a + 0x55, 6) == b'Atlas\0'
+        # Follow the decoded response into the actual store cache and the two
+        # getters used by VASCharacterSelectBlockBase.CheckEnable.
+        events = []
+        def capture_character_list_event():
+            events.append('character-list')
+            f.ret()
+        f.stubs[0x14117c550] = capture_character_list_event
+        event_hook = f.u.hook_add(UC_HOOK_CODE, f.hook, begin=0x14117c550, end=0x14117c550)
+        f.put(0x1431f75a8, 0)
+        f.put(0x1431f75b0, 0, 'Q')
+        f.put(0x1431f75b8, 0)
+        f.put(0x1431f7828, 42)
+        f.put(0x1431f782e, 0, 'B')
+        f.invoke(0x141a4ac00, (o,))
+        f.u.hook_del(event_hook)
+        assert events == ['character-list'] and f.get(0x1431f75a8) == 1
+        realms = f.obj + 0x10000
+        f.invoke(0x141a47a10, (realms,))
+        assert f.get(realms + 8, 'Q') == 1
+        realm = f.get(realms, 'Q')
+        assert f.read(f.get(realm, 'Q'), 6) == b'Atlas\0'
+        characters = f.obj + 0x11000
+        f.invoke(0x141a463a0, (characters, realm))
+        assert f.get(characters + 8, 'Q') == 1
+        checks.append('store-cache-and-character-selector-getters')
     else:
         raise AssertionError(name)
     checks.append(name)
-report = {'clientBuild': '3.4.3.54261', 'clientExecutableSha256': EXPECTED_CLIENT_SHA256, 'snapshotSectionSha256': section_hashes, 'method': 'Actual client parsers and VAS classification/response callback emulated on emitted Hermes packets; only allocator, free, memcpy and memset are replaced by host stubs.', 'checks': checks, 'limitations': 'No game UI, network session, or server consumption is validated by this protocol test.'}
+report = {'clientBuild': '3.4.3.54261', 'clientExecutableSha256': EXPECTED_CLIENT_SHA256,
+    'snapshotSectionSha256': section_hashes, 'packetFixtureSha256': hashlib.sha256(args.packets.read_bytes()).hexdigest(),
+    'method': 'Actual client request conversion, response parsers, VAS classification and store-cache getters emulated on emitted Hermes packets; allocation/memory helpers, transport submission and event dispatch are replaced by host stubs.',
+    'nameChangeCharacterRequestHex': requests[0], 'checks': checks,
+    'limitations': 'No game UI, network session, or server consumption is validated by this protocol test.'}
 args.report.write_text(json.dumps(report, indent=2) + '\n')
 print(json.dumps(report, indent=2))

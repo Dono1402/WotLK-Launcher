@@ -200,10 +200,10 @@ index 0000000..5500cdc
 +}
 diff --git a/HermesProxy.Tests/World/Server/AtlasAccountServicesPacketsTests.cs b/HermesProxy.Tests/World/Server/AtlasAccountServicesPacketsTests.cs
 new file mode 100644
-index 0000000..3b4a4e7
+index 0000000..c193426
 --- /dev/null
 +++ b/HermesProxy.Tests/World/Server/AtlasAccountServicesPacketsTests.cs
-@@ -0,0 +1,148 @@
+@@ -0,0 +1,167 @@
 +using System;
 +using System.IO;
 +using System.Linq;
@@ -311,7 +311,7 @@ index 0000000..3b4a4e7
 +        bodies["assign-success"] = Emit(new AtlasAssignVasResponse { Token = 73 });
 +        bodies["assign-rejected"] = Emit(new AtlasAssignVasResponse { Token = 73, StoreError = 3 });
 +        // Exercise the exact handler mapping, not a hand-built entry that can hide missing fields.
-+        var characters = WorldSocket.BuildAtlasVasCharacters(42, 4, true,
++        var characters = WorldSocket.BuildAtlasVasCharacters(42, 7, true,
 +            new[] { new OwnCharacterInfo { CharacterGuid = new WowGuid128(981, 2ul << 58), Name = "Nativeproof",
 +                RaceId = (Race)1, ClassId = (Class)1, SexId = (Gender)0, Level = 80 } },
 +            new WowGuid128(51, 29ul << 58), 1, "Atlas");
@@ -323,10 +323,29 @@ index 0000000..3b4a4e7
 +        if (!string.IsNullOrEmpty(output)) File.WriteAllText(output, JsonSerializer.Serialize(bodies, new JsonSerializerOptions { WriteIndented = true }));
 +    }
 +
++    [Fact]
++    public void NameChangeCharacterList_UsesTheCapturedClientWireType()
++    {
++        // CMSG_GET_VAS_ACCOUNT_CHARACTER_LIST from the unmodified 3.4.3.54261
++        // client: request token 1, wire service type 7. Lua's VAS enum is 4.
++        using var source = new WorldPacket(Frame(Convert.FromHexString("0100000007000000")));
++        using var request = new AtlasVasCharactersRequest(source);
++        request.Read();
++        Assert.Equal(1u, request.Token);
++        Assert.Equal(7u, request.WireServiceType);
++        var own = new OwnCharacterInfo { CharacterGuid = new WowGuid128(981, 2ul << 58), Name = "Nativeproof", Level = 35 };
++        var response = WorldSocket.BuildAtlasVasCharacters(request.Token, request.WireServiceType, true,
++            new[] { own }, new WowGuid128(51, 29ul << 58), 1, "Arthas");
++        Assert.Equal(0u, response.Result);
++        Assert.Equal(1u, response.Token);
++        Assert.Equal("Arthas", Assert.Single(response.Characters).RealmName);
++    }
++
 +    [Theory]
-+    [InlineData(4u, true, "Arthas", 0u)]
-+    [InlineData(4u, true, "", 1u)]
-+    [InlineData(4u, false, "Arthas", 1u)]
++    [InlineData(7u, true, "Arthas", 0u)]
++    [InlineData(7u, true, "", 1u)]
++    [InlineData(7u, false, "Arthas", 1u)]
++    [InlineData(4u, true, "Arthas", 1u)] // Lua's enum value is not a rename wire type.
 +    [InlineData(2u, true, "Arthas", 1u)]
 +    public void VasSelector_UsesTheAuthenticatedRealmAndServiceGate(uint type, bool ready, string realm, uint expectedResult)
 +    {
@@ -605,7 +624,7 @@ index 0000000..2a91759
 +}
 diff --git a/HermesProxy/World/Server/PacketHandlers/AtlasAccountServicesHandler.cs b/HermesProxy/World/Server/PacketHandlers/AtlasAccountServicesHandler.cs
 new file mode 100644
-index 0000000..e703d1e
+index 0000000..b0320d6
 --- /dev/null
 +++ b/HermesProxy/World/Server/PacketHandlers/AtlasAccountServicesHandler.cs
 @@ -0,0 +1,81 @@
@@ -657,16 +676,16 @@ index 0000000..e703d1e
 +    {
 +        if (!SupportsAtlasServices) return;
 +        var session = GetSession();
-+        SendPacket(BuildAtlasVasCharacters(request.Token, request.ServiceType, session.AtlasAccountServices.Ready,
++        SendPacket(BuildAtlasVasCharacters(request.Token, request.WireServiceType, session.AtlasAccountServices.Ready,
 +            session.GameState.OwnCharacters, WowGuid128.Create(HighGuidType703.WowAccount, session.GameAccountInfo.Id),
 +            session.RealmId.GetAddress(), session.Realm?.Name));
 +    }
 +
-+    internal static AtlasVasCharactersResult BuildAtlasVasCharacters(uint token, uint serviceType, bool ready,
++    internal static AtlasVasCharactersResult BuildAtlasVasCharacters(uint token, uint wireServiceType, bool ready,
 +        IEnumerable<OwnCharacterInfo> characters, WowGuid128 accountId, uint realmAddress, string? realmName)
 +    {
 +        var response = new AtlasVasCharactersResult { Token = token };
-+        if (serviceType != 4 || !ready || string.IsNullOrWhiteSpace(realmName)) response.Result = 1;
++        if (wireServiceType != AtlasVasCharactersRequest.PaidNameChangeWireType || !ready || string.IsNullOrWhiteSpace(realmName)) response.Result = 1;
 +        else foreach (var own in characters)
 +            response.Characters.Add(new AccountCharacterListEntry {
 +                AccountId = accountId, CharacterGuid = own.CharacterGuid, RealmVirtualAddress = realmAddress,
@@ -704,10 +723,10 @@ index 39b8718..5bd8ad7 100644
      [PacketHandler(Opcode.CMSG_REORDER_CHARACTERS)]
 diff --git a/HermesProxy/World/Server/Packets/AtlasAccountServicesPackets.cs b/HermesProxy/World/Server/Packets/AtlasAccountServicesPackets.cs
 new file mode 100644
-index 0000000..21f9440
+index 0000000..3406958
 --- /dev/null
 +++ b/HermesProxy/World/Server/Packets/AtlasAccountServicesPackets.cs
-@@ -0,0 +1,190 @@
+@@ -0,0 +1,192 @@
 +using System;
 +using System.Collections.Generic;
 +using System.IO;
@@ -728,13 +747,15 @@ index 0000000..21f9440
 +
 +public sealed class AtlasVasCharactersRequest : ClientPacket
 +{
++    // JamCliVASServiceType on the wire, distinct from Lua's ValueAddedServiceType (4).
++    public const uint PaidNameChangeWireType = 7;
 +    public AtlasVasCharactersRequest(WorldPacket packet) : base(packet) { }
 +    public uint Token;
-+    public uint ServiceType;
++    public uint WireServiceType;
 +    public override void Read()
 +    {
 +        Token = _worldPacket.ReadUInt32();
-+        ServiceType = _worldPacket.ReadUInt32();
++        WireServiceType = _worldPacket.ReadUInt32();
 +        if (_worldPacket.CanRead()) throw new InvalidDataException("Unexpected VAS character request payload.");
 +    }
 +}

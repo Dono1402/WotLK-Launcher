@@ -77,7 +77,8 @@ class VasClient(ModernWorldClient):
 
     def service_characters(self):
         token = secrets.randbits(32)
-        self.send(0x36f8, struct.pack('<II', token, 4))
+        # Observed 3.4.3.54261 wire request: Lua PaidNameChange (4) maps to wire type 7.
+        self.send(0x36f8, struct.pack('<II', token, 7))
         data = self.until(0x27f1)
         returned, error, extra, count = struct.unpack_from('<IIII', data)
         if returned != token or error or extra or count > 100:
@@ -142,12 +143,17 @@ def run(root):
         f.check(world.until(0x2776) == bytes(8), 'The native purchase-list request returns the verified empty store envelope.')
         world.send(0x36fb)
         f.check(world.until(0x27f5) == bytes(1), 'The native VAS-state request returns the verified state envelope.')
+        unsupported_token = secrets.randbits(32)
+        world.send(0x36f8, struct.pack('<II', unsupported_token, 4))
+        f.check(struct.unpack('<IIII', world.until(0x27f1)) == (unsupported_token, 1, 0, 0)
+            and f.state(order) == 'available',
+            'The Lua enum value is rejected as an unsupported wire service without consuming the account service.')
         choices = world.service_characters()
         expected_realm_name = f.sql('SELECT name FROM shop_test_auth.realmlist WHERE id=1')
         f.check(len(choices) == 1 and choices[0]['account'] == account['id'] and choices[0]['guid'] == guid
             and choices[0]['level'] == 10 and choices[0]['name'] == original.capitalize()
             and choices[0]['realm'] == bnet.realm_address and choices[0]['realmName'] == expected_realm_name != '',
-            'The native service selector receives the authenticated account character and a nonempty matching realm name.')
+            'The captured client wire service type 7 returns the account character and a nonempty matching realm name.')
         requested = '\u00c9' + f.name('va').lower()
         f.check(world.assign(order, modern, bnet.realm_address, 'Invalid123') != (0, 0) and f.state(order) == 'available',
             'A native 3.4.3 name rejection leaves the paid service available.')

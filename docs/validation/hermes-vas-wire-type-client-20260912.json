@@ -1,0 +1,51 @@
+{
+  "clientBuild": "3.4.3.54261",
+  "clientExecutableSha256": "e240f9d88445643d2545ac54b3c3874b2f86336bc8947256584ef07bb5fd66a7",
+  "snapshotSectionSha256": {
+    ".text": "4c51e95f74d5e750224c7107efaa71b560aa4fee03448f75c75ae0cfa2fc7597",
+    ".rdata": "a05e4ba3fe71dfb563ca9b52a8fa46d9f8386162b09f90e7f3741a7013c87f74",
+    ".data": "98270bbf19003776d780874fcdf5aaa268e0484d5407adbde8d41ef221c3be50",
+    ".pdata": "dbfd5f36ee6895a49ce5628ee75723f8787b0badb18f37efb36e31c44321439d",
+    "_RDATA": "d1f6246c35a11e2c10caf87fa93ef2b4b017c59ed837da6f7460b6a0585377c5",
+    ".rsrc": "86a79860c93cf2eb3412c1abcd9cde4bab1cf00b22c73e3991b4980bb6cbf8ae",
+    ".reloc": "7752aef7d45a75ab333d9c6633924eddebf530e458e690859a86172df7ab8387"
+  },
+  "packetFixtureSha256": "39e0ba1f6f20105a4e77f6f1797529e1da50b5a45183516ec6ccee61e733a708",
+  "method": "Actual client request conversion, response parsers, VAS classification and store-cache getters emulated on emitted Hermes packets; allocation/memory helpers, transport submission and event dispatch are replaced by host stubs.",
+  "nameChangeCharacterRequestHex": "0100000007000000",
+  "checks": [
+    "client-name-change-request-wire-type-7",
+    "distributions-0",
+    "distributions-1",
+    "distributions-2",
+    "distributions-100",
+    "consumed",
+    "revoked",
+    "products",
+    "purchases",
+    "states",
+    "glue-disabled",
+    "glue-enabled",
+    "assign-success",
+    "assign-rejected",
+    "store-cache-and-character-selector-getters",
+    "characters"
+  ],
+  "limitations": "No game UI, network session, or server consumption is validated by this protocol test.",
+  "regression": {
+    "requestHex": "0100000007000000",
+    "before": "Rejected with Result=1 and an empty list",
+    "after": "Accepted with the authenticated character and nonempty realm name",
+    "unitTestsPassed": 24
+  },
+  "liveObservation": {
+    "observedAtUtc": "2026-09-12T16:34:16Z",
+    "requestOpcode": "0x36f8",
+    "requestToken": 1,
+    "requestWireServiceType": 7,
+    "responseOpcode": "0x27f1",
+    "responseResult": 1,
+    "responseCharacterCount": 0,
+    "scope": "Only the service-list request and response headers; no account data."
+  }
+}

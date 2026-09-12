@@ -19,6 +19,17 @@ FIXTURE = Path('/opt/atlas-shop-tests/rename-20260911')
 CONFIG = Path('/opt/hermesproxy-wotlk/appsettings.atlas.json')
 OVERRIDE = Path('/etc/systemd/system/hermesproxy-wotlk.service.d/zzzzzz-atlas-shop-vas-selector-20260912.conf')
 SERVICE = 'hermesproxy-wotlk'
+RELEASE = 'vas-selector-20260912'
+
+def configure_release(release):
+    global ROOT, UPLOAD, HERMES, OVERRIDE, RELEASE
+    if release not in ('vas-selector-20260912', 'vas-wire-type-20260912'):
+        raise ValueError('Unknown Hermes release')
+    RELEASE = release
+    ROOT = Path('/opt/atlas-shop-releases') / release
+    UPLOAD = Path('/tmp') / ('atlas-hermes-' + release)
+    HERMES = Path('/opt/hermesproxy-wotlk/releases') / ('hermes-' + release)
+    OVERRIDE = Path('/etc/systemd/system/hermesproxy-wotlk.service.d') / ('zzzzzz-atlas-shop-' + release + '.conf')
 
 def run(args, **kwargs):
     return subprocess.check_output(args, text=True, timeout=60, **kwargs).strip()
@@ -101,7 +112,7 @@ def test():
         try:
             if str(proc.resolve()).startswith(str(FIXTURE)+'/'): raise RuntimeError('Fixture is still active')
         except (FileNotFoundError,PermissionError): pass
-    prior=FIXTURE/'hermes-native-before-vas-selector-20260912'
+    prior=FIXTURE/('hermes-native-before-' + RELEASE)
     if prior.exists(): raise RuntimeError('Fixture package was already staged')
     (FIXTURE/'hermes-native').rename(prior)
     for name, checksum in manifest['files'].items():
@@ -117,9 +128,9 @@ def test():
     if {p['Destination']:p['Source'] for p in info['Mounts']}.get('/var/lib/mysql')!=str(FIXTURE/'mysql-data'):
         raise RuntimeError('Wrong fixture mount')
     if not info['State']['Running']: run(['docker','start',container])
-    log=FIXTURE/'logs/vas-selector-20260912.log'
+    log=FIXTURE/'logs'/(RELEASE + '.log')
     try:
-        result=subprocess.run(['systemd-run','--unit=atlas-shop-vas-selector-test-20260912','--wait','--collect',
+        result=subprocess.run(['systemd-run','--unit=atlas-shop-' + RELEASE + '-test','--wait','--collect',
             '--property=MemoryMax=3G','--property=MemorySwapMax=0','--property=CPUQuota=150%',
             '--property=Nice=10','--property=IOWeight=25','--property=PrivateNetwork=yes',
             '--property=ProtectSystem=strict','--property=ReadWritePaths='+str(FIXTURE),
@@ -131,7 +142,7 @@ def test():
         if result.returncode or not proof.get('passed'): raise RuntimeError('Candidate network test failed; inspect private fixture log')
         proof['hermesSha256']=manifest['files']['HermesProxy']
         write(ROOT/'tested.json',proof)
-        print('PASS: isolated native service round trip, including the returned realm name.',flush=True)
+        print('PASS: isolated native service round trip, including the client request type and returned realm name.',flush=True)
     finally:
         run(['python3',str(FIXTURE/'mod-atlas-shop/tests/prepare_realm_fixture.py'),'--root',str(FIXTURE),'--stop'])
         verify_baseline(before)
@@ -188,7 +199,12 @@ def activate():
         raise
 
 if __name__=='__main__':
+    import argparse
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('phase',choices=('prepare','test','activate'))
+    parser.add_argument('--release',default=RELEASE,choices=('vas-selector-20260912','vas-wire-type-20260912'))
+    args=parser.parse_args()
     os.umask(0o077)
-    if os.geteuid()!=0 or len(sys.argv)!=2 or sys.argv[1] not in ('prepare','test','activate'):
-        raise SystemExit('Expected root and one phase: prepare, test, activate')
-    globals()[sys.argv[1]]()
+    if os.geteuid()!=0: raise SystemExit('Expected root')
+    configure_release(args.release)
+    globals()[args.phase]()

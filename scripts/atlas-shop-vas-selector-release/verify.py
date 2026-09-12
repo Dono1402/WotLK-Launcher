@@ -6,6 +6,11 @@ from pathlib import Path
 import subprocess
 import sys
 import urllib.request
+import argparse
+import deploy
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--release',default=deploy.RELEASE,choices=('vas-selector-20260912','vas-wire-type-20260912'))
+deploy.configure_release(parser.parse_args().release)
 from deploy import ROOT, HERMES, SERVICE, CONFIG, sha, state, verify_baseline, write
 sys.path.insert(0, '/opt/atlas-shop-releases/gold-1.7.2-20260912/scripts')
 from release_runtime import query

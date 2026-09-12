@@ -1,7 +1,10 @@
 # Boutique : correctifs locaux du 12 septembre 2026
 
-Cette campagne prépare un launcher `1.7.2-local`. Elle ne publie aucune mise à
-jour et ne modifie ni les processus ni les bases du royaume public.
+Cette campagne a préparé un launcher `1.7.2-local`, sans publication de mise à
+jour. Après la demande explicite d'activer le correctif du sélecteur, Hermes seul
+a été remplacé et redémarré le 12 septembre à 18 h 09 (Paris). World, Auth et l'API
+conservent leurs processus. Le déploiement n'applique aucune migration et ne crée
+aucun achat, conversion ou renommage sur un compte joueur.
 
 ## Rafraîchissement de la boutique
 
@@ -31,7 +34,7 @@ Une actualisation manuelle conserve son indicateur de chargement.
   serveur ne sont pas implémentés et activés. Ce correctif de présentation
   n'ajoute pas leurs distributions natives au protocole du renommage.
 
-## Sélecteur natif de renommage : correctif de proxy préparé
+## Sélecteur natif de renommage : correctif de proxy activé
 
 Le handler VAS envoyait `RealmName=""`. Or le code du client 3.4.3 construit le
 sélecteur avec `C_StoreSecure.GetRealmList()` puis
@@ -47,10 +50,13 @@ car l'ancienne entrée fabriquée directement dans le test contenait déjà un n
 de royaume et masquait cette différence. Le test réseau de la fixture est renforcé
 pour vérifier aussi le nom et l'adresse du royaume.
 
-Ce patch n'est pas installé sur le proxy public. Le launcher local se connecte aux
-mêmes services réels ; il ne peut pas corriger lui-même une réponse du proxy.
-Aucune validation de clic en jeu ni nouvelle campagne réseau de la fixture n'est
-revendiquée ici. Le personnage de niveau 1 de la capture reste inéligible au
+Le patch est désormais installé sur le proxy public. Le launcher local se connecte
+aux mêmes services réels ; cette correction s'applique donc aussi aux utilisateurs
+du launcher public sans distribuer un nouvel exécutable client. Les 19 contrôles
+réseau de la fixture passent avec le paquet Linux exact, dont le royaume non vide,
+la validation du nom, la consommation unique, l'annulation, la sortie du monde et
+la reconnexion. Le clic dans l'interface graphique reste à confirmer après une
+reconnexion complète au royaume. Le personnage de niveau 1 reste inéligible au
 renommage natif, dont le minimum est le niveau 10 ; le niveau 35 satisfait ce seul
 critère et nécessite encore la validation complète du parcours.
 
@@ -83,3 +89,29 @@ le serveur local du dépôt via `armory-local.json` ; ce paquet est destiné à 
 Les rendus, journaux et exécutables sont conservés sous `artifacts/` et exclus de
 Git. Le push des sources sur la branche de travail ne constitue pas une release
 ni une installation du patch proxy sur le royaume.
+
+## Activation du proxy
+
+Le paquet provient d'une nouvelle copie de la base Hermes `f859d0c`, avec les
+patchs disconnect-owner et account-services du commit launcher `a3d572c`.
+L'exécutable Linux testé puis activé a l'empreinte
+`7520e133e7d20e0f2d5ded6bb36a61e3b792d1acc1427597ad81120eb7deeb7d`.
+
+La nouvelle installation est
+`/opt/hermesproxy-wotlk/releases/hermes-vas-selector-20260912`. La configuration
+existante et les dossiers partagés AccountData/Logs/PacketsLog sont conservés.
+Le binaire précédent, la configuration et les unités systemd sont sauvegardés
+sous `/opt/atlas-shop-releases/vas-selector-20260912/backup`, avec hashes comparés.
+L'ancienne installation reste également disponible à son chemin d'origine.
+
+`scripts/atlas-shop-vas-selector-release/deploy.py` sépare préparation, test isolé
+et activation ; la dernière phase redémarre uniquement `hermesproxy-wotlk` et
+prévoit le retour au binaire précédent si le démarrage échoue. Le test réseau
+utilise une base jetable sans réseau public, arrêtée ensuite. `verify.py` contrôle
+l'identité active, la stabilité du processus, les autres services, le signal du
+module et le manifeste public du launcher resté strictement identique en 1.7.2.
+
+La vérification finale a confirmé Hermes actif sans redémarrage automatique,
+les quatre ports attendus ouverts et l'API saine. Les processus World `2828323`,
+Auth `323656` et API `2830654` sont restés identiques. Voir la
+[preuve d'activation](validation/hermes-vas-selector-20260912.json).

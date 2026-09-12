@@ -1,0 +1,76 @@
+{
+  "activated": true,
+  "service": "hermesproxy-wotlk",
+  "hermesSha256": "7520e133e7d20e0f2d5ded6bb36a61e3b792d1acc1427597ad81120eb7deeb7d",
+  "sourceCommit": "a3d572ca4777ad09872a66919620b69c09ecdcf8",
+  "onlyHermesRestarted": true,
+  "preservedProcesses": {
+    "arthas-worldserver.dungeon-clear-8224099": "2828323",
+    "arthas-authserver": "323656",
+    "wotlk-launcher-api": "2830654"
+  },
+  "configurationSha256": "be52bed22d1d5c8ef124a20bc0aaab07b82e828ab1a4a5b5777bed6466f32edb",
+  "backupVerified": true,
+  "ports": [
+    8081,
+    1119,
+    8084,
+    8086
+  ],
+  "activatedAtUtc": "2026-09-12T16:09:54.771899+00:00",
+  "durationSeconds": 10.96,
+  "verifiedAtUtc": "2026-09-12T16:10:56.993658+00:00",
+  "nativeHeartbeat": [
+    [
+      "1",
+      "2",
+      "0"
+    ]
+  ],
+  "apiHealthy": true,
+  "publicLauncherVersionUnchanged": "1.7.2",
+  "isolatedNetworkChecks": 19,
+  "fixturePassed": true,
+  "livePlayerOrdersCreated": 0,
+  "livePlayerConversionsCreated": 0,
+  "graphicalClientValidation": "Awaiting user retry after reconnecting",
+  "activeProcess": {
+    "MainPID": "2854725",
+    "NRestarts": "0",
+    "ExecMainStartTimestampMonotonic": "9633176232068",
+    "WorkingDirectory": "/opt/hermesproxy-wotlk/releases/hermes-vas-selector-20260912",
+    "ActiveState": "active"
+  },
+  "fixtureMySqlStopped": true,
+  "fixtureProcessesStopped": true,
+  "networkTest": {
+    "passed": true,
+    "state": "complete",
+    "checks": [
+      "The actual core creates the disposable beneficiary through ordinary character creation.",
+      "Launcher SSO and the encrypted 3.4.3 Hermes connection expose the real unassigned account service.",
+      "Hermes updates the native service feature gate after the real core handshake succeeds.",
+      "The native product-list request returns a valid empty Blizzard store.",
+      "The native purchase-list request returns the verified empty store envelope.",
+      "The native VAS-state request returns the verified state envelope.",
+      "The native service selector receives the authenticated account character and a nonempty matching realm name.",
+      "A native 3.4.3 name rejection leaves the paid service available.",
+      "The real native validation round trip accepts Unicode without consuming or renaming.",
+      "The native confirmation round trip commits the Unicode name and receipt without a second debit.",
+      "Hermes sends the consumed distribution update that removes the native account-service button.",
+      "Fresh 3.4.3 character enumeration shows the new name with no forced-rename entitlement.",
+      "A repeated native confirmation returns the same receipt without another debit.",
+      "An API cancellation produces a native revocation update and refunds the currency exactly once.",
+      "An account service can be purchased during actual Hermes gameplay; consumption requires character selection.",
+      "The actual player logs out through both Hermes sockets while the account connection stays open.",
+      "The player consumes the account service immediately after real logout, without closing the account or BNet session.",
+      "A real realm-socket drop and SSO reconnection preserve the available native service and allow its consumption.",
+      "All completed native purchases preserve independent balances and debit each service exactly once."
+    ],
+    "characterDatabaseWorkers": 4,
+    "realCoreConsumer": true,
+    "realApiAndMySql": true,
+    "graphicalClientTested": false,
+    "hermesSha256": "7520e133e7d20e0f2d5ded6bb36a61e3b792d1acc1427597ad81120eb7deeb7d"
+  }
+}

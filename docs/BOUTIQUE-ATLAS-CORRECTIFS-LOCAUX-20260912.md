@@ -167,3 +167,14 @@ Voir la [preuve d'activation et de test réseau](validation/hermes-vas-wire-type
 Le passage graphique à l'étape 2 reste à confirmer dans le jeu après une
 reconnexion complète au royaume ; aucune interaction avec le jeu de l'utilisateur
 n'a été effectuée pendant ces contrôles.
+
+## Signalement suivant : nouveau nom à la sélection, ancien nom en jeu
+
+Le retour utilisateur suivant et le reçu durable confirment qu'un renommage a
+abouti après le correctif du sélecteur. Une liaison supplémentaire manquait :
+l'invalidation du cache de noms du client et des autres joueurs connectés.
+Le [correctif de l'identité en jeu](BOUTIQUE-ATLAS-NOM-EN-JEU-20260912.md) complète
+cette notification, le rafraîchissement à l'entrée en jeu et le traitement des
+anciens reçus. Ses candidats passent 94 contrôles d'intégration et 24 tests
+Hermes. Ils sont préparés et sauvegardés à 20 h 30, mais leur activation attend
+l'accord explicite pour redémarrer World. Le lanceur public reste en 1.7.2.

@@ -1,5 +1,5 @@
 {
-  "status": "verified-candidates-not-activated",
+  "status": "prepared-awaiting-world-restart-authorization",
   "clientBuild": "3.4.3.54261",
   "observedProduction": {
     "renamedCharacterPersistedInDatabase": true,
@@ -237,5 +237,26 @@
   "maintenanceRequired": [
     "arthas-worldserver.dungeon-clear-8224099",
     "hermesproxy-wotlk"
-  ]
+  ],
+  "deploymentPreparation": {
+    "prepared": true,
+    "activated": false,
+    "sourceCommit": "6a536c1c8c9d6b5091d14309a64f4a5c6aee722c",
+    "checkedAtUtc": "2026-09-12T18:30:31.520411+00:00",
+    "candidateWorldSha256": "aa9880f240a4bace95bd5c06028175fd6b50348a435d55c53cc632bff5ee3d62",
+    "candidateHermesSha256": "8adc5af26635dc698f062a2b61bac8ee1367d48af7cdaaed0b8e90fa35b7ad8f",
+    "backupVerified": true,
+    "configurationCopiedWithoutChanges": true,
+    "publicPidsUnchanged": {
+      "arthas-worldserver.dungeon-clear-8224099": "2828323",
+      "hermesproxy-wotlk": "2860655",
+      "arthas-authserver": "323656",
+      "wotlk-launcher-api": "2830654"
+    },
+    "inactiveOverrides": [
+      "/etc/systemd/system/arthas-worldserver.dungeon-clear-8224099.service.d/zzzzzzz-atlas-shop-rename-identity-20260912.conf",
+      "/etc/systemd/system/hermesproxy-wotlk.service.d/zzzzzzz-atlas-shop-rename-identity-20260912.conf"
+    ],
+    "fixtureStopped": true
+  }
 }

@@ -111,6 +111,7 @@ def prepare():
     if not modules: raise RuntimeError('No active module configurations found.')
     configuration.update({str(p): sha(p) for p in modules})
     ROOT.mkdir(mode=0o700)
+    shutil.copy2(Path(__file__).resolve(), ROOT / 'deploy.py')
     operations = ROOT / 'operations'; operations.mkdir()
     production = WORLD / 'server/etc-production'
     production.mkdir(mode=0o750); (production / 'modules').mkdir(mode=0o750)
@@ -155,6 +156,7 @@ def prepare():
         saved.parent.mkdir(parents=True, exist_ok=True); shutil.copy2(path, saved)
         if sha(saved) != sha(path): raise RuntimeError('Backup hash verification failed.')
     files = {str(WORLD / 'build/worldserver'): expected['worldSha256'],
+             str(ROOT / 'deploy.py'): sha(ROOT / 'deploy.py'),
              **{str(HERMES / p): digest for p, digest in package['files'].items()},
              **{str(p): sha(p) for p in production.rglob('*') if p.is_file()},
              **{p: sha(p) for p in destinations}}

@@ -84,6 +84,14 @@ module natif, copie les configurations actuelles et sauvegarde les exécutables,
 configurations et définitions de services précédents avec contrôle d'empreintes.
 Les nouveaux paramètres de service restent inactifs jusqu'à l'activation.
 
+Préparation vérifiée le 12 septembre à **20 h 30 (Paris)** : les sauvegardes
+sont contrôlées sous `/opt/atlas-shop-releases/rename-identity-20260912/backup`,
+le plan sous `plan.json` et le script persistant sous `deploy.py` dans le même
+répertoire. Les nouveaux paramètres systemd ne sont pas installés et le lien
+de configuration du candidat World vise encore la fixture. World `2828323`,
+Hermes `2860655`, Auth `323656` et API `2830654` sont toujours actifs avec leurs
+exécutables précédents.
+
 L'activation nécessite **un arrêt propre et démarrage de World, puis un
 redémarrage de Hermes**, avec déconnexion des joueurs. Elle conserve Auth et
 l'API en activité, ainsi que la configuration, le schéma SQL et le manifeste

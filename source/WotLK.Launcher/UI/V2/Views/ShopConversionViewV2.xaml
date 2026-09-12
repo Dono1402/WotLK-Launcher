@@ -36,7 +36,7 @@
                         <Image Source="{StaticResource ShopGoldCoin}" Width="18" Height="18" Margin="0,0,7,0"/><TextBlock x:Name="ConversionRateText" Text="{Binding ConversionRate}" Style="{StaticResource Amount}" FontSize="13"/><TextBlock Text="{Binding CreditsLabel}" Style="{StaticResource ShopCaption}" Margin="9,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel></Border>
                     <StackPanel Orientation="Horizontal"><TextBlock Text="{Binding ConversionSourceLabel}" Style="{StaticResource ShopCaption}" Margin="0,0,12,0" VerticalAlignment="Center"/>
-                        <ComboBox x:Name="ConversionCharacterPicker" Width="235" Style="{StaticResource ShopField}" ItemsSource="{Binding Characters}" SelectedItem="{Binding SelectedConversionCharacter, Mode=TwoWay}" ItemTemplate="{StaticResource ConversionCharacter}" IsEnabled="{Binding HasCharacters}" AutomationProperties.Name="{Binding ConversionSourceLabel}"/>
+                        <ComboBox x:Name="ConversionCharacterPicker" Width="235" Style="{StaticResource ShopField}" ItemsSource="{Binding Characters}" SelectedItem="{Binding SelectedConversionCharacter, Mode=TwoWay}" ItemTemplate="{StaticResource ConversionCharacter}" IsEnabled="{Binding CanChooseConversionCharacter}" AutomationProperties.Name="{Binding ConversionSourceLabel}"/>
                     </StackPanel></Grid>
                     <TextBlock x:Name="ConversionFundingHint" Text="{Binding FundingConversionHint}" Style="{StaticResource ShopCaption}" FontSize="13" Margin="0,0,0,12" Visibility="{Binding ShowFundingConversionHint, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
                     <Grid x:Name="ConversionFlow"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="1.12*"/><ColumnDefinition Width="40"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -50,7 +50,7 @@
                             <TextBlock Text="{Binding GoldRemainingLabel}" Style="{StaticResource ShopCaption}"/>
                             <TextBlock Text="{Binding ConversionGoldAfter}" Style="{StaticResource Amount}" FontSize="24" Margin="0,8,0,0"/>
                         </StackPanel></Border>
-                        <Border x:Name="GoldAmountCard" Grid.Column="2" Style="{StaticResource ShopPanel}" Padding="26"><StackPanel>
+                        <Border x:Name="GoldAmountCard" Grid.Column="2" Style="{StaticResource ShopPanel}" Padding="26" IsEnabled="{Binding CanEditConversion}"><StackPanel>
                             <Grid Height="28"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="{Binding GoldAmountLabel}" Style="{StaticResource ShopEyebrow}" VerticalAlignment="Center"/>
                                 <Button x:Name="MaximumButton" Grid.Column="1" Content="Max" Style="{StaticResource Preset}" Margin="8,0,0,0" Padding="9,0" Height="28" IsEnabled="{Binding HasConvertibleGold}" Tag="100" Click="Preset_Click"/>

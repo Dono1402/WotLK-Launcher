@@ -119,7 +119,7 @@ def main():
     loader = out / 'ModulesLoader.cpp'
     loader.write_text('void Addmod_atlas_shopScripts();\n' + loader_text.replace(marker, marker + '    Addmod_atlas_shopScripts();\n'))
     additions = [compile_source(name, module / 'src' / (name + '.cpp'), module_flags)
-                 for name in ('atlas_shop', 'atlas_shop_native', 'atlas_shop_loader')]
+                 for name in ('atlas_shop', 'atlas_shop_native', 'atlas_shop_gold', 'atlas_shop_loader')]
     # The save barrier and session lifetime hooks are compiled into a separate
     # overlay. Never edit or reuse objects from the active/source checkout.
     game_flags = read_flags(BASE / 'build/src/server/game/CMakeFiles/game.dir/flags.make', config_dir)

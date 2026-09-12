@@ -130,7 +130,7 @@ internal sealed partial class ShopUiState
     }
     private async Task RunFundingMutation(Func<CancellationToken,Task> mutation,ShopText success)
     {
-        if (IsFundingBusy || IsLoading || IsPurchasing || IsPurchaseReading || _disposed) return;
+        if (IsFundingBusy || IsLoading || IsConverting || IsPurchasing || IsPurchaseReading || _disposed) return;
         long session=_fundingSession;
         using CancellationTokenSource pending=new(); _fundingMutation=pending;
         IsFundingBusy=true; _fundingNotice=null; Changed();

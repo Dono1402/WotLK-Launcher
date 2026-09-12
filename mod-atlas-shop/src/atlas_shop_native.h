@@ -19,5 +19,8 @@ bool IsNativePacket(WorldPacket const& packet);
 bool AllowNativePacket(WorldSession* session);
 bool NativeGuarded(uint32 account);
 bool NativeNamesPaused();
+bool TryAcquireCharacterWriteGuard(uint32 account, uint32 guid);
+void ReleaseCharacterWriteGuard();
+void AddGoldConversionScripts();
 void AddNativeScripts();
 }

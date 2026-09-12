@@ -156,7 +156,7 @@ class Fixture:
     def name(prefix='Na'):
         return prefix + ''.join(secrets.choice('abcdefghijklmnopqrstuvwxyz') for _ in range(6))
 
-    def register(self):
+    def register(self, euro_cents=100000, credit_cents=100000):
         username = 'NATIVE' + secrets.token_hex(4).upper()
         result = self.http(None, 'accounts', {'username': username, 'password': secrets.token_hex(16),
             'email': username.lower() + '@example.invalid'})
@@ -164,7 +164,7 @@ class Fixture:
         self.sql("UPDATE shop_test_auth.account SET session_key=UNHEX('" + account['key'].hex()
             + "'),expansion=2,os='Win',last_ip='127.0.0.1' WHERE id=" + str(account['id']))
         self.sql('INSERT INTO shop_test_auth.atlas_shop_wallet(account_id,euro_cents,credit_cents,updated_at) VALUES('
-            + str(account['id']) + ',100000,100000,UTC_TIMESTAMP(6))')
+            + str(account['id']) + ',' + str(int(euro_cents)) + ',' + str(int(credit_cents)) + ',UTC_TIMESTAMP(6))')
         return account
 
     def connect(self, account):

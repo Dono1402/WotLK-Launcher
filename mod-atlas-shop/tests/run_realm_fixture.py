@@ -46,11 +46,14 @@ def main():
     parser.add_argument('--hold', action='store_true', help='Keep the fixture available for bounded diagnostic tests.')
     parser.add_argument('--with-hermes', action='store_true', help='Run the isolated Hermes/3.4.3 suite, or add Hermes to --hold.')
     parser.add_argument('--hermes-package', choices=('hermes', 'hermes-disconnect', 'hermes-native'), default='hermes')
-    parser.add_argument('--api-package', choices=('api-linux', 'api-candidate', 'api-account-services'), default='api-linux')
+    parser.add_argument('--api-package', choices=('api-linux', 'api-candidate', 'api-account-services', 'api-gold'), default='api-linux')
+    parser.add_argument('--gold-conversion', action='store_true', help='Exercise gold conversion and the full native rename chain.')
     parser.add_argument('--account-services', action='store_true', help='Test the real native account consumer with four character database workers.')
     parser.add_argument('--world-candidate', type=Path,
                         help='Test an inactive release candidate whose compiled config directory points to this fixture.')
     args = parser.parse_args()
+    if args.gold_conversion and not (args.account_services and args.with_hermes and args.api_package == 'api-gold'):
+        parser.error('Gold conversion tests require --account-services --with-hermes --api-package api-gold.')
     root = Path(args.root).resolve(strict=True)
     if root.parent != Path('/opt/atlas-shop-tests') or not re.fullmatch(r'rename-[0-9A-Za-z-]+', root.name):
         raise RuntimeError('Expected an existing dedicated test directory.')
@@ -83,7 +86,7 @@ def main():
     if not (api_package / 'WotLK.Launcher.Server').is_file():
         raise RuntimeError('Expected an existing fixture API package.')
     if not args.hold:
-        result_name = ('hermes-account-services-result.json' if args.with_hermes else 'native-account-services-result.json') if args.account_services else (
+        result_name = 'gold-conversion-result.json' if args.gold_conversion else ('hermes-account-services-result.json' if args.with_hermes else 'native-account-services-result.json') if args.account_services else (
             'hermes-test-result.json' if args.with_hermes else 'native-test-result.json')
         (root / result_name).write_text(json.dumps({'passed': False, 'state': 'starting', 'startedAtUnix': int(time.time())}) + '\n')
     config = configparser.ConfigParser()
@@ -131,18 +134,19 @@ def main():
         (etc / 'modules' / path.name.removesuffix('.dist')).write_text(replace_options(
             module_text, {key: value for key, value in values.items() if key in keys}))
     (etc / 'modules/mod_atlas_shop.conf').write_text('[worldserver]\nAtlasShop.Enable = 1\nAtlasShop.AccountServices = '
-        + ('1' if args.account_services else '0') + '\n')
+        + ('1' if args.account_services else '0') + '\nAtlasShop.GoldConversion = ' + ('1' if args.gold_conversion else '0') + '\n')
     api_config = {'Urls': 'http://127.0.0.1:18081', 'LauncherServer': {
         'ConnectionString': 'Server=127.0.0.1;Port=13308;User ID=root;Password=' + password + ';Database=shop_test_auth;SSL Mode=None;',
         'CharacterDatabaseName': 'shop_test_chars', 'WorldDatabaseName': 'shop_test_world',
         'PlayerbotsDatabaseName': 'shop_test_playerbots', 'AvatarMediaRoot': str(root / 'media/avatars'),
         'ChatMediaRoot': str(root / 'media/chat'), 'FeedRoot': str(root / 'feed'),
         'AddonRoot': str(root / 'addons'), 'PublicBaseUrl': 'http://127.0.0.1:18081', 'BrevoApiKey': ''},
-        'AtlasShop': {'Purchases': {'RenameEnabled': True, 'RealmId': 1, 'AccountServicesEnabled': args.account_services}}}
+        'AtlasShop': {'Purchases': {'RenameEnabled': True, 'RealmId': 1, 'AccountServicesEnabled': args.account_services},
+                      'GoldConversion': {'Enabled': args.gold_conversion, 'RealmId': 1}}}
     (api_package / 'appsettings.Testing.json').write_text(json.dumps(api_config, indent=2) + '\n')
     env = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': str(root), 'TMPDIR': str(root / 'tmp'),
            'DOTNET_ENVIRONMENT': 'Testing', 'ASPNETCORE_ENVIRONMENT': 'Testing',
-           'WOTLK_LAUNCHER_MAX_SCHEMA_VERSION': '13' if args.account_services or args.api_package == 'api-account-services' else '12',
+           'WOTLK_LAUNCHER_MAX_SCHEMA_VERSION': '14' if args.gold_conversion or args.api_package == 'api-gold' else '13' if args.account_services or args.api_package == 'api-account-services' else '12',
            'DOTNET_CLI_TELEMETRY_OPTOUT': '1',
            'AC_UPDATES_ENABLE_DATABASES': '0', 'AC_PLAYERBOTS_UPDATES_ENABLE_DATABASES': '0'}
     (root / 'tmp').mkdir(exist_ok=True)
@@ -217,7 +221,7 @@ def main():
                     raise RuntimeError('A fixture child exited; inspect private logs.')
                 time.sleep(1)
         else:
-            script_name = ('test_hermes_account_services.py' if args.with_hermes else 'test_account_services_realm.py') if args.account_services else (
+            script_name = 'test_gold_conversion_realm.py' if args.gold_conversion else ('test_hermes_account_services.py' if args.with_hermes else 'test_account_services_realm.py') if args.account_services else (
                 'test_hermes_realm.py' if args.with_hermes else 'test_native_realm.py')
             script = root / 'mod-atlas-shop/tests' / script_name
             spec = importlib.util.spec_from_file_location('atlas_native_realm_test', script)
@@ -242,7 +246,7 @@ def main():
                     time.sleep(1)
                 raise RuntimeError('Test world restart timed out.')
 
-            if args.with_hermes:
+            if args.with_hermes and not args.gold_conversion:
                 test.run(root)
             else:
                 test.run(root, restart_world=restart_world)

@@ -1,0 +1,76 @@
+{
+  "version": "1.7.2",
+  "status": "prepared-not-published",
+  "checkedAtUtc": "2026-09-12T11:57:17.466166+00:00",
+  "productionUnchanged": true,
+  "requiredSchema": 14,
+  "characterDatabaseWorkers": 4,
+  "worldSha256": "6ad33749350a93c16da453c2c780348f24b07c3f76c84a6382612c5a5bc1cf8c",
+  "apiExecutableSha256": "203484f27efc4a5383a1acdb0c9f642e9361456a7b3d69c8d81cd4c86dc2ea0e",
+  "apiAssemblySha256": "0ddf7e701e491c78b80ea94d375d77069ee45dafc30ad81c167371ef6ec5f96e",
+  "hermesSha256": "0cf39b72930f890ab589c2ecf5d9e43c49b670369ba815bacbaa766e56178527",
+  "nativeIntegration": {
+    "passed": true,
+    "checks": [
+      "The core creates the synthetic source character through ordinary character creation.",
+      "A live core heartbeat opens gold conversion; the starting credit wallet is empty.",
+      "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+      "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+      "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+      "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+      "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+      "Six concurrent POST retries convert 2000 gold exactly once, preserving all silver/copper and the euro wallet.",
+      "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+      "A conversion receipt is inaccessible from another account.",
+      "The snapshot and history expose the same committed gold debit and credit receipt.",
+      "The rename service is funded entirely by converted gold and remains unassigned until selection in game.",
+      "Real SSO and encrypted 3.4.3 Hermes packets expose the service and its character selector.",
+      "Native Unicode name validation leaves the paid service available until confirmation.",
+      "Native name confirmation consumes the service without charging credits or gold a second time.",
+      "A fresh SSO/Hermes connection retains the new name, consumed service and exact remaining balances.",
+      "The core rechecks actual money after API enqueue and rejects a stale gold quote without granting credits.",
+      "An expired durable request releases its pending slot without changing either balance.",
+      "A failure writing the final receipt rolls back the real character debit and wallet credit together.",
+      "The durable request succeeds once after the SQL failure is removed, on the normal realm retry.",
+      "While conversion holds the core write guard, a competing native login cannot load the old money.",
+      "Releasing the controlled SQL lock commits the guarded conversion once.",
+      "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+      "A full native login, logout and character save preserve the converted gold balance.",
+      "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+      "Gold conversion preserves refund headroom; an unused service can refund exactly at the wallet ceiling.",
+      "The core independently rechecks the credit ceiling after enqueue, under the wallet lock.",
+      "The API rejects invalid or ineligible conversion input without enqueueing or charging.",
+      "After a real world process restart, conversion history and the same idempotency key remain recoverable.",
+      "Every test request has a durable terminal outcome with no stranded debit."
+    ],
+    "completedAtUnix": 1789214086
+  },
+  "clientChecks": 18,
+  "goldSchemaApiChecks": 20,
+  "existingShopRuntimeChecks": 369,
+  "existingFundingChecks": 186,
+  "existingAccountServiceChecks": 35,
+  "wpfOffscreen": {
+    "goldPath": true,
+    "shopRegression": true,
+    "languages": [
+      "fr-FR",
+      "en-US"
+    ],
+    "bindingErrors": 0
+  },
+  "installerArtifactVerified": true,
+  "graphicalGameTested": false,
+  "assets": [
+    {
+      "name": "WotLK-Launcher.exe",
+      "bytes": 413508130,
+      "sha256": "92cd2729fe26ac0c7e7f430a87e511a98d763f9f43b2714b0fd73f628b25492f"
+    },
+    {
+      "name": "AtlasLauncherSetup.exe",
+      "bytes": 518871641,
+      "sha256": "aa075978fa772d251fb47ddb5cbeb6fed0f07a6fa79e1fa602a3784e18926436"
+    }
+  ]
+}

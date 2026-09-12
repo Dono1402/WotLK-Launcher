@@ -86,7 +86,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     public IReadOnlyList<ShopCharacterRow> Characters { get; private set; } = [];
     public IReadOnlyList<ShopPriceRow> Prices { get; private set; } = [];
     public bool IsLoading { get; private set; }
-    public bool CanRefresh => !IsLoading && !IsFundingBusy && !IsPurchasing && !IsPurchaseReading && _read is not null && !_disposed;
+    public bool CanRefresh => !IsLoading && !IsConverting && !IsFundingBusy && !IsPurchasing && !IsPurchaseReading && _read is not null && !_disposed;
     public bool HasOffers => Offers.Count != 0;
     public bool HasCharacters => Characters.Count != 0;
     public bool IsServiceOpen { get; private set; }
@@ -162,7 +162,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     }
     internal void CloseService() { IsServiceOpen = false; ClearFundingReturn(); Changed(); }
 
-    internal void Configure(Func<CancellationToken, Task<ShopSnapshot>> read) { ResetPurchases(); _purchaseActions=null; ResetManualFunding(); _fundingActions=null; _previewSnapshot = null; _read = read; Changed(); }
+    internal void Configure(Func<CancellationToken, Task<ShopSnapshot>> read) { ResetConversions(); _conversionActions=null; ResetPurchases(); _purchaseActions=null; ResetManualFunding(); _fundingActions=null; _previewSnapshot = null; _read = read; Changed(); }
 
     internal async Task RefreshAsync()
     {
@@ -231,6 +231,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
         _character = Characters.FirstOrDefault(c => c.Character.Guid == characterId);
         _price = Prices.FirstOrDefault(p => p.Price.Currency == currency) ?? Prices.FirstOrDefault();
         _conversionCharacter = Characters.FirstOrDefault(c => c.Character.Guid == _conversionCharacterId);
+        ApplyGoldConversions(snapshot);
         _status = Offers.Count == 0 ? "empty" : "ready";
     }
 
@@ -242,6 +243,7 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
 
     internal void ResetSession()
     {
+        ResetConversions();
         ResetPurchases();
         ResetManualFunding();
         ++_generation;

@@ -192,4 +192,4 @@ private:
 };
 }
 
-void AddAtlasShopScripts() { new ShopWorld(); new ShopPackets(); AtlasShop::AddNativeScripts(); }
+void AddAtlasShopScripts() { new ShopWorld(); new ShopPackets(); AtlasShop::AddNativeScripts(); AtlasShop::AddGoldConversionScripts(); }

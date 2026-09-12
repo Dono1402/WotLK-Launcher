@@ -11,7 +11,8 @@ public sealed record ShopCharacter(uint Guid, string Name, byte Level, bool Onli
 public sealed record ShopSnapshot(int SchemaVersion, string CatalogRevision, DateTimeOffset ObservedAtUtc,
     bool CheckoutAvailable, long? CreditBalanceEuroCents, IReadOnlyList<ShopOffer> Offers,
     IReadOnlyList<ShopCharacter> Characters, ShopGoldConversionRate GoldConversion, long? EuroBalanceCents = null,
-    IReadOnlyList<ShopTransaction>? History = null, ShopManualFunding? ManualFunding = null, ShopPurchases? Purchases = null)
+    IReadOnlyList<ShopTransaction>? History = null, ShopManualFunding? ManualFunding = null, ShopPurchases? Purchases = null,
+    ShopGoldConversions? Conversions = null)
 {
     public const int CurrentSchemaVersion = 2;
     public const long MaximumBalanceCents = 1_000_000_000;
@@ -22,6 +23,7 @@ public sealed record ShopSnapshot(int SchemaVersion, string CatalogRevision, Dat
     {
         ManualFunding?.Validate();
         Purchases?.Validate();
+        Conversions?.Validate();
         if (SchemaVersion != CurrentSchemaVersion || string.IsNullOrWhiteSpace(CatalogRevision) || CatalogRevision.Length > 80
             || CreditBalanceEuroCents is < 0 or > MaximumBalanceCents || EuroBalanceCents is < 0 or > MaximumBalanceCents
             || GoldConversion is null || GoldConversion.CopperPerEuroCent == 0

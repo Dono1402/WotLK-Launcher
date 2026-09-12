@@ -19,7 +19,7 @@ using WotLK.Launcher.UI.V2.Presentation;
 internal static partial class ShopManualFundingMySqlTests
 {
     private static int _checks;
-    internal static async Task<int> RunAsync(bool rename = false, bool accountServices = false)
+    internal static async Task<int> RunAsync(bool rename = false, bool accountServices = false, bool goldConversions = false)
     {
         MySqlConnectionStringBuilder settings = new(Environment.GetEnvironmentVariable("ATLAS_SHOP_TEST_DB")
             ?? throw new InvalidOperationException("Disposable ATLAS_SHOP_TEST_DB required."));
@@ -75,6 +75,7 @@ internal static partial class ShopManualFundingMySqlTests
             builder.Services.AddSingleton(new LauncherDatabase(server, new TokenService(), new LauncherSchemaMigrator(server)));
             builder.Services.AddSingleton<ArmoryReadLimiter>(); builder.Services.AddSingleton(new ShopCatalog(accountServices: accountServices)); builder.Services.AddSingleton(funding);
             ShopPurchaseOptions purchases = new(); builder.Services.AddSingleton(purchases);
+            builder.Services.AddSingleton(new ShopGoldConversionOptions());
             await using WebApplication app = builder.Build(); app.MapShopEndpoints(); await app.StartAsync();
             try
             {
@@ -243,6 +244,7 @@ internal static partial class ShopManualFundingMySqlTests
                 Console.WriteLine($"Manual shop funding MySQL/API PASS: {_checks} checks; schema 0011 recovery, authorization, limits, concurrent creation/approval, rollback, holds, refunds, debt, audit and persistence. No PayPal network or game mutations.");
                 if (rename) await RunRenameStageAsync(server, connection, app, http, purchases);
                 if (accountServices) await RunAccountServicesStageAsync(server, connection, app, http, purchases);
+                if (goldConversions) await RunGoldConversionStageAsync(server, connection, app, http);
                 return 0;
 
                 async Task<long> Amount(string sql) => Convert.ToInt64(await Scalar(connection,sql),CultureInfo.InvariantCulture);

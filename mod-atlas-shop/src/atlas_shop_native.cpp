@@ -406,5 +406,7 @@ bool IsNativePacket(WorldPacket const& packet)
 bool AllowNativePacket(WorldSession* session) { return NativeServices::Instance().Allow(session); }
 bool NativeGuarded(uint32 account) { return Barrier().Guarded(account); }
 bool NativeNamesPaused() { return Barrier().NamesPaused(); }
+bool TryAcquireCharacterWriteGuard(uint32 account, uint32 guid) { return Barrier().Acquire(account, guid); }
+void ReleaseCharacterWriteGuard() { Barrier().Release(); }
 void AddNativeScripts() { new NativeWorld(); }
 }

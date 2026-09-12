@@ -12,6 +12,8 @@ internal static class ShopEndpoints
         app.MapManualFundingEndpoints(fundingOptions);
         ShopPurchaseOptions purchaseOptions = app.Services.GetService<ShopPurchaseOptions>() ?? new();
         app.MapShopPurchaseEndpoints(purchaseOptions);
+        ShopGoldConversionOptions conversionOptions = app.Services.GetService<ShopGoldConversionOptions>() ?? new();
+        app.MapShopGoldConversionEndpoints(conversionOptions);
         app.MapGet("/api/v1/shop", async (HttpContext context, LauncherDatabase database,
             ShopCatalog catalog, ArmoryReadLimiter limiter, CancellationToken cancellationToken) =>
         {
@@ -36,6 +38,8 @@ internal static class ShopEndpoints
                 }
                 if (purchaseOptions.CanReadStorage)
                     snapshot = await database.AddShopPurchasesAsync(account.AccountId, snapshot, purchaseOptions, cancellationToken);
+                if (conversionOptions.CanReadStorage)
+                    snapshot = await database.AddShopGoldConversionsAsync(account.AccountId, snapshot, conversionOptions, cancellationToken);
                 snapshot.Validate();
                 return Results.Json(snapshot);
             }

@@ -5,3 +5,5 @@
 # Keep disabled until module/core integration has been verified on a test realm.
 AtlasShop.Enable = 0
 AtlasShop.AccountServices = 0
+# Gold conversion additionally requires schema 0014. Rate: 100 gold = 1 Atlas euro.
+AtlasShop.GoldConversion = 0

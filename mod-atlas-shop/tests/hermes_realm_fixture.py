@@ -22,7 +22,7 @@ def configure(root, base, values, password, package='hermes', api_package='api-l
     if not (hermes / 'HermesProxy').is_file():
         raise RuntimeError('Place the reviewed Hermes package in the dedicated fixture directory first.')
     secret = secrets.token_hex(32)
-    if api_package not in ('api-linux', 'api-candidate', 'api-account-services'):
+    if api_package not in ('api-linux', 'api-candidate', 'api-account-services', 'api-gold'):
         raise ValueError('Expected a reviewed fixture API package name.')
     api_path = root / api_package / 'appsettings.Testing.json'
     api_config = json.loads(api_path.read_text())

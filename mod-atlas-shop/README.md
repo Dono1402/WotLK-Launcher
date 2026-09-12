@@ -1,7 +1,12 @@
 # mod-atlas-shop
 
-Module AzerothCore pour les services de changement de nom achetés dans le
-launcher Atlas. Il est désactivé par défaut.
+Module AzerothCore pour les services de changement de nom et la conversion
+d’or en Crédits Atlas dans le launcher. Il est désactivé par défaut.
+
+La [conversion d’or](../docs/BOUTIQUE-ATLAS-CONVERSION-OR.md) requiert le schéma
+0014 et `AtlasShop.GoldConversion=1`. Le royaume retire l’or, crédite le
+portefeuille et écrit le reçu dans une même transaction. Ce parcours a été
+vérifié jusqu’au changement de nom natif et à la reconnexion.
 
 Le [parcours de services pour le compte](../docs/BOUTIQUE-ATLAS-SERVICES-NATIFS.md)
 permet d'acheter pendant la partie puis de choisir le personnage à la sélection,

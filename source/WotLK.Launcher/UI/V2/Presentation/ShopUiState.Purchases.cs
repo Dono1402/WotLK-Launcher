@@ -27,19 +27,19 @@ internal sealed partial class ShopUiState
     private ShopText? _purchaseNotice;
     public bool IsPurchasing { get; private set; }
     public bool IsPurchaseReading { get; private set; }
-    public bool CanEditPurchase => !IsPurchasing && !IsPurchaseReading && _purchaseAttempt is null;
+    public bool CanEditPurchase => !IsConverting && !IsPurchasing && !IsPurchaseReading && _purchaseAttempt is null;
     public bool UsesAccountService => _snapshot?.Purchases?.AccountServices == true && _offer?.Offer.Id == "character-rename";
     public bool ShowPurchaseCharacter => !UsesAccountService;
     public bool CanChoosePurchaseCharacter => ShowPurchaseCharacter && HasCharacters && CanEditPurchase;
     public bool CanManagePurchaseOrders => CanEditPurchase && !IsLoading && !IsFundingBusy && _purchaseActions is not null;
     private bool RenameAvailable => _snapshot is { CheckoutAvailable: true, Purchases.RenameAvailable: true } && _offer?.Offer.Id == "character-rename";
-    public bool CanPurchase => !_disposed && !IsPurchasing && !IsPurchaseReading && !IsLoading && !IsFundingBusy && _purchaseActions is not null
+    public bool CanPurchase => !_disposed && !IsConverting && !IsPurchasing && !IsPurchaseReading && !IsLoading && !IsFundingBusy && _purchaseActions is not null
         && (_purchaseAttempt is not null || (RenameAvailable && (UsesAccountService
             ? AvailableServiceCount < 100 : _character?.Character is { Online: false, RenamePending: false })
             && _price?.MissingCents == 0 && (_snapshot?.ManualFunding?.DebtCents ?? 0) == 0));
     public int AvailableServiceCount => _snapshot?.Purchases?.Orders.Count(o => o.Status == "available" && o.OfferId == _offer?.Offer.Id) ?? 0;
     private ShopOrder? SelectedOrder => _snapshot?.Purchases?.Orders.FirstOrDefault(o => (UsesAccountService || o.CharacterGuid == _character?.Character.Guid) && o.OfferId == _offer?.Offer.Id);
-    public bool CanCancelPurchase => !IsPurchasing && !IsPurchaseReading && !IsLoading && !IsFundingBusy && _purchaseAttempt is null && _purchaseActions is not null && SelectedOrder?.Status is "available" or "pending" or "rejected";
+    public bool CanCancelPurchase => !IsConverting && !IsPurchasing && !IsPurchaseReading && !IsLoading && !IsFundingBusy && _purchaseAttempt is null && _purchaseActions is not null && SelectedOrder?.Status is "available" or "pending" or "rejected";
     public bool ShowPurchaseReceipt => SelectedOrder is not null || _purchaseNotice is not null;
     public string PurchaseReceipt => (SelectedOrder is { } order
         ? OrderSummary(order) + "\n" + FormatPrice(new(order.Currency, order.AmountCents)) + " · " + order.Id[..8].ToUpperInvariant() : "")

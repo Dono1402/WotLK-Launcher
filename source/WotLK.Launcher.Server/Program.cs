@@ -102,6 +102,10 @@ ShopPurchaseOptions purchases = new();
 builder.Configuration.GetSection("AtlasShop:Purchases").Bind(purchases);
 purchases.Validate(options.MaximumSchemaVersion);
 builder.Services.AddSingleton(purchases);
+ShopGoldConversionOptions conversions = new();
+builder.Configuration.GetSection("AtlasShop:GoldConversion").Bind(conversions);
+conversions.Validate(options.MaximumSchemaVersion);
+builder.Services.AddSingleton(conversions);
 builder.Services.AddHostedService<ShopOrderRefundWorker>();
 builder.Services.AddSingleton<ChatRequestLimiter>();
 builder.Services.AddSingleton<ChatAttachmentStorage>();
@@ -131,6 +135,7 @@ LauncherDatabase database = app.Services.GetRequiredService<LauncherDatabase>();
 await database.InitializeAsync();
 manualFunding.StorageAvailable = options.MaximumSchemaVersion is null or >= 11;
 purchases.StorageAvailable = options.MaximumSchemaVersion is null or >= 12;
+conversions.StorageAvailable = options.MaximumSchemaVersion is null or >= 14;
 manualFunding.PurchaseStorageAvailable = purchases.StorageAvailable;
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));

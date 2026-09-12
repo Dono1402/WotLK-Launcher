@@ -21,7 +21,9 @@ internal sealed partial class ShopUiState
     public string EuroWalletLabel => L("Portefeuille en euros", "Euro wallet");
     public string PriceWalletsLabel => L("Crédits Atlas / Euros", "Atlas credits / Euros");
     public string SelectedAmount => _price is null ? L("À venir", "Coming soon") : FormatEuros(_price.Price.Amount);
-    public string ConvertAction => HasValidConversionAmount ? L("Convertir ", "Convert ") + FormatGoldNumber(RequestedCopper!.Value) + L(" po", " gold") : L("Convertir", "Convert");
+    public string ConvertAction => IsConverting || _conversionRecord?.Status == "pending" ? L("Conversion en cours…", "Converting…")
+        : _conversionAttempt is not null ? L("Retrouver ma conversion", "Recover my conversion")
+        : HasValidConversionAmount ? L("Convertir ", "Convert ") + FormatGoldNumber(RequestedCopper!.Value) + L(" po", " gold") : L("Convertir", "Convert");
     public string ConversionReceiveText => HasValidConversionAmount
         ? L($"Vous recevrez {ConversionCredit} de Crédits Atlas.", $"You will receive {ConversionCredit} in Atlas credits.")
         : HasConversionReceipt ? L($"Vous avez reçu {ConversionCredit} de Crédits Atlas.", $"You received {ConversionCredit} in Atlas credits.") : "";
@@ -34,24 +36,25 @@ internal sealed partial class ShopUiState
         : L("Crédits Atlas à recevoir", "Atlas credits to receive");
     public string CurrentBalanceLabel => HasConversionReceipt ? L("Solde précédent", "Previous balance") : L("Solde actuel", "Current balance");
     public string NewBalanceLabel => L("Nouveau solde", "New balance");
-    public string CancelLabel => HasFundingReturn ? ServiceReturnLabel : HasConversionReceipt ? L("Terminé", "Done") : L("Annuler", "Cancel");
+    public string CancelLabel => HasPendingConversion || IsConverting ? CloseLabel : HasFundingReturn ? ServiceReturnLabel : HasConversionReceipt ? L("Terminé", "Done") : L("Annuler", "Cancel");
     public string CloseLabel => L("Fermer", "Close");
     public string BackToShopLabel => L("Retour à la boutique", "Back to shop");
     public string ConversionSubtitle => L("Choisissez un personnage et le montant d’or à convertir.", "Choose a character and the amount of gold to convert.");
     public string ConversionModeHint => IsConversionPreview
         ? L("Prévisualisation · personnages et soldes fictifs", "Preview · example characters and balances")
-        : L("La conversion ouvrira une fois le service disponible sur le royaume.", "Conversion will open once the service is available on the realm.");
+        : RealConversionAvailable ? L("Conversion définitive · déconnectez vos personnages pendant le traitement.", "Final conversion · keep your characters logged out during processing.")
+        : L("La conversion est temporairement indisponible sur le royaume.", "Conversion is temporarily unavailable on the realm.");
     public string ConversionGold
     {
         get => _conversionGold;
-        set { if (_conversionGold == value) return; _lastConversion = null; _conversionGold = value; Changed(); }
+        set { if (!CanEditConversion || _conversionGold == value) return; _lastConversion = null; _conversionNotice = null; _conversionGold = value; Changed(); }
     }
     public ShopCharacterRow? SelectedConversionCharacter
     {
         get => _conversionCharacter;
         set
         {
-            if (ReferenceEquals(value, _conversionCharacter)) return;
+            if (!CanEditConversion || ReferenceEquals(value, _conversionCharacter)) return;
             _lastConversion = null;
             _conversionCharacter = value is not null && Characters.Contains(value) ? value : null;
             _conversionCharacterId = _conversionCharacter?.Character.Guid;
@@ -61,7 +64,7 @@ internal sealed partial class ShopUiState
         }
     }
     public uint? AvailableCopper => _conversionCharacter?.Character is { Online: false, GoldCopper: uint gold } ? gold : null;
-    public bool CanPreviewConversion => !_disposed && !IsLoading && AvailableCopper is not null;
+    public bool CanPreviewConversion => !_disposed && CanEditConversion && AvailableCopper is not null;
     public bool HasConvertibleGold => CanPreviewConversion && AvailableCopper >= 10000 && AvailableCopper >= (_snapshot?.GoldConversion.CopperPerEuroCent ?? uint.MaxValue);
     internal uint? RequestedCopper => TryParseGold(_conversionGold, out uint copper) ? copper : null;
     public ShopGoldConversionQuote? ConversionQuote => _snapshot is not null && RequestedCopper is uint copper
@@ -69,7 +72,9 @@ internal sealed partial class ShopUiState
     public bool HasValidConversionAmount => CanPreviewConversion && ConversionQuote is { CreditEuroCents: > 0 }
         && RequestedCopper <= AvailableCopper
         && _snapshot?.CreditBalanceEuroCents is long balance && balance <= ShopSnapshot.MaximumBalanceCents - ConversionQuote.CreditEuroCents;
-    public bool CanConvert => IsConversionOpen && IsConversionPreview && HasValidConversionAmount;
+    public bool CanConvert => !_disposed && IsConversionOpen && !IsConverting && !IsLoading && !IsPurchaseReading && !IsPurchasing && !IsFundingBusy
+        && (_conversionAttempt is not null && _conversionActions is not null
+            || !HasPendingConversion && (IsConversionPreview || RealConversionAvailable) && HasValidConversionAmount && (_snapshot?.ManualFunding?.DebtCents ?? 0) == 0);
     public string ConversionMaximum => AvailableCopper is uint available ? FormatGoldNumber(available) : "—";
     public string ConversionCredit => _lastConversion is { } receipt ? FormatEuros(receipt.AfterCents - receipt.BeforeCents) : ConversionQuote is { } quote ? FormatEuros(quote.CreditEuroCents) : "—";
     public string ConversionBalanceBefore => _lastConversion is { } receipt ? FormatEuros(receipt.BeforeCents) : CreditBalance;
@@ -84,7 +89,9 @@ internal sealed partial class ShopUiState
     public string ConversionRateDescription => L($"{ConversionRateNumber} pièces d’or = {FormatEuros(100)} de Crédits Atlas.", $"{ConversionRateNumber} gold coins = {FormatEuros(100)} in Atlas credits.");
     public double ConversionPercent => AvailableCopper is >= 10000 && RequestedCopper is uint copper
         ? Math.Clamp(copper * 100d / (AvailableCopper.Value / 10000 * 10000), 0, 100) : 0;
-    public string ConversionHint => _lastConversion is not null ? L("Conversion effectuée. Vous pouvez saisir un nouveau montant.", "Conversion complete. You can enter another amount.")
+    public string ConversionHint => _conversionNotice is not null ? Text(_conversionNotice)
+        : HasPendingConversion ? L("Le royaume vérifie et traite votre demande. Vous pouvez fermer cette page ; le suivi sera retrouvé à la prochaine actualisation.", "The realm is checking and processing your request. You can close this page; tracking resumes on the next refresh.")
+        : _lastConversion is not null ? L("Conversion effectuée. Vous pouvez saisir un nouveau montant.", "Conversion complete. You can enter another amount.")
         : _conversionCharacter is null ? L("Choisissez un personnage.", "Choose a character.")
         : AvailableCopper is null ? L("Or indisponible pour ce personnage connecté. Déconnectez-le puis actualisez la boutique.", "Gold is unavailable for this online character. Log out of the character, then refresh the shop.")
         : AvailableCopper < 10000 ? L("Ce personnage ne possède pas de pièce d’or entière.", "This character has no whole gold coins.")

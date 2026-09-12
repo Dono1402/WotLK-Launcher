@@ -45,11 +45,21 @@ public partial class ShopConversionViewV2 : UserControl
         string requested = state.ConversionGold;
         using CancellationTokenSource transfer = new();
         _transfer = transfer;
-        GoldAmountCard.IsEnabled = false;
+        GoldAmountCard.SetCurrentValue(IsEnabledProperty, false);
         ConversionCharacterPicker.SetCurrentValue(IsEnabledProperty, false);
         ConvertButton.SetCurrentValue(IsEnabledProperty, false);
         try
         {
+            if (!state.IsConversionPreview)
+            {
+                bool completed = await state.ConvertAsync();
+                if (completed && !transfer.IsCancellationRequested && IsVisible && ReferenceEquals(State, state) && SystemParameters.ClientAreaAnimation)
+                {
+                    AnimateTransfer();
+                    await Task.Delay(860, transfer.Token);
+                }
+                return;
+            }
             if (SystemParameters.ClientAreaAnimation)
             {
                 AnimateTransfer();
@@ -101,8 +111,8 @@ public partial class ShopConversionViewV2 : UserControl
     private void RestoreControls()
     {
         TransferLayer.Children.Clear();
-        GoldAmountCard.IsEnabled = true;
-        ConversionCharacterPicker.SetCurrentValue(IsEnabledProperty, State?.HasCharacters == true);
+        GoldAmountCard.SetCurrentValue(IsEnabledProperty, State?.CanEditConversion == true);
+        ConversionCharacterPicker.SetCurrentValue(IsEnabledProperty, State?.CanChooseConversionCharacter == true);
         ConvertButton.SetCurrentValue(IsEnabledProperty, State?.CanConvert == true);
     }
     private void Preset_Click(object sender, RoutedEventArgs e)

@@ -182,3 +182,12 @@ explicitement autorisée puis terminée à **20 h 37**. World `2878870` et Herme
 natifs ont été vérifiés à 20 h 39. Auth et l'API conservent leurs processus.
 Le lanceur public reste en 1.7.2. Une reconnexion au royaume suffit pour appliquer
 le rafraîchissement d'identité au personnage déjà renommé, sans nouvel achat.
+
+## Suivi du nom « Inconnu » à 21 h 59
+
+Le [correctif complémentaire Hermes](BOUTIQUE-ATLAS-NOM-INCONNU-20260912.md)
+attend la fin du chargement pour rafraîchir le nom du personnage actif. Il est
+activé, avec stabilité vérifiée à 22 h 00. Les 40 contrôles réseau, 27 contrôles
+natifs et 25 tests .NET ciblés réussissent. Seul Hermes a redémarré ; World,
+Auth et API ont conservé leurs processus. La confirmation visuelle en jeu
+reste attendue après reconnexion, sans autre achat ni renommage.

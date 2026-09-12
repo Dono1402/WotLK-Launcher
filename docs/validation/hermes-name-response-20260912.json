@@ -1,5 +1,5 @@
 {
-  "status": "prepared-and-tested",
+  "status": "activated-and-verified",
   "clientBuild": "3.4.3.54261",
   "graphicalClientTested": false,
   "observedProduction": {
@@ -164,8 +164,103 @@
   "prepared": {
     "prepared": true,
     "hermesSha256": "b915e5c0c4093f5e5bbdb79e39dfec0ade8907d59b7103b9ad3e295f0bcc248b",
-    "sourceCommit": null,
+    "sourceCommit": "6d4a71760e43ad8c1b1ee554c5cacc7e748e2e0d",
     "backupVerified": true,
     "publicProcessesUnchanged": true
+  },
+  "activated": {
+    "activated": true,
+    "service": "hermesproxy-wotlk",
+    "state": {
+      "MainPID": "2897226",
+      "NRestarts": "0",
+      "ExecMainStartTimestampMonotonic": "9646942429259",
+      "WorkingDirectory": "/opt/hermesproxy-wotlk/releases/hermes-name-response-20260912",
+      "ActiveState": "active",
+      "DropInPaths": "/etc/systemd/system/hermesproxy-wotlk.service.d/20-quest-sync.conf /etc/systemd/system/hermesproxy-wotlk.service.d/30-atlas-release.conf /etc/systemd/system/hermesproxy-wotlk.service.d/60-atlas-chat-whispers.conf /etc/systemd/system/hermesproxy-wotlk.service.d/90-hermes-update-20260909.conf /etc/systemd/system/hermesproxy-wotlk.service.d/zzzzzz-atlas-shop-native-170.conf /etc/systemd/system/hermesproxy-wotlk.service.d/zzzzzz-atlas-shop-vas-selector-20260912.conf /etc/systemd/system/hermesproxy-wotlk.service.d/zzzzzz-atlas-shop-vas-wire-type-20260912.conf /etc/systemd/system/hermesproxy-wotlk.service.d/zzzzzzz-atlas-shop-rename-identity-20260912.conf /etc/systemd/system/hermesproxy-wotlk.service.d/zzzzzzzz-atlas-shop-name-response-20260912.conf"
+    },
+    "hermesSha256": "b915e5c0c4093f5e5bbdb79e39dfec0ade8907d59b7103b9ad3e295f0bcc248b",
+    "sourceCommit": "6d4a71760e43ad8c1b1ee554c5cacc7e748e2e0d",
+    "onlyHermesRestarted": true,
+    "preservedProcesses": {
+      "arthas-worldserver.dungeon-clear-8224099": "2878870",
+      "arthas-authserver": "323656",
+      "wotlk-launcher-api": "2830654"
+    },
+    "configurationSha256": "be52bed22d1d5c8ef124a20bc0aaab07b82e828ab1a4a5b5777bed6466f32edb",
+    "backupVerified": true,
+    "ports": [
+      8081,
+      1119,
+      8084,
+      8086
+    ],
+    "activatedAtUtc": "2026-09-12T19:59:21.011872+00:00",
+    "durationSeconds": 7.96
+  },
+  "stable": {
+    "stable": true,
+    "sourceCommit": "6d4a71760e43ad8c1b1ee554c5cacc7e748e2e0d",
+    "activatedAtUtc": "2026-09-12T19:59:21.011872+00:00",
+    "verifiedAtUtc": "2026-09-12T20:00:41.914849+00:00",
+    "stableForSeconds": 80.9,
+    "services": {
+      "arthas-worldserver.dungeon-clear-8224099": {
+        "MainPID": "2878870",
+        "ActiveState": "active",
+        "NRestarts": "0",
+        "executable": "/opt/arthas-next/candidates/atlas-shop-rename-identity-20260912/build/worldserver",
+        "sha256": "aa9880f240a4bace95bd5c06028175fd6b50348a435d55c53cc632bff5ee3d62"
+      },
+      "hermesproxy-wotlk": {
+        "MainPID": "2897226",
+        "ActiveState": "active",
+        "NRestarts": "0",
+        "executable": "/opt/hermesproxy-wotlk/releases/hermes-name-response-20260912/HermesProxy",
+        "sha256": "b915e5c0c4093f5e5bbdb79e39dfec0ade8907d59b7103b9ad3e295f0bcc248b"
+      },
+      "arthas-authserver": {
+        "MainPID": "323656",
+        "ActiveState": "active",
+        "NRestarts": "0",
+        "executable": "/opt/arthas-next/candidates/dungeon-clear-20260830T183457Z/server/bin/authserver",
+        "sha256": "e4f5156535e6bc5b1dd774cff1e0f462f267bb12aaa473542aeb28d229320498"
+      },
+      "wotlk-launcher-api": {
+        "MainPID": "2830654",
+        "ActiveState": "active",
+        "NRestarts": "0",
+        "executable": "/opt/wotlk-launcher-api-releases/shop-gold-1.7.2-20260912/WotLK.Launcher.Server",
+        "sha256": "203484f27efc4a5383a1acdb0c9f642e9361456a7b3d69c8d81cd4c86dc2ea0e"
+      }
+    },
+    "onlyHermesRestarted": true,
+    "configurationPreserved": true,
+    "apiHealthy": true,
+    "portsReady": [
+      4000,
+      8081,
+      1119,
+      8084,
+      8086
+    ],
+    "nativeHeartbeats": {
+      "rename": {
+        "protocol": 2,
+        "ageSeconds": 3,
+        "renewedAfterActivation": true
+      },
+      "gold": {
+        "protocol": 1,
+        "ageSeconds": 3,
+        "renewedAfterActivation": true
+      }
+    },
+    "backupVerified": true,
+    "publicLauncherVersion": "1.7.2",
+    "publicManifestSha256": "420988c2b3ba4e794215456b3b8ec9eab51ea72057df3dad89b63d1cba752d06",
+    "fixtureStopped": true,
+    "graphicalClientTested": false,
+    "livePlayerOrdersCreated": 0
   }
 }

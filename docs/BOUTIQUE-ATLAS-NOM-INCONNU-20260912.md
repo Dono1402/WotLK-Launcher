@@ -1,6 +1,6 @@
 # Nom « Inconnu » après un renommage
 
-État : **candidat Hermes préparé et testé ; affichage en jeu à confirmer**.
+État : **Hermes activé le 12 septembre 2026 à 21 h 59 (Paris), stabilité vérifiée à 22 h 00 ; affichage en jeu à confirmer**.
 
 Après l'activation du premier correctif d'identité à 20 h 37 (Paris), un nouveau
 renommage a bien été enregistré, mais le client a affiché « Inconnu » au-dessus
@@ -64,7 +64,7 @@ captures et les identités de joueurs ne sont pas ajoutées au dépôt.
 
 ## Livraison Hermes uniquement
 
-Le candidat est préparé sous
+La version active se trouve sous
 `/opt/hermesproxy-wotlk/releases/hermes-name-response-20260912`. Son exécutable
 a pour SHA-256
 `b915e5c0c4093f5e5bbdb79e39dfec0ade8907d59b7103b9ad3e295f0bcc248b`.
@@ -82,3 +82,22 @@ Le code est conservé dans le patch Hermes de ce dépôt. Les tests natifs sont
 et [`native_client_fixture.py`](../mod-atlas-shop/tests/native_client_fixture.py).
 Le rapport de livraison est
 [`validation/hermes-name-response-20260912.json`](validation/hermes-name-response-20260912.json).
+
+L'activation s'est terminée à `2026-09-12T19:59:21.011872Z`, avec Hermes
+`2897226`. La vérification à `20:00:41.914849Z` confirme le même PID et le même
+exécutable, sans redémarrage automatique. World `2878870`, Auth `323656` et
+API `2830654` ont conservé leurs processus et exécutables. Les cinq ports
+contrôlés répondent, l'API est saine et les signaux de renommage et conversion
+d'or ont été renouvelés après l'activation. Les sauvegardes sont vérifiées,
+la fixture et son MySQL sont arrêtés, et le manifeste public du launcher 1.7.2
+est inchangé.
+
+Le code testé et activé correspond au commit
+`6d4a71760e43ad8c1b1ee554c5cacc7e748e2e0d`, poussé sur `ui/redesign-v2`.
+Les fichiers du candidat, des tests et du script persistant ont été comparés
+par empreinte avant de renseigner cette provenance et d'activer Hermes.
+
+Pour la vérification visuelle, se déconnecter complètement du royaume, puis
+se reconnecter et entrer en jeu avec le personnage déjà renommé. Le nouveau
+rafraîchissement doit alors s'exécuter à la fin du chargement. Aucun nouveau
+service payant ni autre renommage n'est nécessaire pour cet essai.

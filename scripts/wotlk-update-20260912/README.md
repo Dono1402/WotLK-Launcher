@@ -3,8 +3,12 @@
 Cette préparation réunit le core, Playerbots, Dungeon Clear et Hermes dans un
 nouveau candidat. Les versions amont sont figées :
 
-État final de cette campagne : compilation réussie, validation partielle,
-aucun déploiement. Voir le [compte rendu](../../docs/WOTLK-UPDATE-PREPARATION-2026-09-12.md)
+**Mise en service le 13 septembre :** les versions préparées sont actives,
+avec 1 500 bots connectés et les personnalisations conservées. Voir le
+[compte rendu de déploiement](../../docs/WOTLK-UPDATE-DEPLOYMENT-2026-09-13.md).
+
+À la clôture de la préparation initiale : compilation réussie, validation partielle,
+aucun déploiement à ce stade. Voir le [compte rendu](../../docs/WOTLK-UPDATE-PREPARATION-2026-09-12.md)
 pour les tests réussis, les cinq échecs de navigation et la limite mémoire
 du banc. Les recettes Go, sociales et de guilde ci-dessous ne sont pas
 présentées comme exécutées.
@@ -97,10 +101,12 @@ Ces recettes restent liées aux chemins et versions de cette préparation. Elles
 ne constituent pas un installateur autonome ; les binaires de test Go, le
 conteneur, les données privées et le paquet API du banc doivent déjà exister.
 
-## Bascule distincte
+## Bascule autorisée le 13 septembre
 
-Ces fichiers ne redémarrent aucun service de production. La bascule groupée
-nécessite une autorisation d'interruption après revue des résultats. Elle doit
+Les recettes de test ne redémarrent aucun service de production. La recette
+`activation/deploy.py` réalise la bascule par phases et a été exécutée après
+l'autorisation du 13 septembre. Toute nouvelle exécution reste une intervention
+de production, à préparer selon l'état réel. La bascule doit
 recontrôler les empreintes des configurations actives, sauvegarder les bases
 au moment de l'arrêt, appliquer les migrations World retenues, puis démarrer
 le couple World/Hermes préparé. Le retour aux anciens exécutables doit tenir

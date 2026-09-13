@@ -1,5 +1,14 @@
 # Bascule coordonnée proposée
 
+La bascule a été autorisée puis exécutée le 13 septembre 2026 avec
+`deploy.py`, par phases explicites. Voir le
+[résultat](../../../docs/WOTLK-UPDATE-DEPLOYMENT-2026-09-13.md).
+Ce plan est conservé comme description de l'intervention ; ses préconditions
+initiales ne décrivent plus l'état actif et interdisent une réexécution aveugle.
+La phase finale `close-credentials` supprime le fichier MySQL temporaire.
+Les contrôles SQL ultérieurs demandent donc de recréer un accès temporaire
+protégé, après revue ; les sauvegardes privées restent conservées.
+
 Ce plan et les deux drop-ins sont préparatoires. Ils ne valent pas autorisation
 d'interrompre la production. Le compte rendu de validation doit être revu avant
 leur utilisation.

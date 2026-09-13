@@ -1,0 +1,323 @@
+{
+  "completedAt": "2026-09-13T21:39:18.144422+00:00",
+  "productionActivationPerformed": true,
+  "operationalChecksPassed": true,
+  "status": "deployed-with-warnings",
+  "runtime": {
+    "checkedAt": "2026-09-13T21:39:17.614465+00:00",
+    "services": {
+      "arthas-worldserver.dungeon-clear-8224099": {
+        "pid": 3100212,
+        "executable": "/opt/arthas-next/candidates/atlas-all-update-20260912/server/bin/worldserver",
+        "sha256": "0d88bf22b9924b8401a9805ee250f2e734c248ade4b1cbc1b015c5122745045a",
+        "restarts": 0
+      },
+      "hermesproxy-wotlk": {
+        "pid": 3100655,
+        "executable": "/opt/hermesproxy-wotlk/releases/hermes-all-update-20260912/HermesProxy",
+        "sha256": "15c30b8d0f52f614b9467e302a76f7b6c03144d334de78b2674b9860d8c01cfd",
+        "restarts": 0
+      }
+    },
+    "ready": true,
+    "productionActivationPerformed": true,
+    "apiHealthy": true,
+    "preservedServices": {
+      "arthas-authserver": 323656,
+      "wotlk-launcher-api": 2830654
+    },
+    "onlineCharacters": 1500,
+    "realm": [
+      "1",
+      "4000",
+      "0",
+      "12340"
+    ],
+    "configurationFilesUnchanged": 9,
+    "passed": true
+  },
+  "customRuntime": {
+    "checkedAt": "2026-09-13T21:36:50.086415+00:00",
+    "worldPid": 3100212,
+    "hermesPid": 3100655,
+    "worldReadyLog": true,
+    "atlasChatBridgeReady": true,
+    "dungeonClearRegistered": true,
+    "guildBotReservationLogged": 3,
+    "guildBots": {
+      "total": 3,
+      "online": 3,
+      "reserved": 3
+    },
+    "onlineCharacters": 1473,
+    "hermesListeners": [
+      "0.0.0.0:8081",
+      "0.0.0.0:8086",
+      "0.0.0.0:8086",
+      "0.0.0.0:8084",
+      "0.0.0.0:1119",
+      "127.0.0.1:8099"
+    ],
+    "hermesFatalLogged": false,
+    "runtimeFlags": {
+      "AiPlayerbot.Enabled": "1",
+      "AiPlayerbot.RandomBotAutologin": "1",
+      "AiPlayerbot.MinRandomBots": "1500",
+      "AiPlayerbot.MaxRandomBots": "1500",
+      "AiPlayerbot.RealGuildBotAutologin": "1",
+      "AiPlayerbot.DeleteRandomBotGuilds": "0",
+      "AiPlayerbot.DeleteRandomBotArenaTeams": "0",
+      "AtlasFriends.Enable": "1",
+      "AtlasArmory.Enable": "1",
+      "AtlasArmory.LiveEnable": "1",
+      "AtlasChat.Enable": "1",
+      "Account.Achievements.Enable": "1",
+      "DungeonClear.Enable": "1",
+      "AuctionHouseBot.EnableSeller": "1",
+      "AuctionHouseBot.EnableBuyer": "1",
+      "Transmogrification.Enable": "1",
+      "AtlasShop.Enable": "1",
+      "AtlasShop.AccountServices": "1",
+      "AtlasShop.GoldConversion": "1"
+    },
+    "worldRestarts": 0,
+    "hermesRestarts": 0,
+    "newWorldErrorLogBytes": 0,
+    "fullDungeonRunsTested": false,
+    "productionChatMessageOrPurchaseCreated": false,
+    "graphicalClientTested": false
+  },
+  "onlineCharactersByBotAccountType": {
+    "1": 1500
+  },
+  "backup": {
+    "completedAt": "2026-09-13T21:33:37.762195+00:00",
+    "backups": [
+      {
+        "database": "arthas_world",
+        "path": "/opt/arthas-next/candidates/atlas-all-update-20260912/deployment-20260913/private/arthas_world.sql.gz",
+        "sha256": "8e30453e7cff571baf1bef58448112e007af286ee327761db6d55f86bf5fe29b",
+        "compressedBytes": 92141005,
+        "uncompressedBytes": 308157679,
+        "gzipIntegrityVerified": true,
+        "completionFooterVerified": true,
+        "locking": "database-table-locks"
+      },
+      {
+        "database": "arthas_chars",
+        "path": "/opt/arthas-next/candidates/atlas-all-update-20260912/deployment-20260913/private/arthas_chars.sql.gz",
+        "sha256": "2d9bfb918ecbfdfd17885929f9f7f412d50c86a941f5a1be91782bdfab4c7d72",
+        "compressedBytes": 87880482,
+        "uncompressedBytes": 435585645,
+        "gzipIntegrityVerified": true,
+        "completionFooterVerified": true,
+        "locking": "database-table-locks"
+      },
+      {
+        "database": "arthas_playerbots",
+        "path": "/opt/arthas-next/candidates/atlas-all-update-20260912/deployment-20260913/private/arthas_playerbots.sql.gz",
+        "sha256": "c2f1a799e86d4687457fd32ce28678eb94719a9941d55400244e8237d3baf456",
+        "compressedBytes": 23687147,
+        "uncompressedBytes": 70603234,
+        "gzipIntegrityVerified": true,
+        "completionFooterVerified": true,
+        "locking": "database-table-locks"
+      },
+      {
+        "database": "arthas_auth",
+        "path": "/opt/arthas-next/candidates/atlas-all-update-20260912/deployment-20260913/private/arthas_auth.sql.gz",
+        "sha256": "d1e3692607f3062227995c22f79dfeaf1ad9336abab4bb1bd9f269ca15cee9ed",
+        "compressedBytes": 245624,
+        "uncompressedBytes": 739703,
+        "gzipIntegrityVerified": true,
+        "completionFooterVerified": true,
+        "locking": "single-transaction"
+      }
+    ],
+    "passed": true,
+    "restoreRehearsed": false,
+    "authAndApiKeptRunning": true,
+    "crossDatabaseAtomicSnapshot": false
+  },
+  "migrations": {
+    "startedAt": "2026-09-13T21:34:23.999623+00:00",
+    "database": "arthas_world",
+    "applied": [
+      {
+        "name": "2026_08_28_02.sql",
+        "sha256": "566e98906917cc9299ba4f1875c899394f0f0aa5ad0ef3d7e67360b358230a5c",
+        "elapsedMs": 19
+      },
+      {
+        "name": "2026_08_30_00.sql",
+        "sha256": "7d2e22bc3a92902716b05cb60d9e411a8d36877b3008ecd9a2eca0a02e2a42f2",
+        "elapsedMs": 21
+      },
+      {
+        "name": "2026_08_30_01.sql",
+        "sha256": "abca2b12ed27b66190c2262e95be56795f71344e05c20625aaac96b655081e87",
+        "elapsedMs": 20
+      },
+      {
+        "name": "2026_08_30_02.sql",
+        "sha256": "7748cafa63b5d9ff2eb0d57eb4b5c5283fb71d8febd99bc11ab916cd518f0431",
+        "elapsedMs": 50
+      },
+      {
+        "name": "2026_08_30_03.sql",
+        "sha256": "61d20e7bdcfe155b4056ff378d8865a8f790367161e661047d9e8e32995569d2",
+        "elapsedMs": 35
+      },
+      {
+        "name": "2026_08_30_04.sql",
+        "sha256": "dba1d613e3da52d7e52e208001f2d03963aedd24a55d019887621bfa9552e3b9",
+        "elapsedMs": 25
+      },
+      {
+        "name": "2026_08_30_05.sql",
+        "sha256": "9baf97b0ee298850e9e399218d2a61eb4b67eed68c1a4af7902199bef4b482a8",
+        "elapsedMs": 147
+      },
+      {
+        "name": "2026_08_31_00.sql",
+        "sha256": "5165c653e2fb1503c1dff48f709dc739aee05b7f8f86d1d032f0f642d64f88ed",
+        "elapsedMs": 21
+      },
+      {
+        "name": "2026_08_31_01.sql",
+        "sha256": "ca278fef24f29b7da58b7f330b22f4590021c38d0c037925f2e3d1710c66efa3",
+        "elapsedMs": 19
+      },
+      {
+        "name": "2026_08_31_02.sql",
+        "sha256": "e5762852560426a5c7f9ddcdb821c16700cd60daa9541b841123074b92ff0e36",
+        "elapsedMs": 31
+      },
+      {
+        "name": "2026_08_31_03.sql",
+        "sha256": "602e530b473e7ab12723c917c031da81b9df96abeda1b853dac4f1c0deaf39e0",
+        "elapsedMs": 21
+      },
+      {
+        "name": "2026_08_31_04.sql",
+        "sha256": "0ed40ec052c332b9220230ea0503c5fbcc87de2126f851b0cf0d68bd203e3542",
+        "elapsedMs": 20
+      },
+      {
+        "name": "2026_08_31_05.sql",
+        "sha256": "d0fe9f5314b616a3423faf19ca01cc03cc867fcbebf59331401a66164e30acf9",
+        "elapsedMs": 20
+      },
+      {
+        "name": "2026_08_31_06.sql",
+        "sha256": "b1f661524fffa3d07318698c0b7140e1126a03c4fd95ac9d9d9bd80915cfe1f6",
+        "elapsedMs": 19
+      },
+      {
+        "name": "2026_08_31_07.sql",
+        "sha256": "a8cec219c7ee41ddf9ca6dc5c0182fc8727cffed60f86ee3d0f19089bb078ef4",
+        "elapsedMs": 75
+      },
+      {
+        "name": "2026_09_01_00.sql",
+        "sha256": "43fb93e15f8cbc421ad1e6e371b11f908cb3061940eabc9be49234493671a909",
+        "elapsedMs": 20
+      },
+      {
+        "name": "2026_09_02_00.sql",
+        "sha256": "5f165eab0feaec8418c146075e5671f248fa0fcb3d2756c8821d7b5ce9647140",
+        "elapsedMs": 34
+      },
+      {
+        "name": "2026_09_03_00.sql",
+        "sha256": "d1e6b3a1b3370a96329b07e3c04315c3bd2aa85ec39059a36e9f95596c07088e",
+        "elapsedMs": 19
+      },
+      {
+        "name": "2026_09_03_01.sql",
+        "sha256": "8da27517b85e5e9a845390a98823ab01a5f55c26967a3db4bfe5d0365b248ad6",
+        "elapsedMs": 27
+      },
+      {
+        "name": "2026_09_03_02.sql",
+        "sha256": "d08dcbf80243f3b13289d28fe1406688703d0d0c5cbd933f2db602a71a1bb43e",
+        "elapsedMs": 29
+      },
+      {
+        "name": "2026_09_03_03.sql",
+        "sha256": "0c9f606d451a7f3fe4b07595271a61a4d5aac16777af0ff583e19409e5cb010f",
+        "elapsedMs": 39
+      },
+      {
+        "name": "2026_09_03_04.sql",
+        "sha256": "3f7479315818df95c601dbacb3dda992dd3e4aedf518ef78b1af08b38870d212",
+        "elapsedMs": 32
+      },
+      {
+        "name": "2026_09_03_05.sql",
+        "sha256": "6ba8670675efab249f541918bcbf557872ad9a64426bbd141a79e8dde7b70b09",
+        "elapsedMs": 27
+      },
+      {
+        "name": "2026_09_03_06.sql",
+        "sha256": "e7e9bd9bdbe52ab625f6a6517af753a03f9290c6c34eb9dd2bed4e5492f0daba",
+        "elapsedMs": 19
+      },
+      {
+        "name": "2026_09_03_07.sql",
+        "sha256": "943593605e8798101619a6541b28d950ef20a71b29dc4b1b90579d57d4737277",
+        "elapsedMs": 26
+      },
+      {
+        "name": "2026_09_04_00.sql",
+        "sha256": "c3007b6548951ffa0911792832a08704b173cf9b8023ce57049e95c567574601",
+        "elapsedMs": 18
+      },
+      {
+        "name": "2026_09_04_01.sql",
+        "sha256": "66f537513fd424f1dd1f1b9fa2e9584a8c45b9952f28ca480eb86be3b5cb4049",
+        "elapsedMs": 19
+      },
+      {
+        "name": "2026_09_04_02.sql",
+        "sha256": "4ae5036e9ce6b1949637151ff2475ad9d29c383b1ec57f00574b00fdea659c52",
+        "elapsedMs": 18
+      }
+    ],
+    "passed": true,
+    "completedAt": "2026-09-13T21:34:26.155412+00:00",
+    "customAndGuildTablesUnchanged": true
+  },
+  "allNineConfigurationFilesIdentical": true,
+  "currentStartupSqlErrorCount": 1,
+  "validationWarnings": [
+    {
+      "type": "pet-spell-save-conflict",
+      "occurrences": 1,
+      "mysqlError": 1062,
+      "existingSpellRowState": [
+        "1",
+        "129",
+        "129"
+      ],
+      "attemptedActiveValue": 193,
+      "ownerIsRandomBot": true,
+      "productionDataManuallyChanged": false,
+      "transactionQueriesNotExecuted": 8,
+      "broaderPetSaveImpactNotValidated": true
+    }
+  ],
+  "worldStartedAt": "2026-09-13T21:34:28.114271+00:00",
+  "gameplayStoppedAt": "2026-09-13T21:33:18.138861+00:00",
+  "hermesStartedAt": "2026-09-13T21:35:46.806660+00:00",
+  "fullDungeonRunsTested": false,
+  "fiveNavigationProbeFailuresRemain": true,
+  "rollbackBinariesAndConfigurationsRetained": true,
+  "automaticDatabaseRestorePerformed": false,
+  "installedComponents": {
+    "core": "e9d127f1a8bf285ce2b2e3df7e923225eb334d72",
+    "playerbots": "fe355fa88e3295729d4886dbb4078c4dd7547aa8",
+    "dungeon-clear": "98929d6d261e615aa410f8e2d08ca83710fd2cad",
+    "hermes": "d4fe01a390fbda937b2b6643fbe29446ca2d5ffe"
+  }
+}

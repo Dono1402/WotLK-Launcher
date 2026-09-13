@@ -17,6 +17,7 @@ source/WotLK.Launcher.Server/Database/Migrations/*.sql text eol=lf
 scripts/wotlk-update-20260909/** text eol=lf
 docs/update-preparation/2026-09-09/*.json text eol=lf
 docs/update-preparation/2026-09-12/*.json text eol=lf
+docs/update-preparation/2026-09-13/*.json text eol=lf
 scripts/wotlk-update-20260912/** text eol=lf
 scripts/wotlk-update-20260912/patches/*.patch whitespace=-blank-at-eol,-space-before-tab
 mod-atlas-shop/mod-atlas-shop.cmake text eol=lf

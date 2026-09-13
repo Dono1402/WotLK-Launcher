@@ -1,5 +1,10 @@
 # Préparation groupée Atlas — 12 septembre 2026
 
+**Mise à jour de statut :** cette préparation a été activée le 13 septembre.
+World et Hermes utilisent les nouveaux binaires, et les 1 500 bots sont
+connectés. Voir le [compte rendu de mise en service](WOTLK-UPDATE-DEPLOYMENT-2026-09-13.md).
+Le reste de ce document conserve les résultats historiques de la préparation.
+
 État au 13 septembre 2026 à 01 h 22, heure de Paris : sources intégrées et
 binaires compilés ; validation partielle. La campagne de tests est close et
 le banc arrêté. Aucune bascule de production n'a été effectuée. Le démarrage

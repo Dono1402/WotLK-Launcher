@@ -1,6 +1,7 @@
 # Sélection des jeux Atlas — première étape locale
 
-Le sélecteur de la barre supérieure propose **WOTLK Server** et **Minecraft**.
+Le sélecteur de la barre supérieure, entre **Atlas Launcher** et l'onglet **Jeu**,
+propose **WOTLK Server** et **Minecraft**.
 WotLK reste le choix initial à chaque ouverture. Le changement de sélection
 ouvre l'accueil du jeu choisi sans recréer la session Atlas ni les états des
 opérations WotLK. Cette première étape ne mémorise pas encore le dernier jeu.

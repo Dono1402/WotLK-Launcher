@@ -126,6 +126,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
@@ -173,8 +174,21 @@
                         </Border>
                     </Grid>
 
+                    <ComboBox x:Name="ServiceSelector" Grid.Column="1"
+                              Style="{StaticResource AtlasV2.ComboBox.Field}"
+                              Width="158" Height="38" Margin="12,0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                              Background="#152D3C" BorderBrush="#456778" FontWeight="SemiBold"
+                              IsEnabled="{Binding ShellState.IsNavigationEnabled}"
+                              AutomationProperties.Name="Choisir un jeu ou un service"
+                              ToolTip="Changer de jeu ou de service"
+                              SelectedValuePath="Tag" SelectedValue="{Binding ShellState.SelectedService, Mode=OneWay}"
+                              SelectionChanged="ServiceSelector_SelectionChanged">
+                        <ComboBoxItem Tag="{x:Static presentation:LauncherService.Wotlk}" Content="WOTLK Server"/>
+                        <ComboBoxItem Tag="{x:Static presentation:LauncherService.Minecraft}" Content="Minecraft"/>
+                    </ComboBox>
+
                     <StackPanel x:Name="TopNavigation"
-                                Grid.Column="1"
+                                Grid.Column="2"
                                 Orientation="Horizontal">
                         <Button x:Name="GameNavigationButton"
                                 Style="{StaticResource AtlasV2.Pilot.Shell.Nav}"
@@ -205,20 +219,7 @@
                                 Click="ShopNavigationButton_Click"/>
                     </StackPanel>
 
-                    <ComboBox x:Name="ServiceSelector" Grid.Column="2"
-                              Style="{StaticResource AtlasV2.ComboBox.Field}"
-                              Width="158" Height="38" Margin="12,0" HorizontalAlignment="Right" VerticalAlignment="Center"
-                              Background="#152D3C" BorderBrush="#456778" FontWeight="SemiBold"
-                              IsEnabled="{Binding ShellState.IsNavigationEnabled}"
-                              AutomationProperties.Name="Choisir un jeu ou un service"
-                              ToolTip="Changer de jeu ou de service"
-                              SelectedValuePath="Tag" SelectedValue="{Binding ShellState.SelectedService, Mode=OneWay}"
-                              SelectionChanged="ServiceSelector_SelectionChanged">
-                        <ComboBoxItem Tag="{x:Static presentation:LauncherService.Wotlk}" Content="WOTLK Server"/>
-                        <ComboBoxItem Tag="{x:Static presentation:LauncherService.Minecraft}" Content="Minecraft"/>
-                    </ComboBox>
-
-                    <StackPanel x:Name="TopBarActions" Grid.Column="3"
+                    <StackPanel x:Name="TopBarActions" Grid.Column="4"
                                 Margin="0,0,12,0"
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center">

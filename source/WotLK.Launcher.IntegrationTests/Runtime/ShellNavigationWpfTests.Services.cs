@@ -85,7 +85,7 @@ internal static partial class ShellNavigationWpfTests
         void ValidateHeader()
         {
             Rect previous = Rect.Empty;
-            foreach (string name in new[] { "BrandIdentity", "TopNavigation", "ServiceSelector", "TopBarActions" })
+            foreach (string name in new[] { "BrandIdentity", "ServiceSelector", "TopNavigation", "TopBarActions" })
             {
                 FrameworkElement element = Element(name);
                 Rect bounds = new(element.TranslatePoint(new Point(), shell), element.RenderSize);

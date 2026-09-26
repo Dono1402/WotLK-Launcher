@@ -37,8 +37,8 @@
                 <Setter Property="Margin" Value="0,4,0,6"/>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding CanClose, ElementName=Root}" Value="False">
-                        <Setter Property="Height" Value="46"/>
-                        <Setter Property="Margin" Value="0,8,0,12"/>
+                        <Setter Property="Height" Value="42"/>
+                        <Setter Property="Margin" Value="0,6,0,8"/>
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -104,7 +104,13 @@
         </ResourceDictionary>
     </UserControl.Resources>
     <Grid x:Name="OverlayRoot">
+        <!-- The artwork already includes the Atlas logo in its upper-left 40%. -->
+        <Grid.RowDefinitions>
+            <RowDefinition Height="0.4*"/>
+            <RowDefinition Height="0.6*"/>
+        </Grid.RowDefinitions>
         <Border x:Name="Scrim"
+                Grid.RowSpan="2"
                 Opacity="0"
                 IsHitTestVisible="False"
                 MouseLeftButtonDown="Scrim_MouseLeftButtonDown">
@@ -120,40 +126,19 @@
             </Border.Style>
         </Border>
 
-        <Border IsHitTestVisible="False">
-            <Border.Style>
-                <Style TargetType="{x:Type Border}">
-                    <Setter Property="Visibility" Value="Collapsed"/>
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding CanClose, ElementName=Root}" Value="False">
-                            <Setter Property="Visibility" Value="Visible"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
-            <Border.Background>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                    <GradientStop Color="#FC06121D" Offset="0"/>
-                    <GradientStop Color="#F5061420" Offset="0.27"/>
-                    <GradientStop Color="#B0071723" Offset="0.43"/>
-                    <GradientStop Color="#18091824" Offset="0.72"/>
-                    <GradientStop Color="#3006101B" Offset="1"/>
-                </LinearGradientBrush>
-            </Border.Background>
-        </Border>
-
         <Border x:Name="AuthCard"
                 Width="500"
                 MaxWidth="500"
-                Padding="28,28,28,30"
-                VerticalAlignment="Center"
                 Opacity="0"
                 KeyboardNavigation.TabNavigation="Cycle"
                 KeyboardNavigation.ControlTabNavigation="Cycle"
                 KeyboardNavigation.DirectionalNavigation="Contained">
             <Border.Style>
                 <Style TargetType="{x:Type Border}">
+                    <Setter Property="Grid.RowSpan" Value="2"/>
                     <Setter Property="HorizontalAlignment" Value="Center"/>
+                    <Setter Property="VerticalAlignment" Value="Center"/>
+                    <Setter Property="Padding" Value="28,28,28,30"/>
                     <Setter Property="Margin" Value="24,16"/>
                     <Setter Property="MaxHeight" Value="620"/>
                     <Setter Property="Background" Value="{StaticResource AtlasV2.Overlay.Panel}"/>
@@ -162,8 +147,12 @@
                     <Setter Property="CornerRadius" Value="12"/>
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding CanClose, ElementName=Root}" Value="False">
+                            <Setter Property="Grid.Row" Value="1"/>
+                            <Setter Property="Grid.RowSpan" Value="1"/>
                             <Setter Property="HorizontalAlignment" Value="Left"/>
-                            <Setter Property="Margin" Value="64,48,24,48"/>
+                            <Setter Property="VerticalAlignment" Value="Top"/>
+                            <Setter Property="Margin" Value="64,0,24,20"/>
+                            <Setter Property="Padding" Value="28,12,28,20"/>
                             <Setter Property="MaxHeight" Value="740"/>
                             <Setter Property="Background" Value="Transparent"/>
                             <Setter Property="BorderThickness" Value="0"/>
@@ -180,24 +169,12 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0">
+                <Grid x:Name="AuthBrandHeader" Grid.Row="0"
+                      Visibility="{Binding CanClose, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
                     <StackPanel Orientation="Horizontal" Margin="0,0,44,0">
-                        <Image Margin="-4,0,14,0"
+                        <Image Width="40" Height="40" Margin="-4,0,14,0"
                                Source="/WotLK.Launcher;component/Assets/Branding/AtlasLauncherLogo.png"
-                               RenderOptions.BitmapScalingMode="HighQuality">
-                            <Image.Style>
-                                <Style TargetType="{x:Type Image}">
-                                    <Setter Property="Width" Value="40"/>
-                                    <Setter Property="Height" Value="40"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding CanClose, ElementName=Root}" Value="False">
-                                            <Setter Property="Width" Value="64"/>
-                                            <Setter Property="Height" Value="64"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Image.Style>
-                        </Image>
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Text="ATLAS" Foreground="#EEF8FF" FontSize="27" FontWeight="ExtraBold"/>
                             <TextBlock Text="LAUNCHER" Foreground="#80B4C9" FontSize="10" FontWeight="Medium" Margin="1,2,0,0"/>
@@ -229,7 +206,7 @@
                             <Setter Property="Margin" Value="0,8,0,0"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding CanClose, ElementName=Root}" Value="False">
-                                    <Setter Property="Margin" Value="0,28,0,0"/>
+                                    <Setter Property="Margin" Value="0"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>

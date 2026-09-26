@@ -41,7 +41,7 @@
             <Border x:Name="LoginBackdrop" Visibility="Collapsed" IsHitTestVisible="False"
                     RenderOptions.BitmapScalingMode="HighQuality">
                 <Border.Background>
-                    <ImageBrush ImageSource="/WotLK.Launcher;component/Assets/Launcher/visuals/icecrown-citadel.png"
+                    <ImageBrush ImageSource="/WotLK.Launcher;component/Assets/Launcher/visuals/atlas-auth-background.png"
                                 Stretch="UniformToFill" AlignmentX="Center" AlignmentY="Top"/>
                 </Border.Background>
             </Border>
@@ -571,21 +571,24 @@
             <Grid x:Name="LoginWindowChrome" Panel.ZIndex="210" Height="72" Margin="22,10,22,0"
                   VerticalAlignment="Top" Visibility="Collapsed" Background="Transparent"
                   MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Button x:Name="LoginMinimizeWindowButton" Width="44" Height="40"
-                            Style="{StaticResource AtlasV2.Pilot.Shell.Window}"
-                            ToolTip="Réduire" AutomationProperties.Name="Réduire"
-                            Click="MinimizeButton_Click">
-                        <Path Data="{StaticResource AtlasV2.Icon.Minus}" Style="{StaticResource AtlasV2.Icon.Stroke}"/>
-                    </Button>
-                    <Button x:Name="LoginCloseWindowButton" Width="44" Height="40"
-                            Style="{StaticResource AtlasV2.Pilot.Shell.Close}"
-                            ToolTip="Réduire dans la zone de notification"
-                            AutomationProperties.Name="Réduire dans la zone de notification"
-                            Click="CloseWindowButton_Click">
-                        <Path Data="{StaticResource AtlasV2.Icon.Close}" Style="{StaticResource AtlasV2.Icon.Stroke}"/>
-                    </Button>
-                </StackPanel>
+                <Border HorizontalAlignment="Right" VerticalAlignment="Center" Padding="2"
+                        Background="#C00B1927" BorderBrush="#405869" BorderThickness="1" CornerRadius="7">
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="LoginMinimizeWindowButton" Width="44" Height="40"
+                                Style="{StaticResource AtlasV2.Pilot.Shell.Window}"
+                                ToolTip="Réduire" AutomationProperties.Name="Réduire"
+                                Click="MinimizeButton_Click">
+                            <Path Data="{StaticResource AtlasV2.Icon.Minus}" Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                        </Button>
+                        <Button x:Name="LoginCloseWindowButton" Width="44" Height="40"
+                                Style="{StaticResource AtlasV2.Pilot.Shell.Close}"
+                                ToolTip="Réduire dans la zone de notification"
+                                AutomationProperties.Name="Réduire dans la zone de notification"
+                                Click="CloseWindowButton_Click">
+                            <Path Data="{StaticResource AtlasV2.Icon.Close}" Style="{StaticResource AtlasV2.Icon.Stroke}"/>
+                        </Button>
+                    </StackPanel>
+                </Border>
             </Grid>
         </Grid>
     </Border>

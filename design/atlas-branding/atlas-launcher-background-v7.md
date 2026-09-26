@@ -14,7 +14,7 @@ Le décor et le logo reprennent la première image. Ses personnages sont remplac
 4. `references/rem-blue-violet.png` : Rem, visage incliné et lumière bleu-violet, adapté à une orientation verticale.
 5. `references/sinon-ggo.png` : Sinon dans sa version GGO, cheveux turquoise et tenue verte avec écharpe blanche.
 
-Les références sont conservées sans modification. Cette version reste une proposition graphique séparée du fond utilisé par le launcher. Les versions précédentes sont conservées.
+Les références sont conservées sans modification. Cette version est retenue pour les écrans de connexion et d’inscription du launcher. Elle est embarquée sans retouche dans `source/WotLK.Launcher/Assets/Launcher/visuals/atlas-auth-background.png` (chemin depuis la racine du dépôt). Le formulaire est placé sous le logo intégré au fond. Les versions précédentes sont conservées.
 
 ## Prompt de composition
 

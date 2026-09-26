@@ -190,6 +190,8 @@ internal static class AuthShellWpfTests
             True(backdrop.Visibility == Visibility.Collapsed && chrome.Visibility == Visibility.Collapsed && ((Button)auth.FindName("CloseButton")).Visibility == Visibility.Visible,
                 "Le modal facultatif expose sa fermeture et ne remet pas le décor de login.");
             True(scrim.Background is not SolidColorBrush { Color.A: 0 }, "Le modal facultatif conserve son voile de fond.");
+            True(((Grid)auth.FindName("AuthBrandHeader")).Visibility == Visibility.Visible,
+                "Le modal facultatif conserve son identité quand le fond illustré est absent.");
             True(KeyboardNavigation.GetTabNavigation(card) == KeyboardNavigationMode.Cycle && FocusEvent(shell, settings).Handled,
                 "Le modal facultatif contient le clavier dans son formulaire.");
             Capture(content, captures, $"login-modal-{language}-1598.png");
@@ -232,6 +234,9 @@ internal static class AuthShellWpfTests
                     "Décor et couche login couvrent le même viewport complet que le shell.");
                 True(backdrop.Background is ImageBrush { Stretch: Stretch.UniformToFill, ImageSource: BitmapSource },
                     "Un ImageBrush UniformToFill couvre toute la fenêtre sans bande vide.");
+                string? artworkSource = ((ImageBrush)backdrop.Background).ImageSource.ToString();
+                True(artworkSource?.EndsWith("/Assets/Launcher/visuals/atlas-auth-background.png", StringComparison.OrdinalIgnoreCase) == true,
+                    $"Connexion et inscription utilisent le fond Atlas sélectionné et embarqué dans le launcher : {artworkSource}.");
                 True(VisibleBackgroundImages(root).Count == 1 && ReferenceEquals(VisibleBackgroundImages(root)[0], backdrop),
                     "Un seul décor de fond est réellement visible avant connexion.");
                 True(scrim.Background is SolidColorBrush { Color.A: 0 }, "Le voile obligatoire est transparent, sans second fond.");
@@ -239,6 +244,9 @@ internal static class AuthShellWpfTests
                     "La croix du modal est absente en login obligatoire.");
                 True(card.ActualWidth == 500 && Inside(Bounds(card, content)), "Le formulaire conserve sa largeur et reste entièrement dans la fenêtre.");
                 True(Bounds(card, content).Right < Width / 2, "Le formulaire reste à gauche et libère le centre du décor.");
+                True(Bounds(card, content).Top >= Height * 0.4 - 1
+                    && ((Grid)auth.FindName("AuthBrandHeader")).Visibility == Visibility.Collapsed,
+                    "Le formulaire commence sous le logo du fond, sans afficher un second logo par-dessus.");
                 True(KeyboardNavigation.GetTabNavigation(card) == KeyboardNavigationMode.Continue
                     && KeyboardNavigation.GetTabNavigation(root) == KeyboardNavigationMode.Cycle,
                     "Le cycle Tab obligatoire inclut le formulaire et les boutons système.");

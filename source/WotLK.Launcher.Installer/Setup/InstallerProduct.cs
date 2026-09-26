@@ -6,7 +6,7 @@ namespace WotLK.Launcher.Installer.Setup;
 internal static class InstallerProduct
 {
     internal const string Name = "Atlas Launcher";
-    internal const string Version = "1.8.0";
+    internal const string Version = "1.8.1";
     internal const string Publisher = "Atlas";
     internal const string LauncherFileName = "WotLK.Launcher.exe";
     internal const string UninstallerFileName = "Uninstall.exe";

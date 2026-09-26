@@ -1033,6 +1033,8 @@ internal sealed class LauncherAtomicReplacementService
 
     private static string SafeErrorCategory(Exception exception) => exception switch
     {
+        Win32Exception windowsError => "Win32Error=" + windowsError.NativeErrorCode.ToString(
+            System.Globalization.CultureInfo.InvariantCulture),
         UnauthorizedAccessException => "PermissionDenied",
         FileNotFoundException => "FileMissing",
         InvalidDataException => "ValidationFailed",

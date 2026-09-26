@@ -38,7 +38,7 @@ internal sealed class LauncherUpdateDirectUserOperationRunner
 }
 
 /// <summary>
-/// Keeps a duplicated handle to the unelevated requester's token. The handle remains
+/// Keeps a handle to the unelevated requester's token. The handle remains
 /// valid after the requester exits, so every later operation against LocalAppData can
 /// run with the requester's rights while target-directory operations stay elevated.
 /// </summary>
@@ -49,6 +49,8 @@ internal sealed class LauncherUpdateRequesterImpersonation
     private const uint TokenDuplicate = 0x0002;
     private const uint TokenImpersonate = 0x0004;
     private const uint TokenAssignPrimary = 0x0001;
+    private const uint TokenAdjustDefault = 0x0080;
+    private const uint TokenAdjustSessionId = 0x0100;
     private const uint KnownFolderFlagDontVerify = 0x00004000;
     private const uint LogonWithProfile = 0x00000001;
     private const uint CreateUnicodeEnvironment = 0x00000400;
@@ -187,11 +189,18 @@ internal sealed class LauncherUpdateRequesterImpersonation
             commandLine.Append(' ').Append(arguments);
         }
 
+        // Secondary Logon needs these additional token-handle rights when creating
+        // the child in the interactive session. The original QUERY/DUPLICATE/
+        // IMPERSONATE/ASSIGN_PRIMARY handle fails with ERROR_ACCESS_DENIED on
+        // Windows even though capturing and impersonating the requester succeeds.
+        // Duplicate the requester's primary token: do not use the helper's token
+        // or change the requester's identity, privileges or session.
+        using SafeAccessTokenHandle launchToken = CreatePrimaryLaunchToken();
         IntPtr environment = IntPtr.Zero;
         ProcessInformation processInformation = default;
         try
         {
-            if (!CreateEnvironmentBlock(out environment, _token, inherit: false))
+            if (!CreateEnvironmentBlock(out environment, launchToken, inherit: false))
             {
                 throw new Win32Exception(
                     Marshal.GetLastWin32Error(),
@@ -204,7 +213,7 @@ internal sealed class LauncherUpdateRequesterImpersonation
                 Desktop = "winsta0\\default"
             };
             if (!CreateProcessWithTokenW(
-                    _token,
+                    launchToken,
                     LogonWithProfile,
                     executable,
                     commandLine,
@@ -236,6 +245,27 @@ internal sealed class LauncherUpdateRequesterImpersonation
                 DestroyEnvironmentBlock(environment);
             }
         }
+    }
+
+    private SafeAccessTokenHandle CreatePrimaryLaunchToken()
+    {
+        if (!DuplicateTokenEx(
+                _token,
+                TokenQuery | TokenDuplicate | TokenImpersonate | TokenAssignPrimary
+                    | TokenAdjustDefault | TokenAdjustSessionId,
+                IntPtr.Zero,
+                SecurityImpersonationLevel.Impersonation,
+                TokenType.Primary,
+                out SafeAccessTokenHandle launchToken))
+        {
+            int error = Marshal.GetLastWin32Error();
+            launchToken?.Dispose();
+            throw new Win32Exception(
+                error,
+                "Impossible de préparer le jeton de relance du launcher demandeur.");
+        }
+
+        return launchToken;
     }
 
     public void Run(Action operation)
@@ -339,6 +369,16 @@ internal sealed class LauncherUpdateRequesterImpersonation
         TokenElevation = 20
     }
 
+    private enum SecurityImpersonationLevel
+    {
+        Impersonation = 2
+    }
+
+    private enum TokenType
+    {
+        Primary = 1
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     private readonly struct TokenElevation
     {
@@ -383,6 +423,16 @@ internal sealed class LauncherUpdateRequesterImpersonation
         SafeProcessHandle processHandle,
         uint desiredAccess,
         out SafeAccessTokenHandle tokenHandle);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DuplicateTokenEx(
+        SafeAccessTokenHandle existingToken,
+        uint desiredAccess,
+        IntPtr tokenAttributes,
+        SecurityImpersonationLevel impersonationLevel,
+        TokenType tokenType,
+        out SafeAccessTokenHandle newToken);
 
     [DllImport("advapi32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

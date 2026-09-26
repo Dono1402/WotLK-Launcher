@@ -1,5 +1,30 @@
 # Atlas Launcher secure update channel
 
+## 1.8.1 requester-token relaunch correction
+
+The 1.7.2 helper captured a requester token with QUERY, DUPLICATE, IMPERSONATE
+and ASSIGN_PRIMARY access. After replacing the executable, CreateProcessWithTokenW
+failed with Win32 error 5 on the affected Windows installation. The helper then
+restored 1.7.2 and failed to restart that version through the same token handle.
+
+Before launching, the helper now duplicates the captured requester's primary
+token with those rights plus ADJUST_DEFAULT and ADJUST_SESSIONID. It preserves
+the requester's user, session and unelevated privileges, including the identity
+boundary for a different-account UAC prompt. Native error codes are retained in
+the transaction journal without logging sensitive exception messages.
+
+`scripts/launcher-update-token-probe` exercises the production launch method
+through a real elevated helper and a disposable headless child, after the
+requester exits. The old mask fails with error 5; the fixed method passes with
+the same SID/session and an unelevated child. Different-account UAC is not
+covered by that same-account run. Atomic replacement/rollback tests remain
+separate from this native relaunch check.
+
+Affected installations need the 1.8.1 installer once: downloading a newer
+candidate cannot repair the updater executing from the old installed binary.
+Published 1.8.0 files stay immutable. This hotfix requires no API deployment,
+database migration or game-server restart.
+
 ## 1.7.1 helper identity correction
 
 The schema-2 update path introduced in 1.6.0 checked the elevated helper through

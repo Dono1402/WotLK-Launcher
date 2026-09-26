@@ -1,0 +1,10 @@
+{
+  "verified": true,
+  "beforeSha256": "adb9bc091794bfd62273c8581df57e93b7676e4e31a0628f59a29bd9c7a8816c",
+  "afterSha256": "d63d47588bece10b6cc6cce6c418ef9efbade668cfcfbfe6710e8a84cbedb1ed",
+  "scope": "/wotlk/api/v1/auth/password-reset",
+  "otherPagePolicyUnchanged": true,
+  "allServiceProcessesUnchanged": true,
+  "manifestUnchanged": true,
+  "nonceMatchesBody": true
+}

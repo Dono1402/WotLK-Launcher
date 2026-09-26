@@ -1,0 +1,38 @@
+{
+  "version": "1.8.0",
+  "status": "published-and-activated",
+  "sourceCommit": "d35fd9b1b47820f1583a13c8e3ac7d28929ac557",
+  "schemaVersion": 15,
+  "apiBackup": {
+    "bytes": 737372,
+    "sha256": "1da46c7034073f540c0bb4e2fac9c40009c3ae38a15dfd69541424bc3cbcc8bc",
+    "completed": true
+  },
+  "services": {
+    "wotlk-launcher-api": {
+      "MainPID": "866963",
+      "NRestarts": "0",
+      "ActiveState": "active"
+    },
+    "arthas-worldserver.dungeon-clear-8224099": {
+      "MainPID": "839919",
+      "NRestarts": "0",
+      "ActiveState": "active"
+    },
+    "arthas-authserver": {
+      "MainPID": "839912",
+      "NRestarts": "0",
+      "ActiveState": "active"
+    },
+    "hermesproxy-wotlk": {
+      "MainPID": "840433",
+      "NRestarts": "0",
+      "ActiveState": "active"
+    }
+  },
+  "gameProcessesPreserved": true,
+  "patchNoteId": "atlas-launcher-1-8-0",
+  "historicalPatchNotesPreserved": true,
+  "actualEmailDeliveryTested": false,
+  "localClientReplaced": false
+}

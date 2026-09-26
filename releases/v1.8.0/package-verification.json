@@ -1,0 +1,27 @@
+{
+  "version": "1.8.0",
+  "publicBuild": true,
+  "selfUpdateEnabled": true,
+  "settingsDirectory": "WotLK Launcher",
+  "resourceHashes": {
+    "assets/branding/atlaslauncherlogo.png": "ecbdac1bcbd0f54855dfc40a7e52be9521dc295f5603be71e1f794848a04d5e3",
+    "assets/appicon.ico": "56b08ea8f0aad9e87a8083101bb24c87d12101f9d741173ba00bbe54dd069741",
+    "assets/appicon.png": "ecbdac1bcbd0f54855dfc40a7e52be9521dc295f5603be71e1f794848a04d5e3",
+    "assets/launcher/visuals/atlas-auth-background.png": "aed40ebe8cc9ed11b3ab550aadcbbcd80409dd27374bb79eeb4f0737aca32988"
+  },
+  "armorySha256": "84a57db71c985be18c47f62e5761e21effe7d032a7316e0f69e9edc650a7e645",
+  "packages": [
+    {
+      "name": "WotLK-Launcher.exe",
+      "bytes": 416359965,
+      "sha256": "608743cbe368f4fc19409399d253a23d772ddf3f48cca94fd186dfdf1f84bcb9"
+    },
+    {
+      "name": "AtlasLauncherSetup.exe",
+      "bytes": 520992857,
+      "sha256": "6f47904a0ad3e1706fb379ccb6cd6bbb62fb9f8f90a0231ca88500f286f545e8"
+    }
+  ],
+  "launcherStarted": false,
+  "localClientReplaced": false
+}

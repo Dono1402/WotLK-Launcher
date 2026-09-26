@@ -18,6 +18,12 @@ sans examiner son état.
    routes publiques sans envoyer d’e-mail ni modifier de compte. La migration
    ajoute uniquement la table des liens de réinitialisation. Les migrations
    antérieures restent inchangées.
+   Le proxy appliquait initialement la CSP du site à la page de récupération,
+   bloquant son script à nonce. `repair-recovery-policy.py` conserve la politique
+   propre à cette seule route, valide Caddy et recharge sa configuration sans
+   changer les PID. La politique des autres pages reste identique. Les preuves
+   conservent explicitement les empreintes avant/après ; `release-api.py
+   verify-active` termine les contrôles sans refaire la migration ni redémarrer.
 5. `publish-client.py publish` exige l’activation de l’API, vérifie les octets
    préparés et les téléchargements HTTPS, puis remplace les pointeurs publics.
    Le manifeste de mise à jour est remplacé en dernier. Les anciennes notes sont

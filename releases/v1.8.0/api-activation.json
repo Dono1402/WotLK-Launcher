@@ -1,0 +1,12 @@
+{
+  "activated": true,
+  "version": "1.8.0",
+  "schemaVersion": 15,
+  "sourceCommit": "d35fd9b1b47820f1583a13c8e3ac7d28929ac557",
+  "apiSha256": "7c673bfeac7e6cca39d8152268e80ba4e05c981a6f5fe4a26ab6531de8b350ce",
+  "checksCompletedInSeconds": null,
+  "protectedServicesUnchanged": true,
+  "previousMigrationsUnchanged": true,
+  "productionEmailSent": false,
+  "publicRoutesVerified": true
+}

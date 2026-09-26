@@ -92,6 +92,10 @@ def config_paths():
 
 def verify_files(plan):
     for path, digest in plan['configuration'].items():
+        if path == '/etc/caddy/Caddyfile' and (ROOT / 'caddy-recovery-policy.json').exists():
+            repair = json.loads((ROOT / 'caddy-recovery-policy.json').read_text())
+            assert repair['beforeSha256'] == digest and repair['verified']
+            digest = repair['afterSha256']
         assert sha(path) == digest, 'Production configuration changed: ' + path
     for name, digest in plan['candidate'].items():
         assert sha(CANDIDATE / name) == digest, 'Candidate changed: ' + name
@@ -194,6 +198,13 @@ def activate():
         if ready: break
         time.sleep(1)
     assert ready, 'API not healthy; preserve diagnostics and investigate; never restore live SQL automatically'
+    verify_activation(round(time.monotonic() - started, 2))
+
+
+def verify_activation(activation_seconds=None):
+    plan = json.loads((ROOT / 'plan.json').read_text())
+    assert sha(OVERRIDE) == plan['preparedConfiguration']['api.override']
+    assert sha(ROOT / 'arthas-auth-before-schema15.sql') == json.loads((ROOT / 'backup.json').read_text())['sha256']
     after = state(SERVICE)
     assert after['ActiveState'] == 'active' and after['MainPID'] != plan['apiBefore']['MainPID']
     assert Path('/proc', after['MainPID'], 'exe').resolve() == CANDIDATE / 'WotLK.Launcher.Server'
@@ -212,14 +223,14 @@ def activate():
     assert {name: state(name) for name in PRESERVED} == plan['protectedServices'], 'Protected service changed'
     save(ROOT / 'activation.json', dict(activated=True, version='1.8.0', schemaVersion=15,
         sourceCommit=plan['sourceCommit'], apiSha256=plan['candidate']['WotLK.Launcher.Server'],
-        checksCompletedInSeconds=round(time.monotonic() - started, 2), protectedServicesUnchanged=True,
+        checksCompletedInSeconds=activation_seconds, protectedServicesUnchanged=True,
         previousMigrationsUnchanged=True, productionEmailSent=False, publicRoutesVerified=True))
     print('PASS: API 1.8.0/schema 15 active; reset routes checked; game/Auth/Hermes processes unchanged.', flush=True)
 
 
 if __name__ == '__main__':
     os.umask(0o077)
-    assert os.geteuid() == 0 and len(sys.argv) >= 2 and sys.argv[1] in ('prepare', 'activate')
+    assert os.geteuid() == 0 and len(sys.argv) >= 2 and sys.argv[1] in ('prepare', 'activate', 'verify-active')
     with open('/run/lock/atlas-launcher-api-release.lock', 'a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        (prepare if sys.argv[1] == 'prepare' else activate)()
+        {'prepare': prepare, 'activate': activate, 'verify-active': verify_activation}[sys.argv[1]]()

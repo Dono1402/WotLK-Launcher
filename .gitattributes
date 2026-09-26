@@ -31,3 +31,6 @@ current/launcher-update.json text eol=lf
 # These published 1.7.2 assets are immutable, including their line endings.
 releases/v1.7.2/SHA256SUMS.txt -text whitespace=cr-at-eol
 releases/v1.7.2/PATCH-NOTES*.md whitespace=-blank-at-eof
+
+# Preserve the exact published Markdown assets for 1.8.0.
+releases/v1.8.0/PATCH-NOTES*.md whitespace=-blank-at-eof

@@ -119,9 +119,25 @@ internal static class AuthShellWpfTests
             Rect cardBounds = Bounds(card, content);
             string language = locale == LauncherLocalization.FrenchLocale ? "fr" : "en";
             True(Equals(((Button)auth.FindName("LoginModeButton")).Content, language == "en" ? "Sign in" : "Connexion"), "Les onglets du formulaire utilisent la langue active.");
-            True(Texts(auth).Contains(language == "en" ? "Sign in to your Atlas account and continue to Arthas." : "Retrouve ton compte Atlas et continue vers Arthas."),
+            True(Texts(auth).Contains(language == "en" ? "Welcome to Atlas" : "Bienvenue sur Atlas"), "Le titre de connexion est traduit.");
+            True(Texts(auth).Contains(language == "en" ? "Sign in to join the Arthas realm." : "Connecte-toi pour rejoindre le royaume Arthas."),
                 "La description de connexion est traduite dans la langue active.");
             Capture(content, captures, $"login-{language}-1598.png");
+
+            // Exercise the visible button states with synthetic input, without submitting a request.
+            ((TextBox)auth.FindName("LoginUsernameBox")).Text = "AtlasPreview";
+            ((PasswordBox)auth.FindName("LoginPasswordBox")).Password = "atlas-preview-only";
+            await LayoutAsync(content);
+            True(((Button)auth.FindName("PrimaryAuthButton")).IsEnabled, "Les champs valides activent le bouton de connexion.");
+            Capture(content, captures, $"login-ready-{language}-1598.png");
+            shell.AuthState.ApplyPreviewScenario(AuthPreviewScenario.Loading);
+            await LayoutAsync(content);
+            True(!((Button)auth.FindName("PrimaryAuthButton")).IsEnabled && ((FrameworkElement)auth.FindName("BusySpinner")).IsVisible,
+                "La connexion en cours affiche son indicateur et bloque les doubles soumissions.");
+            Capture(content, captures, $"login-busy-{language}-1598.png");
+            shell.AuthState.ApplyPreviewScenario(AuthPreviewScenario.Login);
+            ((PasswordBox)auth.FindName("LoginPasswordBox")).Clear();
+            ((TextBox)auth.FindName("LoginUsernameBox")).Clear();
 
             shell.AuthState.ShowRegisterCommand.Execute(null);
             await LayoutAsync(content);
@@ -129,8 +145,10 @@ internal static class AuthShellWpfTests
             True(Texts(auth).Contains(language == "en" ? "Create account" : "Créer un compte"), "Le titre d’inscription est traduit.");
             True(Texts(auth).Contains(language == "en" ? "Create your Atlas account to join the Arthas realm." : "Crée ton compte Atlas pour rejoindre le royaume Arthas."),
                 "La description d’inscription est traduite.");
-            True(card.ActualHeight <= 620 && ((Grid)auth.FindName("RegisterForm")).Visibility == Visibility.Visible,
+            True(card.ActualHeight <= 740 && ((Grid)auth.FindName("RegisterForm")).Visibility == Visibility.Visible,
                 "Le formulaire d’inscription reste dans la fenêtre fixe avec son contenu affiché.");
+            True(((ScrollViewer)auth.FindName("AuthScrollViewer")).ScrollableHeight < 1,
+                "Tous les champs d’inscription et le bouton sont visibles sans défilement dans la fenêtre du launcher.");
             Capture(content, captures, $"login-register-{language}-1598.png");
             shell.AuthState.ShowLoginCommand.Execute(null);
             await LayoutAsync(content);
@@ -191,7 +209,7 @@ internal static class AuthShellWpfTests
             True(ReferenceEquals(originalFocus, Keyboard.FocusedElement) && ReferenceEquals(originalCapture, Mouse.Captured),
                 "Les contrôles en mémoire ne déplacent ni le focus système ni la capture souris.");
             return new { locale, backdrop = backdropBounds.ToString(), form = cardBounds.ToString(), restoring = true, requiredLogin = true, requiredRegistration = true, authenticated = true, optionalModal = true, logout = true, nativeWindowHandle = 0,
-                captures = new[] { $"login-{language}-1598.png", $"login-register-{language}-1598.png", $"login-modal-{language}-1598.png", $"login-logout-{language}-1598.png" } };
+                captures = new[] { $"login-{language}-1598.png", $"login-ready-{language}-1598.png", $"login-busy-{language}-1598.png", $"login-register-{language}-1598.png", $"login-modal-{language}-1598.png", $"login-logout-{language}-1598.png" } };
 
             async Task RefreshAuthAsync()
             {
@@ -220,6 +238,7 @@ internal static class AuthShellWpfTests
                 True(((Button)auth.FindName("CloseButton")).Visibility == Visibility.Collapsed,
                     "La croix du modal est absente en login obligatoire.");
                 True(card.ActualWidth == 500 && Inside(Bounds(card, content)), "Le formulaire conserve sa largeur et reste entièrement dans la fenêtre.");
+                True(Bounds(card, content).Right < Width / 2, "Le formulaire reste à gauche et libère le centre du décor.");
                 True(KeyboardNavigation.GetTabNavigation(card) == KeyboardNavigationMode.Continue
                     && KeyboardNavigation.GetTabNavigation(root) == KeyboardNavigationMode.Cycle,
                     "Le cycle Tab obligatoire inclut le formulaire et les boutons système.");

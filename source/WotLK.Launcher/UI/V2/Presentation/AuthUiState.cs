@@ -152,10 +152,10 @@ public sealed class AuthUiState : BindableUiState, IDisposable
         set => SetProperty(ref _registerEmail, value);
     }
 
-    public string Title => Mode == AuthMode.Login ? "Connexion" : "Créer un compte";
+    public string Title => Mode == AuthMode.Login ? "Bienvenue sur Atlas" : "Créer un compte";
 
     public string Description => Mode == AuthMode.Login
-        ? "Retrouve ton compte Atlas et continue vers Arthas."
+        ? "Connecte-toi pour rejoindre le royaume Arthas."
         : "Crée ton compte Atlas pour rejoindre le royaume Arthas.";
 
     public string PrimaryActionLabel => Mode == AuthMode.Login ? "Se connecter" : "Créer mon compte";

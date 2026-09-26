@@ -187,6 +187,8 @@ internal static class LauncherLocalization
             ["Libellés, commandes de lecture et nouveaux états disponibles en français et en anglais."] = "Labels, playback controls and new states are available in French and English.",
             ["Jeu"] = "Game",
             ["Retrouve ton compte Atlas et continue vers Arthas."] = "Sign in to your Atlas account and continue to Arthas.",
+            ["Bienvenue sur Atlas"] = "Welcome to Atlas",
+            ["Connecte-toi pour rejoindre le royaume Arthas."] = "Sign in to join the Arthas realm.",
             ["Crée ton compte Atlas pour rejoindre le royaume Arthas."] = "Create your Atlas account to join the Arthas realm.",
             ["Créer un compte"] = "Create account",
             ["Création…"] = "Creating account…",

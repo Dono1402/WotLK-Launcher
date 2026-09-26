@@ -120,6 +120,7 @@ def prepare():
     user = pwd.getpwnam('wotlklauncher')
     CANDIDATE.mkdir(mode=0o750)
     os.chown(CANDIDATE, 0, user.pw_gid)
+    CANDIDATE.chmod(0o750)  # umask 077 must not prevent the service group from traversing.
     for name, item in inputs['files'].items():
         source = UPLOAD / name
         assert source.resolve(strict=True) == source and source.stat().st_size == item['bytes'] and sha(source) == item['sha256']

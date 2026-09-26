@@ -864,7 +864,7 @@ public partial class LauncherShellV2 : Window
     {
         _profileTitleBarHideTimer.Stop();
         _isProfileHeaderHovered = false;
-        bool immersive = CurrentPage == LauncherShellPage.Armory;
+        bool immersive = false; // The global Atlas navigation remains available on profiles.
         TopChromeDragZone.Visibility = immersive ? Visibility.Collapsed : Visibility.Visible;
         ProfileTitleBarHoverZone.Visibility = immersive ? Visibility.Visible : Visibility.Collapsed;
         SetProfileTitleBarVisible(!immersive, animate: false);
@@ -901,18 +901,13 @@ public partial class LauncherShellV2 : Window
 
     private void ScheduleProfileTitleBarHide(bool immediately = false)
     {
-        if (CurrentPage != LauncherShellPage.Armory || !_profileTitleBarVisible) return;
+        // Profile content now lives below the same persistent navigation as other pages.
         _profileTitleBarHideTimer.Stop();
-        if (ShouldKeepProfileTitleBarVisible) return;
-        if (immediately) SetProfileTitleBarVisible(false, animate: true);
-        else _profileTitleBarHideTimer.Start();
     }
 
     private void ProfileTitleBarHideTimer_Tick(object? sender, EventArgs e)
     {
         _profileTitleBarHideTimer.Stop();
-        if (CurrentPage == LauncherShellPage.Armory && !ShouldKeepProfileTitleBarVisible)
-            SetProfileTitleBarVisible(false, animate: true);
     }
 
     private void ProfileTitleBarOverlay_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -941,7 +936,7 @@ public partial class LauncherShellV2 : Window
         double from = ProfileTitleBarTransform.Y;
         ProfileTitleBarTransform.BeginAnimation(TranslateTransform.YProperty, null);
         ProfileTitleBarTransform.Y = target;
-        if (!animate || !SystemParameters.ClientAreaAnimation || Math.Abs(from - target) < 0.1)
+        if (!animate || !AtlasMotion.IsEnabled || Math.Abs(from - target) < 0.1)
         {
             TitleBar.Visibility = visible ? Visibility.Visible : Visibility.Hidden;
             return;
@@ -1172,7 +1167,7 @@ public partial class LauncherShellV2 : Window
         _overlayCoordinator.CloseActivity();
         if (e.Target == ActivityNavigationTarget.Game)
         {
-            NavigateTo(LauncherShellPage.Game);
+            NavigateToService(e.Service, LauncherShellPage.Game);
             return;
         }
         if (e.Target != ActivityNavigationTarget.Addons)
@@ -1180,7 +1175,7 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
-        NavigateTo(LauncherShellPage.Addons);
+        NavigateToService(e.Service, LauncherShellPage.Addons);
         if (!string.IsNullOrWhiteSpace(e.TargetId)
             && !string.Equals(e.TargetId, "addon-batch", StringComparison.OrdinalIgnoreCase))
         {
@@ -1232,6 +1227,11 @@ public partial class LauncherShellV2 : Window
         _overlayCoordinator.CloseProfile();
     }
 
+    private void ProfileMenu_QuitRequested(object? sender, EventArgs e)
+    {
+        if (!IsPreviewMode) Close();
+    }
+
     private void ProfileMenu_ManageAccountRequested(object? sender, EventArgs e)
     {
         AccountView.ProfileFallbackEnabled = !ShellState.IsWotlkSelected;
@@ -1242,6 +1242,7 @@ public partial class LauncherShellV2 : Window
     {
         if (ShellState.IsWotlkSelected && ArmoryView.IsConfigured && IsAccountNavigationEnabled)
         {
+            if (CurrentPage != LauncherShellPage.Armory) _friendProfileOrigin = CaptureNavigationOrigin();
             _suppressProfileFocusRestore = true;
             _overlayCoordinator.CloseProfile();
             ArmoryView.ShowOwnProfile();
@@ -1494,6 +1495,11 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && DismissServiceMenu())
+        {
+            e.Handled = true;
+            return;
+        }
         if (CurrentPage == LauncherShellPage.Shop && (ShopView.State.IsConversionOpen || ShopView.State.IsServiceOpen || ShopView.State.IsWalletOpen || ShopView.State.IsHistoryOpen || ShopView.State.IsShopAdminOpen) && _overlayCoordinator.Current == ShellOverlayKind.None && e.Key == Key.Escape)
         {
             if (ShopView.State.IsShopAdminOpen) ShopView.State.CloseAdminFunding(returnToWallet:true);
@@ -1772,8 +1778,7 @@ public partial class LauncherShellV2 : Window
         if (required) { FinishServiceTransition(); _shopHeaderRequested = false; ShopView.ResetSession(); }
         LauncherSurface.IsEnabled = !required;
         LauncherSurface.IsHitTestVisible = !required;
-        LauncherSurface.Visibility = required ? Visibility.Hidden : Visibility.Visible;
-        LoginBackdrop.Visibility = required ? Visibility.Visible : Visibility.Collapsed;
+        PresentAuthenticationSurface(required);
         LoginWindowChrome.Visibility = required ? Visibility.Visible : Visibility.Collapsed;
         AuthOverlay.Margin = required ? new Thickness(0) : new Thickness(0, ContentTopRow.Height.Value, 0, 0);
         FriendsButton.Focusable = !required && !FriendsState.IsOpen;
@@ -1810,16 +1815,19 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
-        bool animate = _animateNextNavigation || _isServiceTransitioning;
+        bool universeChange = _animateNextNavigation;
+        bool animate = universeChange || _isServiceTransitioning || CurrentPage != page;
         _animateNextNavigation = false;
 
         // Deep links from a profile or an active download belong to WotLK.
         // Never display a WotLK-only page under the Minecraft selection.
-        if (!ShellState.IsWotlkSelected && (page is LauncherShellPage.Addons or LauncherShellPage.Armory
+        if (!ShellState.IsWotlkSelected && (page == LauncherShellPage.Addons
+            || (page == LauncherShellPage.Armory && ArmoryView.FriendAccountId is null)
             || (page == LauncherShellPage.Shop && !_isAtlasWalletPage)))
         {
             ShellState.SelectService(LauncherService.Wotlk);
             animate = true;
+            universeChange = true;
         }
 
         DismissNavigationPanels();
@@ -1846,7 +1854,7 @@ public partial class LauncherShellV2 : Window
         bool showAddons = page == LauncherShellPage.Addons;
         bool showPatchNotes = page == LauncherShellPage.PatchNotes;
         bool showSettings = page == LauncherShellPage.Settings;
-        PresentScene(animate);
+        PresentScene(animate, universeChange);
         ApplyAdaptiveLayout();
         RefreshProfileTitleBarMode();
         GameNavigationButton.Tag = showGame ? "Active" : null;

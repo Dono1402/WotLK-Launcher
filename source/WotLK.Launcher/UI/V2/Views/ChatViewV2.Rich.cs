@@ -219,7 +219,7 @@ public partial class ChatViewV2
         _richFailed = true;
         RichStatus.Text = LauncherLocalization.IsEnglish
             ? "Messages could not be loaded. Try loading the page again."
-            : "La page Messages n’a pas pu être chargée. Réessayez de la charger.";
+            : "La page Messages n’a pas pu être chargée. Réessaie de la charger.";
         UpdateRichFeedback();
         RichRetryButton.IsEnabled = !_richInitializing;
     }

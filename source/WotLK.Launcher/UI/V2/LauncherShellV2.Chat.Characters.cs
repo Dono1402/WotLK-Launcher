@@ -110,11 +110,12 @@ public partial class LauncherShellV2
         if (!uint.TryParse(guid, NumberStyles.None, CultureInfo.InvariantCulture, out uint characterGuid) || characterGuid == 0
             || guid != characterGuid.ToString(CultureInfo.InvariantCulture) || !ArmoryView.IsConfigured || !IsAccountNavigationEnabled)
             throw new ChatWorkspaceException("chat-profile-unavailable");
+        _friendProfileOrigin = CaptureNavigationOrigin();
         if (_chatWorkspace?.CurrentSnapshot.OwnerAccountId == ownerAccountId) ArmoryView.ShowOwnProfile();
         else if (FriendsState.Current.Friends.FirstOrDefault(friend => friend.AccountId == ownerAccountId) is { } friend)
             ArmoryView.ShowFriendProfile(friend);
         else throw new ChatWorkspaceException("chat-profile-unavailable");
         ArmoryView.SelectSharedCharacter(ownerAccountId, characterGuid);
-        NavigateTo(LauncherShellPage.Armory);
+        NavigateToService(LauncherService.Wotlk, LauncherShellPage.Armory);
     }
 }

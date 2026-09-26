@@ -18,14 +18,16 @@ public partial class ShopConversionViewV2 : UserControl
         InitializeComponent();
         SizeChanged += (_, _) =>
         {
-            ConversionFrame.MaxHeight = Math.Max(200, ActualHeight - 40);
+            ConversionFrame.MaxHeight = Math.Max(200, ActualHeight - AtlasPageLayout.Margin.Top - AtlasPageLayout.Margin.Bottom);
+            ConversionFrame.MaxWidth = AtlasPageLayout.MaxWidth;
+            ConversionFrame.VerticalAlignment = VerticalAlignment.Top;
             bool compact = ActualWidth < 1250;
-            ConversionFrame.Margin = new Thickness(compact ? 24 : 60, 20, compact ? 24 : 60, 20);
+            ConversionFrame.Margin = AtlasPageLayout.Margin;
             GoldSourceCard.Padding = CreditResultCard.Padding = new Thickness(compact ? 18 : 26);
-            ConversionTitle.FontSize = compact ? 32 : 40;
+            ConversionTitle.FontSize = AtlasPageLayout.TitleSize;
             ConversionCreditText.FontSize = compact ? 38 : 48;
             MaximumGoldText.FontSize = compact ? 26 : 32;
-            ConversionTitle.LineHeight = compact ? 40 : 50;
+            ConversionTitle.LineHeight = 58;
             CloseConversionButton.Margin = new Thickness(0, 0, 0, compact ? 10 : 18);
             ConversionToolbar.Margin = compact ? new Thickness(0, 12, 0, 14) : new Thickness(0, 19, 0, 20);
             GoldAvailableRow.Height = compact ? 44 : 52;
@@ -54,14 +56,14 @@ public partial class ShopConversionViewV2 : UserControl
             if (!state.IsConversionPreview)
             {
                 bool completed = await state.ConvertAsync();
-                if (completed && !transfer.IsCancellationRequested && IsVisible && ReferenceEquals(State, state) && SystemParameters.ClientAreaAnimation)
+                if (completed && !transfer.IsCancellationRequested && IsVisible && ReferenceEquals(State, state) && AtlasMotion.IsEnabled)
                 {
                     AnimateTransfer();
                     await Task.Delay(860, transfer.Token);
                 }
                 return;
             }
-            if (SystemParameters.ClientAreaAnimation)
+            if (AtlasMotion.IsEnabled)
             {
                 AnimateTransfer();
                 await Task.Delay(860, transfer.Token);

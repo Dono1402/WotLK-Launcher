@@ -125,18 +125,18 @@ public partial class SettingsViewV2 : UserControl
         Resources["SettingsPilot.ToggleThumb"] = Math.Max(22, 28 * scale);
         Resources["SettingsPilot.ToggleInset"] = new Thickness(Math.Max(4, 5 * scale));
 
-        ContentFrame.MaxWidth = 1900;
+        ContentFrame.MaxWidth = AtlasPageLayout.MaxWidth;
         SettingsActionContent.MaxWidth = ContentFrame.MaxWidth;
-        ContentFrame.Margin = new Thickness(67 * scale, 17 * scale, 60 * scale, 66 * scale);
-        PageHeader.Margin = new Thickness(16 * scale, 0, 0, 0);
+        ContentFrame.Margin = AtlasPageLayout.Margin;
+        PageHeader.Margin = new Thickness(0);
         PageEyebrow.Height = 26 * scale;
         PageEyebrowLine.Width = 36 * scale;
         PageEyebrowLine.Margin = new Thickness(4 * scale, 0, 22 * scale, 0);
         PageEyebrowText.FontSize = Math.Max(11, 14 * scale);
-        PageTitle.FontSize = Math.Max(44, 72 * scale);
+        PageTitle.FontSize = AtlasPageLayout.TitleSize;
         PageTitle.Margin = new Thickness(0, 8 * scale, 0, 0);
-        PageSubtitle.FontSize = Math.Max(18, 26 * scale);
-        SettingsWorkspace.Margin = new Thickness(0, 37 * scale, 0, 0);
+        PageSubtitle.FontSize = AtlasPageLayout.SubtitleSize;
+        SettingsWorkspace.Margin = new Thickness(0, 24, 0, 0);
         NavigationColumn.Width = new GridLength(347 * scale);
         NavigationGap.Width = new GridLength(17 * scale);
         CategoryNavigation.Padding = new Thickness(14 * scale);
@@ -339,8 +339,10 @@ public partial class SettingsViewV2 : UserControl
 
     private static void SetCategoryState(Button button, FrameworkElement panel, bool selected)
     {
+        bool reveal = selected && panel.Visibility != Visibility.Visible;
         button.Tag = selected ? "Active" : null;
         panel.Visibility = selected ? Visibility.Visible : Visibility.Collapsed;
+        if (reveal) AtlasMotion.Reveal(panel);
     }
 
     private void GeneralCategoryButton_Click(object sender, RoutedEventArgs e)

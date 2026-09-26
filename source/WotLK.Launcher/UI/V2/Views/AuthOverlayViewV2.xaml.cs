@@ -346,6 +346,7 @@ public partial class AuthOverlayViewV2 : UserControl
 
     private void ApplyOpenState(bool isOpen, bool animate)
     {
+        animate &= AtlasMotion.IsEnabled;
         int transitionVersion = ++_transitionVersion;
         double currentCardOpacity = AuthCard.Opacity;
         double currentScrimOpacity = Scrim.Opacity;

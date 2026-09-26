@@ -97,6 +97,7 @@ public partial class PatchNoteOverlayV2 : UserControl
 
     private void ApplyOpenState(bool isOpen, bool animate)
     {
+        animate &= AtlasMotion.IsEnabled;
         int transitionVersion = ++_transitionVersion;
         double currentCardOpacity = DialogCard.Opacity;
         double currentScrimOpacity = Scrim.Opacity;

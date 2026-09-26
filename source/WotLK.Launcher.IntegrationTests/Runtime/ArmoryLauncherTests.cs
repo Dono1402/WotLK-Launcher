@@ -416,275 +416,40 @@ internal static partial class ArmoryLauncherTests
         Border titleBar = Required<Border>(window, "TitleBar");
         Border hoverZone = Required<Border>(window, "ProfileTitleBarHoverZone");
         TranslateTransform translation = Required<TranslateTransform>(window, "ProfileTitleBarTransform");
-        FrameworkElement browser = armory.Browser ?? throw new InvalidOperationException("La barre doit être testée au-dessus de la vraie WebView2 de composition.");
-        FrameworkElement content = (FrameworkElement)window.Content;
-        List<object> checks = [];
-        int dragRequests = 0;
-        EventHandler dragRequested = (_, _) => dragRequests++;
-        armory.WindowDragRequested += dragRequested;
-        await WaitForScriptAsync(armory, "document.querySelector('.banner-image').naturalWidth > 0", "La bannière doit être chargée avant la mesure du profil.");
-        await WaitUntilAsync(() => !titleBar.IsVisible, "La barre doit se masquer à l'entrée sur Profil.");
+        FrameworkElement browser = armory.Browser ?? throw new InvalidOperationException("The real composition WebView must be present.");
+        await WaitForScriptAsync(armory, "document.querySelector('#profile-hero')?.getBoundingClientRect().height > 0", "Le profil doit être disposé avant la mesure de sa navigation.");
+        await PumpAsync();
         window.UpdateLayout();
-        ProfileLayoutEvidence baseline = await ReadProfileLayoutAsync(window, armory);
-        True(Math.Abs(baseline.Browser.X) < .75 && Math.Abs(baseline.Browser.Y) < .75
-            && Math.Abs(baseline.Browser.Width - content.ActualWidth) < .75
-            && Math.Abs(baseline.Browser.Height - content.ActualHeight) < .75,
-            "Le contrôle de composition doit occuper tout le shell, sans rangée réservée à la barre.");
-        True(Math.Abs(baseline.Hero.X) < .75 && Math.Abs(baseline.Hero.Y) < .75
-            && Math.Abs(baseline.Hero.Width - baseline.ViewportWidth) < .75
-            && Math.Abs(baseline.Banner.X) < .75 && Math.Abs(baseline.Banner.Y) < .75
-            && Math.Abs(baseline.Banner.Width - baseline.ViewportWidth) < .75,
-            "La bannière du profil doit commencer en haut à gauche et couvrir toute la largeur de la WebView.");
-        Equal(2, Grid.GetRowSpan(armory), "L'armurerie doit traverser les deux rangées du shell.");
-        True(Panel.GetZIndex(titleBar) > Panel.GetZIndex(hoverZone) && Panel.GetZIndex(hoverZone) > Panel.GetZIndex(armory),
-            "La barre et sa zone d'apparition doivent passer au-dessus de la WebView de composition.");
-
-        try
-        {
-            AssertHidden();
-            True(HitBelongsTo(window.InputHitTest(hoverZone.TranslatePoint(new Point(hoverZone.ActualWidth / 2, 12), window)), hoverZone),
-                "Le haut du profil doit atteindre la zone de survol malgré la vraie WebView2.");
-            Point underTitleBar = new(content.ActualWidth / 2, titleBar.Margin.Top + titleBar.ActualHeight / 2);
-            True(HitBelongsTo(window.InputHitTest(underTitleBar), browser),
-                "Une barre masquée doit laisser la bannière recevoir les entrées hors de la zone de survol.");
-            await RecordAsync("hidden");
-            await CaptureTitleBarAsync("hidden");
-
-            Rect originalWindowBounds = new(window.Left, window.Top, window.ActualWidth, window.ActualHeight);
-            System.Reflection.MethodInfo shellDragMethod = typeof(LauncherShellV2).GetMethod("ArmoryView_WindowDragRequested",
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
-            EventHandler shellDrag = shellDragMethod.CreateDelegate<EventHandler>(window);
-            // Isolate the native move loop even if the user happens to hold their mouse button during the test.
-            armory.WindowDragRequested -= shellDrag;
-            try
-            {
-                await ScriptAsync(armory, "document.querySelector('.banner').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,cancelable:true,pointerType:'mouse',isPrimary:true,button:0,clientX:240,clientY:12}));true");
-                await WaitUntilAsync(() => dragRequests == 1, "La partie haute vide du profil doit transmettre la demande de déplacement au contrôle natif.");
-            }
-            finally { armory.WindowDragRequested += shellDrag; }
-            Equal(originalWindowBounds, new Rect(window.Left, window.Top, window.ActualWidth, window.ActualHeight),
-                "La vérification du message doit conserver la fenêtre de test hors écran sans boucle de déplacement native.");
-            await RecordAsync("profile-blank-top-drag-bridge");
-
-            foreach (string selector in new[] { "#profile-hero", ".avatar" })
-            {
-                await ScriptAsync(armory, $"(() => {{ const rect=document.querySelector('{selector}').getBoundingClientRect(); document.querySelector('#profile-hero').dispatchEvent(new PointerEvent('pointerenter',{{bubbles:false,pointerType:'mouse',clientX:rect.x+rect.width/2,clientY:rect.y+rect.height/2}})); return true; }})()");
-                await WaitUntilAsync(() => titleBar.IsVisible && Math.Abs(translation.Y) < .1,
-                    "Le survol de toute la bannière ou de l'avatar doit révéler la barre native.");
-                await Task.Delay(260);
-                RaiseMouseEvent(titleBar, UIElement.MouseLeaveEvent);
-                RaiseMouseEvent(hoverZone, UIElement.MouseLeaveEvent);
-                await Task.Delay(480);
-                AssertShown();
-                AssertTitleBarHit("ProfileButton");
-                await RecordAsync("web-hover-" + selector[1..]);
-                bool? hideStartedOnLeave = null;
-                EventHandler<ArmoryHeaderHoverEventArgs> leaveProbe = (_, e) =>
-                {
-                    if (e.Hovered) return;
-                    var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
-                    bool requestedVisible = (bool)typeof(LauncherShellV2).GetField("_profileTitleBarVisible", flags)!.GetValue(window)!;
-                    DispatcherTimer timer = (DispatcherTimer)typeof(LauncherShellV2).GetField("_profileTitleBarHideTimer", flags)!.GetValue(window)!;
-                    hideStartedOnLeave = !requestedVisible && !timer.IsEnabled;
-                };
-                armory.HeaderHoverChanged += leaveProbe;
-                try
-                {
-                    await ScriptAsync(armory, "document.querySelector('#profile-hero').dispatchEvent(new PointerEvent('pointerleave',{bubbles:false,pointerType:'mouse'}));true");
-                    await WaitUntilAsync(() => hideStartedOnLeave.HasValue, "La sortie de bannière doit atteindre le shell.");
-                    True(hideStartedOnLeave == true, "Le masquage doit commencer dès le signal de sortie, sans temporisation préalable.");
-                    await WaitUntilAsync(() => !titleBar.IsVisible, "Quitter la bannière doit terminer le glissement de la barre native.");
-                    await RecordAsync("immediate-web-leave-" + selector[1..]);
-                }
-                finally { armory.HeaderHoverChanged -= leaveProbe; }
-            }
-
-            await RevealProfileTitleBarAsync(window);
-            AssertTitleBarHit("ProfileButton");
-            AssertTitleBarHit("GameNavigationButton");
-            AssertTitleBarHit("CloseWindowButton");
-            Equal(baseline, await ReadProfileLayoutAsync(window, armory), "Afficher la barre ne doit déplacer ni la bannière ni le personnage.");
-            True(hoverZone.ActualHeight > titleBar.Margin.Top + titleBar.ActualHeight,
-                "La zone de survol doit couvrir le trajet entre le haut du profil et la barre affichée.");
-            await RecordAsync("shown");
-            await CaptureTitleBarAsync("shown");
-
-            // Routed WPF events only: no SetCursorPos, SendInput, focus, capture or OS keyboard input.
-            RaiseMouseEvent(titleBar, UIElement.MouseLeaveEvent);
-            await Task.Delay(80);
-            RaiseMouseEvent(hoverZone, UIElement.MouseEnterEvent);
-            await Task.Delay(450);
-            await PumpAsync();
-            AssertShown();
-            await RecordAsync("reenter-cancels-hide");
-
-            RaiseMouseEvent(titleBar, UIElement.MouseLeaveEvent);
-            // Advance the timer deterministically; do not rely on a scheduler wake-up inside
-            // the short 160 ms exit animation, and never change the control's visual properties.
-            System.Reflection.MethodInfo hideTick = typeof(LauncherShellV2).GetMethod("ProfileTitleBarHideTimer_Tick",
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-                ?? throw new InvalidOperationException("Le délai de masquage du profil doit avoir son gestionnaire WPF.");
-            hideTick.Invoke(window, [null, EventArgs.Empty]);
-            if (SystemParameters.ClientAreaAnimation)
-            {
-                True(titleBar.IsVisible && titleBar.IsHitTestVisible && translation.HasAnimatedProperties,
-                    "La barre qui commence à se retirer doit encore pouvoir recevoir un nouveau survol.");
-                RaiseMouseEvent(titleBar, UIElement.MouseEnterEvent);
-                await Task.Delay(240);
-                await PumpAsync();
-                AssertShown();
-                AssertTitleBarHit("ProfileButton");
-                Equal(baseline, await ReadProfileLayoutAsync(window, armory), "Inverser le masquage ne doit pas déplacer le profil.");
-                await RecordAsync("reenter-during-hide");
-            }
-            else
-            {
-                AssertHidden();
-                await RecordAsync("reduced-motion-immediate-hide");
-                await RevealProfileTitleBarAsync(window);
-            }
-            await HideAsync();
-            Equal(baseline, await ReadProfileLayoutAsync(window, armory), "Masquer la barre doit conserver les dimensions et la position du profil.");
-            True(HitBelongsTo(window.InputHitTest(underTitleBar), browser), "La WebView doit retrouver les entrées après le masquage.");
-
-            foreach ((string name, Action<bool> setOpen) in new (string, Action<bool>)[]
-            {
-                ("profile", value => window.ProfileState.IsOpen = value),
-                ("friends", value => window.FriendsState.IsOpen = value),
-                ("activity", value => window.ActivityState.IsOpen = value)
-            })
-            {
-                await RevealProfileTitleBarAsync(window);
-                setOpen(true);
-                await PumpAsync();
-                RaiseMouseEvent(titleBar, UIElement.MouseLeaveEvent);
-                RaiseMouseEvent(hoverZone, UIElement.MouseLeaveEvent);
-                await Task.Delay(480);
-                await PumpAsync();
-                AssertShown();
-                Equal(baseline, await ReadProfileLayoutAsync(window, armory), $"Le panneau {name} ne doit pas redimensionner le profil.");
-                await RecordAsync(name + "-pins-title-bar");
-                setOpen(false);
-                await WaitUntilAsync(() => !titleBar.IsVisible, $"Fermer le panneau {name} doit permettre le masquage différé.");
-                AssertHidden();
-            }
-
-            foreach ((string buttonName, LauncherShellPage page) in new[]
-            {
-                ("GameNavigationButton", LauncherShellPage.Game),
-                ("AddonsNavigationButton", LauncherShellPage.Addons),
-                ("PatchNotesNavigationButton", LauncherShellPage.PatchNotes),
-                ("SettingsButton", LauncherShellPage.Settings)
-            })
-            {
-                await RevealProfileTitleBarAsync(window);
-                AssertTitleBarHit(buttonName);
-                RaiseMouseEvent(titleBar, UIElement.MouseLeaveEvent);
-                Required<Button>(window, buttonName).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                Equal(page, window.CurrentPage, "Le bouton de la barre révélée doit ouvrir sa page habituelle.");
-                await AssertNormalPageAsync(page.ToString());
-                await OpenProfileAsync(window);
-                await WaitUntilAsync(() => !titleBar.IsVisible, "Revenir sur Profil doit masquer à nouveau la barre.");
-                True(ReferenceEquals(browser, armory.Browser), "Les allers-retours de navigation doivent conserver la même WebView2.");
-                Equal(baseline, await ReadProfileLayoutAsync(window, armory), "Revenir sur Profil doit retrouver sa géométrie intégrale.");
-            }
-
-            await RevealProfileTitleBarAsync(window);
-            Required<Button>(window, "ProfileButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Required<Button>(window.ProfileOverlay, "ManageAccountButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Equal(LauncherShellPage.Account, window.CurrentPage, "Le menu Profil doit conserver l'accès aux réglages Compte.");
-            await AssertNormalPageAsync("Account");
-            await OpenProfileAsync(window);
-            await WaitUntilAsync(() => !titleBar.IsVisible, "Le retour depuis Compte doit rétablir le profil sans barre permanente.");
-            AssertHidden();
-            AssertOffscreen(window);
-            if (!string.IsNullOrWhiteSpace(captureDirectory))
-            {
-                Directory.CreateDirectory(captureDirectory);
-                await File.WriteAllTextAsync(Path.Combine(captureDirectory, "armory-profile-title-bar.json"), JsonSerializer.Serialize(new
-                {
-                    window.ActualWidth, window.ActualHeight,
-                    BrowserType = browser.GetType().FullName,
-                    Offscreen = true, NoActivate = true, OsInputInjected = false, Baseline = baseline, Checks = checks
-                }, new JsonSerializerOptions { WriteIndented = true }));
-            }
-            Console.WriteLine("Armory immersive title bar OK: composition hit tests, full-size banner, stable layout, hover delay/re-entry, three overlay pins and five page round trips; no OS input.");
-        }
-        finally
-        {
-            armory.WindowDragRequested -= dragRequested;
-            window.ProfileState.IsOpen = false;
-            window.FriendsState.IsOpen = false;
-            window.ActivityState.IsOpen = false;
-        }
-
-        void AssertHidden()
-        {
-            window.UpdateLayout();
-            True(titleBar.Visibility == Visibility.Hidden && !titleBar.IsHitTestVisible && translation.Y < -titleBar.ActualHeight,
-                "La barre masquée doit être hors du profil, invisible et sans interception d'entrée.");
-            True(hoverZone.IsVisible && Math.Abs(hoverZone.ActualHeight - 24) < .75,
-                "La zone native de secours reste limitée aux 24 pixels supérieurs ; le reste du survol vient de la bannière WebView.");
-            AssertOffscreen(window);
-        }
-
-        void AssertShown()
-        {
-            window.UpdateLayout();
-            True(titleBar.IsVisible && titleBar.IsHitTestVisible && Math.Abs(translation.Y) < .1,
-                "La barre révélée doit être entièrement visible et interactive.");
-            AssertOffscreen(window);
-        }
-
-        void AssertTitleBarHit(string name)
+        ProfileLayoutEvidence layout = await ReadProfileLayoutAsync(window, armory);
+        True(titleBar.IsVisible && titleBar.IsHitTestVisible && translation.Y == 0,
+            "Le profil conserve la barre globale visible et interactive.");
+        True(!hoverZone.IsVisible && Grid.GetRow(armory) == 1 && Grid.GetRowSpan(armory) == 1,
+            "Le profil occupe la zone de contenu, sans mécanisme de barre masquée.");
+        True(layout.Browser.Y >= titleBar.Margin.Top + titleBar.ActualHeight
+            && layout.Browser.Height > 600 && layout.Browser.Width > 1400,
+            "La WebView reste sous la navigation et dispose du contenu de la fenêtre fixe.");
+        foreach (string name in new[] { "ProfileButton", "GameNavigationButton", "SettingsButton", "CloseWindowButton" })
         {
             Button button = Required<Button>(window, name);
             Point center = button.TranslatePoint(new Point(button.ActualWidth / 2, button.ActualHeight / 2), window);
-            True(button.IsVisible && button.IsEnabled && HitBelongsTo(window.InputHitTest(center), button),
-                $"{name} doit recevoir le hit-test WPF au-dessus de la WebView2 de composition.");
+            True(HitBelongsTo(window.InputHitTest(center), button), "La barre reste cliquable au-dessus du navigateur : " + name);
         }
-
-        async Task HideAsync()
+        True(Required<Button>(armory, "ProfileBackButton").IsVisible,
+            "Retour reste disponible lorsque le profil ou son chargement est affiché.");
+        await ScriptAsync(armory, "document.dispatchEvent(new MouseEvent('mousemove',{bubbles:true,clientX:500,clientY:500}));true");
+        await Task.Delay(400);
+        True(titleBar.IsVisible && translation.Y == 0, "Quitter la zone haute du profil ne masque plus la navigation.");
+        AssertOffscreen(window);
+        if (!string.IsNullOrWhiteSpace(captureDirectory))
         {
-            RaiseMouseEvent(titleBar, UIElement.MouseLeaveEvent);
-            RaiseMouseEvent(hoverZone, UIElement.MouseLeaveEvent);
-            await WaitUntilAsync(() => !titleBar.IsVisible, "Quitter la barre doit la masquer après le délai de survol.");
-            window.UpdateLayout();
-            AssertHidden();
-        }
-
-        async Task AssertNormalPageAsync(string page)
-        {
-            await Task.Delay(450);
-            await PumpAsync();
-            window.UpdateLayout();
-            AssertShown();
-            Equal(Visibility.Collapsed, hoverZone.Visibility, "Les pages habituelles ne doivent pas conserver la zone de survol du profil.");
-            Border dragZone = Required<Border>(window, "TopChromeDragZone");
-            True(dragZone.IsVisible && HitBelongsTo(window.InputHitTest(dragZone.TranslatePoint(new Point(200, 8), window)), dragZone),
-                "La marge vide au-dessus de la navigation doit recevoir le déplacement de fenêtre.");
-            AssertTitleBarHit("GameNavigationButton");
-            True(!armory.IsVisible, "L'armurerie ne doit pas couvrir les pages habituelles.");
-            await RecordAsync("normal-page-" + page);
-        }
-
-        async Task RecordAsync(string scenario)
-        {
-            checks.Add(new { Scenario = scenario, TitleBarVisible = titleBar.IsVisible, titleBar.IsHitTestVisible,
-                TranslationY = translation.Y, HoverZoneHeight = hoverZone.ActualHeight,
-                Page = window.CurrentPage.ToString(), Geometry = armory.IsVisible ? await ReadProfileLayoutAsync(window, armory) : null });
-        }
-
-        async Task CaptureTitleBarAsync(string state)
-        {
-            if (string.IsNullOrWhiteSpace(captureDirectory)) return;
             Directory.CreateDirectory(captureDirectory);
             RenderTargetBitmap bitmap = new((int)Math.Ceiling(window.ActualWidth), (int)Math.Ceiling(window.ActualHeight), 96, 96, PixelFormats.Pbgra32);
             bitmap.Render(window);
             PngBitmapEncoder encoder = new(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
-            using (FileStream stream = File.Create(Path.Combine(captureDirectory, "armory-profile-title-bar-wpf-" + state + ".png"))) encoder.Save(stream);
-            await SaveCaptureAsync(armory, captureDirectory, "armory-profile-title-bar-webview-" + state + ".png");
+            using (FileStream stream = File.Create(Path.Combine(captureDirectory, "armory-persistent-navigation.png"))) encoder.Save(stream);
+            await SaveCaptureAsync(armory, captureDirectory, "armory-persistent-navigation-webview.png");
         }
+        Console.WriteLine("Armory persistent navigation OK: real composition WebView, fixed window, header hit tests and visible Back; no OS input.");
     }
 
     private sealed record ProfileLayoutEvidence(Rect Browser, Rect Hero, Rect Banner, Rect Character, double ViewportWidth, double ViewportHeight);

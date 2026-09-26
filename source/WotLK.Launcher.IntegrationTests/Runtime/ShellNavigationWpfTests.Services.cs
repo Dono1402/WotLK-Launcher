@@ -172,6 +172,7 @@ internal static partial class ShellNavigationWpfTests
                 Invoke((Button)Element("GameNavigationButton"), pointer: true);
             }
             await ValidateTransitionExperience();
+            await ValidateGlobalUxAsync(shell, output);
             Check(!shell.IsActive && !shell.IsKeyboardFocusWithin && !shell.ShowInTaskbar && shell.Left < -10000,
                 "The fixture never takes focus or opens the installed launcher.");
         }

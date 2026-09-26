@@ -55,7 +55,7 @@ internal sealed partial class ShopUiState
     public bool HistoryAvailable => _snapshot?.History is not null;
     public string HistoryLabel => L("Historique", "History");
     public string HistoryHeading => L("Historique des opérations", "Transaction history");
-    public string HistorySubtitle => L("Retrouvez vos recharges, conversions et achats, monnaie par monnaie.", "Review your top-ups, conversions and purchases, wallet by wallet.");
+    public string HistorySubtitle => L("Retrouve tes recharges, conversions et achats, monnaie par monnaie.", "Review your top-ups, conversions and purchases, wallet by wallet.");
     public string HistoryBackLabel => _historyReturnToWallet ? L("Retour au portefeuille", "Back to wallet") : BackToShopLabel;
     public string HistoryKindLabel => L("Type d’opération", "Operation type");
     public string HistoryWalletLabel => L("Monnaie", "Currency");
@@ -85,9 +85,9 @@ internal sealed partial class ShopUiState
     public string HistoryLimitLabel => L("Les 100 opérations les plus récentes sont affichées.", "Showing the 100 most recent operations.");
     public string HistoryEmptyHeading => !HistoryAvailable ? L("Historique bientôt disponible", "History available soon")
         : HistoryRows.Count == 0 ? L("Aucune opération pour le moment", "No operations yet") : L("Aucune opération correspondante", "No matching operations");
-    public string HistoryEmptyDescription => !HistoryAvailable ? L("Vos mouvements seront consultables ici dès l’ouverture des opérations sur le royaume.", "Your transactions will appear here when operations open on the realm.")
-        : HistoryRows.Count == 0 ? L("Vos prochaines recharges, conversions et achats apparaîtront ici.", "Your next top-ups, conversions and purchases will appear here.")
-        : L("Essayez un autre type d’opération ou une autre monnaie.", "Try a different operation type or currency.");
+    public string HistoryEmptyDescription => !HistoryAvailable ? L("Tes mouvements seront consultables ici dès l’ouverture des opérations sur le royaume.", "Your transactions will appear here when operations open on the realm.")
+        : HistoryRows.Count == 0 ? L("Tes prochaines recharges, conversions et achats apparaîtront ici.", "Your next top-ups, conversions and purchases will appear here.")
+        : L("Essaie un autre type d’opération ou une autre monnaie.", "Try a different operation type or currency.");
     internal void OpenHistory()
     {
         if (_disposed || IsHistoryOpen) return;

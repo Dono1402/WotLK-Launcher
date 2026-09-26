@@ -65,7 +65,7 @@ internal sealed partial class ShopUiState
             if (!definitive && _conversionAttempt is { } uncertain) InvalidateConversionBalances(uncertain.CharacterGuid);
             if (definitive) _conversionAttempt = null;
             _conversionNotice = error is ShopApiException api ? ConversionError(api.Code) : null;
-            _conversionNotice ??= new("Le résultat reste à confirmer. Réessayez ou actualisez : la même conversion sera reprise sans second débit.",
+            _conversionNotice ??= new("Le résultat reste à confirmer. Réessaie ou actualise : la même conversion sera reprise sans second débit.",
                 "The result still needs confirmation. Retry or refresh: the same conversion will resume without a second debit.");
             return false;
         }
@@ -101,7 +101,7 @@ internal sealed partial class ShopUiState
             _conversionNotice = null;
         }
         else if (result.Status == "rejected")
-            _conversionNotice = ConversionError(result.Reason ?? "") ?? new("Conversion refusée. Actualisez les soldes avant un nouvel essai.", "Conversion rejected. Refresh balances before trying again.");
+            _conversionNotice = ConversionError(result.Reason ?? "") ?? new("Conversion refusée. Actualise les soldes avant un nouvel essai.", "Conversion rejected. Refresh balances before trying again.");
         else if (_conversionAnnouncedId != result.Id)
         {
             _conversionAnnouncedId = result.Id; _conversionGold = ""; _conversionNotice = null;
@@ -112,16 +112,16 @@ internal sealed partial class ShopUiState
 
     private static ShopText? ConversionError(string code) => code switch
     {
-        "shop-character-online" or "character-online" => new("Déconnectez tous les personnages de ce compte, puis actualisez et réessayez.", "Log out of all characters on this account, then refresh and retry."),
-        "shop-insufficient-gold" or "insufficient-gold" => new("Ce personnage ne possède plus assez d’or. Actualisez le solde.", "This character no longer has enough gold. Refresh the balance."),
+        "shop-character-online" or "character-online" => new("Déconnecte tous les personnages de ce compte, puis actualise et réessaie.", "Log out of all characters on this account, then refresh and retry."),
+        "shop-insufficient-gold" or "insufficient-gold" => new("Ce personnage ne possède plus assez d’or. Actualise le solde.", "This character no longer has enough gold. Refresh the balance."),
         "shop-character-unavailable" or "character-unavailable" => new("Ce personnage n’est plus disponible sur ce compte.", "This character is no longer available on this account."),
-        "shop-price-changed" or "rate-changed" => new("Le taux a changé. Actualisez et vérifiez le nouveau montant.", "The rate changed. Refresh and check the new amount."),
+        "shop-price-changed" or "rate-changed" => new("Le taux a changé. Actualise et vérifie le nouveau montant.", "The rate changed. Refresh and check the new amount."),
         "shop-wallet-debt" or "wallet-debt" => new("Un solde à régulariser bloque la conversion.", "An outstanding balance prevents conversion."),
         "shop-credit-limit" or "credit-limit" => new("Le plafond des Crédits Atlas serait dépassé, remboursements éventuels compris.", "The Atlas credit limit would be exceeded, including potential refunds."),
-        "shop-conversion-pending" => new("Une conversion est déjà en attente sur ce compte. Actualisez son suivi.", "A conversion is already pending on this account. Refresh its status."),
+        "shop-conversion-pending" => new("Une conversion est déjà en attente sur ce compte. Actualise son suivi.", "A conversion is already pending on this account. Refresh its status."),
         "shop-conversion-limit" => new("La limite quotidienne de conversions est atteinte.", "The daily conversion limit has been reached."),
-        "request-expired" => new("Le royaume n’a pas traité la demande à temps. Aucun or n’a été retiré. Vous pouvez réessayer.", "The realm did not process the request in time. No gold was removed. You can retry."),
-        "shop-conversion-unavailable" => new("La conversion est temporairement indisponible. Actualisez ou réessayez plus tard.", "Conversion is temporarily unavailable. Refresh or retry later."),
+        "request-expired" => new("Le royaume n’a pas traité la demande à temps. Aucun or n’a été retiré. Tu peux réessayer.", "The realm did not process the request in time. No gold was removed. You can retry."),
+        "shop-conversion-unavailable" => new("La conversion est temporairement indisponible. Actualise ou réessaie plus tard.", "Conversion is temporarily unavailable. Refresh or retry later."),
         _ => null
     };
 

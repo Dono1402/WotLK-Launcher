@@ -139,17 +139,15 @@ internal static class LauncherDashboardTests
         True(localClient.PatchNotes[0].Sections.SelectMany(section => section.Items).All(item => !item.Contains(".cs", StringComparison.OrdinalIgnoreCase)),
             "Le brouillon utilisateur ne doit pas contenir de détail de code.");
         PatchNoteEntryViewState draft = localClient.PatchNotes[0];
-        Equal("1.7.0", draft.Version, "Le brouillon doit cibler la nouvelle version.");
-        Equal("Atlas Launcher 1.7.0", draft.Title, "Le titre doit afficher la version cible.");
+        Equal("À venir", draft.Version, "Le brouillon ne doit pas inventer de numéro de version publiée.");
+        Equal("Atlas Launcher · prochaine mise à jour", draft.Title, "Le titre identifie le prochain lot local.");
         True(draft.Sections.Select(section => section.Title).SequenceEqual(
-            new[] { "Boutique Atlas", "Changement de nom", "Suivi et disponibilité" }),
+            new[] { "Jeux et services", "Navigation et présentation", "Actions plus claires" }),
             "Les trois rubriques doivent présenter le parcours livré et ses limites.");
         string[] draftItems = draft.Sections.SelectMany(section => section.Items).ToArray();
-        Equal(10, draftItems.Length, "Les dix changements doivent rester présents.");
-        True(draftItems.Any(item => item.Contains("personnage en jeu", StringComparison.Ordinal)),
-            "Le choix du personnage se fait en jeu après l'achat.");
-        True(draftItems.Any(item => item.Contains("restent indisponibles", StringComparison.Ordinal)),
-            "Les autres services et paiements automatiques ne doivent pas être annoncés disponibles.");
+        Equal(9, draftItems.Length, "Les changements de navigation restent décrits sans détails de code.");
+        True(draftItems.Any(item => item.Contains("restent à connecter", StringComparison.Ordinal)),
+            "Le brouillon ne doit pas annoncer un lancement Minecraft fonctionnel.");
         True(LauncherLocalization.TranslateFromFrench(draft.Intro) != draft.Intro,
             "L'introduction doit être traduite en anglais.");
         True(draftItems.All(item => LauncherLocalization.TranslateFromFrench(item) != item),
@@ -167,8 +165,8 @@ internal static class LauncherDashboardTests
             "Un rafraîchissement ne doit pas dupliquer le brouillon.");
         var released = projected.PatchNotes.SetItem(0,
             projected.PatchNotes[0] with { Id = "atlas-launcher-1-7-0", Version = "1.7.0" });
-        True(LocalPatchNotesDraft.PrependTo(released).SequenceEqual(released),
-            "Une fois la 1.7.0 publiée, le client local ne doit plus ajouter son ancien brouillon.");
+        True(LocalPatchNotesDraft.PrependTo(released).Length == released.Length + 1,
+            "Une ancienne publication ne doit pas masquer le nouveau brouillon local.");
     }
 
     private static async Task RefuseRequestsWithoutSessionAsync()

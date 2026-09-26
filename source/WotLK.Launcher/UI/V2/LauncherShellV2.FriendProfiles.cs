@@ -11,6 +11,8 @@ public partial class LauncherShellV2
         if (!ArmoryView.IsConfigured || !IsAccountNavigationEnabled) return;
         FriendUiItem? friend = FriendsState.Current.Friends.FirstOrDefault(item => item.AccountId == e.AccountId);
         if (friend is null) return;
+        if (CurrentPage != LauncherShellPage.Armory || ArmoryView.FriendAccountId is null)
+            _friendProfileOrigin = CaptureNavigationOrigin();
         SuppressFriendsFocusRestore();
         _overlayCoordinator.CloseFriends();
         ArmoryView.ShowFriendProfile(friend);
@@ -26,16 +28,33 @@ public partial class LauncherShellV2
         if (friend is not null) ArmoryView.UpdateFriendProfile(friend);
         else if (FriendsState.Current.LoadState is FriendsViewLoadState.Loaded or FriendsViewLoadState.SignedOut)
         {
-            if (CurrentPage == LauncherShellPage.Armory) NavigateTo(LauncherShellPage.Game);
             ArmoryView.ForgetFriendCache(accountId);
-            ArmoryView.ShowOwnProfile();
+            if (CurrentPage == LauncherShellPage.Armory) ReturnFromFriendProfile();
+            else ArmoryView.ShowOwnProfile();
         }
     }
 
     private void ArmoryView_FriendsBackRequested(object? sender, EventArgs e)
     {
-        NavigateTo(LauncherShellPage.Game);
+        ReturnFromFriendProfile();
         if (!FriendsState.IsOpen) FriendsButton_Click(FriendsButton, new RoutedEventArgs());
+    }
+
+    private void ReturnFromFriendProfile()
+    {
+        NavigationOrigin origin = _friendProfileOrigin ?? new(ShellState.SelectedService, LauncherShellPage.Game, false);
+        _friendProfileOrigin = null;
+        // Clear the friend context only after navigating away: a WotLK personal
+        // profile must not be exposed under the Minecraft selection.
+        RestoreNavigationOrigin(origin);
+        ArmoryView.ShowOwnProfile();
+    }
+
+    private void ArmoryView_BackRequested(object? sender, EventArgs e)
+    {
+        bool friend = ArmoryView.FriendAccountId is not null;
+        ReturnFromFriendProfile();
+        if (friend && !FriendsState.IsOpen) FriendsButton_Click(FriendsButton, new RoutedEventArgs());
     }
 
     private void ArmoryView_FriendMessageRequested(object? sender, ChatConversationRequestedEventArgs e)

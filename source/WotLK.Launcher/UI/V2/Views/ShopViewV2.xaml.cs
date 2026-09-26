@@ -29,6 +29,8 @@ public partial class ShopViewV2 : UserControl, IDisposable
     public ShopViewV2()
     {
         InitializeComponent();
+        foreach (FrameworkElement panel in new FrameworkElement[] { PageScroll, ServiceFrame, ConversionView, WalletView, HistoryView, AdminView })
+            AtlasMotion.AttachReveal(panel);
         DataContext = State;
         WalletView.HistoryRequested += HistoryRequestedFromWallet;
         WalletView.AdminRequested += AdminRequestedFromWallet;
@@ -94,13 +96,13 @@ public partial class ShopViewV2 : UserControl, IDisposable
     {
         if (!IsInitialized) return;
         bool compact = ActualWidth < 1250;
-        double inset = LayoutMode switch { AdaptiveLayoutMode.Wide => 64, AdaptiveLayoutMode.Compact => 36, _ => 24 };
-        double top = LayoutMode switch { AdaptiveLayoutMode.Wide => 6, AdaptiveLayoutMode.Compact => 10, _ => 12 };
-        ContentFrame.Margin = new Thickness(inset, top, inset, 24);
-        ServiceFrame.Margin = new Thickness(compact ? 24 : 60, 18, compact ? 24 : 60, 30);
-        ServiceFooter.Margin = new Thickness(compact ? 24 : 60, 8, compact ? 24 : 60, 18);
-        PageTitle.FontSize = LayoutMode switch { AdaptiveLayoutMode.Wide => 48, AdaptiveLayoutMode.Compact => 42, _ => 38 };
-        PageDescription.FontSize = LayoutMode == AdaptiveLayoutMode.Wide ? 14 : 13;
+        double inset = AtlasPageLayout.Margin.Left;
+        ContentFrame.Margin = AtlasPageLayout.Margin;
+        ServiceFrame.Margin = AtlasPageLayout.Margin;
+        ServiceFrame.MaxWidth = ServiceFooter.MaxWidth = AtlasPageLayout.MaxWidth;
+        ServiceFooter.Margin = new Thickness(inset, 8, inset, 18);
+        PageTitle.FontSize = AtlasPageLayout.TitleSize;
+        PageDescription.FontSize = AtlasPageLayout.SubtitleSize;
         DetailColumn.Width = new GridLength(compact ? 380 : 440);
         // Account for the actual viewport, including its vertical scrollbar.
         double viewport = PageScroll.ViewportWidth > 0 ? PageScroll.ViewportWidth : ActualWidth - SystemParameters.VerticalScrollBarWidth;

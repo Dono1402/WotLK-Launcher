@@ -102,6 +102,8 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
     public event EventHandler<ArmoryAvatarRequestedEventArgs>? AvatarRemoveRequested;
     public event EventHandler<ChatConversationRequestedEventArgs>? FriendMessageRequested;
     public event EventHandler? FriendsBackRequested;
+    public event EventHandler? BackRequested;
+    private void ProfileBack_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
     internal uint? FriendAccountId => _friendProfile?.AccountId;
     internal bool IsReadOnlyProfile => _friendProfile is not null;
     internal bool IsConfigured => _getAccount is not null;
@@ -143,6 +145,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
 
     internal void ShowFriendProfile(FriendUiItem friend)
     {
+        ProfileBackButton.Content = LauncherLocalization.IsEnglish ? "← Back" : "← Retour";
         if (friend.AccountId == 0 || _state?.IsNavigationEnabled != true) return;
         if (_friendProfile?.AccountId == friend.AccountId && _lifetime is not null
             && _sessionUsername == _state.Current.Username)
@@ -166,6 +169,7 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
 
     internal void ShowOwnProfile()
     {
+        ProfileBackButton.Content = LauncherLocalization.IsEnglish ? "← Back" : "← Retour";
         if (_friendProfile is null) return;
         ResetSession(preserveBrowser: true);
         _friendProfile = null;
@@ -708,6 +712,8 @@ public partial class ArmoryViewV2 : UserControl, IDisposable
 
     private void LocaleChanged(object? sender, EventArgs args)
     {
+        ProfileBackButton.Content = LauncherLocalization.IsEnglish ? "← Back" : "← Retour";
+        AutomationProperties.SetName(ProfileBackButton, LauncherLocalization.IsEnglish ? "Back" : "Retour");
         CustomizeButton.Content = LauncherLocalization.IsEnglish ? "Customize profile" : "Personnaliser le profil";
         if (RetryButton.Visibility == Visibility.Visible) ShowFailure();
         else AutomationProperties.SetName(ProfileLoadingIndicator, LocalText("Chargement du profil", "Loading profile"));

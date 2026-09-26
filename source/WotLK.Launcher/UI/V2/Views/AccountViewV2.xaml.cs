@@ -36,6 +36,8 @@ public partial class AccountViewV2 : UserControl
     public AccountViewV2()
     {
         InitializeComponent();
+        foreach (FrameworkElement panel in new FrameworkElement[] { ProfilePanel, SecurityPanel, SessionsPanel })
+            AtlasMotion.AttachReveal(panel);
         Loaded += AccountViewV2_Loaded;
         Unloaded += AccountViewV2_Unloaded;
         SizeChanged += (_, _) => ApplyLayout(LayoutMode);
@@ -234,6 +236,7 @@ public partial class AccountViewV2 : UserControl
 
     private void SetAvatarActionsVisible(bool visible, bool animate = true)
     {
+        animate &= AtlasMotion.IsEnabled;
         if (!IsInitialized)
         {
             return;
@@ -295,19 +298,9 @@ public partial class AccountViewV2 : UserControl
             return;
         }
 
-        ContentFrame.MaxWidth = 1220;
-        ContentFrame.Margin = mode switch
-        {
-            AdaptiveLayoutMode.Wide => new Thickness(70, 26, 70, 52),
-            AdaptiveLayoutMode.Compact => new Thickness(44, 24, 44, 42),
-            _ => new Thickness(32, 20, 32, 34)
-        };
-        PageTitle.FontSize = mode switch
-        {
-            AdaptiveLayoutMode.Wide => 54,
-            AdaptiveLayoutMode.Compact => 44,
-            _ => 38
-        };
+        ContentFrame.MaxWidth = AtlasPageLayout.MaxWidth;
+        ContentFrame.Margin = AtlasPageLayout.Margin;
+        PageTitle.FontSize = AtlasPageLayout.TitleSize;
 
         bool stacked = mode == AdaptiveLayoutMode.Stacked;
         AvatarColumn.Width = stacked ? new GridLength(1, GridUnitType.Star) : new GridLength(352);

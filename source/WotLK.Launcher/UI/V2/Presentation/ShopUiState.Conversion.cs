@@ -25,8 +25,8 @@ internal sealed partial class ShopUiState
         : _conversionAttempt is not null ? L("Retrouver ma conversion", "Recover my conversion")
         : HasValidConversionAmount ? L("Convertir ", "Convert ") + FormatGoldNumber(RequestedCopper!.Value) + L(" po", " gold") : L("Convertir", "Convert");
     public string ConversionReceiveText => HasValidConversionAmount
-        ? L($"Vous recevrez {ConversionCredit} de Crédits Atlas.", $"You will receive {ConversionCredit} in Atlas credits.")
-        : HasConversionReceipt ? L($"Vous avez reçu {ConversionCredit} de Crédits Atlas.", $"You received {ConversionCredit} in Atlas credits.") : "";
+        ? L($"Tu recevras {ConversionCredit} de Crédits Atlas.", $"You will receive {ConversionCredit} in Atlas credits.")
+        : HasConversionReceipt ? L($"Tu as reçu {ConversionCredit} de Crédits Atlas.", $"You received {ConversionCredit} in Atlas credits.") : "";
     public string ConversionSourceLabel => L("Personnage source", "Source character");
     public string AvailableGoldLabel => L("Or disponible", "Available gold");
     public string GoldAmountLabel => L("Montant à convertir", "Amount to convert");
@@ -46,11 +46,11 @@ internal sealed partial class ShopUiState
     }
     public string BackToShopLabel => AccountOnlyMode ? L("Retour", "Back") : L("Retour à la boutique", "Back to shop");
     public string ConversionSubtitle => AccountOnlyMode
-        ? L("Choisissez un personnage WotLK et le montant d’or à convertir en Crédits Atlas.", "Choose a WotLK character and the amount of gold to convert into Atlas credits.")
-        : L("Choisissez un personnage et le montant d’or à convertir.", "Choose a character and the amount of gold to convert.");
+        ? L("Choisis un personnage WotLK et le montant d’or à convertir en Crédits Atlas.", "Choose a WotLK character and the amount of gold to convert into Atlas credits.")
+        : L("Choisis un personnage et le montant d’or à convertir.", "Choose a character and the amount of gold to convert.");
     public string ConversionModeHint => IsConversionPreview
         ? L("Prévisualisation · personnages et soldes fictifs", "Preview · example characters and balances")
-        : RealConversionAvailable ? L("Conversion définitive · déconnectez vos personnages pendant le traitement.", "Final conversion · keep your characters logged out during processing.")
+        : RealConversionAvailable ? L("Conversion définitive · déconnecte tes personnages pendant le traitement.", "Final conversion · keep your characters logged out during processing.")
         : L("La conversion est temporairement indisponible sur le royaume.", "Conversion is temporarily unavailable on the realm.");
     public string ConversionGold
     {
@@ -98,12 +98,12 @@ internal sealed partial class ShopUiState
     public double ConversionPercent => AvailableCopper is >= 10000 && RequestedCopper is uint copper
         ? Math.Clamp(copper * 100d / (AvailableCopper.Value / 10000 * 10000), 0, 100) : 0;
     public string ConversionHint => _conversionNotice is not null ? Text(_conversionNotice)
-        : HasPendingConversion ? L("Le royaume vérifie et traite votre demande. Vous pouvez fermer cette page ; le suivi sera retrouvé à la prochaine actualisation.", "The realm is checking and processing your request. You can close this page; tracking resumes on the next refresh.")
-        : _lastConversion is not null ? L("Conversion effectuée. Vous pouvez saisir un nouveau montant.", "Conversion complete. You can enter another amount.")
-        : _conversionCharacter is null ? L("Choisissez un personnage.", "Choose a character.")
-        : AvailableCopper is null ? L("Or indisponible pour ce personnage connecté. Déconnectez-le puis actualisez la boutique.", "Gold is unavailable for this online character. Log out of the character, then refresh the shop.")
+        : HasPendingConversion ? L("Le royaume vérifie et traite ta demande. Tu peux fermer cette page ; le suivi sera retrouvé à la prochaine actualisation.", "The realm is checking and processing your request. You can close this page; tracking resumes on the next refresh.")
+        : _lastConversion is not null ? L("Conversion effectuée. Tu peux saisir un nouveau montant.", "Conversion complete. You can enter another amount.")
+        : _conversionCharacter is null ? L("Choisis un personnage.", "Choose a character.")
+        : AvailableCopper is null ? L("Or indisponible pour ce personnage connecté. Déconnecte-le puis actualise la boutique.", "Gold is unavailable for this online character. Log out of the character, then refresh the shop.")
         : AvailableCopper < 10000 ? L("Ce personnage ne possède pas de pièce d’or entière.", "This character has no whole gold coins.")
-        : RequestedCopper is null ? L("Saisissez un nombre entier de pièces d’or.", "Enter a whole number of gold coins.")
+        : RequestedCopper is null ? L("Saisis un nombre entier de pièces d’or.", "Enter a whole number of gold coins.")
         : RequestedCopper > AvailableCopper ? L("Le montant dépasse le solde du personnage.", "The amount exceeds the character’s balance.")
         : ConversionQuote is not { CreditEuroCents: > 0 } ? L("Minimum : 1 pièce d’or.", "Minimum: 1 gold coin.")
         : _snapshot?.CreditBalanceEuroCents is null ? L("Le solde de Crédits Atlas est indisponible.", "The Atlas credit balance is unavailable.")

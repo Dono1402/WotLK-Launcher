@@ -12,6 +12,8 @@ public partial class ShopWalletViewV2 : UserControl
     private ShopUiState? State => DataContext as ShopUiState;
     internal event EventHandler? HistoryRequested;
     internal event EventHandler? AdminRequested;
+    internal Action<string> CopyReference { get; set; } = Clipboard.SetText;
+    internal Action<string> OpenPaymentPage { get; set; } = url => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
     public ShopWalletViewV2()
     {
         InitializeComponent();
@@ -28,14 +30,31 @@ public partial class ShopWalletViewV2 : UserControl
     private void CopyReference_Click(object sender, RoutedEventArgs e)
     {
         if(sender is not Button { DataContext:ShopTopUpRow row })return;
-        try { Clipboard.SetText(row.Reference); } catch(System.Runtime.InteropServices.COMException) { }
+        try
+        {
+            CopyReference(row.Reference);
+            State?.ReportWalletAction("Référence copiée.", "Reference copied.");
+        }
+        catch (System.Runtime.InteropServices.COMException)
+        {
+            State?.ReportWalletAction("La copie a échoué. Réessaie avec le bouton Copier la référence.", "Copy failed. Try Copy reference again.");
+        }
     }
     private void PayPal_Click(object sender, RoutedEventArgs e)
     {
         if(sender is not Button { DataContext:ShopTopUpRow row } || State?.PaymentUrlFor(row.Id) is not { } url
             || !ShopFundingValidation.IsPayPalMeUrl(url))return;
-        try { Process.Start(new ProcessStartInfo(url) { UseShellExecute=true }); }
-        catch(System.ComponentModel.Win32Exception) { }
+        try
+        {
+            OpenPaymentPage(url);
+            State?.ReportWalletAction("Page PayPal ouverte dans ton navigateur. Le paiement reste à effectuer et à valider.",
+                "PayPal opened in your browser. Payment still needs to be made and approved.");
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            State?.ReportWalletAction("Impossible d’ouvrir le navigateur. Réessaie avec le bouton Ouvrir PayPal.",
+                "Could not open the browser. Try Open PayPal again.");
+        }
     }
     private void Preset_Click(object sender, RoutedEventArgs e)
     {
@@ -45,9 +64,10 @@ public partial class ShopWalletViewV2 : UserControl
     private void ApplyLayout()
     {
         bool compact = ActualWidth < 1250;
-        WalletFrame.Margin = new Thickness(compact ? 24 : 60, compact ? 18 : 24, compact ? 24 : 60, 24);
-        WalletTitle.FontSize = compact ? 34 : 40;
-        WalletTitle.LineHeight = compact ? 44 : 50;
+        WalletFrame.MaxWidth = AtlasPageLayout.MaxWidth;
+        WalletFrame.Margin = AtlasPageLayout.Margin;
+        WalletTitle.FontSize = AtlasPageLayout.TitleSize;
+        WalletTitle.LineHeight = 58;
         WalletSummaryColumn.Width = new GridLength(compact ? 320 : 360);
         WalletSummary.Padding = new Thickness(compact ? 20 : 24);
     }

@@ -184,6 +184,7 @@ public partial class FriendsDrawerV2 : UserControl
 
     private void ApplyOpenState(bool isOpen, bool animate)
     {
+        animate &= AtlasMotion.IsEnabled;
         int transitionVersion = ++_transitionVersion;
         double currentOffset = DrawerTranslate.X;
         double currentPanelOpacity = DrawerPanel.Opacity;
@@ -369,7 +370,7 @@ public partial class FriendsDrawerV2 : UserControl
         double targetHeight = expanded ? AddFriendExpandedHeight : 0;
         double targetOpacity = expanded ? 1 : 0;
         double targetOffset = expanded ? 0 : -5;
-        if (!animate || !IsLoaded)
+        if (!animate || !IsLoaded || !AtlasMotion.IsEnabled)
         {
             AddFriendPanel.MaxHeight = targetHeight;
             AddFriendPanel.Opacity = targetOpacity;

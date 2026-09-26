@@ -89,6 +89,7 @@ public partial class LauncherShellV2
 
     private bool IsSharedAtlasPage(LauncherShellPage page) => page is LauncherShellPage.Settings
         or LauncherShellPage.PatchNotes or LauncherShellPage.Chat or LauncherShellPage.Account
+        || (page == LauncherShellPage.Armory && ArmoryView.FriendAccountId is not null)
         || (page == LauncherShellPage.Shop && _isAtlasWalletPage);
 
     private void ApplyServiceChrome()

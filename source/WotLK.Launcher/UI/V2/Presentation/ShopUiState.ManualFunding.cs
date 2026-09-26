@@ -74,16 +74,24 @@ internal sealed partial class ShopUiState
     public bool CanEditWalletDraft => !IsLoading && !IsFundingBusy && !HasPendingTopUp;
     public string FundingNotice => _fundingNotice is null ? "" : Text(_fundingNotice);
     public bool HasFundingNotice => _fundingNotice is not null;
+    private ShopText? _walletActionFeedback;
+    public string WalletActionFeedback => _walletActionFeedback is null ? "" : Text(_walletActionFeedback);
+    public bool HasWalletActionFeedback => _walletActionFeedback is not null;
+    internal void ReportWalletAction(string french, string english)
+    {
+        _walletActionFeedback = new(french, english);
+        Changed();
+    }
     public string TopUpListLabel => L("Mes demandes de recharge","My top-up requests");
     public string TopUpReferenceLabel => L("Référence à joindre au paiement","Reference to include with your payment");
     public string CopyReferenceLabel => L("Copier la référence","Copy reference");
     public string OpenPayPalLabel => L("Ouvrir PayPal","Open PayPal");
     public string CancelTopUpLabel => L("Annuler la demande","Cancel request");
     public string ManualFundingInstructions => IsFundingPreview
-        ? L("Démonstration : aucun paiement réel. Utilisez l’administration de démonstration pour valider cette demande.","Demo: no real payment. Use the demo administration to approve this request.")
-        : L("Réglez en « biens et services » et joignez la référence ci-dessous. Votre portefeuille sera crédité après vérification du paiement par l’équipe Atlas.",
+        ? L("Démonstration : aucun paiement réel. Utilise l’administration de démonstration pour valider cette demande.","Demo: no real payment. Use the demo administration to approve this request.")
+        : L("Règle en « biens et services » et joins la référence ci-dessous. Ton portefeuille sera crédité après vérification du paiement par l’équipe Atlas.",
             "Pay using goods and services and include the reference below. The Atlas team will verify the payment before crediting your wallet.");
-    public string TopUpPendingHint => L("Une demande attend déjà sa validation. Actualisez son statut après votre paiement. N’annulez la demande que si vous n’avez pas payé.",
+    public string TopUpPendingHint => L("Une demande attend déjà sa validation. Actualise son statut après ton paiement. N’annule la demande que si tu n’as pas payé.",
         "A request is already awaiting approval. Refresh its status after paying. Only cancel the request if you have not paid.");
     public string TopUpLimits => _snapshot?.ManualFunding is { } funding
         ? L("De ","From ")+FormatEuros(funding.MinimumCents)+L(" à "," to ")+FormatEuros(funding.MaximumCents)
@@ -120,8 +128,8 @@ internal sealed partial class ShopUiState
         await RunFundingMutation(async token=>
         {
             await _fundingActions!.Create(request,token);
-        },IsFundingPreview ? new("Demande de démonstration créée. Vous pouvez la valider dans l’administration.","Demo request created. You can approve it in the administration page.")
-            : new("Demande créée. Joignez sa référence à votre paiement PayPal.","Request created. Include its reference with your PayPal payment."));
+        },IsFundingPreview ? new("Demande de démonstration créée. Tu peux la valider dans l’administration.","Demo request created. You can approve it in the administration page.")
+            : new("Demande créée. Joins sa référence à ton paiement PayPal.","Request created. Include its reference with your PayPal payment."));
     }
     internal async Task CancelTopUpAsync(ShopTopUpRow row)
     {
@@ -165,15 +173,15 @@ internal sealed partial class ShopUiState
         or UnauthorizedAccessException or OperationCanceledException or LauncherAuthException;
     private static ShopText FundingErrorText(Exception error) => error switch
     {
-        ShopApiException { Code:"shop-top-up-already-pending" }=>new("Une demande existe déjà. Actualisez pour la retrouver.","A request already exists. Refresh to find it."),
+        ShopApiException { Code:"shop-top-up-already-pending" }=>new("Une demande existe déjà. Actualise pour la retrouver.","A request already exists. Refresh to find it."),
         ShopApiException { Code:"shop-payment-already-used" }=>new("Cet identifiant PayPal est déjà rattaché à une recharge. Aucun nouveau crédit n’a été ajouté.","This PayPal transaction is already linked to a top-up. No new funds were added."),
         ShopApiException { Code:"shop-payment-amount-mismatch" }=>new("Le montant vérifié ne correspond pas à la demande.","The verified amount does not match the request."),
-        ShopApiException { Code:"shop-top-up-changed" or "shop-invalid-transition" }=>new("La demande a changé. Actualisez-la avant de décider.","The request has changed. Refresh it before making a decision."),
-        ShopApiException { Code:"shop-daily-top-up-limit" }=>new("La limite de demandes sur 24 heures est atteinte. Réessayez plus tard.","The 24-hour request limit has been reached. Try again later."),
-        ShopApiException { StatusCode:HttpStatusCode.Forbidden }=>new("Votre compte n’a pas accès à cette action.","Your account cannot perform this action."),
-        UnauthorizedAccessException or LauncherAuthException { StatusCode:HttpStatusCode.Unauthorized }=>new("Reconnectez-vous pour continuer.","Sign in again to continue."),
-        ShopApiException { StatusCode:HttpStatusCode.BadRequest }=>new("Vérifiez les champs de la demande avant de réessayer.","Check the request fields before trying again."),
-        _=>new("Le résultat n’a pas pu être confirmé. Actualisez le statut avant de réessayer ou de payer à nouveau.",
+        ShopApiException { Code:"shop-top-up-changed" or "shop-invalid-transition" }=>new("La demande a changé. Actualise-la avant de décider.","The request has changed. Refresh it before making a decision."),
+        ShopApiException { Code:"shop-daily-top-up-limit" }=>new("La limite de demandes sur 24 heures est atteinte. Réessaie plus tard.","The 24-hour request limit has been reached. Try again later."),
+        ShopApiException { StatusCode:HttpStatusCode.Forbidden }=>new("Ton compte n’a pas accès à cette action.","Your account cannot perform this action."),
+        UnauthorizedAccessException or LauncherAuthException { StatusCode:HttpStatusCode.Unauthorized }=>new("Reconnecte-toi pour continuer.","Sign in again to continue."),
+        ShopApiException { StatusCode:HttpStatusCode.BadRequest }=>new("Vérifie les champs de la demande avant de réessayer.","Check the request fields before trying again."),
+        _=>new("Le résultat n’a pas pu être confirmé. Actualise le statut avant de réessayer ou de payer à nouveau.",
             "The result could not be confirmed. Refresh the status before trying again or paying again.")
     };
 
@@ -198,8 +206,8 @@ internal sealed partial class ShopUiState
     public bool CanEditAdminDetails=>CanAdministerFunding && !IsFundingBusy && !IsAdminLoading;
     public bool HasAdminSelection=>_adminDetail is not null;
     public string AdminSubtitle=>IsFundingPreview ? L("Démonstration locale · aucun encaissement ni remboursement réel","Local demo · no real charge or refund")
-        : L("Vérifiez les opérations dans PayPal, puis enregistrez votre décision.","Verify transactions in PayPal, then record your decision.");
-    public string AdminNoSelection=>IsAdminDetailLoading ? L("Chargement de la demande…","Loading request…") : L("Sélectionnez une demande pour examiner son paiement.","Select a request to review its payment.");
+        : L("Vérifie les opérations dans PayPal, puis enregistre ta décision.","Verify transactions in PayPal, then record your decision.");
+    public string AdminNoSelection=>IsAdminDetailLoading ? L("Chargement de la demande…","Loading request…") : L("Sélectionne une demande pour examiner son paiement.","Select a request to review its payment.");
     public string AdminEmpty=>IsAdminLoading ? L("Chargement…","Loading…") : L("Aucune demande dans cette liste.","No requests in this list.");
     public bool ShowAdminEmpty=>AdminTopUps.Count==0;
     public string AdminReference=>_adminDetail?.Request.Reference??"";
@@ -285,7 +293,7 @@ internal sealed partial class ShopUiState
     internal async Task SearchAdminTopUpAsync()
     {
         string id=_adminSearch.Trim(); if(id.StartsWith("ATLAS-",StringComparison.OrdinalIgnoreCase))id=id[6..]; id=id.ToLowerInvariant();
-        if(!ShopFundingValidation.IsId(id)) { _fundingNotice=new("Saisissez une référence Atlas complète.","Enter a complete Atlas reference."); Changed(); return; }
+        if(!ShopFundingValidation.IsId(id)) { _fundingNotice=new("Saisis une référence Atlas complète.","Enter a complete Atlas reference."); Changed(); return; }
         await ReadAdminTopUpAsync(id);
     }
     private async Task ReadAdminTopUpAsync(string id)

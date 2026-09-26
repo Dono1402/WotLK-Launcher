@@ -44,8 +44,8 @@ public sealed class ProfileUiState : BindableUiState
     public string PresenceBrush => _presence?.Status switch
         { "online" when _presence.IsAvailable => "#48C78E", "away" when _presence.IsAvailable => "#E9B44C", "dnd" when _presence.IsAvailable => "#EE6873", _ => "#8995A8" };
     public string PresenceError => Localization.LauncherLocalization.Text(_presence?.ErrorCode switch
-        { "presence-unavailable" => "Le serveur ne permet pas encore de modifier votre statut.",
-          not null => "Impossible de confirmer le statut. Réessayez.", _ => "" });
+        { "presence-unavailable" => "Le serveur ne permet pas encore de modifier ton statut.",
+          not null => "Impossible de confirmer le statut. Réessaie.", _ => "" });
     public bool CanChangePresence => Current.IsAuthenticated && _presence?.OwnerAccountId is not null && _presence.IsAvailable && !_presence.IsUpdating;
     public bool IsPresenceUpdating => _presence?.IsUpdating == true;
     public bool IsPresenceOnline => _presence?.ManualStatus == "online" && _presence.IsAvailable;

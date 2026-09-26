@@ -3,8 +3,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="#101418">
     <Grid>
-        <Grid x:Name="BrowserHost"/>
-        <StackPanel x:Name="StatusPanel" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="460" Margin="24">
+        <Grid.RowDefinitions><RowDefinition Height="44"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <Button x:Name="ProfileBackButton" Content="← Retour" Click="ProfileBack_Click"
+                HorizontalAlignment="Left" Margin="24,0" Padding="14,0" Height="32"
+                Style="{StaticResource AtlasV2.Button.Secondary}" AutomationProperties.Name="Retour"/>
+        <Grid x:Name="BrowserHost" Grid.Row="1"/>
+        <StackPanel x:Name="StatusPanel" Grid.Row="1" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="460" Margin="24">
             <Grid x:Name="ProfileLoadingIndicator" Width="36" Height="36" HorizontalAlignment="Center"
                   Visibility="Collapsed" IsHitTestVisible="False" AutomationProperties.Name="Chargement du profil">
                 <Ellipse Margin="3" Stroke="{StaticResource AtlasV2.Brush.Border}" StrokeThickness="2.5"/>

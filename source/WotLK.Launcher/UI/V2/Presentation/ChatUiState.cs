@@ -228,7 +228,7 @@ public sealed record ChatStrings(bool IsEnglish)
 {
     public CultureInfo Culture => CultureInfo.GetCultureInfo(IsEnglish ? "en-US" : "fr-FR");
     public string Title => IsEnglish ? "Messages" : "Messages";
-    public string Subtitle => IsEnglish ? "Your Atlas conversations" : "Vos conversations Atlas";
+    public string Subtitle => IsEnglish ? "Your Atlas conversations" : "Tes conversations Atlas";
     public string Conversations => IsEnglish ? "CONVERSATIONS" : "CONVERSATIONS";
     public string Back => IsEnglish ? "Back" : "Retour";
     public string Send => IsEnglish ? "Send" : "Envoyer";
@@ -237,16 +237,16 @@ public sealed record ChatStrings(bool IsEnglish)
     public string LoadEarlier => IsEnglish ? "Load earlier messages" : "Charger les messages précédents";
     public string NewConversation => IsEnglish ? "Start the conversation" : "Commencer la conversation";
     public string NoConversations => IsEnglish ? "No conversations yet" : "Aucune conversation pour le moment";
-    public string NoConversationsHint => IsEnglish ? "Choose Send a message from a friend's menu." : "Choisissez Envoyer un message dans le menu d’un ami.";
-    public string ChooseConversation => IsEnglish ? "Choose a conversation" : "Choisissez une conversation";
-    public string ChooseConversationHint => IsEnglish ? "Your messages will appear here." : "Vos messages s’afficheront ici.";
+    public string NoConversationsHint => IsEnglish ? "Choose Send a message from a friend's menu." : "Choisis Envoyer un message dans le menu d’un ami.";
+    public string ChooseConversation => IsEnglish ? "Choose a conversation" : "Choisis une conversation";
+    public string ChooseConversationHint => IsEnglish ? "Your messages will appear here." : "Tes messages s’afficheront ici.";
     public string NoMessages => IsEnglish ? "No messages yet" : "Aucun message pour le moment";
-    public string NoMessagesHint => IsEnglish ? "Write the first message to this friend." : "Écrivez le premier message à cet ami.";
+    public string NoMessagesHint => IsEnglish ? "Write the first message to this friend." : "Écris le premier message à cet ami.";
     public string ComposerPlaceholder => IsEnglish ? "Write a message…" : "Écrire un message…";
     public string ComposerName => IsEnglish ? "Message text" : "Texte du message";
     public string ComposerHint => IsEnglish ? "Enter to send · Shift+Enter for a new line" : "Entrée pour envoyer · Maj+Entrée pour une nouvelle ligne";
-    public string Unavailable => IsEnglish ? "Messaging is unavailable for now. Your draft is kept." : "La messagerie est indisponible pour le moment. Votre brouillon est conservé.";
-    public string SendFailed => IsEnglish ? "The message could not be sent. Your draft is kept." : "Le message n’a pas pu être envoyé. Votre brouillon est conservé.";
+    public string Unavailable => IsEnglish ? "Messaging is unavailable for now. Your draft is kept." : "La messagerie est indisponible pour le moment. Ton brouillon est conservé.";
+    public string SendFailed => IsEnglish ? "The message could not be sent. Your draft is kept." : "Le message n’a pas pu être envoyé. Ton brouillon est conservé.";
     public string UnreadMessages => IsEnglish ? "unread messages" : "messages non lus";
     public string InGame => IsEnglish ? "In game" : "En jeu";
     public string OtherOrigin => IsEnglish ? "Other source" : "Autre origine";
@@ -254,9 +254,9 @@ public sealed record ChatStrings(bool IsEnglish)
     public string ErrorForCode(string? code) => code switch
     {
         null or "" => string.Empty,
-        "chat-not-friends" => IsEnglish ? "This account is no longer in your friends list." : "Ce compte ne fait plus partie de vos amis.",
-        "chat-rate-limited" => IsEnglish ? "Please wait a minute before sending another message. Your draft is kept." : "Patientez une minute avant d’envoyer un autre message. Votre brouillon est conservé.",
-        "chat-invalid-message" or "chat-invalid-request" => IsEnglish ? "Check the message text (1 to 1,000 characters). Your draft is kept." : "Vérifiez le texte du message (1 à 1 000 caractères). Votre brouillon est conservé.",
+        "chat-not-friends" => IsEnglish ? "This account is no longer in your friends list." : "Ce compte ne fait plus partie de tes amis.",
+        "chat-rate-limited" => IsEnglish ? "Please wait a minute before sending another message. Your draft is kept." : "Patiente une minute avant d’envoyer un autre message. Ton brouillon est conservé.",
+        "chat-invalid-message" or "chat-invalid-request" => IsEnglish ? "Check the message text (1 to 1,000 characters). Your draft is kept." : "Vérifie le texte du message (1 à 1 000 caractères). Ton brouillon est conservé.",
         "chat-unavailable" or "chat-unauthorized" => Unavailable,
         _ => SendFailed
     };

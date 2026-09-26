@@ -25,6 +25,7 @@ public sealed class LauncherSettings
     public bool StartWithWindows { get; set; }
 
     public bool MinimizeToTrayOnClose { get; set; } = true;
+    public bool HasSeenTrayCloseHint { get; set; }
 
     public bool FriendPresenceNotifications { get; set; } = true;
 

@@ -1,0 +1,24 @@
+{
+  "id": "atlas-launcher-1-8-2",
+  "category": "Launcher",
+  "title": "Atlas Launcher 1.8.2",
+  "summary": "Raccourcis Windows, icône Atlas et désinstallation corrigés.",
+  "sections": [
+    {
+      "title": "Installation et icônes",
+      "items": [
+        "Les raccourcis Bureau et menu Démarrer ne sont plus désactivés à tort lorsque les dossiers Windows ont des permissions partagées.",
+        "Après l’installation ou une mise à jour, Windows est averti du changement d’icône pour remplacer l’ancien visuel par le logo Atlas."
+      ]
+    },
+    {
+      "title": "Désinstallation",
+      "items": [
+        "Les anciens fichiers temporaires de mise à jour sont nettoyés pour permettre la suppression du dossier Atlas Launcher devenu vide.",
+        "Les réglages Atlas, les fichiers du jeu et les fichiers supplémentaires non reconnus sont conservés. Le désinstalleur indique lorsque ces derniers empêchent de retirer le dossier.",
+        "Utilisez l’installateur 1.8.2 pour bénéficier également du désinstalleur corrigé."
+      ]
+    }
+  ],
+  "publishedAt": "2026-09-26T09:57:35Z"
+}

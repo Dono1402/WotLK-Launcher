@@ -1,0 +1,35 @@
+{
+  "commit": "8f2be76949364f5148331631cc7fb49e778862c0",
+  "assets": [
+    {
+      "name": "AtlasLauncherSetup.exe",
+      "bytes": 520997977,
+      "sha256": "b39bd6afa6df12851ea746e098a9800fbac8e0ab76d662ccd61eeac3d632e945"
+    },
+    {
+      "name": "armory-runtime.zip",
+      "bytes": 298278314,
+      "sha256": "84a57db71c985be18c47f62e5761e21effe7d032a7316e0f69e9edc650a7e645"
+    },
+    {
+      "name": "launcher-update.json",
+      "bytes": 424,
+      "sha256": "abb05f23c3db07f1a495f321ae8bd0eb3974168832cb1d26876d71bf5ac63006"
+    },
+    {
+      "name": "PATCH-NOTES.md",
+      "bytes": 833,
+      "sha256": "0ea372fff0640d4a58601e0248c17f2c788bb5e6c71a747f3011d40055ecb980"
+    },
+    {
+      "name": "PATCH-NOTES.en.md",
+      "bytes": 722,
+      "sha256": "b42ee692e4e87dc42bd9b8ff14bf95650c2257e305fea167a9ad93d97d470a8e"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "bytes": 426,
+      "sha256": "177dfdcb262009d84bb94ca5ddb5bf809c5fce8586e87194e9178561ff1d8f29"
+    }
+  ]
+}

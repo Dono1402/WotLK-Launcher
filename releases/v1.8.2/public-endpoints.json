@@ -1,0 +1,12 @@
+[
+  {
+    "url": "https://animeclub.fr/wotlk/launcher/launcher-update.json",
+    "version": "1.8.2",
+    "sha256": "38bd3f88b6d20ae994d61ee47c5e4c11b801fe26fb2271767c6e3eb70461dbf9"
+  },
+  {
+    "url": "http://152.228.225.7/launcher/launcher-update.json",
+    "version": "1.8.2",
+    "sha256": "38bd3f88b6d20ae994d61ee47c5e4c11b801fe26fb2271767c6e3eb70461dbf9"
+  }
+]

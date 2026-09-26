@@ -1,0 +1,19 @@
+{
+  "version": "1.8.2",
+  "sourceCommit": "8f2be76949364f5148331631cc7fb49e778862c0",
+  "buildWarnings": 0,
+  "buildErrors": 0,
+  "installerShellLifecycle": "passed in isolated fixture",
+  "actualCommonShortcutPaths": "read-only preflight passed",
+  "directoryLeaseRenameProtection": "passed",
+  "updaterResidueCleanup": "passed; empty install root removed",
+  "unknownFilePreservation": "passed",
+  "reparsePointRejection": "passed",
+  "installerSourcePathStateSecurity": "passed",
+  "finalInstallerArtifact": "passed",
+  "signedCandidate": "signature valid; package matching; no download, UAC or application launch",
+  "taskbarIconRefresh": "confirmed by user",
+  "real182InstallationVerified": false,
+  "real182UninstallationVerified": false,
+  "localClientReplaced": false
+}

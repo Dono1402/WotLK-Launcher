@@ -8,7 +8,7 @@
     </UserControl.Resources>
     <Grid>
         <!-- Reuse the existing artwork. The soft layer is decorative; controls are siblings above it. -->
-        <Grid Margin="-8" IsHitTestVisible="False">
+        <Grid x:Name="ArtworkLayer" Margin="-8" IsHitTestVisible="False">
             <Grid.Effect><BlurEffect Radius="5" RenderingBias="Performance"/></Grid.Effect>
             <Rectangle Opacity="0.7" RenderOptions.BitmapScalingMode="HighQuality">
                 <Rectangle.Fill><ImageBrush ImageSource="{StaticResource CitadelArtwork}" Stretch="UniformToFill" AlignmentX="Right" AlignmentY="Top"/></Rectangle.Fill>

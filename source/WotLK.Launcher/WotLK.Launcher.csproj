@@ -44,6 +44,7 @@
     <Resource Include="Assets\Branding\*.png" />
     <Resource Include="Assets\Images\*.png" />
     <Resource Include="Assets\Shop\*.png" />
+    <Resource Include="Assets\Minecraft\*.png" />
     <Resource Include="Assets\Images\*.jpg" />
     <Resource Include="Assets\Launcher\visuals\*.png" />
     <Resource Include="Assets\Launcher\addon-icons\*.png" />

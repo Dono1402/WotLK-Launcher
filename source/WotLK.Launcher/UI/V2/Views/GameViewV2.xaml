@@ -6,6 +6,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:dashboard="clr-namespace:WotLK.Launcher.Dashboard"
              xmlns:presentation="clr-namespace:WotLK.Launcher.UI.V2.Presentation"
+             xmlns:views="clr-namespace:WotLK.Launcher.UI.V2.Views"
              mc:Ignorable="d"
              d:DesignWidth="1440"
              d:DesignHeight="796"
@@ -24,7 +25,6 @@
             </ResourceDictionary.MergedDictionaries>
             <presentation:HeroTextConverter x:Key="HeroText"/>
             <SolidColorBrush x:Key="GamePilot.Online" Color="#35E1BF"/>
-            <BitmapImage x:Key="GamePilot.Artwork" UriSource="/WotLK.Launcher;component/Assets/Images/AtlasGamePilotA.png" CacheOption="OnLoad"/>
         </ResourceDictionary>
     </UserControl.Resources>
     <Grid>
@@ -33,68 +33,40 @@
             <ScrollViewer.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource AtlasV2.ScrollBar.Dark}"/></ScrollViewer.Resources>
             <Grid x:Name="ViewportFrame" Height="{Binding ViewportHeight, ElementName=GameScrollViewer}" MinHeight="640">
                 <Border x:Name="ContentFrame">
-                    <Border x:Name="HeroCard" MinHeight="640" Background="#07111C" ClipToBounds="True">
+                    <Border x:Name="HeroCard" MinHeight="640" Background="Transparent" ClipToBounds="True">
                         <Grid DataContext="{Binding State, ElementName=Root}">
-                            <!-- The same candidate covers the upper inset while the main layer is reframed.
-                                 A short WPF mask blends the two; the supplied bitmap stays untouched. -->
-                            <Rectangle IsHitTestVisible="False" RenderOptions.BitmapScalingMode="HighQuality">
-                                <Rectangle.Fill><ImageBrush ImageSource="{StaticResource GamePilot.Artwork}" Stretch="UniformToFill" AlignmentX="Right" AlignmentY="Top"/></Rectangle.Fill>
-                            </Rectangle>
-                            <Rectangle x:Name="HeroArtwork" IsHitTestVisible="False" RenderOptions.BitmapScalingMode="HighQuality">
-                                <Rectangle.OpacityMask><LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                    <GradientStop Color="#00FFFFFF" Offset="0.055"/><GradientStop Color="#FFFFFFFF" Offset="0.115"/>
-                                </LinearGradientBrush></Rectangle.OpacityMask>
-                                <Rectangle.Fill>
-                                    <ImageBrush AlignmentX="Right" AlignmentY="Top" Stretch="UniformToFill" ImageSource="{StaticResource GamePilot.Artwork}">
-                                        <ImageBrush.RelativeTransform>
-                                            <TransformGroup>
-                                                <ScaleTransform ScaleX="1.06" ScaleY="1.06" CenterX="0.5" CenterY="0"/>
-                                                <TranslateTransform X="0.008" Y="0.047"/>
-                                            </TransformGroup>
-                                        </ImageBrush.RelativeTransform>
-                                    </ImageBrush>
-                                </Rectangle.Fill>
-                            </Rectangle>
-                            <Rectangle IsHitTestVisible="False">
-                                <Rectangle.Fill><LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
-                                    <GradientStop Color="#ED030C15" Offset="0"/><GradientStop Color="#C6040D17" Offset="0.32"/>
-                                    <GradientStop Color="#26061522" Offset="0.62"/><GradientStop Color="#240B2134" Offset="1"/>
-                                </LinearGradientBrush></Rectangle.Fill>
-                            </Rectangle>
-                            <Rectangle IsHitTestVisible="False">
-                                <Rectangle.Fill><LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
-                                    <GradientStop Color="#10020A12" Offset="0"/><GradientStop Color="#00020A12" Offset="0.55"/>
-                                    <GradientStop Color="#6C030D18" Offset="0.79"/><GradientStop Color="#D9020911" Offset="1"/>
-                                </LinearGradientBrush></Rectangle.Fill>
-                            </Rectangle>
+                            <views:GameBackdropV2 x:Name="InlineBackdrop" IsMinecraftTheme="{Binding IsMinecraftTheme, ElementName=Root}"/>
                             <Border x:Name="HeroCopyPanel" HorizontalAlignment="Left" VerticalAlignment="Top" Padding="74,214,0,0">
                                 <StackPanel x:Name="HeroCopyContent">
                                     <StackPanel x:Name="RealmEyebrow" Orientation="Horizontal" Height="26">
-                                        <Border x:Name="RealmEyebrowLine" Width="38" Height="1" Background="#64D6FF" VerticalAlignment="Center" Margin="0,0,22,0"/>
-                                        <TextBlock Text="{Binding RealmLabel, Converter={StaticResource HeroText}, ConverterParameter=Tracked}"
-                                                   AutomationProperties.Name="{Binding RealmLabel}" FontSize="14" FontWeight="SemiBold" Foreground="#62D6FF" VerticalAlignment="Center"/>
+                                        <Border x:Name="RealmEyebrowLine" Width="38" Height="1" Background="{DynamicResource GamePilot.EyebrowLine}" VerticalAlignment="Center" Margin="0,0,22,0"/>
+                                        <TextBlock Text="{Binding EyebrowLabel, Converter={StaticResource HeroText}, ConverterParameter=Tracked}"
+                                                   AutomationProperties.Name="{Binding EyebrowLabel}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource GamePilot.Eyebrow}" VerticalAlignment="Center"/>
                                     </StackPanel>
                                     <Grid x:Name="HeroTitleBlock" Height="212" Margin="8,17,0,0">
                                         <TextBlock x:Name="HeroTitle" Text="{Binding Title, Converter={StaticResource HeroText}, ConverterParameter=First}" FontSize="102" FontWeight="ExtraBold" VerticalAlignment="Top">
                                             <TextBlock.Foreground><LinearGradientBrush StartPoint="0,0.26" EndPoint="0,0.82"><GradientStop Color="#FCFCFD" Offset="0"/><GradientStop Color="#DAE1E9" Offset="1"/></LinearGradientBrush></TextBlock.Foreground>
                                         </TextBlock>
-                                        <TextBlock x:Name="HeroTitleSecond" Text="{Binding Title, Converter={StaticResource HeroText}, ConverterParameter=Rest}" FontSize="99" FontWeight="ExtraBold" VerticalAlignment="Top" Margin="1,93.4,0,0">
-                                            <TextBlock.Foreground><LinearGradientBrush StartPoint="0,0.35" EndPoint="0,0.88"><GradientStop Color="#A8DCFD" Offset="0"/><GradientStop Color="#9ED7FC" Offset="0.25"/><GradientStop Color="#5EA0D7" Offset="1"/></LinearGradientBrush></TextBlock.Foreground>
-                                        </TextBlock>
+                                        <TextBlock x:Name="HeroTitleSecond" Text="{Binding Title, Converter={StaticResource HeroText}, ConverterParameter=Rest}" FontSize="99" FontWeight="ExtraBold" VerticalAlignment="Top" Margin="1,93.4,0,0" Foreground="{DynamicResource GamePilot.TitleAccent}"/>
                                     </Grid>
                                     <TextBlock x:Name="HeroSubtitle" Text="{Binding Subtitle, Converter={StaticResource HeroText}, ConverterParameter=Sentence}" FontSize="38" Foreground="#D1DDF0" Margin="13,0,0,0"/>
                                 </StackPanel>
                             </Border>
                             <StackPanel x:Name="HeroMotto" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,469,81,0" IsHitTestVisible="False" Opacity="0.82">
-                                <TextBlock Text="L E  F R O I D&#10;N E  M E U R T&#10;J A M A I S" TextAlignment="Center" FontSize="18" LineHeight="33" Foreground="#C4E2F8" FontFamily="{StaticResource AtlasV2.Font.Inter}"/>
-                                <Grid Margin="20,4,8,0" Height="22"><Border Height="1" Background="#8CADC5" VerticalAlignment="Center"/><Path Data="M10,0 L15,11 L10,22 L5,11 Z M10,5 L10,17" Stretch="Uniform" Width="12" Height="22" Stroke="#A5C5DB" StrokeThickness="1" HorizontalAlignment="Right" Margin="0,0,20,0"/></Grid>
+                                <TextBlock x:Name="HeroMottoText" Text="{Binding Motto}" TextAlignment="Center" FontSize="18" LineHeight="33" Foreground="{DynamicResource GamePilot.Motto}" FontFamily="{StaticResource AtlasV2.Font.Inter}"/>
+                                <Grid x:Name="WotlkMottoOrnament" Margin="20,4,8,0" Height="22"><Border Height="1" Background="#8CADC5" VerticalAlignment="Center"/><Path Data="M10,0 L15,11 L10,22 L5,11 Z M10,5 L10,17" Stretch="Uniform" Width="12" Height="22" Stroke="#A5C5DB" StrokeThickness="1" HorizontalAlignment="Right" Margin="0,0,20,0"/></Grid>
+                                <Image x:Name="MinecraftMottoOrnament" Source="/WotLK.Launcher;component/Assets/Minecraft/Overworld_Cube_Separateur.png" Width="120" Height="33" Margin="0,6,0,0" Stretch="Uniform" Visibility="Collapsed" RenderOptions.BitmapScalingMode="HighQuality"/>
                             </StackPanel>
                             <Grid x:Name="HeroBottomBar" Margin="59,0,59,59" VerticalAlignment="Bottom">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock x:Name="AvailabilityNotice" Grid.Column="2" VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                                           FontSize="12" Foreground="#CFDED9" TextAlignment="Right" MaxWidth="540"
+                                           Text="{Binding State.AvailabilityNotice, ElementName=Root}"
+                                           Visibility="{Binding State.HasAvailabilityNotice, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}"/>
                                 <StackPanel x:Name="HeroStatusRegion" Grid.Column="0" Width="575" VerticalAlignment="Bottom">
                                     <Grid x:Name="GameOperationFeedback" Margin="0,0,0,14">
                                         <Border Padding="16,13"
-                                                Background="{StaticResource GamePilot.Surface}"
+                                                Background="{DynamicResource GamePilot.Surface}"
                                                 BorderBrush="{StaticResource AtlasV2.Brush.CyanBorder}"
                                                 BorderThickness="1"
                                                 CornerRadius="12"
@@ -133,7 +105,7 @@
                                         </Border>
 
                                         <Border Padding="16,13"
-                                                Background="{StaticResource GamePilot.Surface}"
+                                                Background="{DynamicResource GamePilot.Surface}"
                                                 BorderBrush="{StaticResource AtlasV2.Brush.DangerBorder}"
                                                 BorderThickness="1"
                                                 CornerRadius="12"
@@ -160,7 +132,7 @@
                                         </Border>
 
                                     </Grid>
-                                    <Border x:Name="RealmStatusCard" Height="152" Padding="33,22,33,23" CornerRadius="14" Background="{StaticResource GamePilot.Surface}" BorderBrush="#344E63" BorderThickness="1">
+                                    <Border x:Name="RealmStatusCard" Height="152" Padding="33,22,33,23" CornerRadius="14" Background="{DynamicResource GamePilot.Surface}" BorderBrush="{DynamicResource GamePilot.CardBorder}" BorderThickness="1">
                                         <Grid>
                                             <Grid.RowDefinitions><RowDefinition Height="42"/><RowDefinition Height="1"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                                         <Grid x:Name="GameServerStatus"
@@ -226,12 +198,12 @@
                                         </Grid>
 
 
-                                            <Border Grid.Row="1" Height="1" Background="#293E50"/>
+                                            <Border Grid.Row="1" Height="1" Background="{DynamicResource GamePilot.CardDivider}"/>
                                             <Grid x:Name="RealmFacts" Grid.Row="2" Margin="5,16,0,0" TextBlock.Foreground="#E4EDF7" TextBlock.FontSize="16">
                                                 <Grid.ColumnDefinitions><ColumnDefinition Width="140*"/><ColumnDefinition Width="145*"/><ColumnDefinition Width="220*"/></Grid.ColumnDefinitions>
-                                                <StackPanel ToolTip="{Binding DashboardState.Current.OnlinePlayersToolTip, ElementName=Root}"><TextBlock Text="{Binding DashboardState.Current.OnlinePlayersText, ElementName=Root}"/><TextBlock Text="joueurs en ligne" FontSize="14" Foreground="#8FA9C7"/></StackPanel>
-                                                <Border Grid.Column="1" BorderBrush="#283E50" BorderThickness="1,0,0,0" Padding="33,0,0,0" ToolTip="{Binding DashboardState.Current.GatewayLatencyToolTip, ElementName=Root}"><StackPanel><TextBlock Text="{Binding DashboardState.Current.GatewayLatencyText, ElementName=Root}"/><TextBlock Text="latence" FontSize="14" Foreground="#8FA9C7"/></StackPanel></Border>
-                                                <Border Grid.Column="2" BorderBrush="#385266" BorderThickness="1,0,0,0" Padding="48,0,0,0"><StackPanel><TextBlock Text="{Binding RealmLabel, Converter={StaticResource HeroText}, ConverterParameter=Realm}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/><TextBlock Text="WotLK Classic" FontSize="14" Foreground="#8FA9C7"/></StackPanel></Border>
+                                                <StackPanel ToolTip="{Binding DashboardState.Current.OnlinePlayersToolTip, ElementName=Root}"><TextBlock Text="{Binding DashboardState.Current.OnlinePlayersText, ElementName=Root}"/><TextBlock Text="joueurs en ligne" FontSize="14" Foreground="{DynamicResource GamePilot.FactCaption}"/></StackPanel>
+                                                <Border Grid.Column="1" BorderBrush="{DynamicResource GamePilot.FactDivider}" BorderThickness="1,0,0,0" Padding="33,0,0,0" ToolTip="{Binding DashboardState.Current.GatewayLatencyToolTip, ElementName=Root}"><StackPanel><TextBlock Text="{Binding DashboardState.Current.GatewayLatencyText, ElementName=Root}"/><TextBlock Text="latence" FontSize="14" Foreground="{DynamicResource GamePilot.FactCaption}"/></StackPanel></Border>
+                                                <Border Grid.Column="2" BorderBrush="{DynamicResource GamePilot.RealmDivider}" BorderThickness="1,0,0,0" Padding="48,0,0,0"><StackPanel><TextBlock Text="{Binding RealmLabel, Converter={StaticResource HeroText}, ConverterParameter=Realm}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/><TextBlock Text="{Binding ServerEditionLabel}" FontSize="14" Foreground="{DynamicResource GamePilot.FactCaption}"/></StackPanel></Border>
                                             </Grid>
                                         </Grid>
                                     </Border>

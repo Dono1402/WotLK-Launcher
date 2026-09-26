@@ -370,6 +370,7 @@ public partial class LauncherShellV2 : Window
         _openActivityOnLoad = openActivityOnLoad;
         IsPreviewMode = isPreviewMode;
 
+        SyncMinecraftPatchNotes();
         InitializeComponent();
         _localizationBridge = new LauncherLocalizationBridge(this);
         Title = isPreviewMode
@@ -832,7 +833,7 @@ public partial class LauncherShellV2 : Window
 
     private void ApplyHeaderNavigationSpacing()
     {
-        if (!IsLoaded || ActualWidth < 1500 || ActualWidth >= 1800 || TitleBar.ActualWidth <= 0
+        if (!IsLoaded || _isServiceTransitioning || ActualWidth < 1500 || ActualWidth >= 1800 || TitleBar.ActualWidth <= 0
             || TopNavigation.DesiredSize.Width <= 0) return;
 
         // Give the tabs their original breathing room first. Reclaim padding only
@@ -1056,7 +1057,7 @@ public partial class LauncherShellV2 : Window
             && (IsPreviewMode || SettingsState.Current.IsRuntimeConnected))
         {
             NavigateTo(LauncherShellPage.Game);
-            GameView.FocusPrimaryAction();
+            (ShellState.IsWotlkSelected ? GameView : MinecraftView).FocusPrimaryAction();
         }
     }
 
@@ -1069,7 +1070,7 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
-        _patchNoteFocusReturnTarget = GameView.PatchNoteActionFocusTarget;
+        _patchNoteFocusReturnTarget = (ShellState.IsWotlkSelected ? GameView : MinecraftView).PatchNoteActionFocusTarget;
         PatchNoteOverlay.FocusFirstControl();
     }
 
@@ -1233,13 +1234,13 @@ public partial class LauncherShellV2 : Window
 
     private void ProfileMenu_ManageAccountRequested(object? sender, EventArgs e)
     {
-        AccountView.ProfileFallbackEnabled = false;
+        AccountView.ProfileFallbackEnabled = !ShellState.IsWotlkSelected;
         OpenAccountSection(AccountSection.Security);
     }
 
     private void ProfileMenu_ManageProfileRequested(object? sender, EventArgs e)
     {
-        if (ArmoryView.IsConfigured && IsAccountNavigationEnabled)
+        if (ShellState.IsWotlkSelected && ArmoryView.IsConfigured && IsAccountNavigationEnabled)
         {
             _suppressProfileFocusRestore = true;
             _overlayCoordinator.CloseProfile();
@@ -1248,6 +1249,7 @@ public partial class LauncherShellV2 : Window
             _accountCommands?.RefreshProfile();
             return;
         }
+        AccountView.ProfileFallbackEnabled = true;
         OpenAccountSection(AccountSection.Profile);
     }
 
@@ -1808,20 +1810,24 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
-        FinishServiceTransition();
+        bool animate = _animateNextNavigation || _isServiceTransitioning;
+        _animateNextNavigation = false;
 
         // Deep links from a profile or an active download belong to WotLK.
         // Never display a WotLK-only page under the Minecraft selection.
-        if (!ShellState.IsWotlkSelected && page is LauncherShellPage.Addons or LauncherShellPage.Armory or LauncherShellPage.Shop)
+        if (!ShellState.IsWotlkSelected && (page is LauncherShellPage.Addons or LauncherShellPage.Armory
+            || (page == LauncherShellPage.Shop && !_isAtlasWalletPage)))
         {
             ShellState.SelectService(LauncherService.Wotlk);
-            ApplyAdaptiveLayout();
+            animate = true;
         }
 
         DismissNavigationPanels();
 
         if (page != LauncherShellPage.Shop)
         {
+            _isAtlasWalletPage = false;
+            ShopView.SetAccountOnlyMode(false);
             ShopView.State.CloseConversion(); ShopView.State.CloseService(); ShopView.State.CloseWallet(); ShopView.State.CloseHistory(); ShopView.State.CloseAdminFunding();
         }
 
@@ -1835,31 +1841,19 @@ public partial class LauncherShellV2 : Window
             AddonsView.OnNavigatedAway();
         }
 
-        bool shopChromeChanged = (CurrentPage == LauncherShellPage.Shop) != (page == LauncherShellPage.Shop);
         CurrentPage = page;
         bool showGame = page == LauncherShellPage.Game;
         bool showAddons = page == LauncherShellPage.Addons;
         bool showPatchNotes = page == LauncherShellPage.PatchNotes;
         bool showSettings = page == LauncherShellPage.Settings;
-        bool showAccount = page == LauncherShellPage.Account;
-        SecondaryBackdrop.Visibility = !ShellState.IsWotlkSelected || showGame || page == LauncherShellPage.Shop ? Visibility.Collapsed : Visibility.Visible;
-        ShopBackdrop.Visibility = page == LauncherShellPage.Shop ? Visibility.Visible : Visibility.Collapsed;
-        GameView.Visibility = showGame && ShellState.IsWotlkSelected ? Visibility.Visible : Visibility.Collapsed;
-        MinecraftView.Visibility = showGame && !ShellState.IsWotlkSelected ? Visibility.Visible : Visibility.Collapsed;
-        AddonsView.Visibility = showAddons ? Visibility.Visible : Visibility.Collapsed;
-        PatchNotesView.Visibility = showPatchNotes ? Visibility.Visible : Visibility.Collapsed;
-        SettingsView.Visibility = showSettings ? Visibility.Visible : Visibility.Collapsed;
-        AccountView.Visibility = showAccount ? Visibility.Visible : Visibility.Collapsed;
-        ChatView.Visibility = page == LauncherShellPage.Chat ? Visibility.Visible : Visibility.Collapsed;
-        ArmoryView.Visibility = page == LauncherShellPage.Armory ? Visibility.Visible : Visibility.Collapsed;
-        ShopView.Visibility = page == LauncherShellPage.Shop ? Visibility.Visible : Visibility.Collapsed;
-        if (shopChromeChanged) ApplyAdaptiveLayout();
+        PresentScene(animate);
+        ApplyAdaptiveLayout();
         RefreshProfileTitleBarMode();
         GameNavigationButton.Tag = showGame ? "Active" : null;
         AddonsNavigationButton.Tag = showAddons ? "Active" : null;
         PatchNotesNavigationButton.Tag = showPatchNotes ? "Active" : null;
         MessagesNavigationButton.Tag = page == LauncherShellPage.Chat ? "Active" : null;
-        ShopNavigationButton.Tag = page == LauncherShellPage.Shop ? "Active" : null;
+        ShopNavigationButton.Tag = page == LauncherShellPage.Shop && !_isAtlasWalletPage ? "Active" : null;
         SettingsButton.Tag = showSettings ? "Active" : null;
         RefreshChatViewActivation();
     }
@@ -1886,6 +1880,7 @@ public partial class LauncherShellV2 : Window
 
     private void DashboardState_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        SyncMinecraftPatchNotes();
         if (PatchNoteState.IsOpen && !DashboardState.Current.CanOpenLatestPatchNote)
         {
             _overlayCoordinator.ClosePatchNote();

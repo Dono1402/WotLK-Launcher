@@ -38,8 +38,16 @@ internal sealed partial class ShopUiState
     public string NewBalanceLabel => L("Nouveau solde", "New balance");
     public string CancelLabel => HasPendingConversion || IsConverting ? CloseLabel : HasFundingReturn ? ServiceReturnLabel : HasConversionReceipt ? L("Terminé", "Done") : L("Annuler", "Cancel");
     public string CloseLabel => L("Fermer", "Close");
-    public string BackToShopLabel => L("Retour à la boutique", "Back to shop");
-    public string ConversionSubtitle => L("Choisissez un personnage et le montant d’or à convertir.", "Choose a character and the amount of gold to convert.");
+    private bool _accountOnlyMode;
+    internal bool AccountOnlyMode
+    {
+        get => _accountOnlyMode;
+        set { if (_accountOnlyMode == value) return; _accountOnlyMode = value; Changed(); }
+    }
+    public string BackToShopLabel => AccountOnlyMode ? L("Retour", "Back") : L("Retour à la boutique", "Back to shop");
+    public string ConversionSubtitle => AccountOnlyMode
+        ? L("Choisissez un personnage WotLK et le montant d’or à convertir en Crédits Atlas.", "Choose a WotLK character and the amount of gold to convert into Atlas credits.")
+        : L("Choisissez un personnage et le montant d’or à convertir.", "Choose a character and the amount of gold to convert.");
     public string ConversionModeHint => IsConversionPreview
         ? L("Prévisualisation · personnages et soldes fictifs", "Preview · example characters and balances")
         : RealConversionAvailable ? L("Conversion définitive · déconnectez vos personnages pendant le traitement.", "Final conversion · keep your characters logged out during processing.")

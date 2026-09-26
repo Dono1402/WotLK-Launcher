@@ -57,17 +57,11 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <views:CitadelBackdropV2 x:Name="SecondaryBackdrop" Grid.RowSpan="2"
-                                     IsHitTestVisible="False" Focusable="False" Visibility="Collapsed"/>
-            <Border x:Name="MinecraftBackdrop" Grid.RowSpan="2" Visibility="Collapsed" IsHitTestVisible="False">
-                <Border.Background>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                        <GradientStop Color="#07151C" Offset="0"/>
-                        <GradientStop Color="#102D2B" Offset="0.65"/>
-                        <GradientStop Color="#183B30" Offset="1"/>
-                    </LinearGradientBrush>
-                </Border.Background>
-            </Border>
+            <Grid x:Name="SceneBackgrounds" Grid.RowSpan="2" IsHitTestVisible="False">
+            <views:CitadelBackdropV2 x:Name="SecondaryBackdrop" IsHitTestVisible="False" Focusable="False" Visibility="Collapsed"/>
+            <views:CitadelBackdropV2 x:Name="AtlasBackdrop" ShowArtwork="False" Visibility="Hidden" Opacity="0"/>
+            <views:GameBackdropV2 x:Name="WotlkGameBackdrop"/>
+            <views:GameBackdropV2 x:Name="MinecraftBackdrop" IsMinecraftTheme="True" Visibility="Hidden" Opacity="0"/>
             <Viewbox x:Name="ShopBackdrop" Grid.RowSpan="2" IsHitTestVisible="False" Visibility="Collapsed" Stretch="Fill">
                 <Grid Width="1586" Height="992" RenderOptions.BitmapScalingMode="HighQuality">
                     <Image Source="/WotLK.Launcher;component/Assets/Shop/Fond_boutique_recompose_1586x992.png" Stretch="Fill"/>
@@ -81,10 +75,19 @@
                 </Grid>
             </Viewbox>
 
+            </Grid>
+
             <views:GameViewV2 x:Name="GameView"
                               Grid.RowSpan="2"
-                              State="{Binding GameState}"
+                              HasExternalBackdrop="True" State="{Binding GameState}"
                               DashboardState="{Binding DashboardState}"
+                              LayoutMode="{Binding ShellState.LayoutMode}"
+                              PatchNoteRequested="GameView_PatchNoteRequested"/>
+
+            <views:GameViewV2 x:Name="MinecraftView"
+                              Grid.RowSpan="2" Visibility="Collapsed" IsMinecraftTheme="True"
+                              HasExternalBackdrop="True" State="{Binding MinecraftGameState}"
+                              DashboardState="{Binding MinecraftDashboardState}"
                               LayoutMode="{Binding ShellState.LayoutMode}"
                               PatchNoteRequested="GameView_PatchNoteRequested"/>
 
@@ -115,8 +118,8 @@
                     Height="80"
                     Margin="22,22,22,0"
                     VerticalAlignment="Top"
-                    Background="{StaticResource AtlasV2.Pilot.Shell.TopBar}"
-                    BorderBrush="#703D566E"
+                    Background="{DynamicResource AtlasV2.Pilot.Shell.TopBar}"
+                    BorderBrush="{DynamicResource AtlasV2.Pilot.Shell.Border}"
                     BorderThickness="1"
                     CornerRadius="14"
                     TextElement.FontFamily="{StaticResource AtlasV2.Font.Inter}"
@@ -184,6 +187,7 @@
                               Width="158" Height="38" Margin="12,0" HorizontalAlignment="Left" VerticalAlignment="Center"
                               IsEnabled="{Binding ShellState.IsNavigationEnabled}"
                               AutomationProperties.Name="Choisir un jeu ou un service"
+                              AutomationProperties.LiveSetting="Polite"
                               ToolTip="Changer de jeu ou de service"
                               SelectedValuePath="Tag" SelectedValue="{Binding ShellState.SelectedService, Mode=OneWay}"
                               SelectionChanged="ServiceSelector_SelectionChanged">
@@ -499,7 +503,6 @@
             </Border>
 
             <Grid x:Name="WorkspaceContent" Grid.Row="1" Panel.ZIndex="30" ClipToBounds="True">
-                <views:MinecraftViewV2 x:Name="MinecraftView" Visibility="Collapsed"/>
                 <views:ShopViewV2 x:Name="ShopView" Visibility="Collapsed" LayoutMode="{Binding ShellState.LayoutMode, ElementName=ShellWindow}"/>
                 <views:AddonsViewV2 x:Name="AddonsView"
                                     Visibility="Collapsed"
@@ -523,10 +526,6 @@
                 <views:ChatViewV2 x:Name="ChatView" Visibility="Collapsed"
                                   ConversationRequested="ChatView_ConversationRequested" SendRequested="ChatView_SendRequested"
                                   LoadEarlierRequested="ChatView_LoadEarlierRequested"/>
-                <Image x:Name="WorkspaceTransitionLayer" Panel.ZIndex="20" Visibility="Collapsed"
-                       IsHitTestVisible="False" Focusable="False" Stretch="Fill">
-                    <Image.RenderTransform><TranslateTransform x:Name="WorkspaceTransitionOffset"/></Image.RenderTransform>
-                </Image>
                 <views:ActivityCenterPanelV2 x:Name="ActivityCenter"
                                              Panel.ZIndex="50"
                                              State="{Binding ActivityState}"

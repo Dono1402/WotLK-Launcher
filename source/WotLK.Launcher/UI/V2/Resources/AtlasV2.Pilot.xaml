@@ -2,6 +2,10 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework">
     <!-- Floating chrome shared by the native launcher pages. -->
+    <SolidColorBrush x:Key="AtlasV2.Pilot.Shell.Border" Color="#703D566E"/>
+    <SolidColorBrush x:Key="AtlasV2.Pilot.Shell.NavAccent" Color="#80DAFF"/>
+    <SolidColorBrush x:Key="AtlasV2.Pilot.Shell.NavHover" Color="#7030445B"/>
+    <SolidColorBrush x:Key="AtlasV2.Pilot.Shell.NavPressed" Color="#90415D74"/>
     <LinearGradientBrush x:Key="AtlasV2.Pilot.Shell.TopBar" StartPoint="0,0" EndPoint="1,1">
         <GradientStop Offset="0" Color="#DF06111C"/>
         <GradientStop Offset="0.58" Color="#A9122335"/>
@@ -32,20 +36,20 @@
                                           HorizontalAlignment="Center"
                                           VerticalAlignment="Center"/>
                         <Border x:Name="Indicator" Height="2" VerticalAlignment="Bottom"
-                                Background="#80DAFF" Visibility="Collapsed"/>
+                                Background="{DynamicResource AtlasV2.Pilot.Shell.NavAccent}" Visibility="Collapsed"/>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="Tag" Value="Active">
                             <Setter Property="Foreground" Value="#F5FAFF"/>
-                            <Setter TargetName="Surface" Property="Background" Value="{StaticResource AtlasV2.Pilot.Shell.NavActive}"/>
+                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource AtlasV2.Pilot.Shell.NavActive}"/>
                             <Setter TargetName="Indicator" Property="Visibility" Value="Visible"/>
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Surface" Property="Background" Value="#7030445B"/>
+                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource AtlasV2.Pilot.Shell.NavHover}"/>
                             <Setter Property="Foreground" Value="#F5FAFF"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Surface" Property="Background" Value="#90415D74"/>
+                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource AtlasV2.Pilot.Shell.NavPressed}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Surface" Property="Opacity" Value="0.45"/>

@@ -25,6 +25,48 @@ public partial class GameViewV2 : UserControl
         typeof(GameViewV2),
         new PropertyMetadata(null));
 
+    public static readonly DependencyProperty IsMinecraftThemeProperty = DependencyProperty.Register(
+        nameof(IsMinecraftTheme), typeof(bool), typeof(GameViewV2),
+        new PropertyMetadata(false, MinecraftThemeChanged));
+
+    private ResourceDictionary? _minecraftPalette;
+
+    public static readonly DependencyProperty HasExternalBackdropProperty = DependencyProperty.Register(
+        nameof(HasExternalBackdrop), typeof(bool), typeof(GameViewV2),
+        new PropertyMetadata(false, (view, e) => ((GameViewV2)view).InlineBackdrop.Visibility =
+            (bool)e.NewValue ? Visibility.Collapsed : Visibility.Visible));
+
+    public bool HasExternalBackdrop
+    {
+        get => (bool)GetValue(HasExternalBackdropProperty);
+        set => SetValue(HasExternalBackdropProperty, value);
+    }
+
+    public bool IsMinecraftTheme
+    {
+        get => (bool)GetValue(IsMinecraftThemeProperty);
+        set => SetValue(IsMinecraftThemeProperty, value);
+    }
+
+    private static void MinecraftThemeChanged(DependencyObject element, DependencyPropertyChangedEventArgs args)
+    {
+        var view = (GameViewV2)element;
+        if ((bool)args.NewValue)
+        {
+            view._minecraftPalette ??= new ResourceDictionary
+            {
+                Source = new Uri("/WotLK.Launcher;component/UI/V2/Resources/AtlasV2.MinecraftGame.xaml", UriKind.Relative)
+            };
+            view.Resources.MergedDictionaries.Add(view._minecraftPalette);
+        }
+        else if (view._minecraftPalette is not null)
+        {
+            view.Resources.MergedDictionaries.Remove(view._minecraftPalette);
+        }
+        view.WotlkMottoOrnament.Visibility = (bool)args.NewValue ? Visibility.Collapsed : Visibility.Visible;
+        view.MinecraftMottoOrnament.Visibility = (bool)args.NewValue ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     public GameViewV2()
     {
         InitializeComponent();
@@ -58,7 +100,8 @@ public partial class GameViewV2 : UserControl
 
     internal bool FocusPrimaryAction()
     {
-        return PrimaryActionButton.Focus();
+        return PrimaryActionButton.IsEnabled ? PrimaryActionButton.Focus()
+            : LatestPatchNoteAction.IsEnabled && LatestPatchNoteAction.Focus();
     }
 
     private void LatestPatchNoteAction_Click(object sender, RoutedEventArgs e)

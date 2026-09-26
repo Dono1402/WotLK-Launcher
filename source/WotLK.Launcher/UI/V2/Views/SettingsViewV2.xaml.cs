@@ -15,6 +15,23 @@ public partial class SettingsViewV2 : UserControl
     private bool _isApplyingState;
     private bool _initialCategoryApplied;
 
+    public static readonly DependencyProperty IsWotlkContextProperty = DependencyProperty.Register(
+        nameof(IsWotlkContext), typeof(bool), typeof(SettingsViewV2),
+        new PropertyMetadata(true, (target, _) => ((SettingsViewV2)target).ApplyServiceContext()));
+    public bool IsWotlkContext
+    {
+        get => (bool)GetValue(IsWotlkContextProperty);
+        set => SetValue(IsWotlkContextProperty, value);
+    }
+    private void ApplyServiceContext()
+    {
+        if (!IsInitialized) return;
+        Visibility visibility = IsWotlkContext ? Visibility.Visible : Visibility.Collapsed;
+        GameCategoryButton.Visibility = visibility;
+        WotlkLocalDiagnostic.Visibility = WotlkServiceDiagnostic.Visibility = WotlkClientDiagnostic.Visibility = visibility;
+        if (!IsWotlkContext && SelectedCategory == SettingsCategory.Game) SelectCategory(SettingsCategory.General);
+    }
+
     public static readonly DependencyProperty StateProperty = DependencyProperty.Register(
         nameof(State),
         typeof(SettingsUiState),
@@ -172,6 +189,7 @@ public partial class SettingsViewV2 : UserControl
     }
     internal void SelectCategory(SettingsCategory category)
     {
+        if (category == SettingsCategory.Game && !IsWotlkContext) category = SettingsCategory.General;
         if (!IsInitialized)
         {
             SelectedCategory = category;
@@ -190,7 +208,7 @@ public partial class SettingsViewV2 : UserControl
     internal void SelectAndFocusCategory(SettingsCategory category)
     {
         SelectCategory(category);
-        Button target = category switch
+        Button target = SelectedCategory switch
         {
             SettingsCategory.Game => GameCategoryButton,
             SettingsCategory.Updates => UpdatesCategoryButton,

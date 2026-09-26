@@ -1,0 +1,14 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Scoped to the existing title bar while Minecraft is selected. No geometry changes. -->
+    <SolidColorBrush x:Key="AtlasV2.Pilot.Shell.Border" Color="#705D8068"/>
+    <SolidColorBrush x:Key="AtlasV2.Pilot.Shell.NavAccent" Color="#4CEFAD"/>
+    <SolidColorBrush x:Key="AtlasV2.Pilot.Shell.NavHover" Color="#70416950"/>
+    <SolidColorBrush x:Key="AtlasV2.Pilot.Shell.NavPressed" Color="#90547E61"/>
+    <LinearGradientBrush x:Key="AtlasV2.Pilot.Shell.TopBar" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#DF09140D" Offset="0"/><GradientStop Color="#B1182A20" Offset="0.58"/><GradientStop Color="#C416211B" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="AtlasV2.Pilot.Shell.NavActive" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#253F2F" Offset="0"/><GradientStop Color="#2B513A" Offset="1"/>
+    </LinearGradientBrush>
+</ResourceDictionary>

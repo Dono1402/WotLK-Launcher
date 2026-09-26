@@ -1,0 +1,32 @@
+<UserControl x:Class="WotLK.Launcher.UI.V2.Views.GameBackdropV2"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             IsHitTestVisible="False" Focusable="False" ClipToBounds="True">
+    <UserControl.Resources><ResourceDictionary><ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/WotLK.Launcher;component/UI/V2/Resources/AtlasV2.GamePilot.xaml"/>
+    </ResourceDictionary.MergedDictionaries></ResourceDictionary></UserControl.Resources>
+    <Grid Background="#07111C">
+                            <!-- The same candidate covers the upper inset while the main layer is reframed.
+                                 A short WPF mask blends the two; the supplied bitmap stays untouched. -->
+                            <Rectangle IsHitTestVisible="False" RenderOptions.BitmapScalingMode="HighQuality">
+                                <Rectangle.Fill><ImageBrush x:Name="BaseArtworkBrush" ImageSource="{DynamicResource GamePilot.Artwork}" Stretch="UniformToFill" AlignmentX="Right" AlignmentY="Top"/></Rectangle.Fill>
+                            </Rectangle>
+                            <Rectangle x:Name="HeroArtwork" IsHitTestVisible="False" RenderOptions.BitmapScalingMode="HighQuality">
+                                <Rectangle.OpacityMask><LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#00FFFFFF" Offset="0.055"/><GradientStop Color="#FFFFFFFF" Offset="0.115"/>
+                                </LinearGradientBrush></Rectangle.OpacityMask>
+                                <Rectangle.Fill>
+                                    <ImageBrush AlignmentX="Right" AlignmentY="Top" Stretch="UniformToFill" ImageSource="{StaticResource GamePilot.Artwork}">
+                                        <ImageBrush.RelativeTransform>
+                                            <TransformGroup>
+                                                <ScaleTransform ScaleX="1.06" ScaleY="1.06" CenterX="0.5" CenterY="0"/>
+                                                <TranslateTransform X="0.008" Y="0.047"/>
+                                            </TransformGroup>
+                                        </ImageBrush.RelativeTransform>
+                                    </ImageBrush>
+                                </Rectangle.Fill>
+                            </Rectangle>
+                            <Rectangle IsHitTestVisible="False" Fill="{DynamicResource GamePilot.HorizontalShade}"/>
+                            <Rectangle IsHitTestVisible="False" Fill="{DynamicResource GamePilot.VerticalShade}"/>
+    </Grid>
+</UserControl>

@@ -14,6 +14,14 @@ public partial class ProfileMenuV2 : UserControl
     private bool _hasOpened;
     private int _transitionVersion;
 
+    public static readonly DependencyProperty IsWotlkContextProperty = DependencyProperty.Register(
+        nameof(IsWotlkContext), typeof(bool), typeof(ProfileMenuV2), new PropertyMetadata(true));
+    public bool IsWotlkContext
+    {
+        get => (bool)GetValue(IsWotlkContextProperty);
+        set => SetValue(IsWotlkContextProperty, value);
+    }
+
     public static readonly DependencyProperty StateProperty = DependencyProperty.Register(
         nameof(State),
         typeof(ProfileUiState),

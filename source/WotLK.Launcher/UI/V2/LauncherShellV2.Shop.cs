@@ -14,6 +14,9 @@ public partial class LauncherShellV2
     internal WalletBalanceV2 WalletControl => WalletHeader;
     private bool _shopHeaderLoading;
     private bool _shopHeaderRequested;
+    private bool _isAtlasWalletPage;
+    private bool _walletReturnPending;
+    private LauncherShellPage _walletReturnPage = LauncherShellPage.Game;
 
     private void InitializeShopPresentation()
     {
@@ -40,19 +43,43 @@ public partial class LauncherShellV2
     private void ShopPresentationChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (!ShopView.State.HasOffers) { WalletHeader.StopAnimation(); }
+        if (!_isAtlasWalletPage || _walletReturnPending) return;
+        _walletReturnPending = true;
+        _ = Dispatcher.BeginInvoke(new Action(() =>
+        {
+            _walletReturnPending = false;
+            var state = ShopView.State;
+            if (!_isAtlasWalletPage || CurrentPage != LauncherShellPage.Shop || state.IsWalletOpen
+                || state.IsConversionOpen || state.IsHistoryOpen || state.IsShopAdminOpen) return;
+            _isAtlasWalletPage = false;
+            ShopView.SetAccountOnlyMode(false);
+            LauncherShellPage target = _walletReturnPage;
+            if (!ShellState.IsWotlkSelected && target is LauncherShellPage.Addons or LauncherShellPage.Armory or LauncherShellPage.Shop)
+                target = LauncherShellPage.Game;
+            NavigateTo(target);
+        }));
+    }
+    private void EnterAtlasWallet()
+    {
+        if (CurrentPage == LauncherShellPage.Shop && !_isAtlasWalletPage) return;
+        if (!_isAtlasWalletPage) _walletReturnPage = CurrentPage;
+        _isAtlasWalletPage = true;
+        ShopView.SetAccountOnlyMode(true);
     }
     private async void OpenShopConversion(object? sender, EventArgs e)
     {
         if (!ShellState.IsNavigationEnabled || IsAuthenticationRequired || !_overlayCoordinator.CanNavigate) return;
         bool enteringShop = CurrentPage != LauncherShellPage.Shop;
-        NavigateTo(LauncherShellPage.Shop); ShopView.State.OpenConversion();
+        EnterAtlasWallet();
+        ShopView.State.OpenConversion(); NavigateTo(LauncherShellPage.Shop);
         if (enteringShop && !IsPreviewMode) await ShopView.State.RefreshAsync();
     }
     private async void OpenShopWallet(object? sender, EventArgs e)
     {
         if (!ShellState.IsNavigationEnabled || IsAuthenticationRequired || !_overlayCoordinator.CanNavigate) return;
         bool enteringShop = CurrentPage != LauncherShellPage.Shop;
-        NavigateTo(LauncherShellPage.Shop); ShopView.State.OpenWallet();
+        EnterAtlasWallet();
+        ShopView.State.OpenWallet(); NavigateTo(LauncherShellPage.Shop);
         if (enteringShop && !IsPreviewMode) await ShopView.State.RefreshAsync();
     }
     private void OpenShopHistory(object? sender, EventArgs e)
@@ -114,6 +141,8 @@ public partial class LauncherShellV2
     private async void ShopNavigationButton_Click(object sender, RoutedEventArgs e)
     {
         if (!ShellState.IsNavigationEnabled || !_overlayCoordinator.CanNavigate || IsAuthenticationRequired) return;
+        _isAtlasWalletPage = false;
+        ShopView.SetAccountOnlyMode(false);
         ShopView.State.CloseConversion(); ShopView.State.CloseService(); ShopView.State.CloseWallet(); ShopView.State.CloseHistory(); ShopView.State.CloseAdminFunding();
         NavigateTo(LauncherShellPage.Shop);
         await ShopView.State.RefreshAsync();

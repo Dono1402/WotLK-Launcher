@@ -1,0 +1,35 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Loaded only into the Minecraft instance of the existing GameViewV2. -->
+    <BitmapImage x:Key="GamePilot.Artwork" UriSource="/WotLK.Launcher;component/Assets/Minecraft/Minecraft_Overworld.png" CacheOption="OnLoad"/>
+    <SolidColorBrush x:Key="GamePilot.EyebrowLine" Color="#54EFB2"/>
+    <SolidColorBrush x:Key="GamePilot.Eyebrow" Color="#54EFB2"/>
+    <SolidColorBrush x:Key="GamePilot.Motto" Color="#C4EBCD"/>
+    <SolidColorBrush x:Key="GamePilot.CardBorder" Color="#526F60"/>
+    <SolidColorBrush x:Key="GamePilot.CardDivider" Color="#38594A"/>
+    <SolidColorBrush x:Key="GamePilot.FactDivider" Color="#38594A"/>
+    <SolidColorBrush x:Key="GamePilot.RealmDivider" Color="#416451"/>
+    <SolidColorBrush x:Key="GamePilot.FactCaption" Color="#AFCCBE"/>
+    <SolidColorBrush x:Key="GamePilot.ButtonForeground" Color="#C2DACD"/>
+    <SolidColorBrush x:Key="GamePilot.ButtonBorder" Color="#526F60"/>
+    <SolidColorBrush x:Key="GamePilot.DisabledSurface" Color="#CB101F18"/>
+    <SolidColorBrush x:Key="GamePilot.DisabledBorder" Color="#425B4E"/>
+    <SolidColorBrush x:Key="GamePilot.DisabledForeground" Color="#AAC0B3"/>
+    <LinearGradientBrush x:Key="GamePilot.TitleAccent" StartPoint="0,0.2" EndPoint="0,0.9">
+        <GradientStop Color="#C2FFDA" Offset="0"/><GradientStop Color="#77EDAE" Offset="0.4"/><GradientStop Color="#2AD291" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="GamePilot.Surface" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#D3223C2E" Offset="0"/><GradientStop Color="#EA0C1712" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="GamePilot.DisabledGold" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#C99F49" Offset="0"/><GradientStop Color="#917038" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="GamePilot.HorizontalShade" StartPoint="0,0.5" EndPoint="1,0.5">
+        <GradientStop Color="#99060E09" Offset="0"/><GradientStop Color="#65070F0A" Offset="0.32"/>
+        <GradientStop Color="#080A140E" Offset="0.62"/><GradientStop Color="#20080F0B" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="GamePilot.VerticalShade" StartPoint="0.5,0" EndPoint="0.5,1">
+        <GradientStop Color="#10040C07" Offset="0"/><GradientStop Color="#00040C07" Offset="0.55"/>
+        <GradientStop Color="#38040C07" Offset="0.79"/><GradientStop Color="#AA030A06" Offset="1"/>
+    </LinearGradientBrush>
+</ResourceDictionary>

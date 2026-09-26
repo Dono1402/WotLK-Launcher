@@ -70,9 +70,21 @@ public sealed class GameUiState : BindableUiState
 
     public string RealmLabel { get; init; } = "ROYAUME ARTHAS";
 
+    public string? ServiceLabel { get; init; }
+
+    public string EyebrowLabel => ServiceLabel ?? RealmLabel;
+
+    public string ServerEditionLabel { get; init; } = "WotLK Classic";
+
+    public string Motto { get; init; } = "L E  F R O I D\nN E  M E U R T\nJ A M A I S";
+
     public string Title { get; init; } = "Bienvenue en Norfendre";
 
     public string Subtitle { get; init; } = "Votre aventure vous attend";
+
+    public string AvailabilityNotice { get; init; } = string.Empty;
+
+    public bool HasAvailabilityNotice => !string.IsNullOrWhiteSpace(AvailabilityNotice);
 
     public string ClientStatus
     {

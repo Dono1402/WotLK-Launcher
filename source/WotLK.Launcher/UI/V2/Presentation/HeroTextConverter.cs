@@ -9,7 +9,8 @@ public sealed class HeroTextConverter : IValueConverter
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         string text = value as string ?? string.Empty;
-        int split = text.IndexOf(' ');
+        int split = text.IndexOf('\n');
+        if (split < 0) split = text.IndexOf(' ');
         return (parameter as string) switch
         {
             "First" => split < 0 ? text : text[..split],

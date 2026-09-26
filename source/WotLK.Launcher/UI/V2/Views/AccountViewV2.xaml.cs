@@ -346,7 +346,9 @@ public partial class AccountViewV2 : UserControl
         ProfileTabButton.Visibility = Visibility.Collapsed;
         SecurityPanel.Visibility = section == AccountSection.Security ? Visibility.Visible : Visibility.Collapsed;
         SessionsPanel.Visibility = section == AccountSection.Sessions ? Visibility.Visible : Visibility.Collapsed;
-        ProfileTabButton.Tag = null;
+        ProfileTabButton.Visibility = ProfileFallbackEnabled ? Visibility.Visible : Visibility.Collapsed;
+        ProfileTabButton.IsTabStop = ProfileFallbackEnabled;
+        ProfileTabButton.Tag = section == AccountSection.Profile ? "Active" : null;
         SecurityTabButton.Tag = section == AccountSection.Security ? "Active" : null;
         SessionsTabButton.Tag = section == AccountSection.Sessions ? "Active" : null;
 

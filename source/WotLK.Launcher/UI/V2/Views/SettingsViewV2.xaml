@@ -139,7 +139,7 @@
 
                             <Button x:Name="GameCategoryButton"
                                     Style="{StaticResource AtlasV2.Settings.NavButton}"
-                                    AutomationProperties.Name="Jeu"
+                                    AutomationProperties.Name="WOTLK Server"
                                     Click="GameCategoryButton_Click">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -154,7 +154,7 @@
                                     <TextBlock Grid.Column="1"
                                                Margin="10,0,0,0"
                                                VerticalAlignment="Center"
-                                               Text="Jeu"
+                                               Text="WOTLK Server"
                                                FontWeight="SemiBold"/>
                                 </Grid>
                             </Button>
@@ -599,12 +599,12 @@
                                     <TextBlock Text="État et versions"
                                                Style="{StaticResource SettingsPilot.SectionTitle}"
                                                FontSize="{DynamicResource SettingsPilot.Font.SectionTitle}"/>
-                                    <Grid Margin="0,18,0,0">
+                                    <Grid x:Name="WotlkLocalDiagnostic" Margin="0,18,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                         <TextBlock Text="État local" Style="{StaticResource SettingsPilot.Body}"/>
                                         <TextBlock Grid.Column="1" Text="{Binding State.Current.Diagnostic.LocalState, ElementName=SettingsRoot}" Style="{StaticResource SettingsPilot.Body}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Cyan}"/>
                                     </Grid>
-                                    <Grid Margin="0,11,0,0">
+                                    <Grid x:Name="WotlkServiceDiagnostic" Margin="0,11,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                         <TextBlock Text="État des services" Style="{StaticResource SettingsPilot.Body}"/>
                                         <TextBlock Grid.Column="1" Text="{Binding State.Current.Diagnostic.ServiceState, ElementName=SettingsRoot}" Style="{StaticResource SettingsPilot.Body}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Success}"/>
@@ -614,7 +614,7 @@
                                         <TextBlock Text="Atlas Launcher" Style="{StaticResource SettingsPilot.Body}"/>
                                         <TextBlock x:Name="DiagnosticLauncherVersionText" Grid.Column="1" Text="{Binding State.Current.Diagnostic.LauncherVersion, ElementName=SettingsRoot}" Style="{StaticResource SettingsPilot.Body}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Text}"/>
                                     </Grid>
-                                    <Grid Margin="0,11,0,0">
+                                    <Grid x:Name="WotlkClientDiagnostic" Margin="0,11,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                         <TextBlock Text="Client WotLK Classic" Style="{StaticResource SettingsPilot.Body}"/>
                                         <TextBlock x:Name="ClientVersionText" Grid.Column="1" Text="{Binding State.Current.Diagnostic.ClientVersion, ElementName=SettingsRoot}" Style="{StaticResource SettingsPilot.Body}" FontWeight="SemiBold" Foreground="{StaticResource AtlasV2.Brush.Text}"/>

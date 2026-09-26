@@ -220,7 +220,7 @@
                         HorizontalContentAlignment="Stretch"
                         IsEnabled="{Binding IsManageProfileEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:ProfileMenuV2}}}"
                         ToolTipService.ShowOnDisabled="True"
-                        AutomationProperties.Name="Gérer mon profil"
+                        AutomationProperties.Name="{Binding Text, ElementName=ManageProfileLabel}"
                         KeyboardNavigation.TabIndex="6"
                         Click="ManageProfileButton_Click">
                     <Button.Style>
@@ -244,11 +244,21 @@
                               Height="17"
                               Data="{StaticResource AtlasV2.Icon.User}"
                               Style="{StaticResource AtlasV2.Icon.Stroke}"/>
-                        <TextBlock Grid.Column="1"
+                        <TextBlock x:Name="ManageProfileLabel" Grid.Column="1"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
-                                   Text="Gérer mon profil"
-                                   FontWeight="SemiBold"/>
+                                   FontWeight="SemiBold">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="Profil et personnages WotLK"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsWotlkContext, RelativeSource={RelativeSource AncestorType={x:Type views:ProfileMenuV2}}}" Value="False">
+                                            <Setter Property="Text" Value="Gérer mon profil Atlas"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                         <Path Grid.Column="2"
                               Width="15"
                               Height="15"

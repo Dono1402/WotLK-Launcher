@@ -12,6 +12,12 @@ public partial class ShopViewV2 : UserControl, IDisposable
     internal ShopWalletViewV2 WalletPage => WalletView;
     internal ShopHistoryViewV2 HistoryPage => HistoryView;
     internal ShopAdminViewV2 AdminPage => AdminView;
+    internal void SetAccountOnlyMode(bool accountOnly)
+    {
+        State.AccountOnlyMode = accountOnly;
+        if (accountOnly) PageScroll.Visibility = Visibility.Collapsed;
+        else PageScroll.ClearValue(VisibilityProperty);
+    }
     internal event EventHandler? ConversionRequested;
     internal event EventHandler? HistoryRequested;
     internal event EventHandler? AdminRequested;

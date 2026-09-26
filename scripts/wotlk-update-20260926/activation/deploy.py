@@ -30,6 +30,22 @@ EXPECTED = {
     'authserver': '6fb632eef9426d8cc10f46f22ae7baf60ae053693d0e351fffe3eb0e51b499a9',
     'HermesProxy': '22eb4afad62d73d8eeb725dbf72cc765f7e76dfd4125b0cf20f5bf6fe4511b5c',
 }
+HERMES_WRITABLE_DIRS = ('Logs', 'PacketsLog')
+
+
+def prepare_hermes_runtime_directory(release, name):
+    """Keep release code read-only; only service-owned runtime directories are writable."""
+    if name not in HERMES_WRITABLE_DIRS:
+        raise RuntimeError('Unexpected Hermes runtime directory.')
+    if release.resolve(strict=True) != release:
+        raise RuntimeError('Unexpected Hermes release path.')
+    path = release / name
+    if path.exists() or path.is_symlink():
+        raise RuntimeError('Refuse to change an existing runtime path: ' + str(path))
+    path.mkdir()
+    shutil.chown(path, user='hermesproxy', group='hermesproxy')
+    path.chmod(0o750)
+    return path
 
 
 def now():
@@ -204,13 +220,12 @@ def prepare_backup():
             staged[str(p)] = digest(p)
     # Shared account persistence remains outside the immutable release.
     (HERMES / 'AccountData').symlink_to('/opt/hermesproxy-wotlk/AccountData', target_is_directory=True)
-    logs = HERMES / 'Logs'
-    logs.mkdir()
-    shutil.chown(logs, user='hermesproxy', group='hermesproxy')
-    logs.chmod(0o750)
+    for name in HERMES_WRITABLE_DIRS:
+        prepare_hermes_runtime_directory(HERMES, name)
     for user, p, access in [('acore', new_etc / 'worldserver.conf', '-r'),
             ('acore', new_etc / 'authserver.conf', '-r'), ('acore', ROOT / 'server/bin/worldserver', '-x'),
-            ('hermesproxy', HERMES / 'HermesProxy', '-x'), ('hermesproxy', HERMES / 'AccountData', '-w')]:
+            ('hermesproxy', HERMES / 'HermesProxy', '-x'), ('hermesproxy', HERMES / 'AccountData', '-w'),
+            *[('hermesproxy', HERMES / name, '-w') for name in HERMES_WRITABLE_DIRS]]:
         run(['runuser', '-u', user, '--', 'test', access, p])
     migrations = []
     for name in read(ROOT / 'inputs/world-migrations.json'):

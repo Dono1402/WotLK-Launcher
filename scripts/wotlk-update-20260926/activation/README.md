@@ -11,6 +11,8 @@ pour un autre candidat ou relancer aveuglément une phase interrompue.
    comparer contenu et métadonnées par `rsync -aHnci`. Sauvegarder les configurations,
    unités, fichiers d'environnement, certificats, journaux et AccountData en privé.
    Préparer les configurations de production identiques et les trois overrides.
+   Les répertoires Hermes `Logs` **et `PacketsLog`** doivent appartenir au compte
+   `hermesproxy` en `0750` ; le reste de la livraison demeure en lecture seule.
 2. `audit-backup` : revérifier séparément la couverture de toutes les unités,
    drop-ins et lignes `EnvironmentFiles`, même lorsqu'une propriété est répétée.
 3. `migrate` : revérifier le backup à froid, démarrer uniquement MySQL, vérifier
@@ -36,6 +38,17 @@ Tester les garde-fous avec `python test_deploy.py`. Les résultats, fichiers pri
 et backups restent sous le répertoire serveur `deployment-20260926`, jamais dans Git.
 Les anciens scripts de préparation imposent une production arrêtée : ils ne doivent
 plus être lancés après la mise en service.
+
+## Correctif ciblé des droits Hermes, sans redémarrage
+
+`repair_packet_log_permissions.py` répare uniquement l'absence de `PacketsLog`
+dans cette livraison : identité du binaire, répertoire courant et fichiers figés
+contrôlés, refus d'écraser un chemin existant, création en `hermesproxy:hermesproxy`
+`0750`, test d'écriture/fsync avec ce compte et vérification des PID inchangés.
+Il ne modifie aucune configuration, ne désactive pas la capture et ne redémarre
+aucun service. Le rapport de réparation est conservé ; ne pas relancer aveuglément.
+La reconnexion réelle a ensuite été confirmée par l'utilisateur et recoupée avec
+les journaux, voir le bilan du déploiement.
 
 ## Retour arrière : intervention supervisée uniquement
 

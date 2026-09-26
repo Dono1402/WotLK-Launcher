@@ -7,6 +7,12 @@ Le lot préparé et testé a été activé après l'autorisation explicite de l'
 Le bilan du **26 septembre à 05:59 UTC / 07:59 à Paris** est **opérationnel avec
 réserves connues**, et non « tous les défauts corrigés ».
 
+**Complément après essai réel du client :** à 06:35 UTC, l'authentification réussit,
+mais Hermes interrompt la connexion faute d'accès au dossier `PacketsLog`. Le défaut
+de déploiement a été corrigé à 06:38 UTC sans redémarrage, puis l'utilisateur a
+confirmé que la connexion fonctionne. Voir le détail ci-dessous : le bilan initial
+de disponibilité ne constituait pas une validation de connexion en jeu.
+
 - **1 000 bots aléatoires connectés**, cible inchangée à 1 000.
 - **3/3 bots des guildes de joueurs connectés et réservés** sans expiration.
 - Auth, World, Hermes, API launcher et serveur launcher actifs ; aucun redémarrage
@@ -84,6 +90,38 @@ La [procédure d'activation et de retour arrière](../scripts/wotlk-update-20260
 prévoit de conserver l'état post-bascule avant toute restauration. Aucun rollback
 SQL automatique : après réouverture, restaurer le backup ferait perdre les nouvelles
 écritures sans réconciliation préalable.
+
+## Connexion client : dossier de captures Hermes corrigé
+
+Les tentatives du 26 septembre à 06:35:43 et 06:35:50 UTC atteignent bien
+`authenticated successfully`, puis échouent avec `UnauthorizedAccessException` :
+`Access to the path '.../hermes-all-update-20260926/PacketsLog' is denied`.
+Le refus survient dans `SniffFile` lors de la création du journal de paquets,
+et remonte dans les lectures WorldClient/WorldSocket. Il ne s'agit pas d'un refus
+des identifiants ni du problème indépendant de sauvegarde des familiers.
+
+La livraison était volontairement en lecture seule pour le compte Hermes. `Logs`
+était correctement préparé, mais pas `PacketsLog`, alors que la capture de paquets
+était déjà activée dans la configuration conservée. La création du dossier n'était
+exercée qu'à la connexion d'un vrai client, pas par les healthchecks.
+
+Le [correctif vérifié à 06:38:04 UTC / 08:38:04 à Paris](update-deployment/2026-09-26/packet-log-permissions-repair.json)
+crée uniquement ce dossier avec propriétaire/groupe `hermesproxy`, droits `0750`.
+Un fichier temporaire anonyme a été créé, écrit et synchronisé avec le vrai compte
+de service ; le test réussit sans produire de fausse capture réseau.
+
+- Aucun redémarrage : tous les PID et compteurs de redémarrage sont inchangés.
+- Binaires, paramètres, mots de passe et fichiers de configuration inchangés.
+- Répertoire de livraison toujours non inscriptible pour le service, seuls les
+  répertoires de données nécessaires le sont.
+- Procédure corrigée pour préparer **Logs et PacketsLog** ; 12 tests unitaires
+  des garde-fous passent, dont les cas d'ajout et de refus de chemin existant.
+- L'utilisateur confirme ensuite : **« La connexion fonctionne »**.
+
+Le [contrôle de reconnexion à 06:39:32 UTC](update-deployment/2026-09-26/packet-log-reconnect-confirmation.json)
+constate une authentification client réussie après correction, deux captures réseau
+non vides créées et aucune nouvelle erreur de permission. Hermes conserve son PID
+initial, sans redémarrage. Les captures privées ne sont ni lues ni ajoutées au dépôt.
 
 ## Familiers : incident confirmé, correction non livrée
 

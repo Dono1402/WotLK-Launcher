@@ -2,7 +2,7 @@
 import importlib.util
 from pathlib import Path
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 spec = importlib.util.spec_from_file_location('deployment', Path(__file__).with_name('deploy.py'))
 deploy = importlib.util.module_from_spec(spec)
@@ -52,6 +52,34 @@ class Guards(unittest.TestCase):
     def test_api_health_is_json(self):
         self.assertTrue(deploy.healthy_body(4323, '{"status":"ok"}'))
         self.assertFalse(deploy.healthy_body(4323, '{"status":"error"}'))
+
+    def test_hermes_prepares_packet_and_text_log_directories(self):
+        self.assertEqual(deploy.HERMES_WRITABLE_DIRS, ('Logs', 'PacketsLog'))
+        for name in deploy.HERMES_WRITABLE_DIRS:
+            release = MagicMock()
+            release.resolve.return_value = release
+            path = release.__truediv__.return_value
+            path.exists.return_value = False
+            path.is_symlink.return_value = False
+            with patch.object(deploy.shutil, 'chown', create=True) as chown:
+                self.assertIs(deploy.prepare_hermes_runtime_directory(release, name), path)
+                path.mkdir.assert_called_once_with()
+                chown.assert_called_once_with(path, user='hermesproxy', group='hermesproxy')
+                path.chmod.assert_called_once_with(0o750)
+
+    def test_hermes_rejects_arbitrary_runtime_paths(self):
+        with self.assertRaisesRegex(RuntimeError, 'Unexpected Hermes runtime directory'):
+            deploy.prepare_hermes_runtime_directory(MagicMock(), '../elsewhere')
+
+    def test_hermes_preserves_existing_runtime_paths(self):
+        release = MagicMock()
+        release.resolve.return_value = release
+        path = release.__truediv__.return_value
+        path.exists.return_value = True
+        with self.assertRaisesRegex(RuntimeError, 'existing runtime path'):
+            deploy.prepare_hermes_runtime_directory(release, 'PacketsLog')
+        path.mkdir.assert_not_called()
+        path.chmod.assert_not_called()
 
 
 if __name__ == '__main__':

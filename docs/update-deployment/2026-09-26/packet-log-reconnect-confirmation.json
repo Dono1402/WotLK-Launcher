@@ -1,0 +1,16 @@
+{
+  "observedAt": "2026-09-26T06:39:32.080323+00:00",
+  "since": "2026-09-26T06:38:04.360473+00:00",
+  "hermes": {
+    "MainPID": "840433",
+    "NRestarts": "0",
+    "ActiveState": "active"
+  },
+  "postRepairPermissionErrors": 0,
+  "postRepairSuccessfulClientAuthentications": 1,
+  "packetCapturesCreated": 2,
+  "nonEmptyPacketCaptures": 2,
+  "clientReconnectValidated": true,
+  "clientValidationSource": "User explicitly replied: La connexion fonctionne",
+  "restartPerformed": false
+}

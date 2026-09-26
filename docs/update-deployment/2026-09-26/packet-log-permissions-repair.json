@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-26T06:38:04.360473+00:00",
+  "directory": "/opt/hermesproxy-wotlk/releases/hermes-all-update-20260926/PacketsLog",
+  "mode": "0o750",
+  "owner": "hermesproxy",
+  "writeAndFsyncAsServiceUserPassed": true,
+  "allServicePidsAndRestartCountsUnchanged": true,
+  "configurationFilesUnchanged": true,
+  "binaryUnchanged": true,
+  "restartPerformed": false,
+  "clientReconnectValidated": false,
+  "reason": "First real client login reached packet capture creation, which lacked a writable runtime directory."
+}

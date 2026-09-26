@@ -63,7 +63,7 @@
                                FontSize="72"
                                FontWeight="ExtraBold"
                                Foreground="{StaticResource AtlasV2.Brush.TitlePearl}"/>
-                    <TextBlock x:Name="PageSubtitle" Text="Personnalise ton expérience Atlas Launcher."
+                    <TextBlock x:Name="PageSubtitle" Text="Personnalisez votre expérience Atlas Launcher."
                                FontSize="26" FontWeight="Regular" Foreground="#BED3E5" TextWrapping="Wrap"/>
                     <Border x:Name="RuntimeNotice"
                             Margin="0,12,0,0"
@@ -236,14 +236,14 @@
                                     TextOptions.TextRenderingMode="ClearType">
                             <TextBlock Text="Général" Style="{StaticResource SettingsPilot.SectionTitle}"
                                        FontSize="{DynamicResource SettingsPilot.Font.CategoryTitle}"/>
-                            <TextBlock x:Name="GeneralIntro" Text="Configure les paramètres de base du launcher."
+                            <TextBlock x:Name="GeneralIntro" Text="Configurez les paramètres de base du launcher."
                                        FontSize="20" FontWeight="Regular" Foreground="#A6BDD2" TextWrapping="Wrap"/>
                             <Border x:Name="GeneralPreferencesCard" Margin="0,26,0,0"
                                     Style="{StaticResource SettingsPilot.Card}" Padding="28,32,38,36">
                                 <StackPanel>
                                     <TextBlock Text="Préférences du launcher" Style="{StaticResource SettingsPilot.SectionTitle}"/>
                                     <TextBlock x:Name="GeneralCardDescription" Margin="0,4,0,0"
-                                               Text="Personnalise le comportement et l’apparence d’Atlas Launcher."
+                                               Text="Personnalisez le comportement et l’apparence d’Atlas Launcher."
                                                FontSize="18" FontWeight="Regular" Foreground="#A6BDD2" TextWrapping="Wrap"/>
 
                                     <Grid x:Name="InterfaceLanguageRow" Margin="0,24,0,0" MinHeight="60">
@@ -258,7 +258,7 @@
                                               Stroke="#D6E8F5" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                                         <StackPanel x:Name="InterfaceLanguageCopy" Grid.Column="1" Margin="0,10,20,0" VerticalAlignment="Center">
                                             <TextBlock Text="Langue de l’interface" Style="{StaticResource AtlasV2.Settings.OptionTitle}"/>
-                                            <TextBlock Margin="0,5,0,0" Text="Choisis la langue d’affichage du launcher."
+                                            <TextBlock Margin="0,5,0,0" Text="Choisissez la langue d’affichage du launcher."
                                                        Style="{StaticResource SettingsPilot.Helper}"/>
                                         </StackPanel>
                                         <ComboBox x:Name="InterfaceLanguageComboBox" Grid.Column="2" VerticalAlignment="Center"

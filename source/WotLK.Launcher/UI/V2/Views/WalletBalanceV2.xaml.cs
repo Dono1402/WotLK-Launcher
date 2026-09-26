@@ -51,7 +51,7 @@ public partial class WalletBalanceV2 : UserControl
     internal void AnimateCredit(ShopCreditChange change)
     {
         StopAnimation();
-        if (!AtlasMotion.IsEnabled) return;
+        if (!SystemParameters.ClientAreaAnimation) return;
         WalletAmountText.Opacity = 0; AnimatedAmountText.Visibility = Visibility.Visible;
         SetValue(AnimatedCentsProperty, (double)change.BeforeCents);
         AnimatedAmountText.Text = ShopUiState.FormatEuros(change.BeforeCents);

@@ -492,22 +492,11 @@ public partial class App : Application
                 window.Close);
             trayController = createdTray;
             _trayController = createdTray;
-            bool trayHintShown = runtime.Settings.HasSeenTrayCloseHint;
-            minimizeToTrayHandler = async (_, _) =>
+            minimizeToTrayHandler = (_, _) =>
             {
                 if (runtime.Settings.MinimizeToTrayOnClose)
                 {
                     createdTray.HideInTray();
-                    if (!trayHintShown)
-                    {
-                        trayHintShown = true;
-                        createdTray.ShowNotification("Atlas Launcher",
-                            UI.V2.Localization.LauncherLocalization.CurrentLocale == "en-US"
-                                ? "Atlas is still running near the clock. To close it completely, choose Quit Atlas from your profile or Quit from the tray icon."
-                                : "Atlas reste actif près de l’horloge. Pour le fermer complètement : Quitter Atlas dans ton profil, ou Quitter sur l’icône près de l’horloge.",
-                            playSound: false);
-                        await runtime.SettingsRuntime.MarkTrayCloseHintSeenAsync();
-                    }
                 }
                 else
                 {

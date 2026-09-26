@@ -56,8 +56,6 @@ public partial class ProfileMenuV2 : UserControl
     }
 
     public event EventHandler? CloseRequested;
-    public event EventHandler? QuitRequested;
-    private void Quit_Click(object sender, RoutedEventArgs e) => QuitRequested?.Invoke(this, EventArgs.Empty);
 
     public event EventHandler? ManageProfileRequested;
 
@@ -164,7 +162,6 @@ public partial class ProfileMenuV2 : UserControl
 
     private void ApplyOpenState(bool isOpen, bool animate)
     {
-        animate &= AtlasMotion.IsEnabled;
         int transitionVersion = ++_transitionVersion;
         double currentOpacity = MenuPanel.Opacity;
         double currentOffset = MenuTranslate.Y;

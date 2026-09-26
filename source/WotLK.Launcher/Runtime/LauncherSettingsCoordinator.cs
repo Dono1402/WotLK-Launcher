@@ -17,8 +17,7 @@ internal enum LauncherSettingsChangeKind
     InterfaceLocale,
     StartWithWindows,
     MinimizeToTrayOnClose,
-    FriendPresenceNotifications,
-    TrayCloseHint
+    FriendPresenceNotifications
 }
 
 internal enum LauncherSettingsChangeStatus
@@ -205,12 +204,6 @@ internal sealed class LauncherSettingsCoordinator : ILauncherSettingsRuntime, ID
             static (settings, value) => settings.FriendPresenceNotifications = value,
             pathRequiresIdleUserOperation: false);
     }
-
-    internal Task<LauncherSettingsChangeResult> MarkTrayCloseHintSeenAsync() => TrySaveAsync(
-        LauncherSettingsChangeKind.TrayCloseHint, true,
-        static settings => settings.HasSeenTrayCloseHint,
-        static (settings, value) => settings.HasSeenTrayCloseHint = value,
-        pathRequiresIdleUserOperation: false);
 
     public Task<LauncherSettingsChangeResult> TrySetCloseLauncherOnGameStartAsync(bool closeAfterLaunch)
     {

@@ -56,16 +56,16 @@ internal sealed partial class ShopUiState
     public string CancelPurchaseLabel => L("Annuler et recréditer", "Cancel and restore funds");
     public string RefreshPurchaseLabel => L("Actualiser le suivi", "Refresh order status");
     public string PurchaseHint => UsesAccountService && !RenameAvailable && SelectedOrder is null
-        ? L("À l’ouverture du service, l’achat l’ajoutera à ton compte. Tu choisiras ensuite le personnage en jeu en cliquant sur l’icône du service.",
+        ? L("À l’ouverture du service, l’achat l’ajoutera à votre compte. Vous choisirez ensuite le personnage en jeu en cliquant sur l’icône du service.",
             "Once the service opens, purchasing it will add it to your account. You will then choose the character in game by clicking the service icon.")
         : UsesAccountService
-        ? L("Tu peux continuer à jouer après l’achat. Pour utiliser le service, reviens quand tu le souhaites à la sélection des personnages et clique sur son icône. Annulation possible avant utilisation.",
+        ? L("Vous pouvez continuer à jouer après l’achat. Pour utiliser le service, revenez quand vous le souhaitez à la sélection des personnages et cliquez sur son icône. Annulation possible avant utilisation.",
             "You can keep playing after your purchase. To use the service, return to character selection whenever you wish and click its icon. You can cancel before use.")
         : SelectedOrder?.Status == "delivered" && _character?.Character.RenamePending == true
-        ? L("L’activation est confirmée. Connecte-toi au royaume puis choisis le nouveau nom à la sélection de ce personnage.",
+        ? L("L’activation est confirmée. Connectez-vous au royaume puis choisissez le nouveau nom à la sélection de ce personnage.",
             "Activation is confirmed. Connect to the realm and choose the new name on the character selection screen.")
         : RenameAvailable || SelectedOrder is not null
-        ? L("Reviens à l’écran de connexion du jeu jusqu’à confirmation de l’activation. Choisis ensuite le nouveau nom en jeu. Annulation possible avant activation.",
+        ? L("Revenez à l’écran de connexion du jeu jusqu’à confirmation de l’activation. Choisissez ensuite le nouveau nom en jeu. Annulation possible avant activation.",
             "Return to the game’s sign-in screen until activation is confirmed. Then choose the new name in game. You can cancel before activation.")
         : L("Les achats ouvriront une fois le service disponible sur le royaume.", "Purchases will open once the service is available on the realm.");
     internal static string OrderStatus(string status) => status switch
@@ -132,13 +132,13 @@ internal sealed partial class ShopUiState
             if (creating && error is ShopApiException { StatusCode: HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.TooManyRequests }) _purchaseAttempt = null;
             _purchaseNotice = error switch
             {
-                ShopApiException { Code: "shop-price-changed" } => new("Le tarif a changé. Actualise et vérifie le nouveau montant.", "The price changed. Refresh and check the new amount."),
-                ShopApiException { Code: "shop-insufficient-funds" } => new("Le solde disponible est insuffisant. Actualise ton portefeuille.", "Available funds are insufficient. Refresh your wallet."),
-                ShopApiException { Code: "shop-character-online" } => new("Déconnecte ton personnage puis actualise.", "Log out of your character, then refresh."),
-                ShopApiException { Code: "shop-rename-already-pending" } => new("Un changement de nom est déjà en attente. Actualise le suivi.", "A name change is already pending. Refresh order status."),
+                ShopApiException { Code: "shop-price-changed" } => new("Le tarif a changé. Actualisez et vérifiez le nouveau montant.", "The price changed. Refresh and check the new amount."),
+                ShopApiException { Code: "shop-insufficient-funds" } => new("Le solde disponible est insuffisant. Actualisez votre portefeuille.", "Available funds are insufficient. Refresh your wallet."),
+                ShopApiException { Code: "shop-character-online" } => new("Déconnectez votre personnage puis actualisez.", "Log out of your character, then refresh."),
+                ShopApiException { Code: "shop-rename-already-pending" } => new("Un changement de nom est déjà en attente. Actualisez le suivi.", "A name change is already pending. Refresh order status."),
                 ShopApiException { Code: "shop-wallet-debt" } => new("Un solde à régulariser bloque cet achat.", "An outstanding balance prevents this purchase."),
-                ShopApiException { Code: "shop-service-limit" } => new("Tu as atteint la limite de services disponibles. Utilise ou annule un service avant un nouvel achat.", "You have reached the limit of available services. Use or cancel a service before purchasing another."),
-                _ => new("Le résultat reste à confirmer. Actualise le suivi ou réessaie : la même commande sera reprise sans second débit.",
+                ShopApiException { Code: "shop-service-limit" } => new("Vous avez atteint la limite de services disponibles. Utilisez ou annulez un service avant un nouvel achat.", "You have reached the limit of available services. Use or cancel a service before purchasing another."),
+                _ => new("Le résultat reste à confirmer. Actualisez le suivi ou réessayez : la même commande sera reprise sans second débit.",
                     "The result still needs confirmation. Refresh or retry: the same order will resume without a second debit.")
             };
         }

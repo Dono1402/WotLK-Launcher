@@ -101,7 +101,6 @@ internal static partial class ArmoryLauncherTests
             OpenFriend(91, "AmiAtlas");
             await WaitForScriptAsync(armory, "document.getElementById('profile-name').textContent==='AmiAtlas'", "Le profil ami doit pouvoir être rouvert après Messages.");
             await SaveCaptureAsync(armory, captures, "friend-profile-fr.png");
-            await ValidateProfileTitleBarAsync(window, armory, captures);
             LauncherLocalization.SetLocale(LauncherLocalization.EnglishLocale);
             await WaitForScriptAsync(armory, "document.querySelector('[data-label=characters]').textContent==='Characters' && document.getElementById('send-message').textContent.includes('Send a message')", "Le profil public doit être traduit en anglais.");
             await SaveCaptureAsync(armory, captures, "friend-profile-en.png");
@@ -122,7 +121,7 @@ internal static partial class ArmoryLauncherTests
                 "La reutilisation ne conserve pas le document ni les variables du profil precedent.");
             await AssertStoppedAsync(previousOrigin);
             window.FriendsState.ApplyRuntimeView(window.FriendsState.Current with { Friends = [friend] });
-            await WaitUntilAsync(() => window.CurrentPage == LauncherShellPage.Chat && !armory.IsReadOnlyProfile && armory.Browser is null,
+            await WaitUntilAsync(() => window.CurrentPage == LauncherShellPage.Game && !armory.IsReadOnlyProfile && armory.Browser is null,
                 "Retirer l'ami doit fermer son profil et vider la WebView.");
 
             await OpenProfileAsync(window);

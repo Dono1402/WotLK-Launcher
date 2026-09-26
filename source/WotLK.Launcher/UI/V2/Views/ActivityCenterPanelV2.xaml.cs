@@ -10,10 +10,8 @@ namespace WotLK.Launcher.UI.V2.Views;
 
 public sealed class ActivityNavigationRequestedEventArgs(
     ActivityNavigationTarget target,
-    string targetId,
-    LauncherService service = LauncherService.Wotlk) : EventArgs
+    string targetId) : EventArgs
 {
-    public LauncherService Service { get; } = service;
     public ActivityNavigationTarget Target { get; } = target;
 
     public string TargetId { get; } = targetId;
@@ -95,7 +93,6 @@ public partial class ActivityCenterPanelV2 : UserControl
 
     private void ApplyOpenState(bool isOpen, bool animate)
     {
-        animate &= AtlasMotion.IsEnabled;
         int transitionVersion = ++_transitionVersion;
         double currentOffset = PanelTranslate.X;
         double currentPanelOpacity = ActivityPanel.Opacity;
@@ -270,7 +267,7 @@ public partial class ActivityCenterPanelV2 : UserControl
                 this,
                 new ActivityNavigationRequestedEventArgs(
                     item.NavigationTarget,
-                    item.TargetId, item.Service));
+                    item.TargetId));
         }
     }
 }

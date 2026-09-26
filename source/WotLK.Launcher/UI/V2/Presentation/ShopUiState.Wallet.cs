@@ -19,8 +19,8 @@ internal sealed class ShopPaymentMethodRow(string id) : ShopLocalizedRow
     public string Description => Id switch
     {
         "card" => ShopUiState.L("Carte de débit ou de crédit", "Debit or credit card"),
-        "paypal" => _manualFunding ? ShopUiState.L("Biens et services · validation manuelle", "Goods and services · manual approval") : ShopUiState.L("Avec ton compte PayPal", "With your PayPal account"),
-        _ => ShopUiState.L("Avec ta banque", "With your bank")
+        "paypal" => _manualFunding ? ShopUiState.L("Biens et services · validation manuelle", "Goods and services · manual approval") : ShopUiState.L("Avec votre compte PayPal", "With your PayPal account"),
+        _ => ShopUiState.L("Avec votre banque", "With your bank")
     };
     public string Logo => "/WotLK.Launcher;component/Assets/Shop/Payment_" + (Id switch
     {
@@ -38,7 +38,7 @@ internal sealed partial class ShopUiState
     public bool IsWalletOpen { get; private set; }
     public string WalletLabel => L("Portefeuille", "Wallet");
     public string WalletHeading => L("Créditer mon portefeuille", "Add funds to my wallet");
-    public string WalletSubtitle => L("Choisis le montant à ajouter et ton moyen de paiement.", "Choose how much to add and your payment method.");
+    public string WalletSubtitle => L("Choisissez le montant à ajouter et votre moyen de paiement.", "Choose how much to add and your payment method.");
     public string WalletAmountLabel => L("Montant à ajouter", "Amount to add");
     public string WalletMethodLabel => L("Choisir un moyen de paiement", "Choose a payment method");
     public string WalletCurrentBalanceLabel => L("Solde du portefeuille", "Wallet balance");
@@ -71,9 +71,9 @@ internal sealed partial class ShopUiState
     public string WalletPaymentName => _paymentMethod?.Name ?? L("À choisir", "Choose a method");
     public string WalletAmountHint => HasPendingTopUp ? TopUpPendingHint
         : ManualFundingAvailable ? TopUpLimits
-        : _walletAmount.Length == 0 ? L("Saisis le montant de ta recharge en euros.", "Enter your top-up amount in euros.")
-        : !HasValidWalletAmount ? L("Saisis un montant positif avec deux décimales maximum, dans la limite du portefeuille.", "Enter a positive amount with up to two decimal places, within the wallet limit.")
-        : L("Ce montant sera ajouté à ton portefeuille après confirmation du paiement.", "This amount will be added to your wallet after payment confirmation.");
+        : _walletAmount.Length == 0 ? L("Saisissez le montant de votre recharge en euros.", "Enter your top-up amount in euros.")
+        : !HasValidWalletAmount ? L("Saisissez un montant positif avec deux décimales maximum, dans la limite du portefeuille.", "Enter a positive amount with up to two decimal places, within the wallet limit.")
+        : L("Ce montant sera ajouté à votre portefeuille après confirmation du paiement.", "This amount will be added to your wallet after payment confirmation.");
     // This only creates a pending server request. A browser return never grants money.
     public bool CanBeginWalletPayment => ManualFundingAvailable && HasValidWalletAmount && !HasPendingTopUp && !IsLoading && !IsFundingBusy
         && _paymentMethod?.Id == "paypal" && !_disposed;
@@ -86,7 +86,6 @@ internal sealed partial class ShopUiState
     }
     internal void CloseWallet(bool returnToService = false)
     {
-        _walletActionFeedback = null;
         bool wasOpen = IsWalletOpen; IsWalletOpen = false;
         if (wasOpen && returnToService) ReturnToService(); else ClearFundingReturn();
         Changed();

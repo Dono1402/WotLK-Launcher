@@ -80,7 +80,7 @@ public sealed class GameUiState : BindableUiState
 
     public string Title { get; init; } = "Bienvenue en Norfendre";
 
-    public string Subtitle { get; init; } = "Ton aventure t’attend";
+    public string Subtitle { get; init; } = "Votre aventure vous attend";
 
     public string AvailabilityNotice { get; init; } = string.Empty;
 

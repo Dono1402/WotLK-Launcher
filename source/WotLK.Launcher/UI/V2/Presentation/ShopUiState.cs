@@ -99,21 +99,21 @@ internal sealed partial class ShopUiState : INotifyPropertyChanged, IDisposable
     public bool ShowRetry => !IsLoading && _status is "error" or "unavailable" or "rate-limited";
     public string RetryLabel => L("Réessayer", "Try again");
     public string Title => L("Boutique", "Shop");
-    public string Subtitle => L("Services et personnalisations pour enrichir ton aventure.", "Services and customization to enrich your adventure.");
+    public string Subtitle => L("Services et personnalisations pour enrichir votre aventure.", "Services and customization to enrich your adventure.");
     public string CategoryLabel => L("Services de personnage", "Character services");
     public string Availability => L("Ouverture prochaine", "Coming soon");
     public string CreditsLabel => L("Crédits Atlas", "Atlas credits");
     public string CreditBalance => _snapshot?.CreditBalanceEuroCents is long balance ? FormatEuros(balance) : "—";
     public string WalletDescription => L("Un solde commun au launcher et au jeu.", "One balance shared by the launcher and the game.");
-    public string CreditsInformation => L("Transforme l’or de tes personnages en Crédits Atlas. Ton solde est affiché en euros et pourra servir aux futurs achats de la boutique.",
+    public string CreditsInformation => L("Transformez l’or de vos personnages en Crédits Atlas. Votre solde est affiché en euros et pourra servir aux futurs achats de la boutique.",
         "Turn your characters’ gold into Atlas credits. Your balance is displayed in euros and can be used for future shop purchases.");
     public string Status => _status switch
     {
         "loading" => L("Chargement de la boutique…", "Loading the shop…"),
         "empty" => L("Aucun produit n’est proposé pour le moment.", "No products are available yet."),
-        "unauthorized" => L("Reconnecte-toi pour consulter ta boutique.", "Sign in again to view your shop."),
-        "rate-limited" => L("Patiente avant d’actualiser la boutique.", "Please wait before refreshing the shop."),
-        "error" => L("La boutique n’a pas pu être chargée. Réessaie dans un instant.", "The shop could not be loaded. Please try again shortly."),
+        "unauthorized" => L("Reconnectez-vous pour consulter votre boutique.", "Sign in again to view your shop."),
+        "rate-limited" => L("Veuillez patienter avant d’actualiser la boutique.", "Please wait before refreshing the shop."),
+        "error" => L("La boutique n’a pas pu être chargée. Réessayez dans un instant.", "The shop could not be loaded. Please try again shortly."),
         "ready" => "",
         _ => L("La boutique sera bientôt disponible sur ce royaume.", "The shop will be available on this realm soon.")
     };

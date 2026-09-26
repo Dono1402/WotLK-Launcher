@@ -11,7 +11,7 @@ internal sealed partial class ShopUiState
     private bool _servicePriceChanged;
 
     public string IncludedLabel => L("Ce service comprend", "What is included");
-    public string PreservedLabel => L("Ce que tu conserves", "What you keep");
+    public string PreservedLabel => L("Ce que vous conservez", "What you keep");
     public string OfferPreserved => _offer?.Offer.Preserved is { } text ? Text(text)
         : L("Les éléments conservés seront précisés avant l’ouverture du service.", "Retained elements will be detailed before the service opens.");
     public string ServicePreparationLabel => L("Préparer mon service", "Prepare my service");
@@ -21,7 +21,7 @@ internal sealed partial class ShopUiState
     public string ServiceReturnLabel => L("Retour au service", "Back to service");
     public string WalletHelpLabel => L("Deux soldes indépendants", "Two separate balances");
     public string WalletHelpDescription => L(
-        "Le portefeuille reçoit tes recharges en euros. Les Crédits Atlas proviennent de l’or converti. Chaque opération alimente uniquement le solde correspondant ; les deux soldes ne se cumulent pas pour un achat.",
+        "Le portefeuille reçoit vos recharges en euros. Les Crédits Atlas proviennent de l’or converti. Chaque opération alimente uniquement le solde correspondant ; les deux soldes ne se cumulent pas pour un achat.",
         "Wallet holds your euro top-ups. Atlas credits come from converted gold. Each operation adds funds only to its own balance; the two balances cannot be combined for a purchase.");
 
     private bool HasBoostLevelConflict => _offer?.Offer.Id == "character-level-70" && _character?.Character.Level >= 70;
@@ -34,20 +34,20 @@ internal sealed partial class ShopUiState
     public string EligibilityDescription => UsesAccountService
         ? _offer?.Offer.Id switch
         {
-            "character-rename" => L("Choisis en jeu un personnage de niveau 10 minimum et son nouveau nom au moment d’utiliser le service.", "Choose a character of level 10 or above and a new name in game when you use the service."),
-            "character-level-70" => L("Le sésame sera disponible sur le compte. Choisis en jeu le personnage à faire progresser jusqu’au niveau 70.", "The boost will be available on your account. Choose the character to raise to level 70 in game."),
-            "character-faction-change" => L("Le service sera disponible sur le compte. Choisis le personnage et sa nouvelle faction dans le jeu.", "The service will be available on your account. Choose the character and its new faction in game."),
-            _ => L("Le service sera disponible sur le compte. Choisis le personnage et sa nouvelle race dans le jeu.", "The service will be available on your account. Choose the character and its new race in game.")
+            "character-rename" => L("Choisissez en jeu un personnage de niveau 10 minimum et son nouveau nom au moment d’utiliser le service.", "Choose a character of level 10 or above and a new name in game when you use the service."),
+            "character-level-70" => L("Le sésame sera disponible sur le compte. Choisissez en jeu le personnage à faire progresser jusqu’au niveau 70.", "The boost will be available on your account. Choose the character to raise to level 70 in game."),
+            "character-faction-change" => L("Le service sera disponible sur le compte. Choisissez le personnage et sa nouvelle faction dans le jeu.", "The service will be available on your account. Choose the character and its new faction in game."),
+            _ => L("Le service sera disponible sur le compte. Choisissez le personnage et sa nouvelle race dans le jeu.", "The service will be available on your account. Choose the character and its new race in game.")
         }
         : !HasCharacters ? L("Aucun personnage sur ce compte.", "No characters on this account.")
-        : _character is null ? L("Sélectionne le personnage qui recevra ce service.", "Select the character that will receive this service.")
+        : _character is null ? L("Sélectionnez le personnage qui recevra ce service.", "Select the character that will receive this service.")
         : HasBoostLevelConflict ? L($"Ce personnage est déjà de niveau {_character.Character.Level}. Ce sésame vise le niveau 70.",
             $"This character is already level {_character.Character.Level}. This boost targets level 70.")
         : _character.Character.Online && _offer?.Offer.Id is "character-rename" or "character-race-change" or "character-faction-change"
-            ? L("Déconnecte ce personnage avant d’utiliser le service. Les autres conditions restent à vérifier.",
+            ? L("Déconnectez ce personnage avant d’utiliser le service. Les autres conditions restent à vérifier.",
                 "Log out of this character before using the service. Other conditions still need to be checked.")
         : RenameAvailable ? _character.Character.RenamePending == true
-            ? L("Termine le changement de nom en jeu avant d’en acheter un autre.", "Complete the name change in game before buying another.")
+            ? L("Terminez le changement de nom en jeu avant d’en acheter un autre.", "Complete the name change in game before buying another.")
             : L("Le serveur vérifiera à nouveau le personnage et le solde lors de l’achat.", "The server will check the character and balance again at purchase.")
         : _offer?.Offer.Id == "character-rename" ? L("Les règles de nommage et l’absence de renommage en attente devront être vérifiées avant l’achat.",
             "Naming rules and any pending name change must be checked before purchase.")
@@ -61,7 +61,7 @@ internal sealed partial class ShopUiState
         ? L($"Ajouter les {FormatEuros(_price.MissingCents ?? 0)} manquants", $"Add the missing {FormatEuros(_price.MissingCents ?? 0)}")
         : L("Obtenir les crédits manquants", "Get the missing credits");
     public bool ShowServicePriceChange => _servicePriceChanged;
-    public string ServicePriceChangeText => L("Le tarif a changé. Vérifie le montant avant de poursuivre.", "The price has changed. Check the amount before continuing.");
+    public string ServicePriceChangeText => L("Le tarif a changé. Vérifiez le montant avant de poursuivre.", "The price has changed. Check the amount before continuing.");
 
     public bool HasFundingReturn => _fundingReturn is not null;
     public string FundingBackLabel => HasFundingReturn ? ServiceReturnLabel : BackToShopLabel;
@@ -72,7 +72,7 @@ internal sealed partial class ShopUiState
         && BalanceFor(origin.Currency) is long balance ? Math.Max(0, price.Amount - balance) : null;
     public bool ShowFundingConversionHint => _fundingReturn?.Currency == "credits";
     public string FundingConversionHint => FundingMissingCents is not long missing ? L("Le montant nécessaire sera recalculé après actualisation.", "The required amount will be recalculated after refresh.")
-        : missing == 0 ? L("Les crédits nécessaires sont disponibles. Tu peux revenir au service.", "The required credits are available. You can return to the service.")
+        : missing == 0 ? L("Les crédits nécessaires sont disponibles. Vous pouvez revenir au service.", "The required credits are available. You can return to the service.")
         : L($"Il manque {FormatEuros(missing)} de Crédits Atlas pour ce service. La saisie tient compte de l’or disponible sur le personnage source.",
             $"This service needs {FormatEuros(missing)} more in Atlas credits. The suggested amount is limited to the source character’s available gold.");
 

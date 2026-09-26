@@ -33,8 +33,7 @@ public sealed record ActivityOperationUiItem(
     string BatchPosition,
     long OperationId = 0,
     string TargetId = "",
-    ActivityNavigationTarget NavigationTarget = ActivityNavigationTarget.None,
-    LauncherService Service = LauncherService.Wotlk)
+    ActivityNavigationTarget NavigationTarget = ActivityNavigationTarget.None)
 {
     public bool IsDeterminate => ProgressPercent is not null && !IsIndeterminate;
 
@@ -75,8 +74,7 @@ public sealed record ActivityRecentUiItem(
     string IconUri,
     bool HasIcon,
     long OperationId = 0,
-    string TargetId = "",
-    LauncherService Service = LauncherService.Wotlk)
+    string TargetId = "")
 {
     public bool CanNavigate => NavigationTarget != ActivityNavigationTarget.None;
 }

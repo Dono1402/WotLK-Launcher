@@ -37,7 +37,6 @@ internal static class LauncherSettingsRuntimeTests
 
     private static async Task RunHeadlessCasesAsync()
     {
-        await CharacterizeTrayHintPersistenceAsync();
         await CharacterizeImmediatePersistenceAsync();
         await CharacterizePersistenceRollbackAsync();
         await CharacterizePendingSaveShutdownAsync(clientWrite: false);
@@ -47,26 +46,6 @@ internal static class LauncherSettingsRuntimeTests
         await CharacterizeGameProjectionRefreshAsync();
         CharacterizeInstantQuestTextConfigFile();
         await CharacterizeInstantQuestTextRuntimePersistenceAsync();
-    }
-
-    private static async Task CharacterizeTrayHintPersistenceAsync()
-    {
-        using TemporarySettingsRoot root = new();
-        string file = Path.Combine(root.Root, "settings.json");
-        File.WriteAllText(file, "{}");
-        LauncherSettings settings = LauncherSettings.LoadFrom(file);
-        True(!settings.HasSeenTrayCloseHint, "Les anciens réglages autorisent la première explication de fermeture.");
-        using LauncherOperationCoordinator operations = new();
-        int writes = 0;
-        using LauncherSettingsCoordinator coordinator = new(settings, operations,
-            saved => { writes++; saved.SaveTo(file); }, _ => { }, _ => { });
-        Equal(LauncherSettingsChangeStatus.Saved, (await coordinator.MarkTrayCloseHintSeenAsync()).Status,
-            "La première explication est mémorisée via la sauvegarde normale des réglages.");
-        True(LauncherSettings.LoadFrom(file).HasSeenTrayCloseHint && settings.MinimizeToTrayOnClose,
-            "Le marqueur persiste sans changer la préférence de fermeture.");
-        Equal(LauncherSettingsChangeStatus.Unchanged, (await coordinator.MarkTrayCloseHintSeenAsync()).Status,
-            "Une explication déjà vue ne déclenche aucune nouvelle sauvegarde.");
-        Equal(1, writes, "Une seule écriture est nécessaire pour le marqueur de fermeture.");
     }
 
     private static async Task CharacterizePendingSaveShutdownAsync(bool clientWrite)

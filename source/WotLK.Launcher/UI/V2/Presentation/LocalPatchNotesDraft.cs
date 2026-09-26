@@ -8,39 +8,41 @@ internal static class LocalPatchNotesDraft
 
     internal static PatchNoteEntryViewState Create() => new(
         Id,
-        Version: "À venir",
-        Title: "Atlas Launcher · prochaine mise à jour",
+        Version: "1.7.0",
+        Title: "Atlas Launcher 1.7.0",
         PublishedText: "Non publiée",
-        Intro: "Cette version locale prépare Atlas aux jeux et services multiples, avec une navigation plus cohérente et des transitions harmonisées.",
+        Intro: "Atlas Launcher 1.7.0 ajoute la boutique Atlas, les soldes séparés et le changement de nom à utiliser depuis la sélection des personnages.",
         HasIntro: true,
         IsLatest: true,
         IsDraft: true,
         Sections:
         [
-            new("Jeux et services",
+            new("Boutique Atlas",
             [
-                "Passe de WOTLK Server à Minecraft depuis le sélecteur d’univers.",
-                "Les activités ouvrent le jeu concerné et les profils amis conservent ton contexte de navigation.",
-                "La page Minecraft présente le serveur de survie ; son lancement et son suivi restent à connecter."
+                "Parcourez les services et comparez leur prix en euros du portefeuille ou en Crédits Atlas.",
+                "Consultez les deux soldes séparément et accédez à leur détail depuis la barre supérieure.",
+                "Retrouvez les conditions du service, la monnaie choisie et le montant manquant éventuel avant un achat.",
+                "Suivez vos achats, annulations et remboursements dans un historique filtrable."
             ]),
-            new("Navigation et présentation",
+            new("Changement de nom",
             [
-                "Les pages, menus et changements d’univers partagent des transitions discrètes et respectent la réduction des animations.",
-                "Les fonctions communes à Atlas utilisent une présentation stable, avec des titres et espacements harmonisés.",
-                "La barre reste accessible dans les profils et le bouton Retour retrouve l’écran d’origine."
+                "Achetez un changement de nom pour votre compte, puis choisissez le personnage en jeu au moment de l’utiliser.",
+                "Continuez votre partie après l’achat et revenez volontairement à la sélection des personnages pour utiliser le service.",
+                "Validez le nouveau nom avant de confirmer ; un nom refusé laisse le service disponible.",
+                "Annulez un service non utilisé pour récupérer son montant dans la monnaie de l’achat."
             ]),
-            new("Actions plus claires",
+            new("Suivi et disponibilité",
             [
-                "Les soldes expliquent leur destination au survol et la copie d’une référence affiche une confirmation.",
-                "Échap ferme d’abord le menu ouvert, sans quitter la page située derrière.",
-                "Quitter Atlas est disponible dans le menu du profil ; la première fermeture explique le fonctionnement en arrière-plan."
+                "Retrouvez les services disponibles après une reconnexion et le reçu du renommage avec l’ancien et le nouveau nom.",
+                "Le changement de nom est le premier service prévu pour activation. Les autres services, la conversion réelle d’or et les paiements automatiques restent indisponibles."
             ])
         ]);
 
     internal static ImmutableArray<PatchNoteEntryViewState> PrependTo(
         ImmutableArray<PatchNoteEntryViewState> publishedNotes)
     {
-        if (publishedNotes.Any(note => string.Equals(note.Id, Id, StringComparison.Ordinal)))
+        if (publishedNotes.Any(note => string.Equals(note.Id, Id, StringComparison.Ordinal)
+            || string.Equals(note.Id, "atlas-launcher-1-7-0", StringComparison.Ordinal)))
         {
             return publishedNotes;
         }

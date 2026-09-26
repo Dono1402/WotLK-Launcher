@@ -59,7 +59,7 @@ public static class ServiceSelectorMotion
             if (args.PropertyName == nameof(SystemParameters.ClientAreaAnimation))
                 _selector.Dispatcher.BeginInvoke(new Action(() => Apply(animate: false)));
         }
-        private void Changed(object? sender, EventArgs args) => Apply(AtlasMotion.IsEnabled);
+        private void Changed(object? sender, EventArgs args) => Apply(SystemParameters.ClientAreaAnimation);
         private void Apply(bool animate)
         {
             _selector.ApplyTemplate();

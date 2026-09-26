@@ -91,7 +91,7 @@
                               LayoutMode="{Binding ShellState.LayoutMode}"
                               PatchNoteRequested="GameView_PatchNoteRequested"/>
 
-            <views:ArmoryViewV2 x:Name="ArmoryView" Grid.Row="1" Panel.ZIndex="10" Visibility="Collapsed"
+            <views:ArmoryViewV2 x:Name="ArmoryView" Grid.RowSpan="2" Panel.ZIndex="10" Visibility="Collapsed"
                                 WindowDragRequested="ArmoryView_WindowDragRequested"
                                 HeaderHoverChanged="ArmoryView_HeaderHoverChanged"
                                 CustomizeRequested="ArmoryView_CustomizeRequested"
@@ -99,8 +99,7 @@
                                 AvatarChangeRequested="ArmoryView_AvatarChangeRequested"
                                 AvatarRemoveRequested="ArmoryView_AvatarRemoveRequested"
                                 FriendMessageRequested="ArmoryView_FriendMessageRequested"
-                                FriendsBackRequested="ArmoryView_FriendsBackRequested"
-                                BackRequested="ArmoryView_BackRequested"/>
+                                FriendsBackRequested="ArmoryView_FriendsBackRequested"/>
 
             <Border x:Name="TopChromeDragZone" Grid.RowSpan="2" Panel.ZIndex="18"
                     Height="124" VerticalAlignment="Top" Background="Transparent" Focusable="False"
@@ -570,7 +569,6 @@
                                   IsManageProfileEnabled="{Binding AccountState.IsNavigationEnabled}"
                                   IsManageAccountEnabled="{Binding AccountState.IsNavigationEnabled}"
                                   CloseRequested="ProfileMenu_CloseRequested"
-                                  QuitRequested="ProfileMenu_QuitRequested"
                                   ManageProfileRequested="ProfileMenu_ManageProfileRequested"
                                   ManageAccountRequested="ProfileMenu_ManageAccountRequested"
                                   Closed="ProfileMenu_Closed"/>

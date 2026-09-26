@@ -246,7 +246,6 @@ public partial class AvatarCropOverlayV2 : UserControl
 
     private void ApplyOpenState(bool isOpen, bool animate)
     {
-        animate &= AtlasMotion.IsEnabled;
         int version = ++_transitionVersion;
         DialogPanel.BeginAnimation(OpacityProperty, null);
         DialogTranslate.BeginAnimation(TranslateTransform.YProperty, null);

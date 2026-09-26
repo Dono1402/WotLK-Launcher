@@ -19,8 +19,8 @@ public partial class ShopHistoryViewV2 : UserControl
     { if (State is { } state && sender is Button { DataContext: ShopOrderRow order }) await state.CancelListedPurchaseAsync(order.Id); }
     private void ApplyLayout()
     {
-        HistoryFrame.MaxWidth = AtlasPageLayout.MaxWidth;
-        HistoryFrame.Margin = AtlasPageLayout.Margin;
-        HistoryTitle.FontSize = AtlasPageLayout.TitleSize;
+        bool compact = ActualWidth < 1250;
+        HistoryFrame.Margin = new Thickness(compact ? 24 : 60, compact ? 18 : 24, compact ? 24 : 60, 24);
+        HistoryTitle.FontSize = compact ? 34 : 40;
     }
 }

@@ -166,10 +166,25 @@ public partial class AddonsViewV2 : UserControl
             return;
         }
 
-        ContentFrame.MaxWidth = AtlasPageLayout.MaxWidth;
+        ContentFrame.MaxWidth = mode switch
+        {
+            AdaptiveLayoutMode.Wide => 1520,
+            AdaptiveLayoutMode.Compact => 1400,
+            _ => 1180
+        };
         ContentFrame.Width = double.NaN;
-        ContentFrame.Margin = AtlasPageLayout.Margin;
-        PageTitle.FontSize = AtlasPageLayout.TitleSize;
+        ContentFrame.Margin = mode switch
+        {
+            AdaptiveLayoutMode.Wide => new Thickness(64, 6, 64, 20),
+            AdaptiveLayoutMode.Compact => new Thickness(36, 10, 36, 20),
+            _ => new Thickness(24, 12, 24, 18)
+        };
+        PageTitle.FontSize = mode switch
+        {
+            AdaptiveLayoutMode.Wide => 48,
+            AdaptiveLayoutMode.Compact => 42,
+            _ => 38
+        };
         SearchField.Width = double.NaN;
         DetailPanel.Width = mode == AdaptiveLayoutMode.Stacked ? 360 : 390;
     }

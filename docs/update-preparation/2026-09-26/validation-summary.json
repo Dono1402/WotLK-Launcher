@@ -1,0 +1,459 @@
+{
+  "collectedAt": "2026-09-26T04:31:15.408071+00:00",
+  "productionActivated": false,
+  "productionFilesUnchanged": 129,
+  "graphicalClientTested": false,
+  "fullThousandBotLoadTested": false,
+  "productionServicesStopped": true,
+  "productionMySqlStopped": true,
+  "privateTestCleanup": {
+    "units": {
+      "atlas-module-validation-20260926": "failed",
+      "atlas-basic-validation-20260926": "inactive",
+      "atlas-dungeon-retry-20260926": "inactive",
+      "atlas-protocol-clock-rebuild-20260926": "inactive",
+      "atlas-all-update-realm-gold-20260926": "inactive",
+      "atlas-all-update-realm-identity-20260926": "inactive",
+      "atlas-all-update-realm-services-20260926": "inactive",
+      "atlas-all-update-realm-native-20260926": "inactive",
+      "atlas-all-update-realm-modules-20260926": "inactive",
+      "atlas-all-update-realm-guild-20260926": "inactive"
+    },
+    "databases": {
+      "production-copy": "stopped",
+      "fixture": "stopped"
+    },
+    "candidateProcesses": []
+  },
+  "build": {
+    "worldserverSha256": "3bca64f7bda124478ccd100891d897ececd0b34db60e2ff302bf43b4ab92e577",
+    "authserverSha256": "6fb632eef9426d8cc10f46f22ae7baf60ae053693d0e351fffe3eb0e51b499a9",
+    "components": {
+      "core": "99ece3bc2b53b17090949e106f7a910a29bf364c",
+      "playerbots": "8f35348ff120fa501c5a5d1c9d471a5c6d508cd1",
+      "dungeon-clear": "805b909c7286348e75d0561f8cc259750e6ae62b",
+      "ah-bot": "44dd82e78e5d31c3c4dfb7fe4b766a7830208e7f"
+    },
+    "configurationMode": "isolated fixture symlink"
+  },
+  "migrations": {
+    "production-copy": {
+      "passed": true,
+      "applied": 62,
+      "alreadyApplied": 0,
+      "coldCopyChecksumVerified": true
+    },
+    "synthetic-copy": {
+      "passed": true,
+      "applied": 62,
+      "alreadyApplied": 0,
+      "coldCopyChecksumVerified": true
+    }
+  },
+  "cpp": {
+    "core": {
+      "exit": 0,
+      "totalTests": 11422,
+      "passedTests": 5935,
+      "failedTests": [],
+      "skippedTests": 5487
+    },
+    "dungeon-clear": {
+      "exit": 1,
+      "totalTests": 1691,
+      "passedTests": 1686,
+      "failedTests": [
+        "UtgardePinnacleRouteProbe.EveryLegRoutesEndToEndWithNoLedge",
+        "PitOfSaronRouteProbe.TheArmStagingPointIsClearOfGateOne",
+        "CullingOfStratholmeRouteProbe.TheApproachAndTheCrateRoadRoute",
+        "CullingOfStratholmeRouteProbe.TheTownHallAndMarketLegsRoute",
+        "CullingOfStratholmeRouteProbe.TheCorruptorIsOnlyNearArthasPreMalganisStop"
+      ],
+      "skippedTests": 0
+    }
+  },
+  "hermesTests": {
+    "default": {
+      "total": 2934,
+      "executed": 2918,
+      "passed": 2918,
+      "failed": 0,
+      "error": 0,
+      "timeout": 0,
+      "skippedTests": 16
+    },
+    "wotlk-343": {
+      "total": 618,
+      "executed": 618,
+      "passed": 618,
+      "failed": 0,
+      "error": 0,
+      "timeout": 0,
+      "skippedTests": 0
+    }
+  },
+  "realm": {
+    "gold": {
+      "phase": "gold",
+      "exit": 0,
+      "elapsedSeconds": 70.04,
+      "reportPassed": true,
+      "currentReportPresent": true,
+      "hermesPackageFilesVerified": 119
+    },
+    "identity": {
+      "phase": "identity",
+      "exit": 0,
+      "elapsedSeconds": 75.79,
+      "reportPassed": true,
+      "currentReportPresent": true,
+      "hermesPackageFilesVerified": 119
+    },
+    "services": {
+      "phase": "services",
+      "exit": 0,
+      "elapsedSeconds": 59.61,
+      "reportPassed": true,
+      "currentReportPresent": true,
+      "hermesPackageFilesVerified": 119
+    },
+    "native": {
+      "phase": "native",
+      "exit": 0,
+      "elapsedSeconds": 89.1,
+      "reportPassed": true,
+      "currentReportPresent": true,
+      "hermesPackageFilesVerified": 0
+    },
+    "modules-protocol": {
+      "phase": "modules",
+      "exit": 0,
+      "elapsedSeconds": 658.96,
+      "reportPassed": null,
+      "currentReportPresent": false,
+      "hermesPackageFilesVerified": 119
+    },
+    "modules": {
+      "phase": "modules",
+      "exit": 0,
+      "elapsedSeconds": 756.66,
+      "reportPassed": null,
+      "currentReportPresent": false,
+      "hermesPackageFilesVerified": 119
+    },
+    "guild": {
+      "phase": "guild",
+      "exit": 0,
+      "elapsedSeconds": 62.55,
+      "reportPassed": null,
+      "currentReportPresent": false,
+      "hermesPackageFilesVerified": 119
+    }
+  },
+  "protocol": {
+    "smoke": {
+      "suite": "smoke",
+      "exit": 0,
+      "elapsedSeconds": 1.17,
+      "passedTests": 5,
+      "failedTests": 0,
+      "skippedTests": 0
+    },
+    "group": {
+      "suite": "group",
+      "exit": 0,
+      "elapsedSeconds": 32.04,
+      "passedTests": 6,
+      "failedTests": 0,
+      "skippedTests": 0
+    },
+    "trade": {
+      "suite": "trade",
+      "exit": 0,
+      "elapsedSeconds": 14.45,
+      "passedTests": 5,
+      "failedTests": 0,
+      "skippedTests": 0
+    },
+    "session": {
+      "suite": "session",
+      "exit": 0,
+      "elapsedSeconds": 3.32,
+      "passedTests": 4,
+      "failedTests": 0,
+      "skippedTests": 0
+    },
+    "death": {
+      "suite": "death",
+      "exit": 0,
+      "elapsedSeconds": 2.62,
+      "passedTests": 5,
+      "failedTests": 0,
+      "skippedTests": 0
+    },
+    "ulduar": {
+      "suite": "ulduar",
+      "exit": 0,
+      "elapsedSeconds": 518.58,
+      "passedTests": 12,
+      "failedTests": 0,
+      "skippedTests": 0
+    },
+    "stratholme": {
+      "suite": "stratholme",
+      "exit": 0,
+      "elapsedSeconds": 15.25,
+      "passedTests": 1,
+      "failedTests": 0,
+      "skippedTests": 0
+    },
+    "atlas-guild": {
+      "suite": "atlas-guild",
+      "exit": 0,
+      "elapsedSeconds": 0.72,
+      "passedTests": 1,
+      "failedTests": 0,
+      "skippedTests": 0
+    },
+    "atlas-dc": {
+      "suite": "atlas-dc",
+      "exit": 0,
+      "elapsedSeconds": 695.06,
+      "passedTests": 1,
+      "failedTests": 0,
+      "skippedTests": 0
+    }
+  },
+  "additionalNavigationCheck": {
+    "passed": true,
+    "exit": 0,
+    "maps": [
+      229,
+      545,
+      560,
+      658
+    ],
+    "scenarioCount": 29,
+    "clientDerivedDataCommitted": false
+  },
+  "navigationFailuresMatchPrevious": true,
+  "hermesPackage": {
+    "source": "089e747beac8b5e4c669abfc9428bfd40b0a874e",
+    "format": "linux-x64 self-contained trimmed single-file (.NET runtime, not NativeAOT)",
+    "executableSha256": "22eb4afad62d73d8eeb725dbf72cc765f7e76dfd4125b0cf20f5bf6fe4511b5c",
+    "files": 119
+  },
+  "apiRuntimeEquivalence": {
+    "productionPackage": "/opt/wotlk-launcher-api-releases/shop-gold-1.7.2-20260912",
+    "fixturePackage": "/opt/atlas-shop-tests/rename-20260926/api-gold",
+    "filesChecked": 330,
+    "differentFiles": [],
+    "passed": true
+  },
+  "finalPatchEquivalence": {
+    "hermes-atlas.patch": {
+      "sha256": "5caa6344f1712722679f3b76023e9c8cc31f13999ee62410eca9159f41284cae",
+      "sourceDiffMatches": true
+    },
+    "playerbots-atlas.patch": {
+      "sha256": "2abe6500d48f724742c06ed4a55c6a74c767c98abacff66d0446ad74470d3981",
+      "sourceDiffMatches": true
+    },
+    "hermesPackageFilesVerified": 119
+  },
+  "syntheticAuthReferences": {
+    "fixture": "/opt/atlas-shop-tests/rename-20260926",
+    "before": {
+      "build_info": 0,
+      "rbac_permissions": 0,
+      "rbac_linked_permissions": 0,
+      "rbac_default_permissions": 0
+    },
+    "after": {
+      "build_info": 11,
+      "rbac_permissions": 634,
+      "rbac_linked_permissions": 633,
+      "rbac_default_permissions": 4
+    },
+    "sourceSha256": {
+      "build_info": "96c40a0e6a9af5ad380bd91cdd0bbac786c81488a94122a7e9b94cb655800875",
+      "rbac_permissions": "e4b2ac8408d913e4f47899555940c0a80302ad6c5b4c565c1f97122fa12b3981",
+      "rbac_linked_permissions": "153b9ef14ce1919c7b8037e1bc6528a4e0f922c274cc265dba0e46e97fe86d3a",
+      "rbac_default_permissions": "cb470eae9d35b3b6a7138857fae933fb7615a80589bab59b019fdad32a6ef3bf"
+    },
+    "productionChanged": false
+  },
+  "productionCopyAuthReferences": {
+    "passed": true,
+    "readOnly": true,
+    "counts": {
+      "build_info": 11,
+      "rbac_permissions": 654,
+      "rbac_linked_permissions": 653,
+      "rbac_default_permissions": 4
+    },
+    "build12340Rows": 1,
+    "productionStarted": false,
+    "productionChanged": false
+  },
+  "protocolClockRegression": {
+    "passed": true,
+    "exit": 0,
+    "freshnessCases": 5,
+    "sourceSha256": "9dd78b37892e05f6fac4cbe27b97f5a5d769c72adf0e3a9534c9e33ba3ff3cc9"
+  },
+  "functionalChecks": {
+    "gold": {
+      "passed": true,
+      "checks": 30
+    },
+    "identity": {
+      "passed": true,
+      "checks": 20
+    },
+    "services": {
+      "passed": true,
+      "checks": 20
+    },
+    "native": {
+      "passed": true,
+      "checks": 36
+    },
+    "social": {
+      "passed": true,
+      "checks": 5
+    },
+    "guild": {
+      "passed": true,
+      "checks": 4
+    }
+  },
+  "autonomousDungeon": {
+    "dungeon": "deadmines",
+    "level": 80,
+    "result": "success",
+    "failReason": "",
+    "bossesTotal": 7,
+    "bossesKilled": 7,
+    "durationS": 694,
+    "partySize": 5,
+    "deaths": 0,
+    "distinctFromFirstRun": true
+  },
+  "firstAutonomousDungeon": {
+    "dungeon": "deadmines",
+    "level": 80,
+    "result": "success",
+    "bossesTotal": 7,
+    "bossesKilled": 7,
+    "durationS": 602,
+    "deaths": 0
+  },
+  "basicSummary": [
+    {
+      "phase": "gold",
+      "exit": 0
+    },
+    {
+      "phase": "identity",
+      "exit": 0
+    },
+    {
+      "phase": "services",
+      "exit": 0
+    },
+    {
+      "phase": "native",
+      "exit": 0
+    }
+  ],
+  "modulesSummary": [
+    {
+      "name": "upstream",
+      "exit": 0
+    },
+    {
+      "name": "social",
+      "exit": 0
+    },
+    {
+      "name": "guild-setup",
+      "exit": 0
+    },
+    {
+      "name": "dungeon-clear",
+      "exit": 0,
+      "previousAttempt": "module-before-clock-fix/realm-modules-summary.json"
+    },
+    {
+      "name": "priority-login",
+      "exit": 0
+    }
+  ],
+  "runtimeLogSignals": {
+    "gold": {
+      "filesChecked": 5,
+      "counts": {
+        "fatalSqlDeadlock": 0,
+        "segmentationFault": 0,
+        "unhandledException": 0,
+        "nullOpcode": 1
+      }
+    },
+    "identity": {
+      "filesChecked": 4,
+      "counts": {
+        "fatalSqlDeadlock": 0,
+        "segmentationFault": 0,
+        "unhandledException": 0,
+        "nullOpcode": 4
+      }
+    },
+    "services": {
+      "filesChecked": 4,
+      "counts": {
+        "fatalSqlDeadlock": 0,
+        "segmentationFault": 0,
+        "unhandledException": 0,
+        "nullOpcode": 1
+      }
+    },
+    "native": {
+      "filesChecked": 3,
+      "counts": {
+        "fatalSqlDeadlock": 0,
+        "segmentationFault": 0,
+        "unhandledException": 0,
+        "nullOpcode": 3
+      }
+    },
+    "modules-protocol": {
+      "filesChecked": 4,
+      "counts": {
+        "fatalSqlDeadlock": 0,
+        "segmentationFault": 0,
+        "unhandledException": 0,
+        "nullOpcode": 60,
+        "mysqlError1213": 15
+      }
+    },
+    "modules": {
+      "filesChecked": 4,
+      "counts": {
+        "fatalSqlDeadlock": 0,
+        "segmentationFault": 0,
+        "unhandledException": 0,
+        "nullOpcode": 6
+      }
+    },
+    "guild": {
+      "filesChecked": 4,
+      "counts": {
+        "fatalSqlDeadlock": 0,
+        "segmentationFault": 0,
+        "unhandledException": 0,
+        "nullOpcode": 2
+      }
+    }
+  }
+}

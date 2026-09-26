@@ -133,19 +133,30 @@ public partial class AuthOverlayViewV2
     private void ValidateField(string field)
     {
         if (State is not { } state) return;
+        // Required fields keep submission disabled without turning an untouched or
+        // cleared form into a list of errors. Only validate values actually entered.
+        bool hasValue = field switch
+        {
+            "username" => !string.IsNullOrWhiteSpace(state.Mode == AuthMode.Login ? state.LoginUsername : state.RegisterUsername),
+            "email" => !string.IsNullOrWhiteSpace(state.Mode == AuthMode.Recovery ? state.RecoveryEmail : state.RegisterEmail),
+            "password" => (state.Mode == AuthMode.Login ? LoginPasswordBox : RegisterPasswordBox).Password.Length > 0,
+            _ => RegisterPasswordBox.Password.Length > 0 && RegisterPasswordConfirmBox.Password.Length > 0
+        };
+        if (!hasValue)
+        {
+            state.SetFieldError(field, "");
+            return;
+        }
         string error = field switch
         {
-            "username" when state.Mode == AuthMode.Login => string.IsNullOrWhiteSpace(state.LoginUsername)
-                ? "Renseigne ton nom d’utilisateur." : "",
+            "username" when state.Mode == AuthMode.Login => "",
             "username" => Regex.IsMatch(state.RegisterUsername.Trim(), "^[A-Za-z0-9_]{3,20}$")
                 ? "" : "Le nom doit contenir 3 à 20 lettres, chiffres ou underscores.",
             "email" => EmailValidation(state.Mode == AuthMode.Recovery ? state.RecoveryEmail : state.RegisterEmail),
-            "password" when state.Mode == AuthMode.Login => LoginPasswordBox.Password.Length == 0
-                ? "Renseigne ton mot de passe." : "",
+            "password" when state.Mode == AuthMode.Login => "",
             "password" => RegisterPasswordBox.Password.Length is >= 10 and <= 128
                 ? "" : "Le mot de passe doit contenir entre 10 et 128 caractères.",
-            _ => RegisterPasswordConfirmBox.Password.Length == 0 ? "Confirme ton mot de passe."
-                : RegisterPasswordConfirmBox.Password == RegisterPasswordBox.Password ? ""
+            _ => RegisterPasswordConfirmBox.Password == RegisterPasswordBox.Password ? ""
                 : "Les deux mots de passe ne correspondent pas."
         };
         state.SetFieldError(field, error);

@@ -134,7 +134,7 @@ public partial class AuthOverlayViewV2 : UserControl
         {
             string error = EmailValidation(state.RecoveryEmail);
             state.SetFormValidity(error.Length == 0);
-            if (showErrors) state.SetFieldError("email", error);
+            if (showErrors) ValidateField("email");
             return;
         }
         AuthFormValidation validation = state.Mode == AuthMode.Login

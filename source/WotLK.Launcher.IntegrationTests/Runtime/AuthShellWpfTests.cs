@@ -122,6 +122,7 @@ internal static class AuthShellWpfTests
             True(Texts(auth).Contains(language == "en" ? "Welcome to Atlas" : "Bienvenue sur Atlas"), "Le titre de connexion est traduit.");
             True(Texts(auth).Contains(language == "en" ? "Your games, your services, one Atlas account." : "Tes jeux, tes services, un seul compte Atlas."),
                 "La description de connexion est traduite dans la langue active.");
+            await ValidateEmptyFields("LoginUsernameBox", "LoginPasswordBox");
             Capture(content, captures, $"login-{language}-1598.png");
             ValidateFieldClicks("LoginUsernameBox", "LoginPasswordBox");
             await ValidatePasswordReveal("LoginPasswordBox");
@@ -151,6 +152,7 @@ internal static class AuthShellWpfTests
                 "Le formulaire d’inscription reste dans la fenêtre fixe avec son contenu affiché.");
             True(((ScrollViewer)auth.FindName("AuthScrollViewer")).ScrollableHeight < 1,
                 "Tous les champs d’inscription et le bouton sont visibles sans défilement dans la fenêtre du launcher.");
+            await ValidateEmptyFields("RegisterUsernameBox", "RegisterEmailBox", "RegisterPasswordBox", "RegisterPasswordConfirmBox");
             Capture(content, captures, $"login-register-{language}-1598.png");
             ValidateFieldClicks("RegisterUsernameBox", "RegisterEmailBox", "RegisterPasswordBox", "RegisterPasswordConfirmBox");
             await ValidatePasswordReveal("RegisterPasswordBox");
@@ -170,6 +172,7 @@ internal static class AuthShellWpfTests
             Capture(content, captures, $"register-error-{language}-1598.png");
             emailInput.Text = "preview@example.test";
             True(shell.AuthState.EmailError.Length == 0, "Corriger le champ retire son erreur sans valider à chaque frappe.");
+            await ValidateEmptyFields("RegisterUsernameBox", "RegisterEmailBox", "RegisterPasswordBox", "RegisterPasswordConfirmBox");
             shell.AuthState.ShowLoginCommand.Execute(null);
             await LayoutAsync(content);
             True(auth.ArePasswordFieldsEmpty, "Changer de formulaire efface aussi les mots de passe révélés.");
@@ -178,6 +181,7 @@ internal static class AuthShellWpfTests
             await LayoutAsync(content);
             True(shell.AuthState.Mode == AuthMode.Recovery && ((StackPanel)auth.FindName("RecoveryForm")).IsVisible,
                 "Mot de passe oublié ouvre le formulaire e-mail.");
+            await ValidateEmptyFields("RecoveryEmailBox");
             ((TextBox)auth.FindName("RecoveryEmailBox")).Text = "preview@example.test";
             TaskCompletionSource<PasswordRecoveryResult> recovery = new();
             int recoveryRequests = 0;
@@ -308,6 +312,28 @@ internal static class AuthShellWpfTests
                 True(masked.IsVisible && !revealed.IsVisible && revealed.Text.Length == 0 && masked.Password == "synthetic-edited",
                     name + ": masquer vide le contrôle visible sans perdre le mot de passe saisi.");
                 masked.Clear();
+            }
+
+            async Task ValidateEmptyFields(params string[] names)
+            {
+                foreach (string name in names)
+                {
+                    Control input = (Control)auth.FindName(name);
+                    if (input is TextBox text) text.Clear();
+                    else ((PasswordBox)input).Clear();
+                    DependencyObject parent = VisualTreeHelper.GetParent(input);
+                    Border field = parent as Border ?? (Border)VisualTreeHelper.GetParent(parent);
+                    KeyboardFocusChangedEventArgs emptyBlur = new(Keyboard.PrimaryDevice, Environment.TickCount, input, (Button)auth.FindName("RegisterModeButton"))
+                        { RoutedEvent = Keyboard.LostKeyboardFocusEvent };
+                    Invoke(auth, "Field_LostKeyboardFocus", field, emptyBlur);
+                }
+                auth.ValidateForPreview(showErrors: true);
+                await LayoutAsync(content);
+                True(shell.AuthState.UsernameError.Length == 0 && shell.AuthState.EmailError.Length == 0
+                    && shell.AuthState.PasswordError.Length == 0 && shell.AuthState.ConfirmationError.Length == 0,
+                    "Des champs vides ou effacés ne génèrent aucun message rouge, même après perte du focus ou tentative d’envoi.");
+                True(!((Button)auth.FindName("PrimaryAuthButton")).IsEnabled && !shell.AuthState.IsErrorVisible,
+                    "Un formulaire vide conserve le bouton désactivé, sans bannière d’erreur.");
             }
 
             void ValidateFieldClicks(params string[] names)

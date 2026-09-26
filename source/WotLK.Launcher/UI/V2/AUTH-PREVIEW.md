@@ -6,6 +6,9 @@ La version locale conserve le décor Atlas approuvé et la description « Tes je
 tes services, un seul compte Atlas. ». Elle ajoute l’affichage/masquage des trois
 champs de mot de passe, des erreurs sous les champs à la sortie du focus, des
 libellés plus lisibles et une confirmation après création du compte. Aucun
+message d’erreur n’apparaît pour un champ vide ou effacé : les champs obligatoires
+gardent simplement l’envoi désactivé. Les erreurs de format et de confirmation
+concernent uniquement les valeurs déjà saisies. Aucun
 indicateur Verr. Maj. n’est ajouté. Les valeurs révélées sont synchronisées puis
 effacées lors du masquage, de l’envoi, du changement de formulaire ou de la fermeture.
 Les modèles de présentation ne contiennent que les messages de validation.

@@ -39,6 +39,9 @@ if (args.Length == 1 && string.Equals(args[0], "--optimization-memory", StringCo
 if (args.Length == 1 && string.Equals(args[0], "--shell-navigation-wpf", StringComparison.OrdinalIgnoreCase))
     return await ShellNavigationWpfTests.RunAsync();
 
+if (args.Length == 2 && args[0] == "--service-navigation-wpf")
+    return await ShellNavigationWpfTests.RunAsync(serviceOutput: args[1]);
+
 if (args.Length == 1 && string.Equals(args[0], "--session-hardening", StringComparison.OrdinalIgnoreCase))
 {
     int serviceResult = await LauncherAuthServiceConcurrencyTests.RunAsync();

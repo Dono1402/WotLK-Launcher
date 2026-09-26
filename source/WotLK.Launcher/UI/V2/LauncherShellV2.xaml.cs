@@ -736,8 +736,8 @@ public partial class LauncherShellV2 : Window
         ShellState.LayoutMode = mode;
 
         // The floating chrome adapts independently of the content's existing layout modes.
-        bool spacious = ActualWidth >= 1500;
-        bool compact = ActualWidth < 1180;
+        bool spacious = ActualWidth >= 1800;
+        bool compact = ActualWidth < 1300;
         double inset = spacious ? 22 : compact ? 14 : 18;
         double barHeight = spacious ? 80 : compact ? 64 : 72;
         double iconSize = spacious ? 44 : compact ? 34 : 38;
@@ -756,18 +756,18 @@ public partial class LauncherShellV2 : Window
         LocalBuildBadge.SetCurrentValue(VisibilityProperty, ShellState.IsLocalBuild ? Visibility.Visible : Visibility.Collapsed);
         BrandLogo.Width = BrandLogo.Height = spacious ? 42 : compact ? 32 : 36;
         BrandLogo.Visibility = Visibility.Visible;
+        BrandName.Visibility = ActualWidth < 1400 ? Visibility.Collapsed : Visibility.Visible;
         BrandName.Margin = new Thickness(spacious ? 18 : compact ? 10 : 12, 0, 0, 0);
         BrandName.FontSize = spacious ? 20 : compact ? 16 : 18;
         LocalBuildBadge.Margin = new Thickness(spacious ? 18 : 8, 0, 0, 0);
         LocalBuildBadge.Padding = spacious ? new Thickness(8, 4, 8, 4) : new Thickness(5, 3, 5, 3);
         LocalBuildBadgeText.FontSize = spacious ? 12 : compact ? 9 : 10;
-        ProductDivider.Margin = new Thickness(spacious ? 14 : 10, 0, spacious ? 14 : 10, 0);
-        bool hideProduct = ActualWidth < 1900;
-        ProductGameName.Visibility = ProductDivider.Visibility = ProductGamePill.Visibility = hideProduct ? Visibility.Collapsed : Visibility.Visible;
-        ProductGamePill.Margin = ProductGamePill.Padding = ProductGamePill.BorderThickness = new Thickness(0);
-        ProductGamePill.Background = Brushes.Transparent;
-        ProductGameName.FontSize = spacious ? 16 : compact ? 12 : 13;
-        WalletHeader.SetCompact(ActualWidth < 1500);
+        ServiceSelector.Width = spacious ? 176 : 158;
+        ServiceSelector.Height = iconSize;
+        ServiceSelector.FontSize = spacious ? 14 : 13;
+        ServiceSelector.Margin = new Thickness(12, 0, spacious ? 18 : 12, 0);
+        WalletHeader.SetCompact(ActualWidth < 1900);
+        ApplyServiceChrome();
         PatchNotesNavigationLabel.Text = compact ? "Notes" : "Notes de version";
         PatchNotesNavigationButton.ToolTip = "Notes de version";
         TopNavigation.Margin = new Thickness(0);
@@ -923,7 +923,9 @@ public partial class LauncherShellV2 : Window
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ChangedButton != MouseButton.Left || FindAncestor<Button>(e.OriginalSource as DependencyObject) is not null)
+        if (e.ChangedButton != MouseButton.Left
+            || FindAncestor<Button>(e.OriginalSource as DependencyObject) is not null
+            || FindAncestor<ComboBox>(e.OriginalSource as DependencyObject) is not null)
         {
             return;
         }
@@ -1750,6 +1752,14 @@ public partial class LauncherShellV2 : Window
             return;
         }
 
+        // Deep links from a profile or an active download belong to WotLK.
+        // Never display a WotLK-only page under the Minecraft selection.
+        if (!ShellState.IsWotlkSelected && page is LauncherShellPage.Addons or LauncherShellPage.Armory or LauncherShellPage.Shop)
+        {
+            ShellState.SelectService(LauncherService.Wotlk);
+            ApplyAdaptiveLayout();
+        }
+
         DismissNavigationPanels();
 
         if (page != LauncherShellPage.Shop)
@@ -1774,9 +1784,10 @@ public partial class LauncherShellV2 : Window
         bool showPatchNotes = page == LauncherShellPage.PatchNotes;
         bool showSettings = page == LauncherShellPage.Settings;
         bool showAccount = page == LauncherShellPage.Account;
-        SecondaryBackdrop.Visibility = showGame || page == LauncherShellPage.Shop ? Visibility.Collapsed : Visibility.Visible;
+        SecondaryBackdrop.Visibility = !ShellState.IsWotlkSelected || showGame || page == LauncherShellPage.Shop ? Visibility.Collapsed : Visibility.Visible;
         ShopBackdrop.Visibility = page == LauncherShellPage.Shop ? Visibility.Visible : Visibility.Collapsed;
-        GameView.Visibility = showGame ? Visibility.Visible : Visibility.Collapsed;
+        GameView.Visibility = showGame && ShellState.IsWotlkSelected ? Visibility.Visible : Visibility.Collapsed;
+        MinecraftView.Visibility = showGame && !ShellState.IsWotlkSelected ? Visibility.Visible : Visibility.Collapsed;
         AddonsView.Visibility = showAddons ? Visibility.Visible : Visibility.Collapsed;
         PatchNotesView.Visibility = showPatchNotes ? Visibility.Visible : Visibility.Collapsed;
         SettingsView.Visibility = showSettings ? Visibility.Visible : Visibility.Collapsed;

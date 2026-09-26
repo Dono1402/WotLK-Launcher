@@ -10,6 +10,11 @@ internal static class LauncherLocalization
     private static readonly IReadOnlyDictionary<string, string> EnglishByFrench =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            ["Choisir un jeu ou un service"] = "Choose a game or service",
+            ["Changer de jeu ou de service"] = "Switch game or service",
+            ["ATLAS · JEUX"] = "ATLAS · GAMES",
+            ["Un nouvel univers arrive sur Atlas."] = "A new world is coming to Atlas.",
+            ["Le téléchargement et le lancement de Minecraft seront disponibles dans une prochaine mise à jour."] = "Downloading and launching Minecraft will be available in a future update.",
             ["Afficher le mot de passe"] = "Show password",
             ["Masquer le mot de passe"] = "Hide password",
             ["Mot de passe visible"] = "Visible password",

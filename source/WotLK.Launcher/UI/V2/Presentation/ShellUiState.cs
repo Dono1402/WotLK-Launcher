@@ -11,10 +11,23 @@ public sealed class ShellUiState : BindableUiState
     private bool _isSessionRestoring;
     private bool _isSessionLoggingOut;
     private BitmapSource? _profileAvatarImage;
+    private LauncherService _selectedService = LauncherService.Wotlk;
 
     public string ProductName { get; init; } = "Atlas Launcher";
 
-    public string GameName { get; init; } = "WotLK Classic";
+    public LauncherService SelectedService => _selectedService;
+
+    public bool IsWotlkSelected => SelectedService == LauncherService.Wotlk;
+
+    public string GameName => IsWotlkSelected ? "WOTLK Server" : "Minecraft";
+
+    internal void SelectService(LauncherService service)
+    {
+        if (!Enum.IsDefined(service)) throw new ArgumentOutOfRangeException(nameof(service));
+        if (!SetProperty(ref _selectedService, service, nameof(SelectedService))) return;
+        RaisePropertyChanged(nameof(IsWotlkSelected));
+        RaisePropertyChanged(nameof(GameName));
+    }
 
     public string LauncherVersion { get; init; } = "v1.1.0";
 

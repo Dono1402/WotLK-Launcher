@@ -16,8 +16,10 @@ public partial class LauncherShellV2
         UpdateBackgroundCadence(sender, EventArgs.Empty);
 
     private bool IsShellNavigationTarget(DependencyObject? target) =>
-        FindAncestor<Button>(target) is { IsEnabled: true, IsVisible: true } button
-        && TitleBar.IsAncestorOf(button);
+        (FindAncestor<Button>(target) is { IsEnabled: true, IsVisible: true } button
+            && TitleBar.IsAncestorOf(button))
+        || (FindAncestor<ComboBox>(target) is { IsEnabled: true, IsVisible: true } selector
+            && ReferenceEquals(selector, ServiceSelector));
 
     private Button? CurrentPanelButton => _overlayCoordinator.Current switch
     {

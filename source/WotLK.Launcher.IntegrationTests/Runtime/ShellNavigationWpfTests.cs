@@ -24,7 +24,7 @@ internal static partial class ShellNavigationWpfTests
     private static readonly ShellOverlayKind[] Panels =
         [ShellOverlayKind.Friends, ShellOverlayKind.Activity, ShellOverlayKind.Profile, ShellOverlayKind.PatchNote];
 
-    internal static async Task<int> RunAsync(bool optimizationsOnly = false)
+    internal static async Task<int> RunAsync(bool optimizationsOnly = false, string? serviceOutput = null)
     {
         TaskCompletionSource<int> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         Thread thread = new(() =>
@@ -43,14 +43,18 @@ internal static partial class ShellNavigationWpfTests
                     _checks = 0;
                     foreach (string resource in new[] { "UI/V2/Resources/AtlasV2.Tokens.xaml", "Assets/Icons/AtlasV2.Icons.xaml", "UI/V2/Resources/AtlasV2.Controls.xaml" })
                         app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/WotLK.Launcher;component/" + resource, UriKind.Relative) });
-                    foreach (Size size in new[] { new Size(1440, 860), new Size(1080, 680) })
+                    Size[] sizes = serviceOutput is null ? [new(1440, 860), new(1080, 680)]
+                        : [new(1597.6, 996.8)];
+                    foreach (Size size in sizes)
                     {
                         long started = Environment.TickCount64;
                         Console.WriteLine($"Navigation fixture: {size.Width}x{size.Height} starting.");
-                        await ValidateAsync(size, optimizationsOnly);
+                        await ValidateAsync(size, optimizationsOnly, serviceOutput);
                         Console.WriteLine($"Navigation fixture: {size.Width}x{size.Height} complete ({_checks} assertions, {(Environment.TickCount64 - started) / 1000}s).");
                     }
-                    Console.WriteLine(optimizationsOnly
+                    Console.WriteLine(serviceOutput is not null
+                        ? $"Service navigation PASS: {_checks} assertions; WotLK/Minecraft switching, shared account, page boundaries, modal guards, header hit targets and FR/EN layout. Inactive offscreen fixtures; no backend or desktop input."
+                        : optimizationsOnly
                         ? $"Optimization UI PASS: {_checks} assertions; 600 releases, 500 addons, 1000 friends; bounded generated rows, selection, scrolling and refresh persistence at 1440x860 and 1080x680. Inactive offscreen fixtures; no backend or desktop input."
                         : $"Shell navigation WPF PASS: {_checks} assertions; panel/page matrix, direct and pointer activation, header focus routing, rapid switching, outside click, modal guards, virtualized lists and preserved navigation. Inactive offscreen fixtures; no backend, real session or desktop input.");
                     result = 0;
@@ -66,7 +70,7 @@ internal static partial class ShellNavigationWpfTests
         return await completion.Task.WaitAsync(TimeSpan.FromMinutes(8));
     }
 
-    private static async Task ValidateAsync(Size size, bool optimizationsOnly)
+    private static async Task ValidateAsync(Size size, bool optimizationsOnly, string? serviceOutput)
     {
         ProfileUiState profile = LauncherV2PreviewData.CreateProfile(ProfilePreviewScenario.SignedIn);
         ActivityUiState activity = new(ActivityUiState.EmptyView with
@@ -74,11 +78,13 @@ internal static partial class ShellNavigationWpfTests
             RecentOperations = [new("Fixture", "Terminé", "Maintenant", ActivityRecentOutcome.Succeeded, ActivityNavigationTarget.Addons, "", false)]
         });
         LauncherShellV2 shell = new(
-            LauncherV2PreviewData.CreateShell(GamePreviewScenario.Ready, isAuthenticated: true),
+            serviceOutput is null ? LauncherV2PreviewData.CreateShell(GamePreviewScenario.Ready, isAuthenticated: true)
+                : new ShellUiState { Username = "AtlasFixture", LauncherVersion = "1.8.2-local" },
             LauncherV2PreviewData.CreateGame(GamePreviewScenario.Ready),
             LauncherV2PreviewData.CreateDashboard(GamePreviewScenario.Ready),
             LauncherV2PreviewData.CreateFriends(), profile,
-            new SettingsUiState(SettingsUiState.Empty.Current with { IsRuntimeConnected = true }),
+            new SettingsUiState(SettingsUiState.Empty.Current with { IsRuntimeConnected = true,
+                Updates = SettingsUiState.Empty.Current.Updates with { IsUpdateAvailable = serviceOutput is not null } }),
             new AccountUiState(AccountUiState.Empty.Current with { IsRuntimeConnected = true, Username = "NavigationFixture", Initial = "N" }),
             new AvatarCropUiState(AvatarCropUiState.Empty.Current with { IsPreview = true }), activity)
         {
@@ -103,6 +109,7 @@ internal static partial class ShellNavigationWpfTests
         try
         {
             await Settle();
+            if (serviceOutput is not null) { await ValidateServicesAsync(shell, serviceOutput); return; }
             if (optimizationsOnly) { await ValidatePreservedNavigationAsync(shell); return; }
             // Direct activation covers keyboard and automation; pointer activation also exercises PreviewMouseDown.
             foreach (bool pointer in new[] { false, true })

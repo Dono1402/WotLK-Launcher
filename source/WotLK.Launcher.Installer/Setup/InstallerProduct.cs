@@ -7,7 +7,7 @@ internal static class InstallerProduct
 {
     internal const string Name = "Atlas Launcher";
     internal const string Version = "1.7.2";
-    internal const string Publisher = "AnimeClub";
+    internal const string Publisher = "Atlas";
     internal const string LauncherFileName = "WotLK.Launcher.exe";
     internal const string UninstallerFileName = "Uninstall.exe";
     internal const string InstallStateFileName = ".atlas-install.json";

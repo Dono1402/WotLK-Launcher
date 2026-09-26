@@ -10,11 +10,25 @@ Launcher. Its stable distribution filename is `AtlasLauncherSetup.exe`.
 - Payload size and SHA-256: generated from the supplied canonical launcher during setup compilation
 - Technical launcher filename: `WotLK.Launcher.exe`
 - Default destination: `%ProgramFiles%\Atlas Launcher`
-- Publisher: **AnimeClub**
+- Publisher: **Atlas**
 - Uninstall key: `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\AtlasLauncher`
 
 Setup never reads the production update manifest and never uses the network. The
 embedded launcher owns all later signed HTTPS self-updates.
+
+The updater accepts the previous `AnimeClub` publisher on the exact registered
+Atlas installation and changes it to `Atlas` after a confirmed update. The first
+update from an older release still uses that release's helper, so the new public
+launcher also repairs this legacy publisher on its next normal startup. This
+metadata-only operation may request UAC once; cancellation leaves login available
+and the publisher unchanged until a later retry. It does not alter the version,
+uninstaller, install date, or paths. It is skipped during pending updates and is
+disabled in local builds, including the dedicated refresh command.
+
+`DisplayIcon` points to the installed launcher executable: its new Atlas emblem
+therefore becomes the Installed Apps icon when that executable is updated and
+Windows refreshes its cached display. Updating the development build under
+`artifacts` does not change the public installation or its Windows registration.
 
 ## Runtime boundary
 

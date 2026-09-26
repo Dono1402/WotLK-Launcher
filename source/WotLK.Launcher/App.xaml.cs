@@ -40,6 +40,14 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (e.Args.Length == 1 && string.Equals(e.Args[0],
+                LauncherInstalledAppBrandingMigration.RefreshSwitch, StringComparison.Ordinal))
+        {
+            base.OnStartup(e);
+            Shutdown(LauncherInstalledAppBrandingMigration.RunElevated());
+            return;
+        }
+
         if (e.Args.Length > 0
             && string.Equals(
                 e.Args[0],
@@ -109,6 +117,8 @@ public partial class App : Application
                         .NeutralizeRegisteredGameUninstallerForPendingUpdateAtStartup(),
                 migrateGameUninstaller: () => gameUninstallMigration =
                     GameInstallServices.MigrateRegisteredGameUninstallerAtStartup());
+            LauncherInstalledAppBrandingMigration.TryRefreshAtStartup(
+                updateStartup.HasPendingTransactions);
         }
 
         base.OnStartup(e);

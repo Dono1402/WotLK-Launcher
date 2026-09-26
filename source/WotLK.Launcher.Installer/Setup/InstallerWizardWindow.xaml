@@ -269,7 +269,7 @@
                                 <TextBlock Margin="0,10,0,0"
                                            FontSize="11"
                                            Foreground="#788692"
-                                           Text="© 2026 AnimeClub"/>
+                                           Text="© 2026 Atlas"/>
                             </StackPanel>
                         </Grid>
                     </Grid>

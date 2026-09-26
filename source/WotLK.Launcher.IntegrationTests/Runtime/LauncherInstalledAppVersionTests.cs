@@ -15,7 +15,7 @@ internal static class LauncherInstalledAppVersionTests
         }
 
         Console.WriteLine(
-            "Launcher installed-app DisplayVersion synchronization OK (04D.3).");
+            "Launcher Installed Apps version/publisher synchronization OK; legacy migration and local isolation verified.");
         return Task.FromResult(0);
     }
 
@@ -54,6 +54,7 @@ internal static class LauncherInstalledAppVersionTests
 
     private static void ValidateStableInstallerIdentity()
     {
+        Equal("Atlas", InstallerProduct.Publisher, "Le nouvel éditeur doit être Atlas.");
         Equal(
             InstallerProduct.RegistrySubKey,
             WindowsLauncherInstalledAppVersionRegistry.StableRegistrySubKey,
@@ -66,6 +67,21 @@ internal static class LauncherInstalledAppVersionTests
             InstallerProduct.Publisher,
             WindowsLauncherInstalledAppVersionRegistry.StablePublisher,
             "L'éditeur attendu doit rester celui de l'installation officielle.");
+
+        int refreshCalls = 0;
+        LauncherInstalledAppBrandingMigration.RefreshWhenEligible(true, false, () => refreshCalls++);
+        LauncherInstalledAppBrandingMigration.RefreshWhenEligible(false, true, () => refreshCalls++);
+        Equal(0, refreshCalls, "Le local et une mise à jour en cours ne doivent pas consulter/modifier l'installation publique.");
+        LauncherInstalledAppBrandingMigration.RefreshWhenEligible(false, false, () => refreshCalls++);
+        Equal(1, refreshCalls, "Seul un démarrage public sans transaction en cours peut réparer l'éditeur.");
+        LauncherInstalledAppBrandingMigration.RefreshWhenEligible(false, false,
+            () => throw new System.ComponentModel.Win32Exception(1223));
+        True(!LauncherInstalledAppBrandingMigration.CanRunElevated(true, true),
+            "Même élevé, le build local doit refuser la commande de réparation.");
+        True(!LauncherInstalledAppBrandingMigration.CanRunElevated(false, false),
+            "La réparation publique exige un processus élevé.");
+        True(LauncherInstalledAppBrandingMigration.CanRunElevated(false, true),
+            "La commande publique élevée peut vérifier son installation.");
     }
 
     private static void RunIsolatedWindowsRegistryScenario(bool machineWide)
@@ -128,6 +144,7 @@ internal static class LauncherInstalledAppVersionTests
                 installLocation,
                 launcherPath,
                 uninstallerPath);
+            SetPublisher(registryRoot, registry.RegistrySubKey, registry.AcceptedLegacyPublisher);
             LauncherInstalledAppVersionSyncResult updated =
                 synchronizer.Synchronize(transaction);
             Equal(
@@ -140,6 +157,10 @@ internal static class LauncherInstalledAppVersionTests
                     "1.2.0",
                     key.GetValue("DisplayVersion") as string,
                     "Applications installées doit exposer la nouvelle version.");
+                Equal(
+                    registry.ExpectedPublisher,
+                    key.GetValue("Publisher") as string,
+                    "La mise à jour doit migrer l'ancien éditeur vers Atlas.");
                 Equal(
                     installLocation,
                     key.GetValue("InstallLocation") as string,
@@ -154,6 +175,39 @@ internal static class LauncherInstalledAppVersionTests
                     "UninstallString ne doit pas être modifié.");
             }
 
+            Equal(LauncherInstalledAppVersionSyncStatus.AlreadyCurrent,
+                synchronizer.Synchronize(transaction).Status,
+                "La nouvelle identité doit être reconnue lors des mises à jour suivantes.");
+            SetPublisher(registryRoot, registry.RegistrySubKey, registry.AcceptedLegacyPublisher);
+            Equal(LauncherInstalledAppVersionSyncStatus.Updated,
+                synchronizer.Synchronize(transaction).Status,
+                "L'éditeur doit être migré même si DisplayVersion est déjà à jour.");
+
+            SetPublisher(registryRoot, registry.RegistrySubKey, registry.AcceptedLegacyPublisher);
+            Equal(LauncherInstalledAppVersionSyncStatus.NeedsUpdate,
+                registry.SynchronizePublisher(installLocation, launcherPath, writable: false).Status,
+                "Le démarrage public doit détecter l'ancien éditeur sans écrire avant UAC.");
+            Equal(registry.AcceptedLegacyPublisher,
+                ReadPublisher(registryRoot, registry.RegistrySubKey), "La détection est en lecture seule.");
+            Equal(LauncherInstalledAppVersionSyncStatus.Updated,
+                registry.SynchronizePublisher(installLocation, launcherPath, writable: true).Status,
+                "La réparation après une mise à jour par l'ancien helper doit migrer l'éditeur.");
+            Equal(registry.ExpectedPublisher, ReadPublisher(registryRoot, registry.RegistrySubKey),
+                "La réparation doit inscrire le nouvel éditeur.");
+            Equal("1.2.0", ReadDisplayVersion(registryRoot, registry.RegistrySubKey),
+                "La réparation d'éditeur ne doit pas modifier la version.");
+            Equal(LauncherInstalledAppVersionSyncStatus.AlreadyCurrent,
+                registry.SynchronizePublisher(installLocation, launcherPath, writable: false).Status,
+                "Une migration terminée ne doit plus déclencher de demande UAC.");
+
+            SetPublisher(registryRoot, registry.RegistrySubKey, "Unrelated publisher");
+            Equal(LauncherInstalledAppVersionSyncStatus.EntryNotOfficial,
+                synchronizer.Synchronize(transaction).Status,
+                "Un autre éditeur ne doit pas être assimilé à l'ancienne identité Atlas.");
+            Equal("Unrelated publisher", ReadPublisher(registryRoot, registry.RegistrySubKey),
+                "L'éditeur inconnu doit rester intact.");
+            SetPublisher(registryRoot, registry.RegistrySubKey, registry.AcceptedLegacyPublisher);
+
             SetDisplayVersion(registryRoot, registry.RegistrySubKey, "1.1.2");
             LauncherInstalledAppVersionSyncResult mismatch =
                 synchronizer.Synchronize(CreateTransaction(
@@ -167,6 +221,8 @@ internal static class LauncherInstalledAppVersionTests
                 "1.1.2",
                 ReadDisplayVersion(registryRoot, registry.RegistrySubKey),
                 "Un mauvais InstallLocation doit conserver l'ancienne version.");
+            Equal(registry.AcceptedLegacyPublisher, ReadPublisher(registryRoot, registry.RegistrySubKey),
+                "Le local ou une autre installation ne doit pas migrer l'éditeur public.");
 
             LauncherInstalledAppVersionSyncResult invalid =
                 synchronizer.Synchronize(transaction with
@@ -274,6 +330,18 @@ internal static class LauncherInstalledAppVersionTests
             registrySubKey,
             writable: true)!;
         key.SetValue("DisplayVersion", version, RegistryValueKind.String);
+    }
+
+    private static void SetPublisher(RegistryKey root, string subKey, string publisher)
+    {
+        using RegistryKey key = root.OpenSubKey(subKey, writable: true)!;
+        key.SetValue("Publisher", publisher, RegistryValueKind.String);
+    }
+
+    private static string? ReadPublisher(RegistryKey root, string subKey)
+    {
+        using RegistryKey key = root.OpenSubKey(subKey)!;
+        return key.GetValue("Publisher") as string;
     }
 
     private static string? ReadDisplayVersion(

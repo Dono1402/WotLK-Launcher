@@ -28,7 +28,12 @@
                             UseAeroCaptionButtons="False"/>
     </shell:WindowChrome.WindowChrome>
     <Window.Resources>
-        <ResourceDictionary Source="Resources/AtlasV2.Pilot.xaml"/>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Resources/AtlasV2.Pilot.xaml"/>
+                <ResourceDictionary Source="Resources/AtlasV2.Services.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Window.Resources>
 
     <Border Background="{StaticResource AtlasV2.Brush.WindowAmbient}"
@@ -175,9 +180,8 @@
                     </Grid>
 
                     <ComboBox x:Name="ServiceSelector" Grid.Column="1"
-                              Style="{StaticResource AtlasV2.ComboBox.Field}"
+                              Style="{StaticResource AtlasV2.ServiceSelector}"
                               Width="158" Height="38" Margin="12,0" HorizontalAlignment="Left" VerticalAlignment="Center"
-                              Background="#152D3C" BorderBrush="#456778" FontWeight="SemiBold"
                               IsEnabled="{Binding ShellState.IsNavigationEnabled}"
                               AutomationProperties.Name="Choisir un jeu ou un service"
                               ToolTip="Changer de jeu ou de service"
@@ -494,7 +498,7 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="1" Panel.ZIndex="30">
+            <Grid x:Name="WorkspaceContent" Grid.Row="1" Panel.ZIndex="30" ClipToBounds="True">
                 <views:MinecraftViewV2 x:Name="MinecraftView" Visibility="Collapsed"/>
                 <views:ShopViewV2 x:Name="ShopView" Visibility="Collapsed" LayoutMode="{Binding ShellState.LayoutMode, ElementName=ShellWindow}"/>
                 <views:AddonsViewV2 x:Name="AddonsView"
@@ -519,6 +523,10 @@
                 <views:ChatViewV2 x:Name="ChatView" Visibility="Collapsed"
                                   ConversationRequested="ChatView_ConversationRequested" SendRequested="ChatView_SendRequested"
                                   LoadEarlierRequested="ChatView_LoadEarlierRequested"/>
+                <Image x:Name="WorkspaceTransitionLayer" Panel.ZIndex="20" Visibility="Collapsed"
+                       IsHitTestVisible="False" Focusable="False" Stretch="Fill">
+                    <Image.RenderTransform><TranslateTransform x:Name="WorkspaceTransitionOffset"/></Image.RenderTransform>
+                </Image>
                 <views:ActivityCenterPanelV2 x:Name="ActivityCenter"
                                              Panel.ZIndex="50"
                                              State="{Binding ActivityState}"

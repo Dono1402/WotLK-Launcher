@@ -22,6 +22,18 @@ La fenêtre conserve ses dimensions fixes existantes et reste non redimensionnab
 L'espacement de la barre accueille le sélecteur sans chevauchement. La version
 locale garde son badge LOCAL et ses réglages séparés.
 
+Le sélecteur utilise un libellé sans cadre, un accent discret et un chevron
+animé. Son menu apparaît par fondu et léger déplacement. Le passage entre jeux
+superpose temporairement une capture de l'ancien espace au nouveau pour un
+fondu de 320 ms, sans retarder la sélection ni bloquer les clics. Les panneaux
+du compte et la barre ne sont pas capturés. Une nouvelle navigation interrompt
+proprement l'animation et libère l'image ; les changements rapides suivent le
+dernier choix. L'armurerie WebView2 utilise un fondu d'entrée. La transition
+d'espace respecte la désactivation des animations Windows.
+
+Les crédits Atlas et le portefeuille conservent leur présentation originale
+côte à côte dans la fenêtre fixe, sans la limite de largeur du mode compact.
+
 ## Vérification
 
 `--service-navigation-wpf <dossier>` utilise le shell WPF réel avec des données

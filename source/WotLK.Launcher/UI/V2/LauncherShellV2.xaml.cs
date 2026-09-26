@@ -664,6 +664,7 @@ public partial class LauncherShellV2 : Window
 
     private void LauncherShellV2_Closed(object? sender, EventArgs e)
     {
+        FinishServiceTransition();
         DisposeShopPresentation();
         ShopView.Dispose();
         DetachChatPresentation();
@@ -763,10 +764,10 @@ public partial class LauncherShellV2 : Window
         LocalBuildBadge.Padding = spacious ? new Thickness(8, 4, 8, 4) : new Thickness(5, 3, 5, 3);
         LocalBuildBadgeText.FontSize = spacious ? 12 : compact ? 9 : 10;
         ServiceSelector.Width = spacious ? 176 : 158;
-        ServiceSelector.Height = iconSize;
-        ServiceSelector.FontSize = spacious ? 14 : 13;
+        ServiceSelector.Height = 44;
+        ServiceSelector.FontSize = 14;
         ServiceSelector.Margin = new Thickness(12, 0, spacious ? 18 : 12, 0);
-        WalletHeader.SetCompact(ActualWidth < 1900);
+        WalletHeader.SetCompact(ActualWidth < 1500);
         ApplyServiceChrome();
         PatchNotesNavigationLabel.Text = compact ? "Notes" : "Notes de version";
         PatchNotesNavigationButton.ToolTip = "Notes de version";
@@ -1711,7 +1712,7 @@ public partial class LauncherShellV2 : Window
     {
         AuthOverlay.CanClose = CanCloseAuthentication;
         bool required = IsAuthenticationRequired;
-        if (required) { _shopHeaderRequested = false; ShopView.ResetSession(); }
+        if (required) { FinishServiceTransition(); _shopHeaderRequested = false; ShopView.ResetSession(); }
         LauncherSurface.IsEnabled = !required;
         LauncherSurface.IsHitTestVisible = !required;
         LauncherSurface.Visibility = required ? Visibility.Hidden : Visibility.Visible;
@@ -1751,6 +1752,8 @@ public partial class LauncherShellV2 : Window
         {
             return;
         }
+
+        FinishServiceTransition();
 
         // Deep links from a profile or an active download belong to WotLK.
         // Never display a WotLK-only page under the Minecraft selection.

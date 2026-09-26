@@ -1,0 +1,16 @@
+# Atlas Launcher 1.8.1
+
+Correction de la relance après une mise à jour sous Windows.
+
+## Mises à jour
+
+- Correction d’un refus d’accès Windows qui empêchait la relance après l’installation et provoquait le retour automatique à l’ancienne version.
+- Le launcher redémarre avec votre compte utilisateur, sans droits administrateur.
+- Les journaux conservent désormais le code d’erreur Windows pour faciliter le diagnostic.
+
+## Si votre mise à jour reste bloquée
+
+- Fermez complètement Atlas Launcher, puis lancez l’installateur 1.8.1 par-dessus votre installation actuelle. Vos réglages sont conservés.
+- Cette installation est nécessaire une seule fois pour remplacer l’ancien programme de mise à jour défectueux.
+- Toutes les nouveautés de la 1.8.0 sont incluses.
+

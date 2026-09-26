@@ -1,0 +1,18 @@
+{
+  "published": true,
+  "version": "1.8.1",
+  "completedAtUnix": 1790415516,
+  "manifestSha256": "a8f57b0ddefe4204dcc86d8035298a41451ab1a8cc10e51f1e25f633e068c72b",
+  "signedManifestVerified": true,
+  "publicDownloadsFullyHashed": true,
+  "servicesUnchanged": true,
+  "historicalNotesPreserved": true,
+  "launcher": {
+    "bytes": 416360983,
+    "sha256": "32cdb16941ed1441bae9b16d447caa9b5afbc22cb9aa0b05350506075bac0646"
+  },
+  "installer": {
+    "bytes": 520993881,
+    "sha256": "7c7413c0d05c0bb2ed53c33b16d2ac88aa371fac30ba9635e7ded7e3b315a6b6"
+  }
+}

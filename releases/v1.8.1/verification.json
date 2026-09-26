@@ -1,0 +1,32 @@
+{
+  "passed": true,
+  "requesterExited": true,
+  "sameUser": true,
+  "sameSession": true,
+  "childElevated": false,
+  "date": "2026-09-26",
+  "testedSourceCommit": "93e1beeb9c710c461ee9d26f2b2b8a9752093dc0",
+  "probe": "scripts/launcher-update-token-probe",
+  "actualProductionLaunchMethod": true,
+  "baselineNativeErrorCode": 5,
+  "originalTokenRightsFail": true,
+  "originalRightsWithAdjustDefaultStillFail": true,
+  "duplicateWithAdjustDefaultAndSessionIdPass": true,
+  "differentAdministratorAccountTested": false,
+  "installedLauncherStartedByProbe": false,
+  "atomicReplacementAndRollbackSuitePassed": true,
+  "isolatedInstallerArtifactPassed": true,
+  "signedCandidateVerified": true,
+  "fullInteractiveSelfUpdateTested": false,
+  "installedRepair": {
+    "version": "1.8.1",
+    "fileVersion": "1.8.1.0",
+    "publisher": "Atlas",
+    "displayVersion": "1.8.1",
+    "launcherSha256": "32cdb16941ed1441bae9b16d447caa9b5afbc22cb9aa0b05350506075bac0646",
+    "uninstallerMatchesPublishedSetup": true,
+    "installedLauncherRunning": true,
+    "userApprovedOpeningInstaller": true,
+    "localBuildUnchanged": true
+  }
+}

@@ -1,5 +1,9 @@
 # Préparation isolée WotLK du 26 septembre 2026
 
+> État historique de la préparation à 04:31 UTC. Une activation autorisée a ensuite
+> eu lieu : consulter le [bilan de déploiement](WOTLK-UPDATE-DEPLOYMENT-2026-09-26.md)
+> pour l'état de production et les réserves réellement observées après redémarrage.
+
 ## Périmètre
 
 Préparation et tests uniquement, sans bascule de production. Le lot de référence

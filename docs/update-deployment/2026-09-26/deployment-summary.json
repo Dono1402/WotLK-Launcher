@@ -1,0 +1,231 @@
+{
+  "completedAt": "2026-09-26T05:59:04.865817+00:00",
+  "activatedAt": "2026-09-26T05:52:26.203773+00:00",
+  "observationSeconds": 383,
+  "productionActivationPerformed": true,
+  "operationalChecksPassed": true,
+  "validationStatus": "operational_with_known_issues",
+  "allKnownIssuesResolved": false,
+  "runtime": {
+    "checkedAt": "2026-09-26T05:58:48.184518+00:00",
+    "services": {
+      "arthas-worldserver.dungeon-clear-8224099": {
+        "pid": 839919,
+        "restarts": 0,
+        "executable": "/opt/arthas-next/candidates/atlas-all-update-20260926/server/bin/worldserver",
+        "sha256": "3bca64f7bda124478ccd100891d897ececd0b34db60e2ff302bf43b4ab92e577"
+      },
+      "arthas-authserver": {
+        "pid": 839912,
+        "restarts": 0,
+        "executable": "/opt/arthas-next/candidates/atlas-all-update-20260926/server/bin/authserver",
+        "sha256": "6fb632eef9426d8cc10f46f22ae7baf60ae053693d0e351fffe3eb0e51b499a9"
+      },
+      "hermesproxy-wotlk": {
+        "pid": 840433,
+        "restarts": 0,
+        "executable": "/opt/hermesproxy-wotlk/releases/hermes-all-update-20260926/HermesProxy",
+        "sha256": "22eb4afad62d73d8eeb725dbf72cc765f7e76dfd4125b0cf20f5bf6fe4511b5c"
+      },
+      "wotlk-launcher-api": {
+        "pid": 840436,
+        "restarts": 0,
+        "executable": "/opt/wotlk-launcher-api-releases/shop-gold-1.7.2-20260912/WotLK.Launcher.Server",
+        "sha256": "203484f27efc4a5383a1acdb0c9f642e9361456a7b3d69c8d81cd4c86dc2ea0e"
+      },
+      "wotlk-launcher-server": {
+        "pid": 840444,
+        "restarts": 0,
+        "executable": "/usr/bin/node",
+        "sha256": "81925c0995b5c1427b5d538e6a90ca2fdc4daffb786b09af749beaf7369d4e90"
+      }
+    },
+    "coreReady": true,
+    "http": {
+      "4322": {
+        "status": 200,
+        "healthy": true
+      },
+      "4323": {
+        "status": 200,
+        "healthy": true
+      }
+    },
+    "ports": {
+      "1119": true,
+      "8081": true,
+      "8084": true,
+      "8086": true,
+      "8099": true
+    },
+    "realm": [
+      "1",
+      "4000",
+      "0",
+      "12340"
+    ],
+    "onlineByAccountType": "1\t1000",
+    "freeDiskBytes": 65955700736,
+    "passed": true
+  },
+  "latestObservation": {
+    "at": "2026-09-26T05:58:49.393722+00:00",
+    "services": {
+      "arthas-worldserver.dungeon-clear-8224099": {
+        "ActiveState": "active",
+        "MainPID": "839919",
+        "NRestarts": "0",
+        "MemoryCurrent": "12900945920",
+        "CPUUsageNSec": "890349350000"
+      },
+      "arthas-authserver": {
+        "ActiveState": "active",
+        "MainPID": "839912",
+        "NRestarts": "0",
+        "MemoryCurrent": "6684672",
+        "CPUUsageNSec": "4213874000"
+      },
+      "hermesproxy-wotlk": {
+        "ActiveState": "active",
+        "MainPID": "840433",
+        "NRestarts": "0",
+        "MemoryCurrent": "213954560",
+        "CPUUsageNSec": "6854693000"
+      },
+      "wotlk-launcher-api": {
+        "ActiveState": "active",
+        "MainPID": "840436",
+        "NRestarts": "0",
+        "MemoryCurrent": "90198016",
+        "CPUUsageNSec": "3208073000"
+      },
+      "wotlk-launcher-server": {
+        "ActiveState": "active",
+        "MainPID": "840444",
+        "NRestarts": "0",
+        "MemoryCurrent": "13324288",
+        "CPUUsageNSec": "132311000"
+      }
+    },
+    "errors": {
+      "arthas-worldserver.dungeon-clear-8224099": {
+        "fatal": 0,
+        "sql1062": 3,
+        "sql1213": 0,
+        "permissionDenied": 0
+      },
+      "arthas-authserver": {
+        "fatal": 0,
+        "sql1062": 0,
+        "sql1213": 0,
+        "permissionDenied": 0
+      },
+      "hermesproxy-wotlk": {
+        "fatal": 0,
+        "sql1062": 0,
+        "sql1213": 0,
+        "permissionDenied": 0
+      },
+      "wotlk-launcher-api": {
+        "fatal": 0,
+        "sql1062": 0,
+        "sql1213": 0,
+        "permissionDenied": 0
+      },
+      "wotlk-launcher-server": {
+        "fatal": 0,
+        "sql1062": 0,
+        "sql1213": 0,
+        "permissionDenied": 0
+      }
+    },
+    "coreReady": true,
+    "onlineByType": [
+      [
+        "1",
+        "1000"
+      ]
+    ],
+    "realGuildBots": 3,
+    "realGuildBotsOnline": 3,
+    "realGuildBotsPinned": 3,
+    "botCountTarget": "1000",
+    "worldLogErrors": {
+      "Server.log": {
+        "sql1062": 3,
+        "sql1213": 0,
+        "crash": 0
+      },
+      "Errors.log": {
+        "sql1062": 0,
+        "sql1213": 0,
+        "crash": 0
+      },
+      "Playerbots.log": {
+        "sql1062": 0,
+        "sql1213": 0,
+        "crash": 0
+      }
+    }
+  },
+  "externalChecks": {
+    "1119": {
+      "trustedCertificate": true,
+      "protocol": "TLSv1.2",
+      "expires": "Oct 20 00:31:52 2026 GMT"
+    },
+    "8081": {
+      "trustedCertificate": true,
+      "protocol": "TLSv1.2",
+      "expires": "Oct 20 00:31:52 2026 GMT"
+    },
+    "publicApiHealth": true
+  },
+  "backup": {
+    "completedAt": "2026-09-26T05:50:56.899189+00:00",
+    "passed": true,
+    "coldCopyChecksumVerified": true,
+    "crossDatabaseConsistent": true,
+    "databasePath": "/opt/arthas-next/candidates/atlas-all-update-20260926/deployment-20260926/private/mysql-cold-backup",
+    "fileCount": 242,
+    "restoreRehearsed": false,
+    "automaticRestore": false,
+    "freeBytes": 66182180864,
+    "serviceFileCoverageAuditedAt": "2026-09-26T05:51:23.519861+00:00"
+  },
+  "worldMigrationsApplied": 62,
+  "worldMigrationsAlreadyApplied": 0,
+  "authMigrationsPendingOrDifferent": [],
+  "characterChecksumsUnchangedDuringMigration": true,
+  "originalFilesStillIdentical": 169,
+  "productionConfigFilesCopied": 10,
+  "settingsChanged": false,
+  "testDatabasesStopped": true,
+  "guiClientTestPerformed": false,
+  "knownIssues": {
+    "navigation": {
+      "unchangedFailingTests": 5,
+      "details": "See isolated preparation report."
+    },
+    "petPersistence": {
+      "affectedPetIdsCount": 3,
+      "ownerAccountTypesAndCounts": "1\t3",
+      "abortedTransactions": 3,
+      "syntheticRaceReproduction": {
+        "passed": true,
+        "syntheticOnly": true,
+        "network": "none",
+        "productionDataModified": false,
+        "isolation": "READ-COMMITTED",
+        "concurrentInitialSavesReproduce1062": true,
+        "firstTransactionExit": 0,
+        "secondTransactionExit": 1,
+        "sequentialRewritePassed": true,
+        "interpretation": "Demonstrates a compatible race mechanism, not a C++ execution trace of the production incidents."
+      },
+      "fixed": false,
+      "productionDataManuallyRepaired": false,
+      "scope": "Observed bot pet saves; does not prove human-player pets cannot be affected."
+    }
+  }
+}

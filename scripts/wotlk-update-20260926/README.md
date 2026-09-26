@@ -1,5 +1,9 @@
 # Candidat isolé Atlas du 26 septembre 2026
 
+> Le candidat a depuis été activé. Ce document décrit la préparation historique :
+> ne pas relancer ces phases en production active. Voir la [procédure d'activation](activation/README.md)
+> et le [bilan réel](../../docs/WOTLK-UPDATE-DEPLOYMENT-2026-09-26.md).
+
 Cette recette prépare et teste les mises à jour sans activer la production.
 Les services WoW et `arthas-mysql` doivent rester arrêtés. Les valeurs de
 production restent inchangées, notamment les **1 000 bots** ; les petits pools

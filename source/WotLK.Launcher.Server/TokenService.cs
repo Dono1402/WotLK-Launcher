@@ -40,6 +40,9 @@ public sealed class TokenService
     public static string CreateEmailVerificationToken()
         => CreateToken("atl_email");
 
+    internal static string CreatePasswordResetToken() => CreateToken("atl_reset");
+    internal static bool IsPasswordResetToken(string? token) => IsToken(token, "atl_reset");
+
     public static bool IsRefreshToken(string? token)
         => IsToken(token, "atl_refresh");
 

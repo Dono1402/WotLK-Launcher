@@ -16,6 +16,8 @@ internal static class AuthenticationRateLimiting
     internal const string EmailDispatch = "auth-email-dispatch";
     internal const string EmailVerification = "auth-email-verification";
     internal const string Password = "auth-password";
+    internal const string PasswordRecovery = "auth-password-recovery";
+    internal const string PasswordRecoveryConfirm = "auth-password-recovery-confirm";
     internal const string Friendship = "auth-friendship";
     internal const string GameTicket = "auth-game-ticket";
 
@@ -36,6 +38,8 @@ internal static class AuthenticationRateLimiting
             AddPolicy(options, EmailDispatch);
             AddPolicy(options, EmailVerification);
             AddPolicy(options, Password);
+            options.AddPolicy(PasswordRecovery, context => CreatePartition(context, PasswordRecovery, 3, DefaultWindow));
+            AddPolicy(options, PasswordRecoveryConfirm);
             AddPolicy(options, Friendship);
             AddPolicy(options, GameTicket);
         });

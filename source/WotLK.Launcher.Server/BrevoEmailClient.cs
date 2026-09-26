@@ -25,6 +25,25 @@ public sealed class BrevoEmailClient
         !string.IsNullOrWhiteSpace(_options.BrevoApiKey)
         && !string.IsNullOrWhiteSpace(_options.BrevoSenderEmail);
 
+    internal async Task SendPasswordResetAsync(EmailVerificationChallenge challenge, CancellationToken token)
+    {
+        if (!IsConfigured || _options.BrevoSandbox) throw new InvalidOperationException("Recovery email unavailable.");
+        string url = _options.PublicBaseUrl.TrimEnd('/') + "/api/v1/auth/password-reset#token=" + Uri.EscapeDataString(challenge.Token);
+        var payload = new
+        {
+            sender = new { name = "Atlas", email = _options.BrevoSenderEmail },
+            to = new[] { new { email = challenge.Email } },
+            subject = "Réinitialise ton mot de passe Atlas",
+            htmlContent = $"<html lang=\"fr\"><body><h1>Nouveau mot de passe Atlas</h1><p>Tu as demandé à réinitialiser ton mot de passe.</p><p><a href=\"{WebUtility.HtmlEncode(url)}\">Choisir un nouveau mot de passe</a></p><p>Ce lien est valable 30 minutes et utilisable une seule fois. Si tu n’as pas fait cette demande, ignore ce message : ton mot de passe reste inchangé.</p></body></html>",
+            textContent = $"Choisis un nouveau mot de passe Atlas : {url}\nCe lien est valable 30 minutes et utilisable une seule fois. Si tu n’as pas fait cette demande, ignore ce message.",
+            tags = new[] { "atlas-password-recovery" }
+        };
+        using HttpRequestMessage request = new(HttpMethod.Post, "v3/smtp/email") { Content = JsonContent.Create(payload) };
+        request.Headers.Add("api-key", _options.BrevoApiKey);
+        using HttpResponseMessage response = await _http.SendAsync(request, token);
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task SendVerificationAsync(
         EmailVerificationChallenge challenge,
         CancellationToken cancellationToken)

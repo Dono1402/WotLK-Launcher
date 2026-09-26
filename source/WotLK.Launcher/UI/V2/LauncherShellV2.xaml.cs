@@ -482,6 +482,7 @@ public partial class LauncherShellV2 : Window
         }
 
         _authCommands = commands ?? throw new ArgumentNullException(nameof(commands));
+        AuthOverlay.PasswordRecoveryRequested = commands.RequestPasswordRecoveryAsync;
         AuthOverlay.SubmissionRequested += AuthOverlay_SubmissionRequested;
     }
 
@@ -693,6 +694,7 @@ public partial class LauncherShellV2 : Window
         AuthOverlay.SubmissionRequested -= AuthOverlay_SubmissionRequested;
         ProfileMenu.ManageProfileRequested -= ProfileMenu_ManageProfileRequested;
         ProfileMenu.ManageAccountRequested -= ProfileMenu_ManageAccountRequested;
+        AuthOverlay.PasswordRecoveryRequested = null;
         _authCommands = null;
         _accountCommands = null;
         _friendsCommands = null;

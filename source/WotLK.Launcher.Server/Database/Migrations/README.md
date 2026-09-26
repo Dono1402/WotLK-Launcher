@@ -118,6 +118,28 @@ before opening a database connection.
 
 ## Deployment rule
 
+Migration 0015 prepares password recovery. It adds one bounded challenge row per
+Atlas profile: a SHA-256 token hash, credential fingerprint, current email,
+creation/expiry dates and consumption state. Raw tokens are only delivered by
+email. Links expire after 30 minutes; dispatch has a five-minute account cooldown
+and a separate three-per-minute IP policy. Existing/unknown addresses receive the
+same queued response. The in-memory dispatch queue is bounded; users can retry a
+request interrupted by an API restart.
+
+Recovery updates both credential formats and revokes Atlas sessions in one
+transaction. A replay, expired token, changed email or changed credential cannot
+reset the account. Hermes revocation is best effort, matching authenticated
+password changes; a gateway failure is logged. The reset token travels in a URL
+fragment, is removed by the page, and is redeemed by POST. GET never consumes it.
+
+The local client build does not deploy this feature. A later approved API rollout
+must back up the database and explicitly raise the production schema ceiling to
+15 (after reviewing preceding migrations), configure Brevo and a public HTTPS
+base URL, and allow the three `/api/v1/auth/password-reset` routes through the
+reverse proxy. A ceiling below 15 keeps recovery unavailable. Never raise the
+ceiling merely to preview the login UI. The dedicated integration suite uses
+disposable local MySQL and mocked delivery, not production accounts or email.
+
 Never edit an applied migration. Add the next sequential file and test first on
 a disposable copy of the current Atlas schema. Database and media backups are a
 production prerequisite for the later avatar deployment checkpoint.

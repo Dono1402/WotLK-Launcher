@@ -67,6 +67,8 @@ if (args.Length == 1 && string.Equals(args[0], "--addon-integrity", StringCompar
 if (args.Length == 2 && string.Equals(args[0], "--addon-catalog-file", StringComparison.OrdinalIgnoreCase))
     return await AddonIntegrityTests.VerifyCatalogFileAsync(args[1]);
 
+if (args.Length == 1 && args[0] == "--password-recovery-mysql") return await AuthSessionSecurityMySqlTests.RunPasswordRecoveryAsync();
+
 if (args.Length == 1 && string.Equals(args[0], "--auth-session-mysql", StringComparison.OrdinalIgnoreCase))
     return await AuthSessionSecurityMySqlTests.RunAsync();
 
@@ -345,10 +347,10 @@ if (args.Length >= 1
     return await AuthOverlayPreviewTests.RunAsync(captureDirectory);
 }
 
-if (args.Length == 1
+if (args.Length is 1 or 2
     && string.Equals(args[0], "--auth-runtime", StringComparison.OrdinalIgnoreCase))
 {
-    return await LauncherAuthenticationTests.RunAsync();
+    return await LauncherAuthenticationTests.RunAsync(includeWpf: !args.Contains("--headless"));
 }
 
 if (args.Length == 1

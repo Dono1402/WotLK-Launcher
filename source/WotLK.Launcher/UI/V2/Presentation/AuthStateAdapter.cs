@@ -75,6 +75,7 @@ internal sealed class AuthStateAdapter : IDisposable
         _shell.ApplySessionSnapshot(snapshot);
 
         if (snapshot.IsAuthenticated
+            && snapshot.OperationKind != LauncherSessionOperationKind.Register
             && !snapshot.IsEmailVerified
             && snapshot.Sequence > _lastEmailWarningSequence)
         {

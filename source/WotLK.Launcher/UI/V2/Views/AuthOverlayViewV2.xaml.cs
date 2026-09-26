@@ -40,6 +40,7 @@ public partial class AuthOverlayViewV2 : UserControl
     public AuthOverlayViewV2()
     {
         InitializeComponent();
+        InitializePasswordControls();
         Loaded += AuthOverlayViewV2_Loaded;
         Unloaded += AuthOverlayViewV2_Unloaded;
     }
@@ -76,7 +77,8 @@ public partial class AuthOverlayViewV2 : UserControl
 
     internal bool ArePasswordFieldsEmpty => string.IsNullOrEmpty(LoginPasswordBox.Password)
         && string.IsNullOrEmpty(RegisterPasswordBox.Password)
-        && string.IsNullOrEmpty(RegisterPasswordConfirmBox.Password);
+        && string.IsNullOrEmpty(RegisterPasswordConfirmBox.Password)
+        && PasswordControls.All(pair => string.IsNullOrEmpty(pair.Revealed.Text));
 
     internal void DetachFromShell()
     {
@@ -116,7 +118,7 @@ public partial class AuthOverlayViewV2 : UserControl
             DispatcherPriority.Input,
             () => Keyboard.Focus(State?.Mode == AuthMode.Register
                 ? RegisterUsernameBox
-                : LoginUsernameBox));
+                : State?.Mode == AuthMode.Recovery ? RecoveryEmailBox : LoginUsernameBox));
     }
 
     internal void ValidateForPreview(bool showErrors)
@@ -127,6 +129,14 @@ public partial class AuthOverlayViewV2 : UserControl
             return;
         }
 
+        if (state.IsRegistrationComplete) return;
+        if (state.Mode == AuthMode.Recovery)
+        {
+            string error = EmailValidation(state.RecoveryEmail);
+            state.SetFormValidity(error.Length == 0);
+            if (showErrors) state.SetFieldError("email", error);
+            return;
+        }
         AuthFormValidation validation = state.Mode == AuthMode.Login
             ? AuthPreviewValidation.Login(state.LoginUsername, !string.IsNullOrEmpty(LoginPasswordBox.Password))
             : AuthPreviewValidation.Register(
@@ -142,7 +152,7 @@ public partial class AuthOverlayViewV2 : UserControl
         state.SetFormValidity(validation.IsValid);
         if (showErrors && !validation.IsValid)
         {
-            state.ShowValidationError(validation.Message);
+            ValidateAllFields();
         }
     }
 
@@ -193,6 +203,7 @@ public partial class AuthOverlayViewV2 : UserControl
 
     private void State_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        UpdateExtraPanels();
         if (e.PropertyName != nameof(AuthUiState.Mode))
         {
             return;
@@ -233,8 +244,10 @@ public partial class AuthOverlayViewV2 : UserControl
 
     private void Field_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is not Border { Tag: Control input }
-            || input is not (TextBox or PasswordBox)
+        if (sender is not Border { Tag: Control tagged }) return;
+        Control input = VisibleInput(tagged);
+        if (e.OriginalSource is DependencyObject hit && HasButtonAncestor(hit)) return;
+        if (input is not (TextBox or PasswordBox)
             || !input.IsEnabled || !input.IsVisible
             || e.OriginalSource is not DependencyObject source
             || IsDescendantOf(source, input))
@@ -254,7 +267,9 @@ public partial class AuthOverlayViewV2 : UserControl
             return;
         }
 
+        SynchronizeMaskedPassword(sender);
         State.ClearErrorAfterInput();
+        State.SetFieldError(FieldKey(sender as Control), "");
         ValidateForPreview(showErrors: false);
     }
 
@@ -298,6 +313,8 @@ public partial class AuthOverlayViewV2 : UserControl
     private void SubmitValidatedForm()
     {
         AuthUiState? state = State;
+        if (state?.IsRegistrationComplete == true) { state.DismissRegistrationSuccess(); return; }
+        if (state?.Mode == AuthMode.Recovery) { if (state.CanSubmit) _ = SubmitRecoveryAsync(); return; }
         if (state is null || !state.SubmitCommand.CanExecute(null))
         {
             return;
@@ -466,6 +483,9 @@ public partial class AuthOverlayViewV2 : UserControl
 
     private void ClearFields()
     {
+        CancelRecovery();
+        RecoveryEmailBox.Clear();
+        ClearPasswordFields();
         LoginUsernameBox.Clear();
         LoginPasswordBox.Clear();
         RegisterUsernameBox.Clear();
@@ -476,6 +496,7 @@ public partial class AuthOverlayViewV2 : UserControl
 
     private void ClearPasswordFields()
     {
+        ResetPasswordReveals();
         LoginPasswordBox.Clear();
         RegisterPasswordBox.Clear();
         RegisterPasswordConfirmBox.Clear();

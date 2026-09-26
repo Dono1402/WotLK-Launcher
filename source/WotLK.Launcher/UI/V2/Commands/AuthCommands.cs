@@ -37,6 +37,9 @@ internal sealed class AuthCommands : IDisposable
         return start.Status;
     }
 
+    internal Task<PasswordRecoveryResult> RequestPasswordRecoveryAsync(string email, CancellationToken token)
+        => PasswordRecoveryClient.RequestAsync(email, token);
+
     internal bool CancelCurrent()
     {
         return Volatile.Read(ref _disposeState) == 0

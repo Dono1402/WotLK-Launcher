@@ -214,8 +214,8 @@ public sealed partial class LauncherDatabase
         await using MySqlTransaction transaction =
             await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
 
-        if (await AccountExistsAsync(connection, transaction, username, normalizedEmail, cancellationToken))
-            throw new DuplicateNameException("Ce nom d'utilisateur ou cette adresse e-mail est déjà utilisé.");
+        if (await RegistrationConflictAsync(connection, transaction, username, normalizedEmail, cancellationToken) is { } conflict)
+            throw new DuplicateNameException(conflict);
 
         uint accountId;
         await using (MySqlCommand command = connection.CreateCommand())
@@ -896,6 +896,10 @@ public sealed partial class LauncherDatabase
         await using MySqlTransaction transaction =
             await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
 
+        // Same lock order as recovery/password changes: account, profile, challenge.
+        if (!await LockAccountByIdAsync(connection, transaction, accountId, cancellationToken))
+            throw new KeyNotFoundException("Atlas account no longer exists.");
+
         AccountProfile currentProfile = await LoadProfileAsync(
             connection, transaction, accountId, cancellationToken);
         if (string.Equals(
@@ -944,6 +948,13 @@ public sealed partial class LauncherDatabase
                 """;
             invalidate.Parameters.AddWithValue("@accountId", accountId);
             await invalidate.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        if (PasswordRecoveryAvailable)
+        {
+            await using MySqlCommand invalidateReset = new("UPDATE atlas_launcher_password_reset SET consumed_at=UTC_TIMESTAMP() WHERE account_id=@id AND consumed_at IS NULL;", connection, transaction);
+            invalidateReset.Parameters.AddWithValue("@id", accountId);
+            await invalidateReset.ExecuteNonQueryAsync(cancellationToken);
         }
 
         AccountProfile profile = await LoadProfileAsync(
@@ -1415,7 +1426,7 @@ public sealed partial class LauncherDatabase
         return await command.ExecuteScalarAsync(cancellationToken) is not null;
     }
 
-    private static async Task<bool> AccountExistsAsync(
+    private static async Task<string?> RegistrationConflictAsync(
         MySqlConnection connection,
         MySqlTransaction transaction,
         string username,
@@ -1425,7 +1436,7 @@ public sealed partial class LauncherDatabase
         await using MySqlCommand command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
-            SELECT 1
+            SELECT CASE WHEN BINARY a.username = BINARY @username THEN 'username' ELSE 'email' END
             FROM account a
             LEFT JOIN atlas_launcher_profile p ON p.account_id = a.id
             WHERE BINARY a.username = BINARY @username
@@ -1435,7 +1446,12 @@ public sealed partial class LauncherDatabase
             """;
         command.Parameters.AddWithValue("@username", username);
         command.Parameters.AddWithValue("@email", email);
-        return await command.ExecuteScalarAsync(cancellationToken) is not null;
+        return await command.ExecuteScalarAsync(cancellationToken) switch
+        {
+            "username" => "Ce nom d’utilisateur est déjà utilisé.",
+            "email" => "Cette adresse e-mail est déjà utilisée.",
+            _ => null
+        };
     }
 
     private static async Task<AccountCredential?> LoadCredentialByIdAsync(

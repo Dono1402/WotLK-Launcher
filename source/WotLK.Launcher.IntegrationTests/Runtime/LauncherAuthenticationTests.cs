@@ -36,6 +36,8 @@ internal static class LauncherAuthenticationTests
             foreach (PropertyInfo property in type.GetProperties(
                          BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
             {
+                // Field validation text carries no credential; it is intentionally exposed to the view.
+                if (type == typeof(AuthUiState) && property.Name == nameof(AuthUiState.PasswordError)) continue;
                 True(
                     forbiddenFragments.All(fragment => !property.Name.Contains(
                         fragment,
@@ -930,7 +932,7 @@ internal static class LauncherAuthenticationTests
             password.Password = "0123456789";
             confirmation.Password = "different0";
             overlay.ValidateForPreview(showErrors: true);
-            Equal(AuthErrorKind.Validation, harness.Window.AuthState.ErrorKind, "La confirmation différente doit rester locale.");
+            Equal("Les deux mots de passe ne correspondent pas.", harness.Window.AuthState.ConfirmationError, "La confirmation différente doit rester locale, sous le champ.");
             Equal(0, authentication.RegisterCalls, "Le formulaire invalide ne doit produire aucune requête.");
 
             confirmation.Password = "0123456789";
@@ -951,7 +953,10 @@ internal static class LauncherAuthenticationTests
             await WaitForAsync(() => harness.Window.ShellState.IsAuthenticated);
             await DelayAndPumpAsync(220);
             Equal("RegisteredUser", harness.Window.ShellState.Username, "L'identité inscrite doit atteindre la barre supérieure.");
-            True(overlay.IsFullyClosed, "L'inscription réussie doit fermer l'overlay.");
+            True(harness.Window.AuthState.IsRegistrationComplete, "L'inscription réussie doit afficher une confirmation.");
+            RaiseClick(submit);
+            await DelayAndPumpAsync(220);
+            True(overlay.IsFullyClosed, "Continuer après la confirmation ferme l'overlay.");
             Equal(0, authentication.LoginCalls, "L'endpoint existant fournit directement la session sans second appel de connexion.");
             Equal(0, authentication.CreateGameTicketCalls, "L'inscription ne doit jamais lancer le jeu.");
         }

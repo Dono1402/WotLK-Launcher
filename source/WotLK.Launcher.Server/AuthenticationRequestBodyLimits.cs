@@ -13,6 +13,8 @@ internal static class AuthenticationRequestBodyLimits
         "POST /api/v1/auth/login",
         "POST /api/v1/auth/refresh",
         "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/password-reset/request",
+        "POST /api/v1/auth/password-reset/confirm",
         "PATCH /api/v1/me/email",
         "PATCH /api/v1/me/social-profile",
         "POST /api/v1/me/password",

@@ -1,5 +1,34 @@
 # Atlas Launcher V2 - Authentification legacy et preview 02F.1
 
+## Formulaires locaux du 26 septembre 2026
+
+La version locale conserve le décor Atlas approuvé et la description « Tes jeux,
+tes services, un seul compte Atlas. ». Elle ajoute l’affichage/masquage des trois
+champs de mot de passe, des erreurs sous les champs à la sortie du focus, des
+libellés plus lisibles et une confirmation après création du compte. Aucun
+indicateur Verr. Maj. n’est ajouté. Les valeurs révélées sont synchronisées puis
+effacées lors du masquage, de l’envoi, du changement de formulaire ou de la fermeture.
+Les modèles de présentation ne contiennent que les messages de validation.
+
+« Mot de passe oublié ? » ouvre un formulaire e-mail. Il appelle la nouvelle
+route `POST /api/v1/auth/password-reset/request`. Une API ancienne, un service
+d’e-mail indisponible ou une limitation de débit affiche une erreur explicite,
+jamais une fausse confirmation d’envoi. Le message accepté reste identique pour
+une adresse connue ou inconnue. Le lien reçu ouvre la page de réinitialisation,
+puis l’utilisateur revient se connecter dans le launcher.
+
+Cette récupération nécessite la future version serveur, Brevo configuré hors
+sandbox, une URL publique HTTPS et le schéma 0015. Le build local ne déploie pas
+le serveur et ne modifie ni le schéma ni l’installation publique.
+
+Vérifications ciblées : `--auth-shell-wpf` rend les formulaires FR/EN en mémoire
+sans ouvrir de fenêtre ; `--auth-runtime --headless` vérifie le raccordement
+d’authentification ; `--password-recovery-mysql` exige une base jetable locale
+préfixée `atlas_auth_session_test_` dans `ATLAS_AUTH_SESSION_TEST_DB` et simule
+les transports e-mail/Hermes. Aucun e-mail réel n’est envoyé par cette suite.
+
+Les sections suivantes décrivent le contrat historique initial.
+
 ## Contrat legacy observé
 
 - Connexion : nom d'utilisateur et mot de passe. Le contrat `LoginRequest` n'accepte pas l'adresse e-mail comme identifiant.

@@ -124,6 +124,7 @@ internal static class AuthShellWpfTests
                 "La description de connexion est traduite dans la langue active.");
             Capture(content, captures, $"login-{language}-1598.png");
             ValidateFieldClicks("LoginUsernameBox", "LoginPasswordBox");
+            await ValidatePasswordReveal("LoginPasswordBox");
 
             // Exercise the visible button states with synthetic input, without submitting a request.
             ((TextBox)auth.FindName("LoginUsernameBox")).Text = "AtlasPreview";
@@ -152,6 +153,50 @@ internal static class AuthShellWpfTests
                 "Tous les champs d’inscription et le bouton sont visibles sans défilement dans la fenêtre du launcher.");
             Capture(content, captures, $"login-register-{language}-1598.png");
             ValidateFieldClicks("RegisterUsernameBox", "RegisterEmailBox", "RegisterPasswordBox", "RegisterPasswordConfirmBox");
+            await ValidatePasswordReveal("RegisterPasswordBox");
+            await ValidatePasswordReveal("RegisterPasswordConfirmBox");
+            TextBox emailInput = (TextBox)auth.FindName("RegisterEmailBox");
+            emailInput.Text = "invalid-email";
+            True(shell.AuthState.EmailError.Length == 0, "Aucune erreur d’inscription pendant la frappe initiale.");
+            Border emailField = (Border)VisualTreeHelper.GetParent(VisualTreeHelper.GetParent(emailInput));
+            KeyboardFocusChangedEventArgs blur = new(Keyboard.PrimaryDevice, Environment.TickCount, emailInput, (PasswordBox)auth.FindName("RegisterPasswordBox"))
+                { RoutedEvent = Keyboard.LostKeyboardFocusEvent };
+            Invoke(auth, "Field_LostKeyboardFocus", emailField, blur);
+            await LayoutAsync(content);
+            True(shell.AuthState.EmailError == "Adresse e-mail invalide." && ((TextBlock)auth.FindName("RegisterEmailBoxError")).IsVisible,
+                "L’erreur e-mail apparaît sous le champ au moment de le quitter.");
+            True(((TextBlock)auth.FindName("RegisterEmailBoxError")).Text == (language == "en" ? "Invalid email address." : "Adresse e-mail invalide."),
+                "Le message sous le champ est traduit.");
+            Capture(content, captures, $"register-error-{language}-1598.png");
+            emailInput.Text = "preview@example.test";
+            True(shell.AuthState.EmailError.Length == 0, "Corriger le champ retire son erreur sans valider à chaque frappe.");
+            shell.AuthState.ShowLoginCommand.Execute(null);
+            await LayoutAsync(content);
+            True(auth.ArePasswordFieldsEmpty, "Changer de formulaire efface aussi les mots de passe révélés.");
+            Button forgot = (Button)auth.FindName("ForgotPasswordButton");
+            forgot.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, forgot));
+            await LayoutAsync(content);
+            True(shell.AuthState.Mode == AuthMode.Recovery && ((StackPanel)auth.FindName("RecoveryForm")).IsVisible,
+                "Mot de passe oublié ouvre le formulaire e-mail.");
+            ((TextBox)auth.FindName("RecoveryEmailBox")).Text = "preview@example.test";
+            TaskCompletionSource<PasswordRecoveryResult> recovery = new();
+            int recoveryRequests = 0;
+            auth.PasswordRecoveryRequested = (email, token) => { recoveryRequests++; return recovery.Task; };
+            Button primary = (Button)auth.FindName("PrimaryAuthButton");
+            primary.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, primary));
+            primary.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, primary));
+            True(shell.AuthState.IsBusy && recoveryRequests == 1, "Une demande en cours empêche le double envoi et le changement de formulaire.");
+            recovery.SetResult(new PasswordRecoveryResult(true, ""));
+            await LayoutAsync(content);
+            True(!shell.AuthState.IsBusy && shell.AuthState.HasNotice && !shell.AuthState.IsErrorVisible,
+                "La demande acceptée affiche les prochaines étapes sans révéler l’existence du compte.");
+            Capture(content, captures, $"recovery-sent-{language}-1598.png");
+            auth.PasswordRecoveryRequested = (_, _) => Task.FromResult(PasswordRecoveryResult.Unavailable);
+            primary.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, primary));
+            await LayoutAsync(content);
+            True(shell.AuthState.IsErrorVisible && !shell.AuthState.HasNotice,
+                "Un serveur ancien ou indisponible affiche une erreur, sans annoncer un e-mail envoyé.");
+            auth.PasswordRecoveryRequested = null;
             shell.AuthState.ShowLoginCommand.Execute(null);
             await LayoutAsync(content);
 
@@ -174,6 +219,24 @@ internal static class AuthShellWpfTests
             True(trayRequests == 1 && shell.AuthState.IsOpen, "Le bouton système conserve la réduction vers la zone de notification sans fermer le login.");
 
             state.ApplyAuthenticatedUser("TestAtlas");
+            shell.AuthState.ApplySessionSnapshot(AuthSessionSnapshot.Initial with
+            { Sequence = 8, State = LauncherSessionState.Authenticated, OperationKind = LauncherSessionOperationKind.Register, Username = "TestAtlas" });
+            await RefreshAuthAsync();
+            True(shell.AuthState.IsRegistrationComplete && ((StackPanel)auth.FindName("RegistrationSuccess")).IsVisible
+                && ((Button)auth.FindName("PrimaryAuthButton")).IsEnabled, "La création confirmée affiche une réussite avec un bouton pour continuer.");
+            Capture(content, captures, $"registration-success-{language}-1598.png");
+            ((Button)auth.FindName("PrimaryAuthButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            True(!shell.AuthState.IsOpen, "Continuer vers Atlas ferme la confirmation après création du compte.");
+            using (AuthUiState transitions = new())
+            {
+                transitions.ApplySessionSnapshot(AuthSessionSnapshot.Initial with { Sequence = 1, State = LauncherSessionState.Authenticated, OperationKind = LauncherSessionOperationKind.Register });
+                transitions.ApplySessionSnapshot(AuthSessionSnapshot.Initial with { Sequence = 2, State = LauncherSessionState.SignedOut });
+                True(!transitions.IsRegistrationComplete && transitions.Mode == AuthMode.Login, "Une session perdue retire la confirmation de création.");
+                transitions.ApplySessionSnapshot(AuthSessionSnapshot.Initial with { Sequence = 3, State = LauncherSessionState.SignedOut,
+                    OperationKind = LauncherSessionOperationKind.Register, FailureCategory = LauncherSessionFailureCategory.AccountCreatedSignInRequired, Username = "CreatedUser" });
+                True(transitions.HasNotice && !transitions.IsErrorVisible && transitions.LoginUsername == "CreatedUser",
+                    "Un compte créé sans session est confirmé comme une réussite et prépare la connexion.");
+            }
             shell.AuthState.IsOpen = false;
             await RefreshAuthAsync();
             True(surface.Visibility == Visibility.Visible && surface.IsEnabled && surface.IsHitTestVisible,
@@ -222,6 +285,29 @@ internal static class AuthShellWpfTests
                 // settles the real state without starting native presentation.
                 auth.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent, auth));
                 await LayoutAsync(content);
+            }
+
+            async Task ValidatePasswordReveal(string name)
+            {
+                PasswordBox masked = (PasswordBox)auth.FindName(name);
+                TextBox revealed = (TextBox)auth.FindName(name + "Revealed");
+                Button eye = (Button)auth.FindName(name + "Eye");
+                masked.Password = "synthetic-secret";
+                eye.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, eye));
+                await LayoutAsync(content);
+                True(revealed.IsVisible && !masked.IsVisible && revealed.Text == "synthetic-secret", name + ": l’œil révèle la valeur existante.");
+                revealed.Text = "synthetic-edited";
+                True(masked.Password == "synthetic-edited", name + ": la frappe visible met à jour le mot de passe soumis.");
+                Border field = (Border)VisualTreeHelper.GetParent(VisualTreeHelper.GetParent(masked));
+                MouseButtonEventArgs click = new(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left)
+                    { RoutedEvent = UIElement.PreviewMouseLeftButtonDownEvent, Source = eye };
+                Invoke(auth, "Field_PreviewMouseLeftButtonDown", field, click);
+                True(!click.Handled, name + ": le clic de l’œil n’est pas intercepté par le rectangle.");
+                eye.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, eye));
+                await LayoutAsync(content);
+                True(masked.IsVisible && !revealed.IsVisible && revealed.Text.Length == 0 && masked.Password == "synthetic-edited",
+                    name + ": masquer vide le contrôle visible sans perdre le mot de passe saisi.");
+                masked.Clear();
             }
 
             void ValidateFieldClicks(params string[] names)

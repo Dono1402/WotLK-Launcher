@@ -8,7 +8,8 @@ namespace WotLK.Launcher.UI.V2.Presentation;
 public enum AuthMode
 {
     Login,
-    Register
+    Register,
+    Recovery
 }
 
 public enum AuthErrorKind
@@ -38,6 +39,42 @@ public sealed class AuthUiState : BindableUiState, IDisposable
     private string _loginUsername = string.Empty;
     private string _registerUsername = string.Empty;
     private string _registerEmail = string.Empty;
+    private string _recoveryEmail = string.Empty;
+    private string _notice = string.Empty;
+    private bool _isRegistrationComplete;
+    private readonly Dictionary<string, string> _fieldErrors = new();
+    public string RecoveryEmail { get => _recoveryEmail; set => SetProperty(ref _recoveryEmail, value); }
+    public string Notice { get => _notice; private set { SetProperty(ref _notice, value); RaisePropertyChanged(nameof(HasNotice)); } }
+    public bool HasNotice => !string.IsNullOrEmpty(Notice);
+    public bool IsRegistrationComplete => _isRegistrationComplete;
+    public string UsernameError => FieldError("username");
+    public string EmailError => FieldError("email");
+    public string PasswordError => FieldError("password");
+    public string ConfirmationError => FieldError("confirmation");
+    private string FieldError(string field) => _fieldErrors.GetValueOrDefault(field, string.Empty);
+    internal void SetFieldError(string field, string message)
+    {
+        _fieldErrors[field] = message;
+        RaisePropertyChanged(field switch { "username" => nameof(UsernameError), "email" => nameof(EmailError),
+            "password" => nameof(PasswordError), _ => nameof(ConfirmationError) });
+    }
+    internal void ClearFieldErrors()
+    {
+        foreach (string field in new[] { "username", "email", "password", "confirmation" }) SetFieldError(field, "");
+    }
+    internal void BeginRecovery() { Notice = ""; ClearErrorAfterInput(); IsBusy = true; }
+    internal void CompleteRecovery(bool accepted, string error)
+    {
+        IsBusy = false;
+        if (accepted) Notice = "Si un compte Atlas correspond à cette adresse, tu recevras un lien de réinitialisation. Vérifie aussi tes courriers indésirables. Le lien est valable 30 minutes.";
+        else { ErrorKind = AuthErrorKind.ServiceUnavailable; ErrorMessage = error; }
+    }
+    internal void DismissRegistrationSuccess()
+    {
+        _isRegistrationComplete = false;
+        IsOpen = false;
+        RaisePropertyChanged(string.Empty);
+    }
     private int _previewSubmissionCount;
     private int _disposeState;
 
@@ -152,18 +189,18 @@ public sealed class AuthUiState : BindableUiState, IDisposable
         set => SetProperty(ref _registerEmail, value);
     }
 
-    public string Title => Mode == AuthMode.Login ? "Bienvenue sur Atlas" : "Créer un compte";
+    public string Title => IsRegistrationComplete ? "Bienvenue, ton compte est prêt !" : Mode switch { AuthMode.Login => "Bienvenue sur Atlas", AuthMode.Recovery => "Mot de passe oublié ?", _ => "Créer un compte" };
 
     public string Description => "Tes jeux, tes services, un seul compte Atlas.";
 
-    public string PrimaryActionLabel => Mode == AuthMode.Login ? "Se connecter" : "Créer mon compte";
+    public string PrimaryActionLabel => IsRegistrationComplete ? "Continuer vers Atlas" : Mode switch { AuthMode.Login => "Se connecter", AuthMode.Recovery => "Envoyer le lien", _ => "Créer mon compte" };
 
     public bool IsFormEnabled => !IsBusy;
 
     public bool IsErrorVisible => ErrorKind != AuthErrorKind.None
         && !string.IsNullOrWhiteSpace(ErrorMessage);
 
-    public bool CanSubmit => IsOpen && !IsBusy && IsFormValid;
+    public bool CanSubmit => IsOpen && !IsBusy && (IsFormValid || IsRegistrationComplete);
 
     public ICommand ShowLoginCommand => _showLoginCommand;
 
@@ -227,6 +264,10 @@ public sealed class AuthUiState : BindableUiState, IDisposable
 
     internal void ResetAfterClose()
     {
+        _isRegistrationComplete = false;
+        Notice = "";
+        RecoveryEmail = "";
+        ClearFieldErrors();
         LoginUsername = string.Empty;
         RegisterUsername = string.Empty;
         RegisterEmail = string.Empty;
@@ -240,6 +281,9 @@ public sealed class AuthUiState : BindableUiState, IDisposable
 
     internal void PrepareForOpen()
     {
+        _isRegistrationComplete = false;
+        Notice = "";
+        ClearFieldErrors();
         _mode = AuthMode.Login;
         _isBusy = false;
         _isEmailWarningVisible = false;
@@ -255,6 +299,12 @@ public sealed class AuthUiState : BindableUiState, IDisposable
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         _isBusy = snapshot.IsSubmitting;
+        if (!snapshot.IsAuthenticated && _isRegistrationComplete)
+        {
+            _isRegistrationComplete = false;
+            _isOpen = false;
+            Mode = AuthMode.Login;
+        }
 
         if (snapshot.IsAuthenticated)
         {
@@ -262,7 +312,8 @@ public sealed class AuthUiState : BindableUiState, IDisposable
             _errorMessage = string.Empty;
             _isEmailWarningVisible = false;
             _isFormValid = false;
-            _isOpen = false;
+            _isRegistrationComplete |= snapshot.OperationKind == LauncherSessionOperationKind.Register;
+            _isOpen = _isRegistrationComplete;
         }
         else if (!snapshot.IsSubmitting
                  && snapshot.OperationKind is LauncherSessionOperationKind.Login
@@ -270,11 +321,20 @@ public sealed class AuthUiState : BindableUiState, IDisposable
                  && snapshot.FailureCategory != LauncherSessionFailureCategory.None)
         {
             (_errorKind, _errorMessage) = MapFailure(snapshot.FailureCategory);
+            if (_errorKind is AuthErrorKind.UsernameAlreadyExists or AuthErrorKind.EmailAlreadyExists)
+            {
+                SetFieldError(_errorKind == AuthErrorKind.UsernameAlreadyExists ? "username" : "email", _errorMessage);
+                _errorKind = AuthErrorKind.None;
+                _errorMessage = "";
+            }
             if (snapshot.FailureCategory
                 == LauncherSessionFailureCategory.AccountCreatedSignInRequired)
             {
-                _mode = AuthMode.Login;
+                Mode = AuthMode.Login;
                 _loginUsername = snapshot.Username;
+                _errorKind = AuthErrorKind.None;
+                _errorMessage = "";
+                Notice = "Compte créé. Connecte-toi pour continuer. Tu pourras vérifier ton adresse e-mail depuis ton profil.";
             }
         }
 
@@ -284,6 +344,9 @@ public sealed class AuthUiState : BindableUiState, IDisposable
 
     internal void SetMode(AuthMode mode)
     {
+        if (IsBusy || IsRegistrationComplete) return;
+        Notice = "";
+        ClearFieldErrors();
         if (mode == AuthMode.Register && string.IsNullOrWhiteSpace(RegisterUsername))
         {
             RegisterUsername = LoginUsername.Trim();

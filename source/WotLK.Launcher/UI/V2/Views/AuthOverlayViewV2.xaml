@@ -86,7 +86,7 @@
                 <Setter Property="Height" Value="38"/>
                 <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="BorderBrush" Value="Transparent"/>
-                <Setter Property="Foreground" Value="#9BB2C3"/>
+                <Setter Property="Foreground" Value="#C5D6E2"/>
                 <Setter Property="FontSize" Value="13"/>
                 <Style.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">
@@ -102,6 +102,18 @@
                         <Setter Property="BorderBrush" Value="#A7EEFF"/>
                     </Trigger>
                 </Style.Triggers>
+            </Style>
+            <Style x:Key="AtlasV2.Auth.Error" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="#FFC6C6"/>
+                <Setter Property="TextWrapping" Value="Wrap"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="Margin" Value="0,2,0,8"/>
+                <Setter Property="AutomationProperties.LiveSetting" Value="Polite"/>
+                <Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers>
+            </Style>
+            <Style x:Key="AtlasV2.Auth.Eye" TargetType="Button" BasedOn="{StaticResource AtlasV2.Auth.Tab}">
+                <Setter Property="Width" Value="36"/><Setter Property="Height" Value="36"/>
+                <Setter Property="Padding" Value="8"/><Setter Property="Cursor" Value="Hand"/>
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -228,7 +240,7 @@
                                    TextWrapping="Wrap"
                                    Style="{StaticResource AtlasV2.Text.Body}"/>
 
-                        <Border Margin="0,24,0,0"
+                        <Border x:Name="ModeSelector" Margin="0,24,0,0"
                                 Padding="4"
                                 Background="#A5081723"
                                 BorderBrush="#263D4C"
@@ -309,8 +321,7 @@
                                                Foreground="{StaticResource AtlasV2.Brush.Gold}"/>
                                     <TextBlock Margin="0,2,0,0"
                                                Text="Tu peux continuer, mais pense à confirmer ton adresse e-mail."
-                                               Style="{StaticResource AtlasV2.Text.Caption}"
-                                               Foreground="{StaticResource AtlasV2.Brush.TextSecondary}"/>
+                                               Style="{StaticResource AtlasV2.Text.Caption}" Foreground="#C5D6E2"/>
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -354,10 +365,10 @@
                             </Grid.Style>
                             <StackPanel IsEnabled="{Binding State.IsFormEnabled, ElementName=Root}">
                                 <TextBlock Text="NOM D’UTILISATEUR"
-                                           Style="{StaticResource AtlasV2.Text.Caption}"
+                                           Style="{StaticResource AtlasV2.Text.Caption}" Foreground="#C5D6E2"
                                            FontWeight="SemiBold"/>
                                 <Border Height="48" Margin="0,8,0,18"
-                                        Tag="{Binding ElementName=LoginUsernameBox}"
+                                        Tag="{Binding ElementName=LoginUsernameBox}" LostKeyboardFocus="Field_LostKeyboardFocus"
                                         Style="{StaticResource AtlasV2.Auth.Field}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -379,17 +390,18 @@
                                                  TextChanged="Input_Changed"/>
                                     </Grid>
                                 </Border>
+                                <TextBlock x:Name="LoginUsernameBoxError" Text="{Binding State.UsernameError, ElementName=Root}" Style="{StaticResource AtlasV2.Auth.Error}"/>
 
                                 <TextBlock Text="MOT DE PASSE"
-                                           Style="{StaticResource AtlasV2.Text.Caption}"
+                                           Style="{StaticResource AtlasV2.Text.Caption}" Foreground="#C5D6E2"
                                            FontWeight="SemiBold"/>
                                 <Border Height="48" Margin="0,8,0,0"
-                                        Tag="{Binding ElementName=LoginPasswordBox}"
+                                        Tag="{Binding ElementName=LoginPasswordBox}" LostKeyboardFocus="Field_LostKeyboardFocus"
                                         Style="{StaticResource AtlasV2.Auth.Field}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="22"/>
-                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/><ColumnDefinition Width="36"/>
                                         </Grid.ColumnDefinitions>
                                         <Path Width="17"
                                               Height="17"
@@ -403,8 +415,22 @@
                                                      KeyboardNavigation.TabIndex="3"
                                                      AutomationProperties.Name="Mot de passe"
                                                      PasswordChanged="Input_Changed"/>
-                                    </Grid>
+                                    <TextBox x:Name="LoginPasswordBoxRevealed" Grid.Column="1" Margin="8,0,0,0" Visibility="Collapsed"
+                        MaxLength="128" SpellCheck.IsEnabled="False" InputMethod.IsInputMethodEnabled="False"
+                        Style="{StaticResource AtlasV2.TextBox.Field}" AutomationProperties.Name="Mot de passe visible"
+                        TextChanged="RevealedPassword_Changed"/>
+                    <Button x:Name="LoginPasswordBoxEye" Grid.Column="2" Tag="{Binding ElementName=LoginPasswordBox}"
+                        Style="{StaticResource AtlasV2.Auth.Eye}" ToolTip="Afficher le mot de passe"
+                        AutomationProperties.Name="Afficher le mot de passe" Click="PasswordEye_Click">
+                        <Path Data="M 1,9 C 5,1 13,1 17,9 C 13,17 5,17 1,9 M 12,9 A 3,3 0 1 1 6,9 A 3,3 0 1 1 12,9"
+                              Width="18" Height="18" StrokeThickness="1.5" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
+                    </Button>
+                    </Grid>
                                 </Border>
+                                <TextBlock x:Name="LoginPasswordBoxError" Text="{Binding State.PasswordError, ElementName=Root}" Style="{StaticResource AtlasV2.Auth.Error}"/>
+                                <Button x:Name="ForgotPasswordButton" Content="Mot de passe oublié ?" Margin="0,8,0,0"
+                                    HorizontalAlignment="Right" Padding="8,0" Style="{StaticResource AtlasV2.Auth.Tab}"
+                                    Click="ForgotPassword_Click"/>
                             </StackPanel>
                         </Grid>
 
@@ -426,9 +452,9 @@
                             </Grid.Style>
                             <StackPanel IsEnabled="{Binding State.IsFormEnabled, ElementName=Root}">
                                 <TextBlock Text="NOM D’UTILISATEUR"
-                                           Style="{StaticResource AtlasV2.Text.Caption}"
+                                           Style="{StaticResource AtlasV2.Text.Caption}" Foreground="#C5D6E2"
                                            FontWeight="SemiBold"/>
-                                <Border Tag="{Binding ElementName=RegisterUsernameBox}" Style="{StaticResource AtlasV2.Auth.RegisterField}">
+                                <Border Tag="{Binding ElementName=RegisterUsernameBox}" LostKeyboardFocus="Field_LostKeyboardFocus" Style="{StaticResource AtlasV2.Auth.RegisterField}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="22"/>
@@ -449,11 +475,12 @@
                                                  TextChanged="Input_Changed"/>
                                     </Grid>
                                 </Border>
+                                <TextBlock x:Name="RegisterUsernameBoxError" Text="{Binding State.UsernameError, ElementName=Root}" Style="{StaticResource AtlasV2.Auth.Error}"/>
 
                                 <TextBlock Text="ADRESSE E-MAIL"
-                                           Style="{StaticResource AtlasV2.Text.Caption}"
+                                           Style="{StaticResource AtlasV2.Text.Caption}" Foreground="#C5D6E2"
                                            FontWeight="SemiBold"/>
-                                <Border Tag="{Binding ElementName=RegisterEmailBox}" Style="{StaticResource AtlasV2.Auth.RegisterField}">
+                                <Border Tag="{Binding ElementName=RegisterEmailBox}" LostKeyboardFocus="Field_LostKeyboardFocus" Style="{StaticResource AtlasV2.Auth.RegisterField}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="22"/>
@@ -473,15 +500,16 @@
                                                  TextChanged="Input_Changed"/>
                                     </Grid>
                                 </Border>
+                                <TextBlock x:Name="RegisterEmailBoxError" Text="{Binding State.EmailError, ElementName=Root}" Style="{StaticResource AtlasV2.Auth.Error}"/>
 
                                 <TextBlock Text="MOT DE PASSE · 10 À 128 CARACTÈRES"
-                                           Style="{StaticResource AtlasV2.Text.Caption}"
+                                           Style="{StaticResource AtlasV2.Text.Caption}" Foreground="#C5D6E2"
                                            FontWeight="SemiBold"/>
-                                <Border Tag="{Binding ElementName=RegisterPasswordBox}" Style="{StaticResource AtlasV2.Auth.RegisterField}">
+                                <Border Tag="{Binding ElementName=RegisterPasswordBox}" LostKeyboardFocus="Field_LostKeyboardFocus" Style="{StaticResource AtlasV2.Auth.RegisterField}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="22"/>
-                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/><ColumnDefinition Width="36"/>
                                         </Grid.ColumnDefinitions>
                                         <Path Width="17" Height="17" VerticalAlignment="Center"
                                               Data="{StaticResource AtlasV2.Icon.Lock}"
@@ -495,16 +523,27 @@
                                                      AutomationProperties.Name="Mot de passe pour l’inscription"
                                                      AutomationProperties.HelpText="10 à 128 caractères"
                                                      PasswordChanged="Input_Changed"/>
-                                    </Grid>
+                                    <TextBox x:Name="RegisterPasswordBoxRevealed" Grid.Column="1" Margin="8,0,0,0" Visibility="Collapsed"
+                        MaxLength="128" SpellCheck.IsEnabled="False" InputMethod.IsInputMethodEnabled="False"
+                        Style="{StaticResource AtlasV2.TextBox.Field}" AutomationProperties.Name="Mot de passe visible"
+                        TextChanged="RevealedPassword_Changed"/>
+                    <Button x:Name="RegisterPasswordBoxEye" Grid.Column="2" Tag="{Binding ElementName=RegisterPasswordBox}"
+                        Style="{StaticResource AtlasV2.Auth.Eye}" ToolTip="Afficher le mot de passe"
+                        AutomationProperties.Name="Afficher le mot de passe" Click="PasswordEye_Click">
+                        <Path Data="M 1,9 C 5,1 13,1 17,9 C 13,17 5,17 1,9 M 12,9 A 3,3 0 1 1 6,9 A 3,3 0 1 1 12,9"
+                              Width="18" Height="18" StrokeThickness="1.5" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
+                    </Button>
+                    </Grid>
                                 </Border>
+                                <TextBlock x:Name="RegisterPasswordBoxError" Text="{Binding State.PasswordError, ElementName=Root}" Style="{StaticResource AtlasV2.Auth.Error}"/>
                                 <TextBlock Text="CONFIRMER LE MOT DE PASSE"
-                                           Style="{StaticResource AtlasV2.Text.Caption}"
+                                           Style="{StaticResource AtlasV2.Text.Caption}" Foreground="#C5D6E2"
                                            FontWeight="SemiBold"/>
-                                <Border Tag="{Binding ElementName=RegisterPasswordConfirmBox}" Margin="0,8,0,0" Style="{StaticResource AtlasV2.Auth.RegisterField}">
+                                <Border Tag="{Binding ElementName=RegisterPasswordConfirmBox}" LostKeyboardFocus="Field_LostKeyboardFocus" Margin="0,8,0,0" Style="{StaticResource AtlasV2.Auth.RegisterField}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="22"/>
-                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/><ColumnDefinition Width="36"/>
                                         </Grid.ColumnDefinitions>
                                         <Path Width="17" Height="17" VerticalAlignment="Center"
                                               Data="{StaticResource AtlasV2.Icon.Lock}"
@@ -517,11 +556,44 @@
                                                      KeyboardNavigation.TabIndex="5"
                                                      AutomationProperties.Name="Confirmation du mot de passe"
                                                      PasswordChanged="Input_Changed"/>
-                                    </Grid>
+                                    <TextBox x:Name="RegisterPasswordConfirmBoxRevealed" Grid.Column="1" Margin="8,0,0,0" Visibility="Collapsed"
+                        MaxLength="128" SpellCheck.IsEnabled="False" InputMethod.IsInputMethodEnabled="False"
+                        Style="{StaticResource AtlasV2.TextBox.Field}" AutomationProperties.Name="Mot de passe visible"
+                        TextChanged="RevealedPassword_Changed"/>
+                    <Button x:Name="RegisterPasswordConfirmBoxEye" Grid.Column="2" Tag="{Binding ElementName=RegisterPasswordConfirmBox}"
+                        Style="{StaticResource AtlasV2.Auth.Eye}" ToolTip="Afficher le mot de passe"
+                        AutomationProperties.Name="Afficher le mot de passe" Click="PasswordEye_Click">
+                        <Path Data="M 1,9 C 5,1 13,1 17,9 C 13,17 5,17 1,9 M 12,9 A 3,3 0 1 1 6,9 A 3,3 0 1 1 12,9"
+                              Width="18" Height="18" StrokeThickness="1.5" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
+                    </Button>
+                    </Grid>
                                 </Border>
+                                <TextBlock x:Name="RegisterPasswordConfirmBoxError" Text="{Binding State.ConfirmationError, ElementName=Root}" Style="{StaticResource AtlasV2.Auth.Error}"/>
                             </StackPanel>
                         </Grid>
 
+                        <StackPanel x:Name="RecoveryForm" Visibility="Collapsed" Margin="0,20,0,0"
+                                    IsEnabled="{Binding State.IsFormEnabled, ElementName=Root}">
+                            <TextBlock Text="Indique l’adresse e-mail de ton compte Atlas pour recevoir un lien de réinitialisation."
+                                       Foreground="#C5D6E2" TextWrapping="Wrap" Margin="0,0,0,16"/>
+                            <TextBlock Text="ADRESSE E-MAIL" Foreground="#C5D6E2" FontSize="12" FontWeight="SemiBold"/>
+                            <Border Height="48" Margin="0,8,0,0" Style="{StaticResource AtlasV2.Auth.Field}" Tag="{Binding ElementName=RecoveryEmailBox}" LostKeyboardFocus="Field_LostKeyboardFocus">
+                                <TextBox x:Name="RecoveryEmailBox" MaxLength="254" Style="{StaticResource AtlasV2.TextBox.Field}"
+                                         Text="{Binding State.RecoveryEmail, ElementName=Root, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="Adresse e-mail du compte" TextChanged="Input_Changed"/>
+                            </Border>
+                            <TextBlock Text="{Binding State.EmailError, ElementName=Root}" Style="{StaticResource AtlasV2.Auth.Error}"/>
+                        </StackPanel>
+                        <Border x:Name="NoticeBanner" Margin="0,16,0,0" Padding="14" Background="#EB102D2F" BorderBrush="#4B968B" BorderThickness="1" CornerRadius="6"
+                                Visibility="{Binding State.HasNotice, ElementName=Root, Converter={StaticResource AtlasV2.Converter.BooleanToVisibility}}">
+                            <TextBlock Text="{Binding State.Notice, ElementName=Root}" Foreground="#D1F3EA" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+                        </Border>
+                        <StackPanel x:Name="RegistrationSuccess" Visibility="Collapsed" Margin="0,22,0,0">
+                            <TextBlock Text="Ton compte Atlas est créé. Tes jeux et tes services t’attendent."
+                                       Foreground="#D1F3EA" TextWrapping="Wrap" FontSize="16" Margin="0,0,0,16"/>
+                            <TextBlock Text="Pense à vérifier ton adresse e-mail. Si tu n’as pas reçu le message, tu peux renvoyer le lien depuis ton profil."
+                                       Foreground="#C5D6E2" TextWrapping="Wrap"/>
+                        </StackPanel>
                         <Grid Margin="0,24,0,0">
                             <Button x:Name="PrimaryAuthButton"
                                     Height="48"

@@ -17,6 +17,8 @@ if (args.Length == 1
 }
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+builder.Services.AddSingleton<PasswordRecoveryService>();
+builder.Services.AddHostedService(provider => provider.GetRequiredService<PasswordRecoveryService>());
 
 LauncherServerOptions options = new();
 builder.Configuration.GetSection("LauncherServer").Bind(options);
@@ -145,6 +147,8 @@ app.MapShopEndpoints();
 app.MapChatEndpoints();
 app.MapChatV2Endpoints();
 app.MapPresenceEndpoints();
+
+app.MapPasswordRecovery();
 
 app.MapPost("/api/v1/accounts", async (
     RegisterRequest request,

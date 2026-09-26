@@ -13,7 +13,7 @@
   "finalInstallerArtifact": "passed",
   "signedCandidate": "signature valid; package matching; no download, UAC or application launch",
   "taskbarIconRefresh": "confirmed by user",
-  "real182InstallationVerified": false,
+  "real182InstallationVerified": true,
   "real182UninstallationVerified": false,
   "localClientReplaced": false
 }

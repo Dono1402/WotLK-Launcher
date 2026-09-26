@@ -55,9 +55,14 @@ désinstalleur. L'assistant ne propose pas encore de réparation sur place :
 une installation existante doit être désinstallée avant la réinstallation.
 
 L'utilisateur a autorisé l'ouverture de la désinstallation 1.8.1 puis de
-l'installation 1.8.2. Les résultats de cette installation sur son PC sont
-consignés séparément lorsqu'ils sont vérifiés. Le nettoyage à la désinstallation
-1.8.2 est validé par le banc isolé, pas par une désinstallation réelle de son PC.
+l'installation 1.8.2. Après fermeture du désinstalleur 1.8.1, son dossier et
+son entrée Windows avaient bien disparu. L'installation 1.8.2 est maintenant
+confirmée par l'utilisateur et par les [contrôles locaux](installation-verification.json) :
+client et désinstalleur conformes aux SHA-256 publiés, version 1.8.2 et éditeur
+Atlas dans Windows, raccourcis Bureau et menu Démarrer présents avec la bonne
+cible et la bonne source d'icône. Le nettoyage à la désinstallation 1.8.2 reste
+validé par le banc isolé, pas par une désinstallation réelle de cette nouvelle
+installation sur son PC.
 
 Le client local conserve son empreinte
 `183044c1cff9fcc26a25b29de680fb2b9d2cb0a2729ce176790fccd929c335c9`.

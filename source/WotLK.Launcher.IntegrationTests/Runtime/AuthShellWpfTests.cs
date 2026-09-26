@@ -123,6 +123,7 @@ internal static class AuthShellWpfTests
             True(Texts(auth).Contains(language == "en" ? "Your games, your services, one Atlas account." : "Tes jeux, tes services, un seul compte Atlas."),
                 "La description de connexion est traduite dans la langue active.");
             Capture(content, captures, $"login-{language}-1598.png");
+            ValidateFieldClicks("LoginUsernameBox", "LoginPasswordBox");
 
             // Exercise the visible button states with synthetic input, without submitting a request.
             ((TextBox)auth.FindName("LoginUsernameBox")).Text = "AtlasPreview";
@@ -150,6 +151,7 @@ internal static class AuthShellWpfTests
             True(((ScrollViewer)auth.FindName("AuthScrollViewer")).ScrollableHeight < 1,
                 "Tous les champs d’inscription et le bouton sont visibles sans défilement dans la fenêtre du launcher.");
             Capture(content, captures, $"login-register-{language}-1598.png");
+            ValidateFieldClicks("RegisterUsernameBox", "RegisterEmailBox", "RegisterPasswordBox", "RegisterPasswordConfirmBox");
             shell.AuthState.ShowLoginCommand.Execute(null);
             await LayoutAsync(content);
 
@@ -220,6 +222,54 @@ internal static class AuthShellWpfTests
                 // settles the real state without starting native presentation.
                 auth.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent, auth));
                 await LayoutAsync(content);
+            }
+
+            void ValidateFieldClicks(params string[] names)
+            {
+                foreach (string name in names)
+                {
+                    Control input = (Control)auth.FindName(name);
+                    Grid grid = (Grid)VisualTreeHelper.GetParent(input);
+                    Border field = (Border)VisualTreeHelper.GetParent(grid);
+                    Rect bounds = Bounds(field, content);
+                    FrameworkElement icon = grid.Children.OfType<FrameworkElement>().First(child => !ReferenceEquals(child, input));
+                    Rect iconBounds = Bounds(icon, content);
+                    Point[] points =
+                    [
+                        new(bounds.Left + 2, bounds.Top + bounds.Height / 2),
+                        new(bounds.Right - 2, bounds.Top + bounds.Height / 2),
+                        new(bounds.Left + bounds.Width / 2, bounds.Top + 2),
+                        new(bounds.Left + bounds.Width / 2, bounds.Bottom - 2),
+                        new(iconBounds.Left + iconBounds.Width / 2, iconBounds.Top + iconBounds.Height / 2)
+                    ];
+                    DependencyObject focusScope = FocusManager.GetFocusScope(input);
+                    foreach (Point point in points)
+                    {
+                        UIElement? hit = content.InputHitTest(point) as UIElement;
+                        True(hit is not null && IsWithin(hit, field), $"{name}: les marges et l'icône appartiennent au champ.");
+                        True(!IsWithin(hit, input), $"{name}: le test couvre une zone extérieure à la saisie native.");
+                        FocusManager.SetFocusedElement(focusScope, null);
+                        MouseButtonEventArgs click = new(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left)
+                        { RoutedEvent = Mouse.PreviewMouseDownEvent };
+                        hit!.RaiseEvent(click);
+                        True(click.Handled && ReferenceEquals(FocusManager.GetFocusedElement(focusScope), input),
+                            $"{name}: cliquer dans une marge ou sur l'icône donne le focus au bon champ.");
+                    }
+
+                    MouseButtonEventArgs nativeClick = new(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left)
+                    { RoutedEvent = UIElement.PreviewMouseLeftButtonDownEvent, Source = input };
+                    Invoke(auth, "Field_PreviewMouseLeftButtonDown", field, nativeClick);
+                    True(!nativeClick.Handled, $"{name}: les clics natifs conservent sélection et placement du curseur.");
+
+                    input.IsEnabled = false;
+                    FocusManager.SetFocusedElement(focusScope, null);
+                    MouseButtonEventArgs disabledClick = new(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left)
+                    { RoutedEvent = Mouse.PreviewMouseDownEvent };
+                    field.RaiseEvent(disabledClick);
+                    True(!disabledClick.Handled && FocusManager.GetFocusedElement(focusScope) is null,
+                        $"{name}: un champ désactivé ne reçoit pas le focus via son contour.");
+                    input.ClearValue(UIElement.IsEnabledProperty);
+                }
             }
 
             void ValidateRequired()

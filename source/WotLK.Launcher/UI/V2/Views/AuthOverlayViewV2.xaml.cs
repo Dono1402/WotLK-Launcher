@@ -231,6 +231,22 @@ public partial class AuthOverlayViewV2 : UserControl
         }
     }
 
+    private void Field_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Border { Tag: Control input }
+            || input is not (TextBox or PasswordBox)
+            || !input.IsEnabled || !input.IsVisible
+            || e.OriginalSource is not DependencyObject source
+            || IsDescendantOf(source, input))
+        {
+            // Native text clicks retain caret placement, selection and dragging.
+            return;
+        }
+
+        input.Focus();
+        e.Handled = true;
+    }
+
     private void Input_Changed(object sender, RoutedEventArgs e)
     {
         if (_applyingPreview || State is null)

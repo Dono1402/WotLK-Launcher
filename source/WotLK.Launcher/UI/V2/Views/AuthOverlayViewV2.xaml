@@ -24,6 +24,8 @@
                 <Setter Property="Background" Value="#DB091723"/>
                 <Setter Property="BorderBrush" Value="#354C5C"/>
                 <Setter Property="CornerRadius" Value="6"/>
+                <Setter Property="Cursor" Value="IBeam"/>
+                <EventSetter Event="PreviewMouseLeftButtonDown" Handler="Field_PreviewMouseLeftButtonDown"/>
                 <Style.Triggers>
                     <Trigger Property="IsKeyboardFocusWithin" Value="True">
                         <Setter Property="BorderBrush" Value="#7BDBF3"/>
@@ -355,6 +357,7 @@
                                            Style="{StaticResource AtlasV2.Text.Caption}"
                                            FontWeight="SemiBold"/>
                                 <Border Height="48" Margin="0,8,0,18"
+                                        Tag="{Binding ElementName=LoginUsernameBox}"
                                         Style="{StaticResource AtlasV2.Auth.Field}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -381,6 +384,7 @@
                                            Style="{StaticResource AtlasV2.Text.Caption}"
                                            FontWeight="SemiBold"/>
                                 <Border Height="48" Margin="0,8,0,0"
+                                        Tag="{Binding ElementName=LoginPasswordBox}"
                                         Style="{StaticResource AtlasV2.Auth.Field}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -424,7 +428,7 @@
                                 <TextBlock Text="NOM D’UTILISATEUR"
                                            Style="{StaticResource AtlasV2.Text.Caption}"
                                            FontWeight="SemiBold"/>
-                                <Border Style="{StaticResource AtlasV2.Auth.RegisterField}">
+                                <Border Tag="{Binding ElementName=RegisterUsernameBox}" Style="{StaticResource AtlasV2.Auth.RegisterField}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="22"/>
@@ -449,7 +453,7 @@
                                 <TextBlock Text="ADRESSE E-MAIL"
                                            Style="{StaticResource AtlasV2.Text.Caption}"
                                            FontWeight="SemiBold"/>
-                                <Border Style="{StaticResource AtlasV2.Auth.RegisterField}">
+                                <Border Tag="{Binding ElementName=RegisterEmailBox}" Style="{StaticResource AtlasV2.Auth.RegisterField}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="22"/>
@@ -473,7 +477,7 @@
                                 <TextBlock Text="MOT DE PASSE · 10 À 128 CARACTÈRES"
                                            Style="{StaticResource AtlasV2.Text.Caption}"
                                            FontWeight="SemiBold"/>
-                                <Border Style="{StaticResource AtlasV2.Auth.RegisterField}">
+                                <Border Tag="{Binding ElementName=RegisterPasswordBox}" Style="{StaticResource AtlasV2.Auth.RegisterField}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="22"/>
@@ -496,7 +500,7 @@
                                 <TextBlock Text="CONFIRMER LE MOT DE PASSE"
                                            Style="{StaticResource AtlasV2.Text.Caption}"
                                            FontWeight="SemiBold"/>
-                                <Border Margin="0,8,0,0" Style="{StaticResource AtlasV2.Auth.RegisterField}">
+                                <Border Tag="{Binding ElementName=RegisterPasswordConfirmBox}" Margin="0,8,0,0" Style="{StaticResource AtlasV2.Auth.RegisterField}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="22"/>

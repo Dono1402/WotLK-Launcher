@@ -12,12 +12,12 @@
     <Product>Atlas Launcher</Product>
     <AssemblyTitle>Atlas Launcher</AssemblyTitle>
     <Company>Atlas</Company>
-    <Description>Launcher officiel du royaume Arthas pour WotLK Classic</Description>
+    <Description>Atlas Launcher — vos jeux et services réunis</Description>
     <Copyright>Copyright © 2026 Atlas</Copyright>
-    <Version>1.7.2</Version>
-    <AssemblyVersion>1.7.2.0</AssemblyVersion>
-    <FileVersion>1.7.2.0</FileVersion>
-    <InformationalVersion>1.7.2</InformationalVersion>
+    <Version>1.8.0</Version>
+    <AssemblyVersion>1.8.0.0</AssemblyVersion>
+    <FileVersion>1.8.0.0</FileVersion>
+    <InformationalVersion>1.8.0</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>

@@ -154,9 +154,7 @@ public sealed class AuthUiState : BindableUiState, IDisposable
 
     public string Title => Mode == AuthMode.Login ? "Bienvenue sur Atlas" : "Créer un compte";
 
-    public string Description => Mode == AuthMode.Login
-        ? "Connecte-toi pour rejoindre le royaume Arthas."
-        : "Crée ton compte Atlas pour rejoindre le royaume Arthas.";
+    public string Description => "Tes jeux, tes services, un seul compte Atlas.";
 
     public string PrimaryActionLabel => Mode == AuthMode.Login ? "Se connecter" : "Créer mon compte";
 

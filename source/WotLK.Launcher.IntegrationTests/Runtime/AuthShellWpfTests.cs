@@ -120,7 +120,7 @@ internal static class AuthShellWpfTests
             string language = locale == LauncherLocalization.FrenchLocale ? "fr" : "en";
             True(Equals(((Button)auth.FindName("LoginModeButton")).Content, language == "en" ? "Sign in" : "Connexion"), "Les onglets du formulaire utilisent la langue active.");
             True(Texts(auth).Contains(language == "en" ? "Welcome to Atlas" : "Bienvenue sur Atlas"), "Le titre de connexion est traduit.");
-            True(Texts(auth).Contains(language == "en" ? "Sign in to join the Arthas realm." : "Connecte-toi pour rejoindre le royaume Arthas."),
+            True(Texts(auth).Contains(language == "en" ? "Your games, your services, one Atlas account." : "Tes jeux, tes services, un seul compte Atlas."),
                 "La description de connexion est traduite dans la langue active.");
             Capture(content, captures, $"login-{language}-1598.png");
 
@@ -143,7 +143,7 @@ internal static class AuthShellWpfTests
             await LayoutAsync(content);
             ValidateRequired();
             True(Texts(auth).Contains(language == "en" ? "Create account" : "Créer un compte"), "Le titre d’inscription est traduit.");
-            True(Texts(auth).Contains(language == "en" ? "Create your Atlas account to join the Arthas realm." : "Crée ton compte Atlas pour rejoindre le royaume Arthas."),
+            True(Texts(auth).Contains(language == "en" ? "Your games, your services, one Atlas account." : "Tes jeux, tes services, un seul compte Atlas."),
                 "La description d’inscription est traduite.");
             True(card.ActualHeight <= 740 && ((Grid)auth.FindName("RegisterForm")).Visibility == Visibility.Visible,
                 "Le formulaire d’inscription reste dans la fenêtre fixe avec son contenu affiché.");

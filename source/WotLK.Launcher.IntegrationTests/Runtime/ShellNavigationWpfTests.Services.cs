@@ -78,7 +78,7 @@ internal static partial class ShellNavigationWpfTests
                 Check(amount.Text != "—" && measuredAmount.Width <= amount.ActualWidth,
                     "The representative 1087.00 credit balance fits without ellipsis.");
                 if (locale == "fr-FR") Capture("wotlk");
-                if (locale == "fr-FR") await ValidateServiceMenu();
+                await ValidateServiceMenu("wotlk-" + locale);
 
                 Invoke((Button)Element("AddonsNavigationButton"), pointer: true);
                 shell.FriendsState.IsOpen = true;
@@ -104,6 +104,7 @@ internal static partial class ShellNavigationWpfTests
                 ValidateHeader();
                 if (locale == "fr-FR") Capture("minecraft");
                 else Capture("minecraft-en");
+                await ValidateServiceMenu("minecraft-" + locale);
                 var minecraftGame = (GameViewV2)minecraft;
                 Button minecraftPlay = (Button)minecraftGame.FindName("PrimaryActionButton");
                 Check(!minecraftPlay.IsEnabled && !minecraftGame.State!.PrimaryActionCommand.CanExecute(null)
@@ -294,7 +295,7 @@ internal static partial class ShellNavigationWpfTests
             await Settle();
             Capture("wotlk-final");
         }
-        async Task ValidateServiceMenu()
+        async Task ValidateServiceMenu(string variant)
         {
             selector.ApplyTemplate();
             Popup popup = (Popup)selector.Template.FindName("PART_Popup", selector);
@@ -310,13 +311,13 @@ internal static partial class ShellNavigationWpfTests
                 RotateTransform chevron = (RotateTransform)selector.Template.FindName("ServiceChevron", selector);
                 Check(Math.Abs(chevron.Angle - 180) < 1, "The chevron animates into its open state.");
                 Border menu = (Border)popup.Child;
-                menu.Measure(new Size(274, double.PositiveInfinity));
+                menu.Measure(new Size(menu.Width + menu.Margin.Left + menu.Margin.Right, double.PositiveInfinity));
                 menu.Arrange(new Rect(menu.DesiredSize));
                 menu.UpdateLayout();
                 RenderTargetBitmap bitmap = new((int)Math.Ceiling(menu.ActualWidth + 24), (int)Math.Ceiling(menu.ActualHeight + 24), 96, 96, PixelFormats.Pbgra32);
                 bitmap.Render(menu);
                 PngBitmapEncoder encoder = new(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                using (FileStream file = File.Create(Path.Combine(output, "service-menu.png"))) encoder.Save(file);
+                using (FileStream file = File.Create(Path.Combine(output, "service-menu-" + variant + ".png"))) encoder.Save(file);
                 selector.IsDropDownOpen = false;
                 if (SystemParameters.ClientAreaAnimation)
                     Check(ServiceSelectorMotion.GetIsPopupVisible(selector) && !menu.IsHitTestVisible,

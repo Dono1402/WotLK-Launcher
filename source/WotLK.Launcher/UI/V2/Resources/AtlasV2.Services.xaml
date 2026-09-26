@@ -2,30 +2,63 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
                     xmlns:presentation="clr-namespace:WotLK.Launcher.UI.V2.Presentation">
+    <!-- Small covers reuse the game artwork; names and descriptions remain native text. -->
+    <BitmapImage x:Key="AtlasV2.ServiceCover.Wotlk" UriSource="/WotLK.Launcher;component/Assets/Images/AtlasGamePilotA.png" DecodePixelWidth="192"/>
+    <BitmapImage x:Key="AtlasV2.ServiceCover.Minecraft" UriSource="/WotLK.Launcher;component/Assets/Minecraft/Minecraft_Overworld.png" DecodePixelWidth="192"/>
+    <ImageBrush x:Key="AtlasV2.ServiceCoverBrush.Wotlk" ImageSource="{StaticResource AtlasV2.ServiceCover.Wotlk}"
+                Viewbox=".4,0,.6,.8" ViewboxUnits="RelativeToBoundingBox" Stretch="UniformToFill"/>
+    <ImageBrush x:Key="AtlasV2.ServiceCoverBrush.Minecraft" ImageSource="{StaticResource AtlasV2.ServiceCover.Minecraft}"
+                Viewbox=".14,.1,.62,.86" ViewboxUnits="RelativeToBoundingBox" Stretch="UniformToFill"/>
+    <LinearGradientBrush x:Key="AtlasV2.ServiceSelection.Wotlk" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#D9203949"/><GradientStop Color="#A312232F" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="AtlasV2.ServiceSelection.Minecraft" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#D91C3933"/><GradientStop Color="#A3122526" Offset="1"/>
+    </LinearGradientBrush>
+    <Style x:Key="AtlasV2.ServiceKeyboardFocus" TargetType="Control">
+        <Setter Property="Template">
+            <Setter.Value><ControlTemplate TargetType="Control">
+                <Border Height="1" Margin="12,0,26,2" VerticalAlignment="Bottom" Background="#A3CFD8"/>
+            </ControlTemplate></Setter.Value>
+        </Setter>
+    </Style>
     <Style x:Key="AtlasV2.ServiceOption" TargetType="ComboBoxItem">
         <Setter Property="Foreground" Value="#DCE7EE"/>
         <Setter Property="FontSize" Value="14"/>
-        <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="Padding" Value="14,14"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Padding" Value="12,10"/>
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBoxItem">
-                    <Grid Margin="3,2">
-                        <Border x:Name="SelectedSurface" Background="#193F6475" CornerRadius="7" Opacity="0"/>
-                        <Border x:Name="HoverSurface" Background="#1E8BAABB" CornerRadius="7" Opacity="0"/>
+                    <Grid Margin="2,3">
+                        <Border x:Name="SelectedSurface" Background="{StaticResource AtlasV2.ServiceSelection.Wotlk}"
+                                BorderBrush="#44698FA4" BorderThickness="1" CornerRadius="10" Opacity="0"/>
+                        <Border x:Name="HoverSurface" Background="#123C5663" BorderBrush="#35485F6C" BorderThickness="1" CornerRadius="10" Opacity="0"/>
                         <Grid Margin="{TemplateBinding Padding}">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition/><ColumnDefinition Width="20"/></Grid.ColumnDefinitions>
-                            <Ellipse x:Name="ServiceDot" Width="5" Height="5" Fill="#8FD4F3" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                            <ContentPresenter Grid.Column="1" VerticalAlignment="Center"/>
-                            <Path x:Name="SelectedMark" Grid.Column="2" Data="M1,5 L4,8 L10,1" Width="11" Height="9"
-                                  Stroke="#E3C887" StrokeThickness="1.5" Stretch="Uniform" Visibility="Collapsed"/>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="56"/><ColumnDefinition/><ColumnDefinition Width="20"/></Grid.ColumnDefinitions>
+                            <Border x:Name="ServiceCover" Width="44" Height="48" CornerRadius="7" HorizontalAlignment="Left"
+                                    Background="{StaticResource AtlasV2.ServiceCoverBrush.Wotlk}" BorderBrush="#385A7585" BorderThickness="1"
+                                    RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <StackPanel Grid.Column="1" Margin="0,0,8,0" VerticalAlignment="Center">
+                                <ContentPresenter/>
+                                <TextBlock x:Name="ServiceDescription" Text="Wrath of the Lich King" FontSize="11" FontWeight="Normal"
+                                           Foreground="#9EB3BF" Margin="0,5,0,0"/>
+                            </StackPanel>
+                            <Path x:Name="SelectedMark" Grid.Column="2" Data="M1,5 L4,8 L11,1" Width="12" Height="10"
+                                  Stroke="#A2DAF2" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  Stretch="Uniform" Visibility="Collapsed"/>
                         </Grid>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="Tag" Value="{x:Static presentation:LauncherService.Minecraft}">
-                            <Setter TargetName="ServiceDot" Property="Fill" Value="#54EFB2"/>
+                            <Setter TargetName="ServiceCover" Property="Background" Value="{StaticResource AtlasV2.ServiceCoverBrush.Minecraft}"/>
+                            <Setter TargetName="ServiceCover" Property="BorderBrush" Value="#385E9480"/>
+                            <Setter TargetName="ServiceDescription" Property="Text" Value="Survie multijoueur"/>
+                            <Setter TargetName="SelectedSurface" Property="Background" Value="{StaticResource AtlasV2.ServiceSelection.Minecraft}"/>
+                            <Setter TargetName="SelectedSurface" Property="BorderBrush" Value="#425A9B83"/>
+                            <Setter TargetName="SelectedMark" Property="Stroke" Value="#6CE7B9"/>
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="SelectedSurface" Property="Opacity" Value="1"/>
@@ -50,7 +83,7 @@
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="ItemContainerStyle" Value="{StaticResource AtlasV2.ServiceOption}"/>
-        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="FocusVisualStyle" Value="{StaticResource AtlasV2.ServiceKeyboardFocus}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBox">
@@ -65,27 +98,20 @@
                                 Background="#89CDE9" Opacity=".7" IsHitTestVisible="False"/>
                         <ContentPresenter Margin="12,0,26,0" VerticalAlignment="Center" IsHitTestVisible="False"
                                           Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"/>
-                        <Path Width="10" Height="6" Data="M0,0 L5,5 L10,0" Stroke="#D5BC85" StrokeThickness="1.5"
+                        <Path Width="10" Height="6" Data="M0,0 L5,5 L10,0" Stroke="#A7BBC4" StrokeThickness="1.5"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="Uniform"
                               Margin="0,0,5,0" HorizontalAlignment="Right" VerticalAlignment="Center" IsHitTestVisible="False"
                               RenderTransformOrigin=".5,.5">
                             <Path.RenderTransform><RotateTransform x:Name="ServiceChevron"/></Path.RenderTransform>
                         </Path>
-                        <Border x:Name="HoverLine" Height="1" Margin="12,0,5,4" VerticalAlignment="Bottom" Opacity="0" IsHitTestVisible="False">
-                            <Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                <GradientStop Color="#00D6BE88"/><GradientStop Color="#D6BE88" Offset=".45"/><GradientStop Color="#00D6BE88" Offset="1"/>
-                            </LinearGradientBrush></Border.Background>
-                        </Border>
-                        <Border x:Name="FocusLine" Height="1" Margin="12,0,5,4" VerticalAlignment="Bottom"
-                                Background="#D6BE88" Visibility="Collapsed" IsHitTestVisible="False"/>
                         <Popup x:Name="PART_Popup" Placement="Bottom" HorizontalOffset="-8" VerticalOffset="8"
                                AllowsTransparency="True" IsOpen="{Binding (presentation:ServiceSelectorMotion.IsPopupVisible), RelativeSource={RelativeSource TemplatedParent}}" Focusable="False">
-                            <Border x:Name="ServiceMenuSurface" Width="250" Margin="12" Padding="9,13,9,9"
-                                    Background="#F70D202D" BorderBrush="#5263747A" BorderThickness="1" CornerRadius="12">
-                                <Border.Effect><DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity=".28"/></Border.Effect>
+                            <Border x:Name="ServiceMenuSurface" Width="312" Margin="12" Padding="8,15,8,8"
+                                    Background="#FA0C1A25" BorderBrush="#49536C7B" BorderThickness="1" CornerRadius="14">
+                                <Border.Effect><DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity=".32"/></Border.Effect>
                                 <Border.RenderTransform><TranslateTransform x:Name="ServiceMenuOffset"/></Border.RenderTransform>
                                 <StackPanel>
-                                    <TextBlock Text="JEUX ET SERVICES" Margin="16,0,12,9" FontSize="10" FontWeight="SemiBold" Foreground="#91A9B8"/>
+                                    <TextBlock x:Name="ServiceMenuHeading" Text="Choisir un univers" Margin="14,0,12,10" FontSize="12" FontWeight="Medium" Foreground="#A8BDC8"/>
                                     <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"/>
                                 </StackPanel>
                             </Border>
@@ -97,9 +123,7 @@
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter Property="Foreground" Value="#FFFFFF"/>
-                            <Setter TargetName="HoverLine" Property="Opacity" Value=".8"/>
                         </Trigger>
-                        <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="FocusLine" Property="Visibility" Value="Visible"/></Trigger>
                         <Trigger Property="IsDropDownOpen" Value="True">
                             <Setter Property="Foreground" Value="#FFFFFF"/>
                         </Trigger>

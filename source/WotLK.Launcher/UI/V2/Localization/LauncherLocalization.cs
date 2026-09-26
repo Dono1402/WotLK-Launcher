@@ -13,6 +13,8 @@ internal static class LauncherLocalization
             ["Choisir un jeu ou un service"] = "Choose a game or service",
             ["Changer de jeu ou de service"] = "Switch game or service",
             ["JEUX ET SERVICES"] = "GAMES AND SERVICES",
+            ["Choisir un univers"] = "Choose a world",
+            ["Survie multijoueur"] = "Multiplayer survival",
             ["ATLAS · JEUX"] = "ATLAS · GAMES",
             ["Bienvenue dans"] = "Welcome to",
             ["l’Overworld"] = "the Overworld",

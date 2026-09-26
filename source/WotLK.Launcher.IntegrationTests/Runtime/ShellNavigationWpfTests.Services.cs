@@ -30,9 +30,14 @@ internal static partial class ShellNavigationWpfTests
                 LauncherLocalization.SetLocale(locale);
                 selector.SelectedValue = LauncherService.Wotlk;
                 await Settle();
+                FrameworkElement updateButton = Element("LauncherUpdateButton");
+                updateButton.Visibility = Visibility.Collapsed;
+                await Settle();
                 Check(shell.ShellState.GameName == "WOTLK Server" && game.IsVisible && !minecraft.IsVisible,
                     "The default WotLK workspace keeps its real game view.");
                 ValidateHeader();
+                Check(((Button)Element("GameNavigationButton")).Padding.Left == 23,
+                    "The idle header uses the original generous tab spacing instead of reserving room for hidden indicators.");
                 // Keep the pre-selector visual scale, even when the local badge
                 // and the widest operation indicators share the fixed header.
                 Check(Element("TitleBar").Height == 80 && Element("TitleBar").Margin == new Thickness(22, 22, 22, 0)
@@ -43,17 +48,23 @@ internal static partial class ShellNavigationWpfTests
                 FrameworkElement activityButton = Element("ActivityButton");
                 try
                 {
+                    updateButton.Visibility = Visibility.Visible;
                     activityButton.Width = 72;
                     activityButton.Visibility = Visibility.Visible;
-                    shell.UpdateLayout();
+                    await Settle();
                     ValidateHeader();
+                    Check(((Button)Element("GameNavigationButton")).Padding.Left < 23,
+                        "Tab spacing yields only when the extra update and progress controls occupy the header.");
                 }
                 finally
                 {
                     activityButton.ClearValue(FrameworkElement.WidthProperty);
                     activityButton.ClearValue(UIElement.VisibilityProperty);
-                    shell.UpdateLayout();
+                    updateButton.Visibility = Visibility.Collapsed;
+                    await Settle();
                 }
+                Check(((Button)Element("GameNavigationButton")).Padding.Left == 23,
+                    "The tabs automatically regain their original spacing after the indicators disappear.");
                 Check(shell.WalletControl.Width == 264
                     && Grid.GetRow((Button)shell.WalletControl.FindName("EuroWalletButton")) == 0
                     && Grid.GetColumn((Button)shell.WalletControl.FindName("EuroWalletButton")) == 2
@@ -136,7 +147,11 @@ internal static partial class ShellNavigationWpfTests
             Check(!shell.IsActive && !shell.IsKeyboardFocusWithin && !shell.ShowInTaskbar && shell.Left < -10000,
                 "The fixture never takes focus or opens the installed launcher.");
         }
-        finally { LauncherLocalization.SetLocale("fr-FR"); }
+        finally
+        {
+            Element("LauncherUpdateButton").ClearValue(UIElement.VisibilityProperty);
+            LauncherLocalization.SetLocale("fr-FR");
+        }
 
         FrameworkElement Element(string name) => (FrameworkElement)shell.FindName(name);
         async Task Settle() { await Task.Delay(400); shell.UpdateLayout(); await Dispatcher.Yield(DispatcherPriority.ApplicationIdle); }

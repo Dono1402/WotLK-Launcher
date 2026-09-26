@@ -26,6 +26,10 @@ La barre conserve le gabarit précédant l'ajout du sélecteur : hauteur 80,
 marges extérieures 22, logo et avatar 42, nom Atlas 20 et navigation 16
 (unités WPF). Seuls les espaces horizontaux sont resserrés pour accueillir
 le sélecteur et les indicateurs d'opérations dans la même fenêtre fixe.
+Les onglets retrouvent leur espacement d'origine dès que la place le permet.
+Leur marge intérieure utilise l'espace réellement libre devant les actions ;
+elle ne diminue qu'à l'apparition d'indicateurs supplémentaires, puis se rétablit
+à leur disparition. Aucune place n'est réservée pour des indicateurs masqués.
 
 Le sélecteur utilise un libellé sans cadre, un accent discret et un chevron
 animé. Son menu apparaît par fondu et léger déplacement. Le passage entre jeux

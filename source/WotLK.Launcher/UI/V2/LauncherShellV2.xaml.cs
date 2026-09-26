@@ -382,6 +382,8 @@ public partial class LauncherShellV2 : Window
         InitializeShopPresentation();
 
         SizeChanged += LauncherShellV2_SizeChanged;
+        foreach (FrameworkElement element in new FrameworkElement[] { TitleBar, BrandIdentity, ServiceSelector, TopNavigation, TopBarActions })
+            element.SizeChanged += HeaderContent_SizeChanged;
         StateChanged += LauncherShellV2_StateChanged;
         Activated += UpdateBackgroundCadence;
         Deactivated += UpdateBackgroundCadence;
@@ -670,6 +672,8 @@ public partial class LauncherShellV2 : Window
         DetachChatPresentation();
         Loaded -= LauncherShellV2_Loaded;
         SizeChanged -= LauncherShellV2_SizeChanged;
+        foreach (FrameworkElement element in new FrameworkElement[] { TitleBar, BrandIdentity, ServiceSelector, TopNavigation, TopBarActions })
+            element.SizeChanged -= HeaderContent_SizeChanged;
         StateChanged -= LauncherShellV2_StateChanged;
         Activated -= UpdateBackgroundCadence;
         Deactivated -= UpdateBackgroundCadence;
@@ -779,7 +783,7 @@ public partial class LauncherShellV2 : Window
         {
             navigation.Height = barHeight - 2;
             navigation.FontSize = spacious ? 16 : compact ? 13 : 14;
-            double navigationInset = serviceSpacing ? 10 : spacious ? 23 : compact ? 9 : 14;
+            double navigationInset = spacious ? 23 : compact ? 9 : 14;
             navigation.Padding = new Thickness(navigationInset, 0, navigationInset, 0);
         }
 
@@ -805,7 +809,54 @@ public partial class LauncherShellV2 : Window
             windowButton.Padding = new Thickness(spacious ? 14 : compact ? 9 : 11);
         }
         ProfileMenu.Margin = new Thickness(0, inset + barHeight + 8, inset + 13 + windowButtonWidth * 3, 0);
+        UpdateHeaderNavigationSpacing();
         SetProfileTitleBarVisible(CurrentPage != LauncherShellPage.Armory || _profileTitleBarVisible, animate: false);
+    }
+
+    private bool _headerSpacingPending;
+
+    private void HeaderContent_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateHeaderNavigationSpacing();
+
+    private void UpdateHeaderNavigationSpacing()
+    {
+        if (_headerSpacingPending || !IsLoaded) return;
+        _headerSpacingPending = true;
+        // Wait for every header block to finish measuring before using DesiredSize.
+        // A size event can otherwise expose the previous pass with the new padding.
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+        {
+            _headerSpacingPending = false;
+            ApplyHeaderNavigationSpacing();
+        }));
+    }
+
+    private void ApplyHeaderNavigationSpacing()
+    {
+        if (!IsLoaded || ActualWidth < 1500 || ActualWidth >= 1800 || TitleBar.ActualWidth <= 0
+            || TopNavigation.DesiredSize.Width <= 0) return;
+
+        // Give the tabs their original breathing room first. Reclaim padding only
+        // when visible activity/update controls actually need it, and release it
+        // again when they disappear. Do not reserve space for hidden controls.
+        Button[] tabs = [GameNavigationButton, AddonsNavigationButton, PatchNotesNavigationButton, ShopNavigationButton];
+        int visibleCount = 0;
+        double contentWidth = 0;
+        foreach (Button tab in tabs)
+        {
+            if (tab.Visibility != Visibility.Visible) continue;
+            if (tab.Template.FindName("NavigationContent", tab) is not ContentPresenter content || content.ActualWidth <= 0) return;
+            visibleCount++;
+            contentWidth += content.ActualWidth + tab.Margin.Left + tab.Margin.Right
+                + tab.BorderThickness.Left + tab.BorderThickness.Right;
+        }
+        if (visibleCount == 0) return;
+        double availableWidth = TitleBar.ActualWidth - TitleBar.BorderThickness.Left - TitleBar.BorderThickness.Right
+            - TitleBar.Padding.Left - TitleBar.Padding.Right - BrandIdentity.DesiredSize.Width
+            - ServiceSelector.DesiredSize.Width - TopBarActions.DesiredSize.Width - 16;
+        double inset = Math.Clamp(Math.Floor((availableWidth - contentWidth) / (2 * visibleCount)), 10, 23);
+        foreach (Button tab in tabs)
+            if (Math.Abs(tab.Padding.Left - inset) > .1)
+                tab.Padding = new Thickness(inset, 0, inset, 0);
     }
 
     private void RefreshProfileTitleBarMode()

@@ -33,6 +33,27 @@ internal static partial class ShellNavigationWpfTests
                 Check(shell.ShellState.GameName == "WOTLK Server" && game.IsVisible && !minecraft.IsVisible,
                     "The default WotLK workspace keeps its real game view.");
                 ValidateHeader();
+                // Keep the pre-selector visual scale, even when the local badge
+                // and the widest operation indicators share the fixed header.
+                Check(Element("TitleBar").Height == 80 && Element("TitleBar").Margin == new Thickness(22, 22, 22, 0)
+                    && Element("BrandLogo").Width == 42 && ((TextBlock)Element("BrandName")).FontSize == 20
+                    && ((Button)Element("GameNavigationButton")).FontSize == 16
+                    && Element("SettingsButton").Width == 44 && Element("ProfileAvatarVisual").Width == 42,
+                    "The service selector preserves the original header height, margins, typography and icon scale.");
+                FrameworkElement activityButton = Element("ActivityButton");
+                try
+                {
+                    activityButton.Width = 72;
+                    activityButton.Visibility = Visibility.Visible;
+                    shell.UpdateLayout();
+                    ValidateHeader();
+                }
+                finally
+                {
+                    activityButton.ClearValue(FrameworkElement.WidthProperty);
+                    activityButton.ClearValue(UIElement.VisibilityProperty);
+                    shell.UpdateLayout();
+                }
                 Check(shell.WalletControl.Width == 264
                     && Grid.GetRow((Button)shell.WalletControl.FindName("EuroWalletButton")) == 0
                     && Grid.GetColumn((Button)shell.WalletControl.FindName("EuroWalletButton")) == 2
@@ -149,12 +170,13 @@ internal static partial class ShellNavigationWpfTests
         }
         void ValidateHeader()
         {
+            FrameworkElement header = Element("TitleBar");
             Rect previous = Rect.Empty;
             foreach (string name in new[] { "BrandIdentity", "ServiceSelector", "TopNavigation", "TopBarActions" })
             {
                 FrameworkElement element = Element(name);
-                Rect bounds = new(element.TranslatePoint(new Point(), shell), element.RenderSize);
-                Check(bounds.Left >= 0 && bounds.Right <= shell.ActualWidth && (previous.IsEmpty || previous.Right <= bounds.Left + 1),
+                Rect bounds = new(element.TranslatePoint(new Point(), header), element.RenderSize);
+                Check(bounds.Left >= 0 && bounds.Right <= header.ActualWidth && (previous.IsEmpty || previous.Right <= bounds.Left + 1),
                     $"Header blocks do not overlap at {shell.Width}: {name} {bounds}, previous {previous}.");
                 previous = bounds;
             }
@@ -177,7 +199,10 @@ internal static partial class ShellNavigationWpfTests
             {
                 FrameworkElement header = Element("TitleBar");
                 RenderTargetBitmap headerBitmap = new((int)Math.Ceiling(header.ActualWidth), (int)Math.Ceiling(header.ActualHeight), 96, 96, PixelFormats.Pbgra32);
-                headerBitmap.Render(header);
+                DrawingVisual headerVisual = new();
+                using (DrawingContext drawing = headerVisual.RenderOpen())
+                    drawing.DrawRectangle(new VisualBrush(header), null, new Rect(header.RenderSize));
+                headerBitmap.Render(headerVisual);
                 PngBitmapEncoder headerEncoder = new(); headerEncoder.Frames.Add(BitmapFrame.Create(headerBitmap));
                 using FileStream headerFile = File.Create(Path.Combine(output, "header.png"));
                 headerEncoder.Save(headerFile);

@@ -22,6 +22,11 @@ La fenêtre conserve ses dimensions fixes existantes et reste non redimensionnab
 L'espacement de la barre accueille le sélecteur sans chevauchement. La version
 locale garde son badge LOCAL et ses réglages séparés.
 
+La barre conserve le gabarit précédant l'ajout du sélecteur : hauteur 80,
+marges extérieures 22, logo et avatar 42, nom Atlas 20 et navigation 16
+(unités WPF). Seuls les espaces horizontaux sont resserrés pour accueillir
+le sélecteur et les indicateurs d'opérations dans la même fenêtre fixe.
+
 Le sélecteur utilise un libellé sans cadre, un accent discret et un chevron
 animé. Son menu apparaît par fondu et léger déplacement. Le passage entre jeux
 superpose temporairement une capture de l'ancien espace au nouveau pour un

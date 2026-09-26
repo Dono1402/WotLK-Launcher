@@ -737,12 +737,15 @@ public partial class LauncherShellV2 : Window
         ShellState.LayoutMode = mode;
 
         // The floating chrome adapts independently of the content's existing layout modes.
-        bool spacious = ActualWidth >= 1800;
-        bool compact = ActualWidth < 1300;
+        bool spacious = ActualWidth >= 1500;
+        bool compact = ActualWidth < 1180;
+        // Keep the original chrome scale. Make room for the service selector
+        // through horizontal spacing, never by shrinking the bar or its controls.
+        bool serviceSpacing = spacious && ActualWidth < 1800;
         double inset = spacious ? 22 : compact ? 14 : 18;
         double barHeight = spacious ? 80 : compact ? 64 : 72;
         double iconSize = spacious ? 44 : compact ? 34 : 38;
-        double actionGap = spacious ? 12 : compact ? 4 : 7;
+        double actionGap = serviceSpacing ? 4 : spacious ? 12 : compact ? 4 : 7;
         double windowButtonWidth = spacious ? 48 : compact ? 34 : 40;
 
         TitleBar.Margin = new Thickness(inset, inset, inset, 0);
@@ -753,20 +756,20 @@ public partial class LauncherShellV2 : Window
             ? new Thickness(0)
             : new Thickness(0, ContentTopRow.Height.Value, 0, 0);
         TopChromeDragZone.Height = ContentTopRow.Height.Value;
-        BrandIdentity.Margin = new Thickness(spacious ? 24 : 14, 0, spacious ? 36 : compact ? 8 : 16, 0);
+        BrandIdentity.Margin = new Thickness(spacious ? 24 : 14, 0, serviceSpacing ? 8 : spacious ? 36 : compact ? 8 : 16, 0);
         LocalBuildBadge.SetCurrentValue(VisibilityProperty, ShellState.IsLocalBuild ? Visibility.Visible : Visibility.Collapsed);
         BrandLogo.Width = BrandLogo.Height = spacious ? 42 : compact ? 32 : 36;
         BrandLogo.Visibility = Visibility.Visible;
         BrandName.Visibility = ActualWidth < 1400 ? Visibility.Collapsed : Visibility.Visible;
         BrandName.Margin = new Thickness(spacious ? 18 : compact ? 10 : 12, 0, 0, 0);
         BrandName.FontSize = spacious ? 20 : compact ? 16 : 18;
-        LocalBuildBadge.Margin = new Thickness(spacious ? 18 : 8, 0, 0, 0);
-        LocalBuildBadge.Padding = spacious ? new Thickness(8, 4, 8, 4) : new Thickness(5, 3, 5, 3);
-        LocalBuildBadgeText.FontSize = spacious ? 12 : compact ? 9 : 10;
-        ServiceSelector.Width = spacious ? 176 : 158;
+        LocalBuildBadge.Margin = new Thickness(spacious && !serviceSpacing ? 18 : 8, 0, 0, 0);
+        LocalBuildBadge.Padding = spacious && !serviceSpacing ? new Thickness(8, 4, 8, 4) : new Thickness(5, 3, 5, 3);
+        LocalBuildBadgeText.FontSize = spacious && !serviceSpacing ? 12 : compact ? 9 : 10;
+        ServiceSelector.Width = spacious && !serviceSpacing ? 176 : 158;
         ServiceSelector.Height = 44;
         ServiceSelector.FontSize = 14;
-        ServiceSelector.Margin = new Thickness(12, 0, spacious ? 18 : 12, 0);
+        ServiceSelector.Margin = serviceSpacing ? new Thickness(8, 0, 8, 0) : new Thickness(12, 0, spacious ? 18 : 12, 0);
         WalletHeader.SetCompact(ActualWidth < 1500);
         ApplyServiceChrome();
         PatchNotesNavigationLabel.Text = compact ? "Notes" : "Notes de version";
@@ -776,10 +779,11 @@ public partial class LauncherShellV2 : Window
         {
             navigation.Height = barHeight - 2;
             navigation.FontSize = spacious ? 16 : compact ? 13 : 14;
-            navigation.Padding = new Thickness(spacious ? 23 : compact ? 9 : 14, 0, spacious ? 23 : compact ? 9 : 14, 0);
+            double navigationInset = serviceSpacing ? 10 : spacious ? 23 : compact ? 9 : 14;
+            navigation.Padding = new Thickness(navigationInset, 0, navigationInset, 0);
         }
 
-        TopBarActions.Margin = new Thickness(0, 0, spacious ? 12 : 8, 0);
+        TopBarActions.Margin = new Thickness(0, 0, spacious && !serviceSpacing ? 12 : 8, 0);
         foreach (Button action in new[] { LauncherUpdateButton, MessagesNavigationButton, FriendsButton, SettingsButton })
         {
             action.Width = action.Height = iconSize;
@@ -790,9 +794,9 @@ public partial class LauncherShellV2 : Window
         ActivityButton.Height = iconSize;
         ActivityButton.Margin = new Thickness(0, 0, actionGap, 0);
         ActivityButton.Padding = new Thickness(8, 0, 8, 0);
-        ProfileDivider.Margin = new Thickness(spacious ? 10 : 6, 0, spacious ? 14 : 8, 0);
+        ProfileDivider.Margin = new Thickness(spacious && !serviceSpacing ? 10 : 6, 0, spacious && !serviceSpacing ? 14 : 8, 0);
         ProfileButton.Width = ProfileButton.Height = spacious ? 48 : compact ? 38 : 42;
-        ProfileButton.Margin = new Thickness(0, 0, spacious ? 18 : 10, 0);
+        ProfileButton.Margin = new Thickness(0, 0, spacious && !serviceSpacing ? 18 : 10, 0);
         ProfileAvatarVisual.Width = ProfileAvatarVisual.Height = spacious ? 42 : compact ? 32 : 36;
         foreach (Button windowButton in new[] { MinimizeWindowButton, MaximizeWindowButton, CloseWindowButton })
         {

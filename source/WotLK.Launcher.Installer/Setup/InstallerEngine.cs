@@ -124,6 +124,7 @@ internal sealed class InstallerEngine
             return true;
         }
         catch (Exception exception) when (exception is IOException
+            or System.ComponentModel.Win32Exception
             or UnauthorizedAccessException
             or InvalidDataException
             or ArgumentException
@@ -541,19 +542,7 @@ internal sealed class InstallerEngine
             throw new UnauthorizedAccessException("Le chemin du raccourci par machine n'est pas valide.");
         }
 
-        string parent = Path.GetDirectoryName(shortcutPath)
-            ?? throw new InvalidDataException("Le dossier du raccourci est absent.");
-        string existing = FindFirstExistingParent(parent);
-        InstallerProtectedPathSecurity.DemandTrustedDirectory(existing);
-        if (Directory.Exists(parent))
-        {
-            InstallerProtectedPathSecurity.DemandTrustedDirectory(parent);
-        }
-
-        if (File.Exists(shortcutPath))
-        {
-            InstallerProtectedPathSecurity.DemandTrustedFile(shortcutPath);
-        }
+        InstallerShortcutDirectoryLease.ValidateExistingParent(shortcutPath);
     }
 
     private void Rollback(

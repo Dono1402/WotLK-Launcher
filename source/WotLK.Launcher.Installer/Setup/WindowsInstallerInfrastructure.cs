@@ -237,6 +237,9 @@ internal sealed class WindowsInstallerShortcutService : IInstallerShortcutServic
         string fullShortcut = Path.GetFullPath(shortcutPath);
         string fullTarget = Path.GetFullPath(targetPath);
         string fullWorkingDirectory = Path.GetFullPath(workingDirectory);
+        using InstallerShortcutDirectoryLease lease = InstallerShortcutDirectoryLease.Acquire(
+            Path.GetDirectoryName(fullShortcut)!, create: true);
+        InstallerPathValidator.DemandNoReparsePoints(fullShortcut);
         InstallerShortcut? existing = Read(fullShortcut);
         if (existing is not null
             && !InstallerEnvironment.SamePath(existing.TargetPath, fullTarget))
@@ -245,7 +248,10 @@ internal sealed class WindowsInstallerShortcutService : IInstallerShortcutServic
                 $"Le raccourci {fullShortcut} existe déjà et appartient à une autre application.");
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(fullShortcut)!);
+        // Generate in the validated installation directory, then replace the link
+        // directory entry atomically. Never save through an existing shortcut,
+        // symlink or hardlink in a user-writable common shell folder.
+        string staged = Path.Combine(fullWorkingDirectory, ".atlas-shortcut-" + Guid.NewGuid().ToString("N") + ".lnk");
         object? shell = null;
         object? shortcut = null;
         try
@@ -255,23 +261,31 @@ internal sealed class WindowsInstallerShortcutService : IInstallerShortcutServic
             shell = Activator.CreateInstance(shellType)
                 ?? throw new InvalidOperationException("Le service de raccourcis Windows n'a pas démarré.");
             dynamic dynamicShell = shell;
-            shortcut = dynamicShell.CreateShortcut(fullShortcut);
+            shortcut = dynamicShell.CreateShortcut(staged);
             dynamic dynamicShortcut = shortcut;
             dynamicShortcut.TargetPath = fullTarget;
             dynamicShortcut.WorkingDirectory = fullWorkingDirectory;
             dynamicShortcut.IconLocation = fullTarget + ",0";
             dynamicShortcut.Description = InstallerProduct.Name;
             dynamicShortcut.Save();
+            if (!MoveFileExW(staged, fullShortcut, 0x1 | 0x8))
+                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+            Atlas.WindowsShell.ShellIconRefresh.NotifyItem(fullShortcut);
         }
         finally
         {
             ReleaseCom(shortcut);
             ReleaseCom(shell);
+            File.Delete(staged);
         }
     }
 
     public bool DeleteIfOwned(string shortcutPath, string expectedTargetPath)
     {
+        string directory = Path.GetDirectoryName(Path.GetFullPath(shortcutPath))!;
+        if (!Directory.Exists(directory)) return false;
+        using InstallerShortcutDirectoryLease lease = InstallerShortcutDirectoryLease.Acquire(directory);
+        InstallerPathValidator.DemandNoReparsePoints(shortcutPath);
         InstallerShortcut? shortcut = Read(shortcutPath);
         if (shortcut is null
             || !InstallerEnvironment.SamePath(shortcut.TargetPath, expectedTargetPath))
@@ -280,6 +294,9 @@ internal sealed class WindowsInstallerShortcutService : IInstallerShortcutServic
         }
 
         File.Delete(shortcutPath);
+        Atlas.WindowsShell.ShellIconRefresh.NotifyItem(shortcutPath);
+        // Keep ancestors pinned while removing the empty Atlas leaf directory.
+        lease.ReleaseLeaf();
         string? parent = Path.GetDirectoryName(shortcutPath);
         if (!string.IsNullOrWhiteSpace(parent)
             && Directory.Exists(parent)
@@ -333,6 +350,10 @@ internal sealed class WindowsInstallerShortcutService : IInstallerShortcutServic
             Marshal.FinalReleaseComObject(value);
         }
     }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true, ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool MoveFileExW(string source, string destination, uint flags);
 }
 
 internal interface IInstallerProcessInspector

@@ -14,10 +14,10 @@
     <Company>Atlas</Company>
     <Description>Atlas Launcher — vos jeux et services réunis</Description>
     <Copyright>Copyright © 2026 Atlas</Copyright>
-    <Version>1.8.1</Version>
-    <AssemblyVersion>1.8.1.0</AssemblyVersion>
-    <FileVersion>1.8.1.0</FileVersion>
-    <InformationalVersion>1.8.1</InformationalVersion>
+    <Version>1.8.2</Version>
+    <AssemblyVersion>1.8.2.0</AssemblyVersion>
+    <FileVersion>1.8.2.0</FileVersion>
+    <InformationalVersion>1.8.2</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
@@ -33,6 +33,7 @@
 
 
   <ItemGroup>
+    <Compile Include="..\Shared\ShellIconRefresh.cs" Link="Windows\ShellIconRefresh.cs" />
     <Using Remove="System.Drawing" />
     <Using Remove="System.Windows.Forms" />
     <None Remove="Assets\Fonts\**\*" />

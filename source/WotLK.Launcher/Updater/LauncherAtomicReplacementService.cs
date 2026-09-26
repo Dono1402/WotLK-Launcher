@@ -413,6 +413,7 @@ internal sealed class LauncherAtomicReplacementService
             transaction = SavePhase(transaction, LauncherUpdateTransactionPhase.Committed);
             _faultInjector.Hit(LauncherUpdateFaultPoint.AfterCommitPersisted, transaction);
             SynchronizeInstalledVersion(transaction);
+            Atlas.WindowsShell.ShellIconRefresh.NotifyApplicationReplaced(transaction.TargetPath);
             Log(transaction, "transaction confirmée");
             CleanupAfterSuccess(transaction);
             return new LauncherUpdateExecutionResult(

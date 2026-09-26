@@ -611,6 +611,12 @@ if (args.Length == 1
 }
 
 if (args.Length == 1
+    && string.Equals(args[0], "--installer-shell-lifecycle", StringComparison.OrdinalIgnoreCase))
+{
+    return await InstallerRuntimeTests.RunShellLifecycleAsync();
+}
+
+if (args.Length == 1
     && string.Equals(args[0], "--installer-reparse-security", StringComparison.OrdinalIgnoreCase))
 {
     return await InstallerRuntimeTests.RunReparseSecurityAsync();

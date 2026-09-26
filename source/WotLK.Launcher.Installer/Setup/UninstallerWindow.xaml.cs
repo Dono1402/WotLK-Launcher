@@ -71,7 +71,7 @@ public partial class UninstallerWindow : Window
 
             _completed = true;
             TitleText.Text = "Atlas Launcher est désinstallé";
-            MessageText.Text = "Le launcher a été retiré. Tes données Atlas et ton client WoW ont été conservés.";
+            MessageText.Text = result.Message + " Tes données Atlas et ton client WoW ont été conservés.";
             RemovalProgress.Visibility = Visibility.Collapsed;
             CancelButton.Visibility = Visibility.Collapsed;
             CloseButton.IsEnabled = true;

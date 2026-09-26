@@ -92,6 +92,7 @@ internal sealed class UninstallerEngine
 
             _log.Info($"Désinstallation démarrée depuis {root}.");
             cancellationToken.ThrowIfCancellationRequested();
+            InstallerUpdateResidueCleanup.RemoveOwnedFiles(root, _environment.IsTest);
             if (state.DesktopShortcutCreated)
             {
                 DemandInstalledBoundary(root, state, requireLauncher: true, requireState: true);
@@ -112,6 +113,9 @@ internal sealed class UninstallerEngine
             DeleteFileIfPresent(state.LauncherPath);
             DemandInstalledBoundary(root, state, requireLauncher: false, requireState: true);
             DeleteFileIfPresent(Path.Combine(root, InstallerProduct.InstallStateFileName));
+
+            bool hasAdditionalFiles = Directory.EnumerateFileSystemEntries(root).Any(path =>
+                !InstallerEnvironment.SamePath(path, state.UninstallerPath));
 
             string? currentProcess = Environment.ProcessPath;
             bool runningFromInstalledUninstaller = !string.IsNullOrWhiteSpace(currentProcess)
@@ -134,7 +138,9 @@ internal sealed class UninstallerEngine
             _log.Info("Désinstallation terminée. Les données LocalAppData et le client WoW ont été conservés.");
             return new UninstallResult(
                 UninstallStatus.Completed,
-                "Atlas Launcher a été désinstallé.",
+                hasAdditionalFiles
+                    ? "Atlas Launcher a été désinstallé. Des fichiers supplémentaires ont été conservés dans son dossier."
+                    : "Atlas Launcher a été désinstallé.",
                 Array.Empty<int>());
         }
         catch (Exception exception)
@@ -370,20 +376,7 @@ internal sealed class UninstallerEngine
             return;
         }
 
-        string parent = Path.GetDirectoryName(shortcutPath)
-            ?? throw new InvalidDataException("Le dossier du raccourci est absent.");
-        while (!Directory.Exists(parent))
-        {
-            parent = Path.GetDirectoryName(parent)
-                ?? throw new DirectoryNotFoundException(
-                    "Le dossier protégé du raccourci est absent.");
-        }
-
-        InstallerProtectedPathSecurity.DemandTrustedDirectory(parent);
-        if (File.Exists(shortcutPath))
-        {
-            InstallerProtectedPathSecurity.DemandTrustedFile(shortcutPath);
-        }
+        InstallerShortcutDirectoryLease.ValidateExistingParent(shortcutPath);
     }
 
     private static void DeleteFileIfPresent(string path)

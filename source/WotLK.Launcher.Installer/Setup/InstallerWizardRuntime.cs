@@ -341,6 +341,7 @@ internal sealed class InstallerWizardRuntime : IDisposable
                     current.CreateStartMenuShortcut),
                 progress,
                 _lifetime.Token);
+            Atlas.WindowsShell.ShellIconRefresh.NotifyApplicationReplaced(_result.LauncherPath);
             State.Replace(CreateStepState(
                 InstallerWizardStep.Completed,
                 _result.InstallPath,

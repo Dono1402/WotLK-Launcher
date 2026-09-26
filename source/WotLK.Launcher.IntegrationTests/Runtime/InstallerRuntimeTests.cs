@@ -28,6 +28,66 @@ internal static class InstallerRuntimeTests
         return 0;
     }
 
+    internal static async Task<int> RunShellLifecycleAsync()
+    {
+        ValidatePaths();
+        await ValidateTransactionalInstallAndUninstallAsync();
+        ValidateUpdateCleanupBoundaries();
+        ValidateShortcutDirectoryBoundary();
+        await ValidateSelfDeleteHelperAsync();
+        await ValidateRollbackAsync();
+        Console.WriteLine("Atlas shell lifecycle OK: shortcuts, updater residue cleanup, self-delete and rollback (isolated).");
+        return 0;
+    }
+
+    private static void ValidateUpdateCleanupBoundaries()
+    {
+        using TestFixture fixture = TestFixture.Create("update-residue-boundaries");
+        Directory.CreateDirectory(fixture.InstallRoot);
+        string transaction = Path.Combine(fixture.InstallRoot, ".atlas-self-update", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(transaction);
+        string foreign = Path.Combine(transaction, "personal.txt");
+        File.WriteAllText(foreign, "keep");
+        File.WriteAllText(Path.Combine(transaction, "updater.exe"), "owned");
+        InstallerUpdateResidueCleanup.RemoveOwnedFiles(fixture.InstallRoot, isTest: true);
+        Equal("keep", File.ReadAllText(foreign), "Le nettoyage doit préserver les fichiers inconnus.");
+        True(!File.Exists(Path.Combine(transaction, "updater.exe")), "Le helper connu doit être retiré.");
+        string victim = Path.Combine(fixture.Root, "victim");
+        Directory.CreateDirectory(victim);
+        string sentinel = Path.Combine(victim, "updater.exe");
+        File.WriteAllText(sentinel, "keep-victim");
+        string junction = Path.Combine(fixture.InstallRoot, ".atlas-self-update", Guid.NewGuid().ToString("N"));
+        CreateDirectoryJunction(junction, victim);
+        try
+        {
+            Throws<InvalidDataException>(() => InstallerUpdateResidueCleanup.RemoveOwnedFiles(fixture.InstallRoot, true));
+            Equal("keep-victim", File.ReadAllText(sentinel), "Le nettoyage ne doit pas traverser une jonction.");
+        }
+        finally { DeleteJunction(junction); }
+    }
+
+    private static void ValidateShortcutDirectoryBoundary()
+    {
+        // Read-only production-path check: no shortcuts or ACLs are changed.
+        InstallerShortcutDirectoryLease.ValidateExistingParent(InstallerProduct.GetDesktopShortcutPath());
+        InstallerShortcutDirectoryLease.ValidateExistingParent(InstallerProduct.GetStartMenuShortcutPath());
+        using TestFixture fixture = TestFixture.Create("shortcut-directory");
+        string folder = Path.Combine(fixture.Root, "Shared shell folder");
+        Directory.CreateDirectory(folder);
+        // The former Program Files ACL rule rejects this ordinary user-owned folder.
+        Throws<UnauthorizedAccessException>(() => InstallerProtectedPathSecurity.DemandTrustedDirectory(folder));
+        InstallerShortcutDirectoryLease.ValidateExistingParent(Path.Combine(folder, "Atlas Launcher.lnk"));
+        using (InstallerShortcutDirectoryLease lease = InstallerShortcutDirectoryLease.Acquire(folder))
+            Throws<IOException>(() => Directory.Move(folder, folder + "-replaced"));
+        string junction = Path.Combine(fixture.Root, "shortcut-junction");
+        CreateDirectoryJunction(junction, folder);
+        try
+        {
+            Throws<InvalidDataException>(() => InstallerShortcutDirectoryLease.Acquire(junction));
+        }
+        finally { DeleteJunction(junction); }
+    }
+
     internal static async Task<int> RunReparseSecurityAsync()
     {
         ValidateSelfDeleteCompatibility();
@@ -705,6 +765,14 @@ internal static class InstallerRuntimeTests
         Equal(state, UninstallerEngine.ReadState(fixture.InstallRoot),
             "La lecture synchrone utilisée par la fenêtre de désinstallation doit préserver l'état exact.");
         True(state.IsTestInstallation, "Le garde-fou de l'installation de test doit être persisté.");
+        string updateId = Guid.NewGuid().ToString("N");
+        string updateCache = Path.Combine(fixture.InstallRoot, ".atlas-self-update", updateId);
+        Directory.CreateDirectory(updateCache);
+        foreach (string name in new[] { "updater.exe", "helper-accepted.json", "committed.json",
+                     ".committed.json." + Guid.NewGuid().ToString("N") + ".tmp" })
+            File.WriteAllText(Path.Combine(updateCache, name), "owned update residue");
+        File.WriteAllText(installed.LauncherPath + ".atlas-" + updateId + ".new", "staged");
+        File.WriteAllText(installed.LauncherPath + ".atlas-" + updateId + ".backup", "backup");
         UninstallResult removed = await fixture.Uninstaller.UninstallAsync(
             fixture.InstallRoot,
             CancellationToken.None);
